@@ -1,59 +1,220 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Arena Control Landing</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <div class="page">
-      <div class="panel" style="max-width: 1100px">
-        <h1>Autonomous Agent Betting Arena</h1>
-        <p>Central launchpad for gameplay, runtime controls, and challenge observability.</p>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Agent Betting Arena</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="landing">
+        <!-- Header -->
+        <header class="landing__header">
+            <h1 class="landing__logo">ARENA</h1>
+            <p class="landing__tagline">Autonomous Agent Betting Platform</p>
+        </header>
 
-        <div id="service-health" style="display:flex; gap:10px; flex-wrap:wrap; margin: 14px 0;"></div>
+        <!-- Main Content -->
+        <main class="landing__content">
+            <!-- Service Status -->
+            <div class="status-grid" id="service-health">
+                <div class="status-badge status-badge--loading">
+                    <span class="status-badge__dot"></span>
+                    <span>Web Server</span>
+                </div>
+                <div class="status-badge status-badge--loading">
+                    <span class="status-badge__dot"></span>
+                    <span>Game Server</span>
+                </div>
+                <div class="status-badge status-badge--loading">
+                    <span class="status-badge__dot"></span>
+                    <span>Agent Runtime</span>
+                </div>
+            </div>
 
-        <h3>Primary Entry Points</h3>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap:12px;">
-          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
-            <strong>Play Arena</strong>
-            <p style="margin:8px 0; font-size:13px;">Third-person player mode, camera-relative controls, proximity/challenge HUD.</p>
-            <a class="btn" href="/play?world=train_world">Open Play</a>
-          </div>
+            <!-- Feature Cards -->
+            <div class="card-grid">
+                <!-- Play Arena -->
+                <div class="feature-card">
+                    <div class="feature-card__icon">🎮</div>
+                    <h3 class="feature-card__title">Play Arena</h3>
+                    <p class="feature-card__desc">
+                        Enter the 3D world with third-person controls. Challenge AI agents
+                        or other players to betting duels.
+                    </p>
+                    <a href="/play?world=mega" class="btn btn--primary">Enter Arena</a>
+                </div>
 
-          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
-            <strong>World Viewer</strong>
-            <p style="margin:8px 0; font-size:13px;">Inspect world GLBs and composition with orbit camera.</p>
-            <a class="btn" href="/viewer?world=train_world">Open Viewer</a>
-          </div>
+                <!-- World Viewer -->
+                <div class="feature-card">
+                    <div class="feature-card__icon">🌍</div>
+                    <h3 class="feature-card__title">World Viewer</h3>
+                    <p class="feature-card__desc">
+                        Explore the mega world with orbit camera controls. Inspect all
+                        8 districts and 1,280+ objects.
+                    </p>
+                    <a href="/viewer?world=mega" class="btn btn--secondary">View World</a>
+                </div>
 
-          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
-            <strong>Agent Control</strong>
-            <p style="margin:8px 0; font-size:13px;">Tune bot count/behavior, set OpenRouter key, wallet/grand-agent capabilities.</p>
-            <a class="btn" href="/agents">Open Agents</a>
-          </div>
+                <!-- Agent Control -->
+                <div class="feature-card">
+                    <div class="feature-card__icon">🤖</div>
+                    <h3 class="feature-card__title">Agent Control</h3>
+                    <p class="feature-card__desc">
+                        Configure autonomous bots, set AI personalities, manage wallet
+                        capabilities and OpenRouter integration.
+                    </p>
+                    <a href="/agents" class="btn btn--secondary">Manage Agents</a>
+                </div>
 
-          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
-            <strong>Quick Challenge Feed</strong>
-            <p style="margin:8px 0; font-size:13px;">Latest challenge events from server state machine.</p>
-            <button id="refresh-feed" class="btn" style="border:0; cursor:pointer;">Refresh Feed</button>
-          </div>
-        </div>
+                <!-- Challenge Feed -->
+                <div class="feature-card">
+                    <div class="feature-card__icon">⚔️</div>
+                    <h3 class="feature-card__title">Live Challenges</h3>
+                    <p class="feature-card__desc">
+                        Real-time feed of all challenge events. Watch agents battle
+                        and track betting outcomes.
+                    </p>
+                    <button id="refresh-feed" class="btn btn--ghost">Refresh Feed</button>
+                </div>
+            </div>
 
-        <h3 style="margin-top:16px;">Operational Shortcuts</h3>
-        <div style="display:flex; flex-wrap:wrap; gap:8px;">
-          <a class="btn" href="http://localhost:3000/health" target="_blank" rel="noreferrer" style="background:#4f6e67;">Web Health</a>
-          <a class="btn" href="http://localhost:4000/health" target="_blank" rel="noreferrer" style="background:#4f6e67;">Server Health</a>
-          <a class="btn" href="http://localhost:4100/status" target="_blank" rel="noreferrer" style="background:#4f6e67;">Agent Status JSON</a>
-          <a class="btn" href="http://localhost:4000/challenges/recent?limit=50" target="_blank" rel="noreferrer" style="background:#4f6e67;">Challenge JSON</a>
-        </div>
+            <!-- World Stats -->
+            <div class="glass-panel" style="margin-top: var(--space-xl); padding: var(--space-lg);">
+                <h3 style="font-family: var(--font-display); color: var(--accent-secondary); margin-bottom: var(--space-md); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.9rem;">
+                    World Statistics
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-md);">
+                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
+                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-primary);">8</span>
+                        <span class="stat-row__label">Districts</span>
+                    </div>
+                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
+                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-secondary);">1,280+</span>
+                        <span class="stat-row__label">Objects</span>
+                    </div>
+                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
+                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-warning);">40+</span>
+                        <span class="stat-row__label">NPCs</span>
+                    </div>
+                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
+                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-info);">239 MB</span>
+                        <span class="stat-row__label">World Size</span>
+                    </div>
+                </div>
+            </div>
 
-        <h3 style="margin-top:16px;">Recent Challenges</h3>
-        <pre id="challenge-feed" style="background:#fff; padding:12px; border:1px solid #d9ccbd; border-radius:8px; max-height:280px; overflow:auto;">Loading...</pre>
-      </div>
+            <!-- Quick Links -->
+            <div style="margin-top: var(--space-xl); display: flex; flex-wrap: wrap; gap: var(--space-sm);">
+                <a href="http://localhost:3000/health" target="_blank" class="btn btn--ghost btn--sm">Web Health</a>
+                <a href="http://localhost:4000/health" target="_blank" class="btn btn--ghost btn--sm">Server Health</a>
+                <a href="http://localhost:4100/status" target="_blank" class="btn btn--ghost btn--sm">Agent Status</a>
+                <a href="http://localhost:4000/challenges/recent?limit=50" target="_blank" class="btn btn--ghost btn--sm">Challenge JSON</a>
+            </div>
+
+            <!-- Challenge Feed Panel -->
+            <div class="glass-panel" style="margin-top: var(--space-xl);">
+                <div style="padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="font-family: var(--font-display); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.9rem; display: flex; align-items: center; gap: var(--space-sm);">
+                        <span class="challenge-feed__live"></span>
+                        Recent Challenges
+                    </h3>
+                    <span class="text-muted" style="font-size: 0.8rem;">Live Feed</span>
+                </div>
+                <div id="challenge-feed" style="padding: var(--space-md); max-height: 350px; overflow-y: auto;">
+                    <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
+                        Loading challenges...
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer style="text-align: center; padding: var(--space-xl); color: var(--text-muted); font-size: 0.8rem;">
+            <p>Autonomous Agent Betting Arena &copy; 2025</p>
+        </footer>
     </div>
 
-    <script type="module" src="/js/home.js"></script>
-  </body>
+    <script type="module">
+        // Service health checks
+        async function checkHealth(url, elementIndex) {
+            const badges = document.querySelectorAll('.status-badge');
+            try {
+                const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+                if (res.ok) {
+                    badges[elementIndex].classList.remove('status-badge--loading', 'status-badge--offline');
+                    badges[elementIndex].classList.add('status-badge--online');
+                } else {
+                    throw new Error('Not OK');
+                }
+            } catch {
+                badges[elementIndex].classList.remove('status-badge--loading', 'status-badge--online');
+                badges[elementIndex].classList.add('status-badge--offline');
+            }
+        }
+
+        // Check all services
+        checkHealth('/health', 0);
+        checkHealth('http://localhost:4000/health', 1);
+        checkHealth('http://localhost:4100/health', 2);
+
+        // Challenge feed
+        async function loadChallenges() {
+            const container = document.getElementById('challenge-feed');
+            try {
+                const res = await fetch('http://localhost:4000/challenges/recent?limit=20');
+                const data = await res.json();
+
+                if (!data.events || data.events.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
+                            No challenges yet. Enter the arena to start!
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = data.events.map(event => {
+                    const typeClass = `challenge-item__type--${event.event}`;
+                    const time = new Date(event.timestamp).toLocaleTimeString();
+
+                    return `
+                        <div class="challenge-item">
+                            <div class="challenge-item__header">
+                                <span class="challenge-item__type ${typeClass}">${event.event}</span>
+                                <span class="challenge-item__time">${time}</span>
+                            </div>
+                            <div class="challenge-item__players">
+                                <span class="challenge-item__player">
+                                    <span class="challenge-item__avatar ${event.challenger?.startsWith('bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
+                                    ${event.challenger || 'Unknown'}
+                                </span>
+                                <span class="challenge-item__vs">VS</span>
+                                <span class="challenge-item__player">
+                                    <span class="challenge-item__avatar ${event.target?.startsWith('bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
+                                    ${event.target || 'Unknown'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
+                        Unable to load challenges. Game server may be offline.
+                    </div>
+                `;
+            }
+        }
+
+        loadChallenges();
+        document.getElementById('refresh-feed')?.addEventListener('click', loadChallenges);
+
+        // Auto-refresh every 10 seconds
+        setInterval(loadChallenges, 10000);
+    </script>
+</body>
 </html>

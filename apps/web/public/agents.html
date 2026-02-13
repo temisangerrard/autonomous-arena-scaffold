@@ -1,82 +1,1048 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Agent Control</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <div class="page">
-      <div class="panel" style="max-width: 1100px">
-        <h1>Agent Control Panel</h1>
-        <p>Manage Super Agent delegation, bot workers, OpenRouter key, and wallet capabilities.</p>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Control | Arena</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* Agent Control Panel Specific Styles */
+        .agent-control {
+            min-height: 100vh;
+            padding: var(--space-lg);
+            background: var(--bg-primary);
+        }
 
-        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
-          <input id="bot-count" type="number" min="1" max="60" value="8" style="padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
-          <button id="apply-count" class="btn" style="border:0; cursor:pointer;">Apply Bot Count</button>
-          <button id="refresh" class="btn" style="border:0; cursor:pointer; background:#4f6e67;">Refresh</button>
-          <a class="btn" href="/play?world=train_world" style="background:#946f1b;">Back To Play</a>
-          <a class="btn" href="/" style="background:#3b6480;">Back To Home</a>
+        .agent-control__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-xl);
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+
+        .agent-control__title {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .agent-control__title span {
+            color: var(--accent-primary);
+        }
+
+        .agent-control__nav {
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        /* Section Headers */
+        .section-header {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-xs);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .section-header__icon {
+            font-size: 1.1rem;
+        }
+
+        /* Config Sections Grid */
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: var(--space-lg);
+            margin-bottom: var(--space-xl);
+        }
+
+        /* Config Card */
+        .config-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            backdrop-filter: blur(20px);
+        }
+
+        /* Form Groups */
+        .form-group {
+            margin-bottom: var(--space-md);
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-xs);
+        }
+
+        .form-row {
+            display: flex;
+            gap: var(--space-sm);
+            align-items: flex-end;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        /* Input Styles */
+        .input {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.2);
+        }
+
+        .input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input--sm {
+            padding: var(--space-xs) var(--space-sm);
+            font-size: 0.8rem;
+        }
+
+        /* Select Styles */
+        .select {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238a8a9a' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+
+        .select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .select option {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* Checkbox Styles */
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox:checked {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .checkbox:checked::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 7px;
+            width: 5px;
+            height: 9px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .checkbox-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Status Summary Panel */
+        .status-summary {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .status-summary::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .status-summary::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .status-summary::-webkit-scrollbar-thumb {
+            background: var(--border-subtle);
+            border-radius: 3px;
+        }
+
+        /* Agent Table */
+        .agent-table-container {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+        }
+
+        .agent-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .agent-table th {
+            background: rgba(0, 0, 0, 0.4);
+            padding: var(--space-sm) var(--space-md);
+            text-align: left;
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .agent-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+        }
+
+        .agent-table tbody tr:hover {
+            background: rgba(233, 69, 96, 0.05);
+        }
+
+        .agent-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Agent ID Badge */
+        .agent-id {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--accent-info);
+        }
+
+        /* Connection Status */
+        .conn-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+        }
+
+        .conn-status__dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-error);
+        }
+
+        .conn-status--online .conn-status__dot {
+            background: var(--accent-success);
+            box-shadow: 0 0 8px var(--accent-success);
+        }
+
+        /* Personality Badge */
+        .personality-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .personality-badge--aggressive {
+            background: rgba(233, 69, 96, 0.2);
+            color: var(--accent-primary);
+            border: 1px solid rgba(233, 69, 96, 0.4);
+        }
+
+        .personality-badge--social {
+            background: rgba(78, 204, 163, 0.2);
+            color: var(--accent-secondary);
+            border: 1px solid rgba(78, 204, 163, 0.4);
+        }
+
+        .personality-badge--conservative {
+            background: rgba(74, 144, 226, 0.2);
+            color: var(--accent-info);
+            border: 1px solid rgba(74, 144, 226, 0.4);
+        }
+
+        /* Target Preference Badge */
+        .target-badge {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Win/Loss Stats */
+        .win-loss {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        .win-loss__wins {
+            color: var(--accent-success);
+        }
+
+        .win-loss__losses {
+            color: var(--accent-error);
+        }
+
+        /* Action Buttons */
+        .action-btns {
+            display: flex;
+            gap: 4px;
+        }
+
+        .action-btn {
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            border-radius: var(--radius-sm);
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn--config {
+            background: rgba(74, 144, 226, 0.2);
+            color: var(--accent-info);
+        }
+
+        .action-btn--config:hover {
+            background: rgba(74, 144, 226, 0.4);
+        }
+
+        /* Challenge Log */
+        .challenge-log {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .challenge-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .challenge-log::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .challenge-log::-webkit-scrollbar-thumb {
+            background: var(--border-subtle);
+            border-radius: 3px;
+        }
+
+        .log-entry {
+            padding: var(--space-xs) 0;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry__time {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            min-width: 70px;
+        }
+
+        .log-entry__event {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .log-entry__event--created {
+            background: rgba(74, 144, 226, 0.2);
+            color: var(--accent-info);
+        }
+
+        .log-entry__event--accepted {
+            background: rgba(78, 204, 163, 0.2);
+            color: var(--accent-success);
+        }
+
+        .log-entry__event--declined {
+            background: rgba(233, 69, 96, 0.2);
+            color: var(--accent-error);
+        }
+
+        .log-entry__event--resolved {
+            background: rgba(255, 193, 7, 0.2);
+            color: var(--accent-warning);
+        }
+
+        .log-entry__event--expired {
+            background: rgba(138, 138, 154, 0.2);
+            color: var(--text-muted);
+        }
+
+        .log-entry__players {
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        /* Quick Stats Bar */
+        .quick-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+        }
+
+        .quick-stat {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .quick-stat__value {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .quick-stat__label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .quick-stat--success .quick-stat__value {
+            color: var(--accent-success);
+        }
+
+        .quick-stat--warning .quick-stat__value {
+            color: var(--accent-warning);
+        }
+
+        .quick-stat--info .quick-stat__value {
+            color: var(--accent-info);
+        }
+
+        /* Toast for feedback */
+        .toast-container {
+            position: fixed;
+            top: var(--space-lg);
+            right: var(--space-lg);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+
+        .toast {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            backdrop-filter: blur(20px);
+            animation: slideIn 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .toast--success {
+            border-color: var(--accent-success);
+        }
+
+        .toast--error {
+            border-color: var(--accent-error);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .agent-control {
+                padding: var(--space-md);
+            }
+
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .agent-table {
+                font-size: 0.75rem;
+            }
+
+            .agent-table th,
+            .agent-table td {
+                padding: var(--space-xs) var(--space-sm);
+            }
+
+            .quick-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="agent-control">
+        <!-- Header -->
+        <header class="agent-control__header">
+            <div>
+                <h1 class="agent-control__title">Agent <span>Control</span></h1>
+                <p class="text-muted">Manage autonomous agents, delegation, and capabilities</p>
+            </div>
+            <nav class="agent-control__nav">
+                <a href="/play?world=mega" class="btn btn--primary">Enter Arena</a>
+                <a href="/viewer?world=mega" class="btn btn--secondary">World Viewer</a>
+                <a href="/" class="btn btn--ghost">Home</a>
+            </nav>
+        </header>
+
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+            <div class="quick-stat">
+                <div class="quick-stat__value" id="stat-total">0</div>
+                <div class="quick-stat__label">Total Agents</div>
+            </div>
+            <div class="quick-stat quick-stat--success">
+                <div class="quick-stat__value" id="stat-online">0</div>
+                <div class="quick-stat__label">Online</div>
+            </div>
+            <div class="quick-stat quick-stat--warning">
+                <div class="quick-stat__value" id="stat-challenges">0</div>
+                <div class="quick-stat__label">Challenges</div>
+            </div>
+            <div class="quick-stat quick-stat--info">
+                <div class="quick-stat__value" id="stat-wins">0</div>
+                <div class="quick-stat__label">Total Wins</div>
+            </div>
         </div>
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-          <input id="openrouter-key" placeholder="OpenRouter API key" style="flex:1; min-width:320px; padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
-          <button id="save-openrouter" class="btn" style="border:0; cursor:pointer;">Save Key</button>
+        <!-- Configuration Grid -->
+        <div class="config-grid">
+            <!-- Bot Management -->
+            <div class="config-card">
+                <h3 class="section-header">
+                    <span class="section-header__icon">🤖</span>
+                    Bot Management
+                </h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Bot Count</label>
+                        <input type="number" id="bot-count" class="input" min="1" max="60" value="8">
+                    </div>
+                    <button id="apply-count" class="btn btn--primary">Apply</button>
+                    <button id="refresh" class="btn btn--secondary">Refresh</button>
+                </div>
+            </div>
+
+            <!-- OpenRouter Config -->
+            <div class="config-card">
+                <h3 class="section-header">
+                    <span class="section-header__icon">🔑</span>
+                    OpenRouter API
+                </h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">API Key</label>
+                        <input type="password" id="openrouter-key" class="input" placeholder="sk-or-v1-...">
+                    </div>
+                    <button id="save-openrouter" class="btn btn--primary">Save Key</button>
+                </div>
+            </div>
+
+            <!-- Wallet Capabilities -->
+            <div class="config-card">
+                <h3 class="section-header">
+                    <span class="section-header__icon">💰</span>
+                    Wallet Capabilities
+                </h3>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="wallet-enabled" class="checkbox">
+                        <span class="checkbox-text">Enable Wallet Skills</span>
+                    </label>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Grand Agent ID</label>
+                        <input type="text" id="grand-agent" class="input" value="agent_1" placeholder="agent_1">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Allowed Skills</label>
+                    <input type="text" id="wallet-skills" class="input" placeholder="authenticate-wallet, send-usdc, trade">
+                </div>
+                <button id="save-wallet" class="btn btn--secondary" style="margin-top: var(--space-sm);">Save Wallet Config</button>
+            </div>
+
+            <!-- Super Agent Config -->
+            <div class="config-card">
+                <h3 class="section-header">
+                    <span class="section-header__icon">⚡</span>
+                    Super Agent Delegation
+                </h3>
+                <div class="form-row" style="margin-bottom: var(--space-md);">
+                    <div class="form-group">
+                        <label class="form-label">Super Mode</label>
+                        <select id="super-mode" class="select">
+                            <option value="balanced">Balanced</option>
+                            <option value="hunter">Hunter</option>
+                            <option value="defensive">Defensive</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Worker Target</label>
+                        <select id="super-target" class="select">
+                            <option value="human_only">Human Only</option>
+                            <option value="human_first">Human First</option>
+                            <option value="any">Any</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" style="margin-bottom: var(--space-md);">
+                    <div class="form-group">
+                        <label class="form-label">Base Cooldown (ms)</label>
+                        <input type="number" id="super-cooldown" class="input" min="1200" max="120000" value="9000">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="super-challenge-enabled" class="checkbox" checked>
+                        <span class="checkbox-text">Worker Challenges Enabled</span>
+                    </label>
+                </div>
+                <div class="form-row" style="margin-top: var(--space-md);">
+                    <button id="apply-super" class="btn btn--primary">Save Config</button>
+                    <button id="apply-delegation" class="btn btn--secondary">Apply Delegation</button>
+                </div>
+            </div>
         </div>
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
-          <label><input id="wallet-enabled" type="checkbox" /> Wallet Skills Enabled</label>
-          <input id="grand-agent" placeholder="super agent id" value="agent_1" style="padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
-          <input id="wallet-skills" placeholder="skills e.g authenticate-wallet,send-usdc,trade" style="min-width:260px; padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
-          <button id="save-wallet" class="btn" style="border:0; cursor:pointer; background:#4f6e67;">Save Wallet Caps</button>
+        <!-- Status Summary -->
+        <div class="glass-panel" style="margin-bottom: var(--space-xl);">
+            <div style="padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border-subtle);">
+                <h3 class="section-header" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">
+                    <span class="section-header__icon">📊</span>
+                    Runtime Status
+                </h3>
+            </div>
+            <div style="padding: var(--space-md) var(--space-lg);">
+                <pre id="summary" class="status-summary">Loading status...</pre>
+            </div>
         </div>
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
-          <label>Super mode
-            <select id="super-mode">
-              <option value="balanced">balanced</option>
-              <option value="hunter">hunter</option>
-              <option value="defensive">defensive</option>
-            </select>
-          </label>
-          <label><input id="super-challenge-enabled" type="checkbox" checked /> Worker challenges enabled</label>
-          <label>Base cooldown <input id="super-cooldown" type="number" min="1200" max="120000" value="9000" style="width:100px;" /></label>
-          <label>Worker target
-            <select id="super-target">
-              <option value="human_only">human_only</option>
-              <option value="human_first">human_first</option>
-              <option value="any">any</option>
-            </select>
-          </label>
-          <button id="apply-super" class="btn" style="border:0; cursor:pointer; background:#946f1b;">Save Super Config</button>
-          <button id="apply-delegation" class="btn" style="border:0; cursor:pointer; background:#3b6480;">Apply Delegation</button>
+        <!-- Agent Table -->
+        <div class="glass-panel" style="margin-bottom: var(--space-xl);">
+            <div style="padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border-subtle);">
+                <h3 class="section-header" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">
+                    <span class="section-header__icon">🤖</span>
+                    Active Agents
+                </h3>
+            </div>
+            <div class="agent-table-container" style="border: none; border-radius: 0;">
+                <table class="agent-table">
+                    <thead>
+                        <tr>
+                            <th>Agent ID</th>
+                            <th>Status</th>
+                            <th>Personality</th>
+                            <th>Cooldown</th>
+                            <th>Challenge</th>
+                            <th>Target Pref</th>
+                            <th>Nearby</th>
+                            <th>W/L</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bots-body">
+                        <tr>
+                            <td colspan="9" style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
+                                Loading agents...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <pre id="summary" style="background:#fff; padding:12px; border:1px solid #d9ccbd; border-radius:8px; overflow:auto;"></pre>
-        <h3>Agents</h3>
-        <table style="width:100%; border-collapse:collapse; font-size:12px;">
-          <thead>
-            <tr>
-              <th align="left">id</th>
-              <th align="left">connected</th>
-              <th align="left">personality</th>
-              <th align="left">cooldown</th>
-              <th align="left">challenge</th>
-              <th align="left">target pref</th>
-              <th align="left">nearby</th>
-              <th align="left">wins/losses</th>
-              <th align="left">actions</th>
-            </tr>
-          </thead>
-          <tbody id="bots-body"></tbody>
-        </table>
-
-        <h3 style="margin-top:16px;">Recent Challenges</h3>
-        <pre id="challenge-log" style="background:#fff; padding:12px; border:1px solid #d9ccbd; border-radius:8px; overflow:auto; max-height:240px;"></pre>
-      </div>
+        <!-- Challenge Log -->
+        <div class="glass-panel">
+            <div style="padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="section-header" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">
+                    <span class="section-header__icon">⚔️</span>
+                    Challenge Log
+                </h3>
+                <span class="text-muted" style="font-size: 0.8rem;">Live Feed</span>
+            </div>
+            <div style="padding: var(--space-md) var(--space-lg);">
+                <div id="challenge-log" class="challenge-log">
+                    <div style="text-align: center; padding: var(--space-lg); color: var(--text-muted);">
+                        Loading challenge history...
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script type="module" src="/js/agents.js"></script>
-  </body>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module">
+        // Constants
+        const RUNTIME_URL = 'http://localhost:4100';
+        const SERVER_URL = 'http://localhost:4000';
+
+        // Toast notification helper
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast--${type}`;
+            toast.innerHTML = `
+                <span style="color: ${type === 'success' ? 'var(--accent-success)' : 'var(--accent-error)'};">
+                    ${type === 'success' ? '✓' : '✗'}
+                </span>
+                <span style="color: var(--text-secondary);">${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Update quick stats
+        function updateQuickStats(data) {
+            const bots = data.bots || [];
+            const online = bots.filter(b => b.connected).length;
+            const totalWins = bots.reduce((sum, b) => sum + (b.stats?.won || 0), 0);
+            const totalChallenges = bots.reduce((sum, b) =>
+                sum + (b.stats?.sent || 0) + (b.stats?.received || 0), 0);
+
+            document.getElementById('stat-total').textContent = bots.length;
+            document.getElementById('stat-online').textContent = online;
+            document.getElementById('stat-challenges').textContent = totalChallenges;
+            document.getElementById('stat-wins').textContent = totalWins;
+        }
+
+        // Fetch and display agent status
+        async function fetchStatus() {
+            try {
+                const res = await fetch(`${RUNTIME_URL}/status`);
+                const data = await res.json();
+
+                // Update summary
+                document.getElementById('summary').textContent = JSON.stringify(data.summary || data, null, 2);
+
+                // Update quick stats
+                updateQuickStats(data);
+
+                // Update table
+                const tbody = document.getElementById('bots-body');
+                const bots = data.bots || [];
+
+                if (bots.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="9" style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
+                                No agents running. Click "Apply" to spawn agents.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = bots.map(bot => {
+                    const personality = bot.personality || 'unknown';
+                    const personalityClass = `personality-badge--${personality}`;
+                    const connClass = bot.connected ? 'conn-status--online' : '';
+
+                    return `
+                        <tr>
+                            <td><span class="agent-id">${bot.id}</span></td>
+                            <td>
+                                <span class="conn-status ${connClass}">
+                                    <span class="conn-status__dot"></span>
+                                    ${bot.connected ? 'Online' : 'Offline'}
+                                </span>
+                            </td>
+                            <td><span class="personality-badge ${personalityClass}">${personality}</span></td>
+                            <td style="font-family: var(--font-mono); color: var(--text-muted);">${bot.challengeCooldown || '-'}</td>
+                            <td>${bot.challengeEnabled ? '✓' : '✗'}</td>
+                            <td><span class="target-badge">${bot.targetPreference || '-'}</span></td>
+                            <td style="font-family: var(--font-mono);">${bot.nearbyCount ?? '-'}</td>
+                            <td>
+                                <span class="win-loss">
+                                    <span class="win-loss__wins">${bot.stats?.won || 0}</span>
+                                    /
+                                    <span class="win-loss__losses">${bot.stats?.lost || 0}</span>
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-btns">
+                                    <button class="action-btn action-btn--config" onclick="configBot('${bot.id}')">Config</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                document.getElementById('summary').textContent = `Error fetching status: ${err.message}`;
+            }
+        }
+
+        // Fetch challenge log
+        async function fetchChallengeLog() {
+            try {
+                const res = await fetch(`${SERVER_URL}/challenges/recent?limit=30`);
+                const data = await res.json();
+                const events = data.events || [];
+
+                const container = document.getElementById('challenge-log');
+
+                if (events.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: var(--space-lg); color: var(--text-muted);">
+                            No challenges yet. Enter the arena to start!
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = events.map(event => {
+                    const time = new Date(event.timestamp).toLocaleTimeString();
+                    const eventClass = `log-entry__event--${event.event}`;
+
+                    return `
+                        <div class="log-entry">
+                            <span class="log-entry__time">${time}</span>
+                            <span class="log-entry__event ${eventClass}">${event.event}</span>
+                            <span class="log-entry__players">
+                                ${event.challenger || '?'} vs ${event.target || '?'}
+                            </span>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                document.getElementById('challenge-log').innerHTML = `
+                    <div style="text-align: center; padding: var(--space-lg); color: var(--text-muted);">
+                        Unable to load challenges. Server may be offline.
+                    </div>
+                `;
+            }
+        }
+
+        // Apply bot count
+        document.getElementById('apply-count').addEventListener('click', async () => {
+            const count = parseInt(document.getElementById('bot-count').value, 10);
+            try {
+                const res = await fetch(`${RUNTIME_URL}/agents/reconcile`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetCount: count })
+                });
+                if (res.ok) {
+                    showToast(`Bot count set to ${count}`);
+                    fetchStatus();
+                } else {
+                    throw new Error('Failed to apply');
+                }
+            } catch (err) {
+                showToast('Failed to apply bot count', 'error');
+            }
+        });
+
+        // Refresh status
+        document.getElementById('refresh').addEventListener('click', () => {
+            fetchStatus();
+            fetchChallengeLog();
+            showToast('Refreshed');
+        });
+
+        // Save OpenRouter key
+        document.getElementById('save-openrouter').addEventListener('click', async () => {
+            const key = document.getElementById('openrouter-key').value;
+            try {
+                const res = await fetch(`${RUNTIME_URL}/secrets/openrouter`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey: key })
+                });
+                if (res.ok) {
+                    showToast('OpenRouter key saved');
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (err) {
+                showToast('Failed to save key', 'error');
+            }
+        });
+
+        // Save wallet capabilities
+        document.getElementById('save-wallet').addEventListener('click', async () => {
+            const enabled = document.getElementById('wallet-enabled').checked;
+            const grandAgent = document.getElementById('grand-agent').value;
+            const skillsRaw = document.getElementById('wallet-skills').value;
+            const skills = skillsRaw.split(',').map(s => s.trim()).filter(Boolean);
+
+            try {
+                const res = await fetch(`${RUNTIME_URL}/capabilities/wallet`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled, grandAgent, skills })
+                });
+                if (res.ok) {
+                    showToast('Wallet capabilities saved');
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (err) {
+                showToast('Failed to save wallet config', 'error');
+            }
+        });
+
+        // Apply super agent config
+        document.getElementById('apply-super').addEventListener('click', async () => {
+            const mode = document.getElementById('super-mode').value;
+            const targetPreference = document.getElementById('super-target').value;
+            const baseCooldown = parseInt(document.getElementById('super-cooldown').value, 10);
+            const challengeEnabled = document.getElementById('super-challenge-enabled').checked;
+
+            try {
+                const res = await fetch(`${RUNTIME_URL}/super-agent/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode, baseCooldown, challengeEnabled, targetPreference })
+                });
+                if (res.ok) {
+                    showToast('Super agent config saved');
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (err) {
+                showToast('Failed to save super config', 'error');
+            }
+        });
+
+        // Apply delegation
+        document.getElementById('apply-delegation').addEventListener('click', async () => {
+            try {
+                const res = await fetch(`${RUNTIME_URL}/super-agent/delegate/apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (res.ok) {
+                    showToast('Delegation applied');
+                    fetchStatus();
+                } else {
+                    throw new Error('Failed to apply');
+                }
+            } catch (err) {
+                showToast('Failed to apply delegation', 'error');
+            }
+        });
+
+        // Config individual bot (placeholder)
+        window.configBot = function(botId) {
+            showToast(`Config panel for ${botId} coming soon`);
+        };
+
+        // Initial load
+        fetchStatus();
+        fetchChallengeLog();
+
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            fetchStatus();
+            fetchChallengeLog();
+        }, 5000);
+    </script>
+</body>
 </html>

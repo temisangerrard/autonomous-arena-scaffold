@@ -1,22 +1,787 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>World Viewer</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <div class="hud">Viewer mode. Drag to orbit. Scroll to zoom.</div>
-    <div class="canvas-shell"><canvas id="scene"></canvas></div>
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Viewer | Arena</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      }
+
+        body {
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+
+        .canvas-shell {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .canvas-shell canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        /* Viewer Overlay UI */
+        .viewer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .viewer-overlay > * {
+            pointer-events: auto;
+        }
+
+        /* Top Bar */
+        .viewer-topbar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-md) var(--space-lg);
+            background: linear-gradient(to bottom, rgba(10, 10, 15, 0.9), transparent);
+        }
+
+        .viewer-logo {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .viewer-logo span {
+            color: var(--accent-secondary);
+        }
+
+        .viewer-nav {
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        /* World Info Panel */
+        .world-info {
+            position: absolute;
+            top: 80px;
+            left: var(--space-lg);
+            width: 280px;
+        }
+
+        .world-info__card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            backdrop-filter: blur(20px);
+        }
+
+        .world-info__header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .world-info__icon {
+            font-size: 1.2rem;
+        }
+
+        .world-info__title {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .world-info__name {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--space-sm);
+        }
+
+        .world-info__stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-sm);
+        }
+
+        .world-stat {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: var(--radius-sm);
+            padding: var(--space-sm);
+            text-align: center;
+        }
+
+        .world-stat__value {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .world-stat__label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .world-stat--secondary .world-stat__value {
+            color: var(--accent-secondary);
+        }
+
+        .world-stat--info .world-stat__value {
+            color: var(--accent-info);
+        }
+
+        .world-stat--warning .world-stat__value {
+            color: var(--accent-warning);
+        }
+
+        /* Camera Info Panel */
+        .camera-info {
+            position: absolute;
+            top: 80px;
+            right: var(--space-lg);
+            width: 200px;
+        }
+
+        .camera-info__card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            backdrop-filter: blur(20px);
+        }
+
+        .camera-info__header {
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-info);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-sm);
+        }
+
+        .camera-info__row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-xs) 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .camera-info__row:last-child {
+            border-bottom: none;
+        }
+
+        .camera-info__label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .camera-info__value {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Controls Hint */
+        .controls-hint {
+            position: absolute;
+            bottom: var(--space-lg);
+            left: var(--space-lg);
+        }
+
+        .controls-hint__card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            backdrop-filter: blur(20px);
+        }
+
+        .controls-hint__header {
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-sm);
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-xs);
+        }
+
+        .control-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-key {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 2px 8px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-primary);
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .control-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid var(--border-subtle);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: var(--space-lg);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }
+
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: var(--border-subtle);
+            border-radius: 2px;
+            margin-top: var(--space-md);
+            overflow: hidden;
+        }
+
+        .loading-progress__bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Bottom Bar */
+        .viewer-bottombar {
+            position: absolute;
+            bottom: var(--space-lg);
+            right: var(--space-lg);
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        /* Toggle Button */
+        .toggle-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+
+        .toggle-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+        }
+
+        .toggle-btn.active {
+            border-color: var(--accent-secondary);
+            color: var(--accent-secondary);
+        }
+
+        /* FPS Counter */
+        .fps-counter {
+            position: absolute;
+            bottom: var(--space-lg);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: var(--space-xs) var(--space-md);
+            backdrop-filter: blur(10px);
+        }
+
+        .fps-counter__value {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--accent-success);
+        }
+
+        .fps-counter__label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-left: var(--space-xs);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .world-info,
+            .camera-info {
+                width: auto;
+                max-width: 200px;
+            }
+
+            .world-info {
+                left: var(--space-sm);
+                top: 70px;
+            }
+
+            .camera-info {
+                right: var(--space-sm);
+                top: 70px;
+            }
+
+            .controls-hint {
+                display: none;
+            }
+
+            .viewer-topbar {
+                padding: var(--space-sm);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading World</div>
+        <div class="loading-progress">
+            <div class="loading-progress__bar" id="loading-bar"></div>
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-shell"><canvas id="scene"></canvas></div>
+
+    <!-- Viewer Overlay -->
+    <div class="viewer-overlay">
+        <!-- Top Bar -->
+        <div class="viewer-topbar">
+            <div class="viewer-logo">Arena <span>Viewer</span></div>
+            <nav class="viewer-nav">
+                <a href="/play?world=mega" class="btn btn--primary btn--sm">Play Mode</a>
+                <a href="/agents" class="btn btn--secondary btn--sm">Agents</a>
+                <a href="/" class="btn btn--ghost btn--sm">Home</a>
+            </nav>
+        </div>
+
+        <!-- World Info -->
+        <div class="world-info">
+            <div class="world-info__card">
+                <div class="world-info__header">
+                    <span class="world-info__icon">🌍</span>
+                    <span class="world-info__title">World Info</span>
+                </div>
+                <div class="world-info__name" id="world-name">Mega World</div>
+                <div class="world-info__stats">
+                    <div class="world-stat">
+                        <div class="world-stat__value" id="stat-objects">-</div>
+                        <div class="world-stat__label">Objects</div>
+                    </div>
+                    <div class="world-stat world-stat--secondary">
+                        <div class="world-stat__value" id="stat-districts">8</div>
+                        <div class="world-stat__label">Districts</div>
+                    </div>
+                    <div class="world-stat world-stat--info">
+                        <div class="world-stat__value" id="stat-materials">-</div>
+                        <div class="world-stat__label">Materials</div>
+                    </div>
+                    <div class="world-stat world-stat--warning">
+                        <div class="world-stat__value" id="stat-size">-</div>
+                        <div class="world-stat__label">Size (MB)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Camera Info -->
+        <div class="camera-info">
+            <div class="camera-info__card">
+                <div class="camera-info__header">Camera</div>
+                <div class="camera-info__row">
+                    <span class="camera-info__label">Position</span>
+                    <span class="camera-info__value" id="cam-pos">0, 0, 0</span>
+                </div>
+                <div class="camera-info__row">
+                    <span class="camera-info__label">Distance</span>
+                    <span class="camera-info__value" id="cam-dist">0</span>
+                </div>
+                <div class="camera-info__row">
+                    <span class="camera-info__label">Azimuth</span>
+                    <span class="camera-info__value" id="cam-azimuth">0°</span>
+                </div>
+                <div class="camera-info__row">
+                    <span class="camera-info__label">Polar</span>
+                    <span class="camera-info__value" id="cam-polar">0°</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Hint -->
+        <div class="controls-hint">
+            <div class="controls-hint__card">
+                <div class="controls-hint__header">Controls</div>
+                <div class="control-item">
+                    <span class="control-key">Drag</span>
+                    <span class="control-desc">Orbit camera</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Scroll</span>
+                    <span class="control-desc">Zoom in/out</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Right Drag</span>
+                    <span class="control-desc">Pan camera</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">F</span>
+                    <span class="control-desc">Fullscreen</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">R</span>
+                    <span class="control-desc">Reset view</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- FPS Counter -->
+        <div class="fps-counter">
+            <span class="fps-counter__value" id="fps-value">60</span>
+            <span class="fps-counter__label">FPS</span>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="viewer-bottombar">
+            <button class="toggle-btn" id="toggle-wireframe">
+                <span>Wireframe</span>
+            </button>
+            <button class="toggle-btn" id="toggle-grid">
+                <span>Grid</span>
+            </button>
+            <button class="toggle-btn" id="toggle-axes">
+                <span>Axes</span>
+            </button>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
+            }
+        }
     </script>
-    <script type="module" src="/js/viewer.js"></script>
-  </body>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // Setup
+        const canvas = document.getElementById('scene');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0f);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(100, 80, 100);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 500;
+        controls.minDistance = 5;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(100, 150, 100);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3a3a3a, 0.6);
+        scene.add(hemiLight);
+
+        // Optional helpers
+        let gridHelper = null;
+        let axesHelper = null;
+
+        // Load world
+        const params = new URLSearchParams(window.location.search);
+        const worldAlias = params.get('world') || 'mega';
+
+        const loader = new GLTFLoader();
+        const loadingBar = document.getElementById('loading-bar');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        let worldModel = null;
+        let objectCount = 0;
+        let materialCount = new Set();
+
+        loader.load(
+            `/assets/world/${worldAlias}.glb`,
+            (gltf) => {
+                worldModel = gltf.scene;
+                scene.add(worldModel);
+
+                // Count objects and materials
+                worldModel.traverse((child) => {
+                    objectCount++;
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => materialCount.add(m.uuid));
+                        } else {
+                            materialCount.add(child.material.uuid);
+                        }
+                    }
+                });
+
+                // Update stats
+                document.getElementById('stat-objects').textContent = objectCount.toLocaleString();
+                document.getElementById('stat-materials').textContent = materialCount.size;
+
+                // Center camera on model
+                const box = new THREE.Box3().setFromObject(worldModel);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+
+                controls.target.copy(center);
+                camera.position.set(center.x + maxDim * 0.7, center.y + maxDim * 0.5, center.z + maxDim * 0.7);
+                controls.update();
+
+                // Hide loading
+                loadingOverlay.classList.add('hidden');
+            },
+            (progress) => {
+                if (progress.total > 0) {
+                    const percent = (progress.loaded / progress.total) * 100;
+                    loadingBar.style.width = `${percent}%`;
+
+                    // Update size stat
+                    const sizeMB = (progress.total / (1024 * 1024)).toFixed(0);
+                    document.getElementById('stat-size').textContent = sizeMB;
+                }
+            },
+            (error) => {
+                console.error('Error loading world:', error);
+                document.querySelector('.loading-text').textContent = 'Error Loading World';
+            }
+        );
+
+        // FPS tracking
+        let frameCount = 0;
+        let lastTime = performance.now();
+        const fpsElement = document.getElementById('fps-value');
+
+        // Camera info update
+        function updateCameraInfo() {
+            const pos = camera.position;
+            document.getElementById('cam-pos').textContent =
+                `${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}, ${pos.z.toFixed(0)}`;
+
+            const dist = camera.position.distanceTo(controls.target);
+            document.getElementById('cam-dist').textContent = dist.toFixed(1);
+
+            // Calculate azimuth and polar angles
+            const spherical = new THREE.Spherical();
+            const offset = camera.position.clone().sub(controls.target);
+            spherical.setFromVector3(offset);
+
+            const azimuth = THREE.MathUtils.radToDeg(spherical.theta);
+            const polar = THREE.MathUtils.radToDeg(spherical.phi);
+
+            document.getElementById('cam-azimuth').textContent = `${azimuth.toFixed(0)}°`;
+            document.getElementById('cam-polar').textContent = `${polar.toFixed(0)}°`;
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+
+            // FPS calculation
+            frameCount++;
+            const now = performance.now();
+            if (now - lastTime >= 1000) {
+                fpsElement.textContent = frameCount;
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            // Update camera info
+            updateCameraInfo();
+        }
+        animate();
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+
+            if (e.key === 'r' || e.key === 'R') {
+                if (worldModel) {
+                    const box = new THREE.Box3().setFromObject(worldModel);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+
+                    controls.target.copy(center);
+                    camera.position.set(center.x + maxDim * 0.7, center.y + maxDim * 0.5, center.z + maxDim * 0.7);
+                    controls.update();
+                }
+            }
+        });
+
+        // Toggle buttons
+        document.getElementById('toggle-wireframe').addEventListener('click', function() {
+            this.classList.toggle('active');
+            const isWireframe = this.classList.contains('active');
+
+            if (worldModel) {
+                worldModel.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => m.wireframe = isWireframe);
+                        } else {
+                            child.material.wireframe = isWireframe;
+                        }
+                    }
+                });
+            }
+        });
+
+        document.getElementById('toggle-grid').addEventListener('click', function() {
+            this.classList.toggle('active');
+
+            if (this.classList.contains('active')) {
+                gridHelper = new THREE.GridHelper(500, 50, 0x4ecca3, 0x1a1a2e);
+                scene.add(gridHelper);
+            } else if (gridHelper) {
+                scene.remove(gridHelper);
+                gridHelper = null;
+            }
+        });
+
+        document.getElementById('toggle-axes').addEventListener('click', function() {
+            this.classList.toggle('active');
+
+            if (this.classList.contains('active')) {
+                axesHelper = new THREE.AxesHelper(50);
+                scene.add(axesHelper);
+            } else if (axesHelper) {
+                scene.remove(axesHelper);
+                axesHelper = null;
+            }
+        });
+
+        // Update world name based on alias
+        const worldNames = {
+            'mega': 'Mega World',
+            'train_world': 'Mega World',
+            'train-world': 'Mega World',
+            'plaza': 'Train Station Plaza',
+            'base': 'Base World',
+            'world': 'Base World'
+        };
+        document.getElementById('world-name').textContent = worldNames[worldAlias] || worldAlias;
+    </script>
+</body>
 </html>

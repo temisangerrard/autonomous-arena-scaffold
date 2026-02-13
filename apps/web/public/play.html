@@ -1,22 +1,658 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Play Arena</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <div class="hud" id="hud">Play mode. WASD move. Mouse drag rotate camera. F toggles fullscreen.</div>
-    <div class="canvas-shell"><canvas id="scene"></canvas></div>
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arena - Play Mode</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* Loading Screen */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.8s ease;
         }
-      }
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loader {
+            width: 80px;
+            height: 80px;
+            border: 5px solid #1a1a2e;
+            border-top: 5px solid var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #loading h1 {
+            font-family: var(--font-display);
+            color: var(--accent-primary);
+            margin-top: 30px;
+            font-size: 2rem;
+            letter-spacing: 0.2em;
+        }
+        #loading p {
+            color: var(--text-muted);
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        #progress-bar {
+            width: 300px;
+            height: 4px;
+            background: #1a1a2e;
+            border-radius: 2px;
+            margin-top: 25px;
+            overflow: hidden;
+        }
+        #progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            transition: width 0.2s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="loader"></div>
+        <h1>ARENA</h1>
+        <p>Loading Mega World...</p>
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+
+    <!-- Canvas Container -->
+    <div class="canvas-shell">
+        <canvas id="scene"></canvas>
+    </div>
+
+    <!-- HUD: Top Left - Player Info -->
+    <div class="hud-player">
+        <div class="hud-player__avatar">🎮</div>
+        <div class="hud-player__info">
+            <div class="hud-player__name" id="player-name">Explorer</div>
+            <div class="hud-player__title">Arena Champion</div>
+            <div class="hud-bars">
+                <div class="hud-bar hud-bar--health">
+                    <div class="hud-bar__fill" id="health-bar" style="width: 100%"></div>
+                    <span class="hud-bar__label">100</span>
+                </div>
+                <div class="hud-bar hud-bar--stamina">
+                    <div class="hud-bar__fill" id="stamina-bar" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD: Top Center - Location -->
+    <div class="hud-location">
+        <div class="hud-location__name" id="location-name">Station Plaza</div>
+        <div class="hud-location__coords" id="location-coords">X: 0 | Z: 0</div>
+    </div>
+
+    <!-- HUD: Top Right - Stats -->
+    <div class="hud-stats">
+        <div class="hud-stat">
+            <span class="hud-stat__icon">👥</span>
+            <div>
+                <div class="hud-stat__value" id="nearby-count">0</div>
+                <div class="hud-stat__label">Nearby</div>
+            </div>
+        </div>
+        <div class="hud-stat">
+            <span class="hud-stat__icon">🤖</span>
+            <div>
+                <div class="hud-stat__value" id="agent-count">0</div>
+                <div class="hud-stat__label">Agents</div>
+            </div>
+        </div>
+        <div class="hud-stat">
+            <span class="hud-stat__icon">⚔️</span>
+            <div>
+                <div class="hud-stat__value" id="challenge-count">0</div>
+                <div class="hud-stat__label">Challenges</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD: Challenge Feed -->
+    <div class="challenge-feed">
+        <div class="challenge-feed__header">
+            <span class="challenge-feed__title">
+                <span class="challenge-feed__live"></span>
+                Challenge Feed
+            </span>
+            <span class="text-muted" style="font-size: 0.7rem;">LIVE</span>
+        </div>
+        <div class="challenge-feed__list" id="challenge-list">
+        </div>
+    </div>
+
+    <!-- HUD: Bottom Left - Controls -->
+    <div class="hud-controls">
+        <div class="hud-controls__title">Controls</div>
+        <div class="hud-controls__row">
+            <span class="hud-key">W</span>
+            <span class="hud-key">A</span>
+            <span class="hud-key">S</span>
+            <span class="hud-key">D</span>
+            <span class="hud-controls__desc">Move</span>
+        </div>
+        <div class="hud-controls__row">
+            <span class="hud-key">SHIFT</span>
+            <span class="hud-controls__desc">Sprint</span>
+        </div>
+        <div class="hud-controls__row">
+            <span class="hud-key">DRAG</span>
+            <span class="hud-controls__desc">Orbit Camera</span>
+        </div>
+        <div class="hud-controls__row">
+            <span class="hud-key">SCROLL</span>
+            <span class="hud-controls__desc">Zoom</span>
+        </div>
+        <div class="hud-controls__row">
+            <span class="hud-key">C</span>
+            <span class="hud-controls__desc">Challenge</span>
+        </div>
+        <div class="hud-controls__row">
+            <span class="hud-key">Y</span>
+            <span class="hud-key">N</span>
+            <span class="hud-controls__desc">Accept/Decline</span>
+        </div>
+        <div class="hud-controls__row">
+            <span class="hud-key">F</span>
+            <span class="hud-controls__desc">Fullscreen</span>
+        </div>
+    </div>
+
+    <!-- HUD: Bottom Center - Speed -->
+    <div class="hud-speed">
+        <span class="hud-speed__value" id="speed-value">0</span>
+        <span class="hud-speed__unit">m/s</span>
+        <div class="hud-speed__mode" id="speed-mode">STANDING</div>
+    </div>
+
+    <!-- HUD: Bottom Right - Minimap -->
+    <div class="hud-minimap">
+        <div class="hud-minimap__compass">N</div>
+        <div class="hud-minimap__inner">
+            <div class="hud-minimap__player"></div>
+            <div class="hud-minimap__direction" id="minimap-direction"></div>
+        </div>
+    </div>
+
+    <!-- Challenge Popup (hidden by default) -->
+    <div class="challenge-popup" id="challenge-popup" style="display: none;">
+        <div class="challenge-popup__icon">⚔️</div>
+        <div class="challenge-popup__title">Incoming Challenge!</div>
+        <div class="challenge-popup__challenger" id="popup-challenger">Bot_Alpha wants to battle</div>
+        <div class="challenge-popup__timer" id="popup-timer">30</div>
+        <div class="challenge-popup__actions">
+            <button class="btn btn--success btn--lg" id="accept-btn">
+                <span class="hud-key" style="margin-right: 8px;">Y</span> Accept
+            </button>
+            <button class="btn btn--secondary btn--lg" id="decline-btn">
+                <span class="hud-key" style="margin-right: 8px;">N</span> Decline
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
+        }
+    }
     </script>
-    <script type="module" src="/js/play.js"></script>
-  </body>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // ========== CONFIGURATION ==========
+        const WORLD_ALIAS = new URLSearchParams(window.location.search).get('world') || 'mega';
+
+        // ========== DOM ELEMENTS ==========
+        const canvas = document.getElementById('scene');
+        const loadingScreen = document.getElementById('loading');
+        const progressFill = document.getElementById('progress-fill');
+
+        // ========== SCENE SETUP ==========
+        const scene = new THREE.Scene();
+        const skyColor = new THREE.Color(0x87CEEB);
+        scene.background = skyColor;
+        scene.fog = new THREE.Fog(skyColor, 50, 300);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+
+        // ========== LIGHTING ==========
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        sunLight.position.set(80, 150, 80);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 500;
+        sunLight.shadow.camera.left = -150;
+        sunLight.shadow.camera.right = 150;
+        sunLight.shadow.camera.top = 150;
+        sunLight.shadow.camera.bottom = -150;
+        scene.add(sunLight);
+
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        fillLight.position.set(-50, 80, -50);
+        scene.add(fillLight);
+
+        scene.add(new THREE.HemisphereLight(0x87CEEB, 0x3d5c3d, 0.6));
+
+        // ========== CREATE CYLINDER CHARACTER WITH LEGS ==========
+        function createCharacter() {
+            const group = new THREE.Group();
+
+            // Body - Cylinder
+            const bodyGeo = new THREE.CylinderGeometry(0.35, 0.4, 1.2, 16);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe94560, metalness: 0.3, roughness: 0.7 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1.1;
+            body.castShadow = true;
+            group.add(body);
+
+            // Head - Smaller cylinder
+            const headGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.4, 16);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, metalness: 0.1, roughness: 0.8 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.9;
+            head.castShadow = true;
+            group.add(head);
+
+            // Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.05, 8, 8);
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.08, 1.95, 0.2);
+            group.add(leftEye);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.08, 1.95, 0.2);
+            group.add(rightEye);
+
+            // Legs
+            const legGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.5, 8);
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.2, roughness: 0.8 });
+
+            const leftLeg = new THREE.Mesh(legGeo, legMat);
+            leftLeg.position.set(-0.15, 0.25, 0);
+            leftLeg.castShadow = true;
+            group.add(leftLeg);
+
+            const rightLeg = new THREE.Mesh(legGeo, legMat);
+            rightLeg.position.set(0.15, 0.25, 0);
+            rightLeg.castShadow = true;
+            group.add(rightLeg);
+
+            // Feet
+            const footGeo = new THREE.BoxGeometry(0.15, 0.08, 0.25);
+            const footMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+            const leftFoot = new THREE.Mesh(footGeo, footMat);
+            leftFoot.position.set(-0.15, 0.04, 0.05);
+            leftFoot.castShadow = true;
+            group.add(leftFoot);
+
+            const rightFoot = new THREE.Mesh(footGeo, footMat);
+            rightFoot.position.set(0.15, 0.04, 0.05);
+            rightFoot.castShadow = true;
+            group.add(rightFoot);
+
+            // Store leg references for animation
+            group.userData.leftLeg = leftLeg;
+            group.userData.rightLeg = rightLeg;
+            group.userData.leftFoot = leftFoot;
+            group.userData.rightFoot = rightFoot;
+
+            return group;
+        }
+
+        // ========== PLAYER STATE ==========
+        let playerMesh = null;
+        const playerPos = new THREE.Vector3(5, 0, -5);
+        let playerRotation = 0;
+        let stamina = 100;
+        let walkCycle = 0;
+
+        // ========== CAMERA CONTROLS ==========
+        let cameraYaw = 0;
+        let cameraPitch = 0.3;
+        let cameraDistance = 8;
+        const minPitch = -0.2;
+        const maxPitch = 1.2;
+        const minDistance = 3;
+        const maxDistance = 20;
+
+        // ========== INPUT ==========
+        const keys = { w: false, a: false, s: false, d: false, shift: false };
+
+        document.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w') keys.w = true;
+            if (k === 'a') keys.a = true;
+            if (k === 's') keys.s = true;
+            if (k === 'd') keys.d = true;
+            if (k === 'shift') keys.shift = true;
+            if (k === 'f') toggleFullscreen();
+            if (k === 'c') sendChallenge();
+            if (k === 'y') respondChallenge(true);
+            if (k === 'n') respondChallenge(false);
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w') keys.w = false;
+            if (k === 'a') keys.a = false;
+            if (k === 's') keys.s = false;
+            if (k === 'd') keys.d = false;
+            if (k === 'shift') keys.shift = false;
+        });
+
+        // Mouse drag to orbit camera
+        let isMouseDown = false;
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) isMouseDown = true;
+        });
+        document.addEventListener('mouseup', () => isMouseDown = false);
+        document.addEventListener('mousemove', (e) => {
+            if (!isMouseDown) return;
+            cameraYaw -= e.movementX * 0.005;
+            cameraPitch -= e.movementY * 0.005;
+            cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
+        });
+
+        // Scroll to zoom
+        canvas.addEventListener('wheel', (e) => {
+            cameraDistance += e.deltaY * 0.01;
+            cameraDistance = Math.max(minDistance, Math.min(maxDistance, cameraDistance));
+        });
+
+        // ========== DISTRICTS ==========
+        function getDistrict(x, z) {
+            if (x > 25 && z < 15) return "Harbor District";
+            if (x < -30 && z < -15) return "Residential Village";
+            if (z > 40) return "Festival Carnival";
+            if (x > 30 && z > 20) return "Park & Recreation";
+            if (x < -40 && z > -20 && z < 20) return "Industrial Workshop";
+            if (z < -35) return "Medieval Castle";
+            if (x < -30 && z > 30) return "Farm & Fields";
+            if (x > 25 && z < -20) return "Mystical Grove";
+            return "Station Plaza";
+        }
+
+        // ========== LOAD WORLD ==========
+        const loader = new GLTFLoader();
+
+        loader.load(
+            `/assets/world/${WORLD_ALIAS}.glb`,
+            (gltf) => {
+                const model = gltf.scene;
+
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                    // Hide the old embedded player character
+                    if (child.name === 'Player_Character' || child.name === 'The_Explorer' ||
+                        child.name.toLowerCase().includes('player') || child.name.toLowerCase().includes('explorer')) {
+                        child.visible = false;
+                    }
+                });
+
+                scene.add(model);
+
+                // Create our cylinder character with legs
+                playerMesh = createCharacter();
+                playerMesh.position.copy(playerPos);
+                scene.add(playerMesh);
+
+                setTimeout(() => {
+                    loadingScreen.classList.add('hidden');
+                }, 500);
+
+                showToast('success', 'World Loaded', `Welcome to the Arena!`);
+            },
+            (xhr) => {
+                if (xhr.total) {
+                    const progress = (xhr.loaded / xhr.total) * 100;
+                    progressFill.style.width = progress + '%';
+                }
+            },
+            (error) => {
+                console.error('Load error:', error);
+                showToast('error', 'Load Failed', 'Could not load world assets');
+            }
+        );
+
+        // ========== GAME LOOP ==========
+        const clock = new THREE.Clock();
+        let currentSpeed = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (playerMesh) {
+                // Movement speeds
+                const walkSpeed = 8;
+                const sprintSpeed = 16;
+                const speed = (keys.shift && stamina > 0) ? sprintSpeed : walkSpeed;
+
+                // Get movement direction
+                const moveDir = new THREE.Vector3();
+                if (keys.w) moveDir.z -= 1;  // Forward
+                if (keys.s) moveDir.z += 1;  // Back
+                if (keys.a) moveDir.x -= 1;  // Left
+                if (keys.d) moveDir.x += 1;  // Right
+
+                if (moveDir.length() > 0) {
+                    moveDir.normalize();
+
+                    // Rotate movement by camera yaw (camera-relative movement)
+                    const rotatedDir = new THREE.Vector3(
+                        moveDir.x * Math.cos(cameraYaw) - moveDir.z * Math.sin(cameraYaw),
+                        0,
+                        moveDir.x * Math.sin(cameraYaw) + moveDir.z * Math.cos(cameraYaw)
+                    );
+
+                    // Move player
+                    playerPos.x += rotatedDir.x * speed * delta;
+                    playerPos.z += rotatedDir.z * speed * delta;
+
+                    // Rotate player to face movement direction
+                    playerRotation = Math.atan2(rotatedDir.x, rotatedDir.z);
+
+                    currentSpeed = speed;
+
+                    // Stamina drain when sprinting
+                    if (keys.shift && stamina > 0) {
+                        stamina = Math.max(0, stamina - 20 * delta);
+                    }
+
+                    // Walk cycle for leg animation
+                    walkCycle += delta * speed * 0.8;
+
+                } else {
+                    currentSpeed = 0;
+                }
+
+                // Stamina regen
+                if (!keys.shift && stamina < 100) {
+                    stamina = Math.min(100, stamina + 15 * delta);
+                }
+
+                // Update player position and rotation
+                playerMesh.position.copy(playerPos);
+                playerMesh.rotation.y = playerRotation;
+
+                // Animate legs when moving
+                if (currentSpeed > 0 && playerMesh.userData.leftLeg) {
+                    const legSwing = Math.sin(walkCycle) * 0.4;
+                    playerMesh.userData.leftLeg.rotation.x = legSwing;
+                    playerMesh.userData.rightLeg.rotation.x = -legSwing;
+                    playerMesh.userData.leftFoot.position.z = 0.05 + Math.sin(walkCycle) * 0.1;
+                    playerMesh.userData.rightFoot.position.z = 0.05 - Math.sin(walkCycle) * 0.1;
+                } else if (playerMesh.userData.leftLeg) {
+                    // Reset legs when standing
+                    playerMesh.userData.leftLeg.rotation.x = 0;
+                    playerMesh.userData.rightLeg.rotation.x = 0;
+                    playerMesh.userData.leftFoot.position.z = 0.05;
+                    playerMesh.userData.rightFoot.position.z = 0.05;
+                }
+
+                // ========== CAMERA ==========
+                const cameraOffset = new THREE.Vector3(
+                    Math.sin(cameraYaw) * Math.cos(cameraPitch) * cameraDistance,
+                    Math.sin(cameraPitch) * cameraDistance + 3,
+                    Math.cos(cameraYaw) * Math.cos(cameraPitch) * cameraDistance
+                );
+
+                const targetCamPos = playerPos.clone().add(cameraOffset);
+                camera.position.lerp(targetCamPos, 0.1);
+
+                // Look at player
+                const lookTarget = playerPos.clone();
+                lookTarget.y += 1.2;
+                camera.lookAt(lookTarget);
+
+                // ========== HUD UPDATES ==========
+                updateHUD();
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ========== HUD UPDATES ==========
+        function updateHUD() {
+            document.getElementById('location-name').textContent = getDistrict(playerPos.x, playerPos.z);
+            document.getElementById('location-coords').textContent = `X: ${playerPos.x.toFixed(0)} | Z: ${playerPos.z.toFixed(0)}`;
+            document.getElementById('speed-value').textContent = currentSpeed.toFixed(0);
+            document.getElementById('speed-mode').textContent =
+                currentSpeed === 0 ? 'STANDING' : (keys.shift && stamina > 0 ? 'SPRINTING' : 'WALKING');
+            document.getElementById('stamina-bar').style.width = `${stamina}%`;
+            document.getElementById('minimap-direction').style.transform =
+                `translate(-50%, -100%) rotate(${(-cameraYaw * 180 / Math.PI)}deg)`;
+        }
+
+        // ========== CHALLENGE SYSTEM ==========
+        function sendChallenge() {
+            showToast('info', 'Challenge Sent', 'Looking for nearby opponents...');
+        }
+
+        function respondChallenge(accept) {
+            const popup = document.getElementById('challenge-popup');
+            popup.style.display = 'none';
+            if (accept) {
+                showToast('success', 'Challenge Accepted', 'Battle starting...');
+            } else {
+                showToast('warning', 'Challenge Declined', 'You declined the challenge');
+            }
+        }
+
+        document.getElementById('accept-btn').addEventListener('click', () => respondChallenge(true));
+        document.getElementById('decline-btn').addEventListener('click', () => respondChallenge(false));
+
+        // ========== FULLSCREEN ==========
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // ========== TOAST NOTIFICATIONS ==========
+        function showToast(type, title, message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast--${type}`;
+            toast.innerHTML = `
+                <span class="toast__icon">${type === 'success' ? '✓' : type === 'error' ? '✗' : type === 'warning' ? '⚠' : 'ℹ'}</span>
+                <div class="toast__content">
+                    <div class="toast__title">${title}</div>
+                    <div class="toast__message">${message}</div>
+                </div>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // ========== RESIZE ==========
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ========== CHALLENGE FEED ==========
+        function addChallengeToFeed(event, challenger, target) {
+            const list = document.getElementById('challenge-list');
+            const time = new Date().toLocaleTimeString();
+            const item = document.createElement('div');
+            item.className = 'challenge-item';
+            item.innerHTML = `
+                <div class="challenge-item__header">
+                    <span class="challenge-item__type challenge-item__type--${event}">${event}</span>
+                    <span class="challenge-item__time">${time}</span>
+                </div>
+                <div class="challenge-item__players">
+                    <span class="challenge-item__player">
+                        <span class="challenge-item__avatar ${challenger.startsWith('Bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
+                        ${challenger}
+                    </span>
+                    <span class="challenge-item__vs">VS</span>
+                    <span class="challenge-item__player">
+                        <span class="challenge-item__avatar ${target.startsWith('Bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
+                        ${target}
+                    </span>
+                </div>
+            `;
+            list.insertBefore(item, list.firstChild);
+            if (list.children.length > 10) list.removeChild(list.lastChild);
+        }
+
+        // Demo challenges
+        setTimeout(() => addChallengeToFeed('created', 'Bot_Alpha', 'Bot_Beta'), 2000);
+        setTimeout(() => addChallengeToFeed('accepted', 'Bot_Alpha', 'Bot_Beta'), 4000);
+        setTimeout(() => addChallengeToFeed('resolved', 'Bot_Alpha', 'Bot_Beta'), 8000);
+    </script>
+</body>
 </html>
