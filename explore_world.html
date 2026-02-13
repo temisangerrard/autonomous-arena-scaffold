@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mega World Explorer - GTA Style</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #0a0a0f; }
+        #container { width: 100vw; height: 100vh; cursor: crosshair; }
+
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; transition: opacity 0.8s ease;
+        }
+        #loading.hidden { opacity: 0; pointer-events: none; }
+
+        .loader { width: 80px; height: 80px; border: 5px solid #1a1a2e; border-top: 5px solid #e94560; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #loading h1 { color: #e94560; margin-top: 30px; font-size: 32px; letter-spacing: 3px; }
+        #loading p { color: #666; margin-top: 15px; font-size: 14px; }
+        #progress-bar { width: 300px; height: 4px; background: #1a1a2e; border-radius: 2px; margin-top: 25px; overflow: hidden; }
+        #progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #e94560, #ff6b9d); transition: width 0.2s ease; }
+
+        #hud {
+            position: fixed; top: 0; left: 0; right: 0; padding: 20px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            pointer-events: none; z-index: 100;
+        }
+
+        #minimap {
+            width: 180px; height: 180px; background: rgba(0,0,0,0.7);
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;
+            position: relative; overflow: hidden;
+        }
+        #minimap-player { position: absolute; top: 50%; left: 50%; width: 8px; height: 8px;
+            background: #e94560; border-radius: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px #e94560; }
+        #minimap-arrow { position: absolute; top: 50%; left: 50%; width: 0; height: 0;
+            border-left: 5px solid transparent; border-right: 5px solid transparent;
+            border-bottom: 12px solid #fff; transform-origin: center bottom; }
+
+        #stats {
+            background: rgba(0,0,0,0.6); padding: 15px 20px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #stats h3 { color: #e94560; font-size: 12px; margin-bottom: 8px; letter-spacing: 2px; }
+        #stats p { color: #fff; font-size: 11px; margin: 4px 0; }
+        #stats span { color: #4ecca3; }
+
+        #controls-hint {
+            position: fixed; bottom: 20px; left: 20px;
+            background: rgba(0,0,0,0.7); padding: 20px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1); z-index: 100;
+        }
+        #controls-hint h3 { color: #e94560; font-size: 11px; margin-bottom: 12px; letter-spacing: 2px; }
+        #controls-hint .key-row { display: flex; align-items: center; margin: 6px 0; }
+        #controls-hint kbd {
+            background: linear-gradient(180deg, #333 0%, #222 100%);
+            color: #fff; padding: 6px 12px; border-radius: 5px; font-family: monospace;
+            font-size: 11px; margin-right: 10px; min-width: 35px; text-align: center;
+            border: 1px solid #444; box-shadow: 0 2px 0 #111;
+        }
+        #controls-hint span { color: #999; font-size: 11px; }
+
+        #crosshair {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 20px; height: 20px; z-index: 50; pointer-events: none; opacity: 0.5;
+        }
+        #crosshair::before, #crosshair::after {
+            content: ''; position: absolute; background: #fff;
+        }
+        #crosshair::before { width: 2px; height: 20px; left: 9px; top: 0; }
+        #crosshair::after { width: 20px; height: 2px; top: 9px; left: 0; }
+
+        #speed-indicator {
+            position: fixed; bottom: 20px; right: 20px;
+            background: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1); z-index: 100;
+        }
+        #speed-indicator .speed { color: #4ecca3; font-size: 28px; font-weight: bold; }
+        #speed-indicator .unit { color: #666; font-size: 12px; margin-left: 5px; }
+        #speed-indicator .mode { color: #e94560; font-size: 10px; margin-top: 5px; letter-spacing: 1px; }
+
+        #location {
+            position: fixed; bottom: 80px; right: 20px;
+            background: rgba(0,0,0,0.5); padding: 10px 15px; border-radius: 5px;
+            z-index: 100;
+        }
+        #location span { color: #999; font-size: 11px; font-family: monospace; }
+
+        #click-to-start {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9); padding: 40px 60px; border-radius: 15px;
+            border: 2px solid #e94560; z-index: 200; text-align: center;
+            cursor: pointer; transition: all 0.3s ease;
+        }
+        #click-to-start:hover { background: rgba(233,69,96,0.2); transform: translate(-50%, -50%) scale(1.05); }
+        #click-to-start h2 { color: #e94560; font-size: 24px; margin-bottom: 10px; }
+        #click-to-start p { color: #999; font-size: 14px; }
+        #click-to-start.hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="loader"></div>
+        <h1>MEGA WORLD</h1>
+        <p>Loading 8 Districts...</p>
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+
+    <div id="click-to-start" class="hidden">
+        <h2>CLICK TO EXPLORE</h2>
+        <p>Mouse to look around</p>
+    </div>
+
+    <div id="container"></div>
+
+    <div id="crosshair"></div>
+
+    <div id="hud">
+        <div id="minimap">
+            <div id="minimap-player"></div>
+            <div id="minimap-arrow"></div>
+        </div>
+        <div id="stats">
+            <h3>EXPLORER</h3>
+            <p>Position: <span id="pos-display">0, 0</span></p>
+            <p>District: <span id="district-display">Station Plaza</span></p>
+            <p>Objects: <span>1,280+</span></p>
+        </div>
+    </div>
+
+    <div id="controls-hint">
+        <h3>CONTROLS</h3>
+        <div class="key-row"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Move</span></div>
+        <div class="key-row"><kbd>SHIFT</kbd><span>Sprint</span></div>
+        <div class="key-row"><kbd>SPACE</kbd><span>Jump</span></div>
+        <div class="key-row"><kbd>MOUSE</kbd><span>Look Around</span></div>
+        <div class="key-row"><kbd>SCROLL</kbd><span>Zoom</span></div>
+        <div class="key-row"><kbd>ESC</kbd><span>Release Mouse</span></div>
+    </div>
+
+    <div id="speed-indicator">
+        <span class="speed" id="speed-value">0</span><span class="unit">m/s</span>
+        <div class="mode" id="move-mode">STANDING</div>
+    </div>
+
+    <div id="location">
+        <span id="coords">X: 0 | Y: 0 | Z: 0</span>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // ========== SCENE SETUP ==========
+        const container = document.getElementById('container');
+        const scene = new THREE.Scene();
+
+        // Sky gradient
+        const skyColor = new THREE.Color(0x87CEEB);
+        const groundColor = new THREE.Color(0x3d5c3d);
+        scene.background = skyColor;
+        scene.fog = new THREE.Fog(skyColor, 50, 300);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        // ========== LIGHTING ==========
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        sunLight.position.set(80, 150, 80);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 500;
+        sunLight.shadow.camera.left = -150;
+        sunLight.shadow.camera.right = 150;
+        sunLight.shadow.camera.top = 150;
+        sunLight.shadow.camera.bottom = -150;
+        scene.add(sunLight);
+
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        fillLight.position.set(-50, 80, -50);
+        scene.add(fillLight);
+
+        const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x3d5c3d, 0.6);
+        scene.add(hemiLight);
+
+        // ========== PLAYER ==========
+        let playerMesh = null;
+        const playerHeight = 1.8;
+        const playerPosition = new THREE.Vector3(5, 0, -5);
+        const playerVelocity = new THREE.Vector3();
+        let playerRotation = 0;
+        let isOnGround = true;
+        let verticalVelocity = 0;
+
+        // ========== CAMERA CONTROLS ==========
+        let cameraDistance = 8;
+        let cameraHeight = 3;
+        let cameraPitch = 0.3; // Radians - looking down slightly
+        let cameraYaw = 0;
+        const minPitch = -0.5;
+        const maxPitch = 1.2;
+        const minDistance = 3;
+        const maxDistance = 20;
+
+        // ========== INPUT ==========
+        const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
+        let isPointerLocked = false;
+
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === 'w') keys.w = true;
+            if (key === 'a') keys.a = true;
+            if (key === 's') keys.s = true;
+            if (key === 'd') keys.d = true;
+            if (key === 'shift') keys.shift = true;
+            if (key === ' ') { keys.space = true; e.preventDefault(); }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === 'w') keys.w = false;
+            if (key === 'a') keys.a = false;
+            if (key === 's') keys.s = false;
+            if (key === 'd') keys.d = false;
+            if (key === 'shift') keys.shift = false;
+            if (key === ' ') keys.space = false;
+        });
+
+        // Mouse look
+        document.addEventListener('mousemove', (e) => {
+            if (!isPointerLocked) return;
+
+            const sensitivity = 0.002;
+            cameraYaw -= e.movementX * sensitivity;
+            cameraPitch -= e.movementY * sensitivity;
+            cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
+        });
+
+        // Scroll to zoom
+        document.addEventListener('wheel', (e) => {
+            cameraDistance += e.deltaY * 0.01;
+            cameraDistance = Math.max(minDistance, Math.min(maxDistance, cameraDistance));
+        });
+
+        // Pointer lock
+        const clickToStart = document.getElementById('click-to-start');
+
+        container.addEventListener('click', () => {
+            if (!isPointerLocked) {
+                container.requestPointerLock();
+            }
+        });
+
+        clickToStart.addEventListener('click', () => {
+            container.requestPointerLock();
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = document.pointerLockElement === container;
+            clickToStart.classList.toggle('hidden', isPointerLocked);
+        });
+
+        // ========== DISTRICTS ==========
+        function getDistrict(x, y) {
+            if (x > 25 && y > -15) return "Harbor District";
+            if (x < -30 && y > 15) return "Residential Village";
+            if (y < -40) return "Festival Carnival";
+            if (x > 30 && y < -20) return "Park & Recreation";
+            if (x < -40 && y > -20 && y < 20) return "Industrial Workshop";
+            if (y > 35) return "Medieval Castle";
+            if (x < -30 && y < -30) return "Farm & Fields";
+            if (x > 25 && y > 20) return "Mystical Grove";
+            return "Station Plaza";
+        }
+
+        // ========== LOAD MODEL ==========
+        const loader = new GLTFLoader();
+        const progressFill = document.getElementById('progress-fill');
+        const loadingScreen = document.getElementById('loading');
+
+        loader.load(
+            'train_station_mega_world.glb',
+            (gltf) => {
+                const model = gltf.scene;
+
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+
+                        if (child.material) {
+                            child.material.needsUpdate = true;
+                            if (child.material.isMeshStandardMaterial) {
+                                child.material.metalness = Math.min(child.material.metalness, 0.5);
+                                child.material.roughness = Math.max(child.material.roughness, 0.3);
+                            }
+                        }
+                    }
+
+                    // Find player character
+                    if (child.name === 'Player_Character') {
+                        playerMesh = child;
+                        playerPosition.copy(child.position);
+                        console.log('Found player at:', playerPosition);
+                    }
+                });
+
+                scene.add(model);
+
+                // If no player found, create a simple one
+                if (!playerMesh) {
+                    const playerGeo = new THREE.CapsuleGeometry(0.3, 1, 4, 8);
+                    const playerMat = new THREE.MeshStandardMaterial({ color: 0xe94560 });
+                    playerMesh = new THREE.Mesh(playerGeo, playerMat);
+                    playerMesh.position.copy(playerPosition);
+                    playerMesh.castShadow = true;
+                    scene.add(playerMesh);
+                }
+
+                setTimeout(() => {
+                    loadingScreen.classList.add('hidden');
+                    clickToStart.classList.remove('hidden');
+                }, 500);
+
+                console.log('World loaded!');
+            },
+            (xhr) => {
+                if (xhr.total) {
+                    const progress = (xhr.loaded / xhr.total) * 100;
+                    progressFill.style.width = progress + '%';
+                }
+            },
+            (error) => {
+                console.error('Error loading:', error);
+            }
+        );
+
+        // ========== GAME LOOP ==========
+        const clock = new THREE.Clock();
+        let currentSpeed = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            if (playerMesh) {
+                // Movement
+                const walkSpeed = 8;
+                const sprintSpeed = 16;
+                const speed = keys.shift ? sprintSpeed : walkSpeed;
+
+                const moveDirection = new THREE.Vector3();
+
+                if (keys.w) moveDirection.z -= 1;
+                if (keys.s) moveDirection.z += 1;
+                if (keys.a) moveDirection.x -= 1;
+                if (keys.d) moveDirection.x += 1;
+
+                if (moveDirection.length() > 0) {
+                    moveDirection.normalize();
+
+                    // Rotate movement by camera yaw
+                    const rotatedDirection = new THREE.Vector3(
+                        moveDirection.x * Math.cos(cameraYaw) - moveDirection.z * Math.sin(cameraYaw),
+                        0,
+                        moveDirection.x * Math.sin(cameraYaw) + moveDirection.z * Math.cos(cameraYaw)
+                    );
+
+                    // Move player
+                    playerPosition.x += rotatedDirection.x * speed * delta;
+                    playerPosition.z += rotatedDirection.z * speed * delta;
+
+                    // Rotate player to face movement direction
+                    playerRotation = Math.atan2(rotatedDirection.x, rotatedDirection.z);
+
+                    currentSpeed = speed;
+                } else {
+                    currentSpeed = 0;
+                }
+
+                // Jump / Gravity
+                if (keys.space && isOnGround) {
+                    verticalVelocity = 8;
+                    isOnGround = false;
+                }
+
+                verticalVelocity -= 20 * delta; // Gravity
+                playerPosition.y += verticalVelocity * delta;
+
+                // Ground collision (simple)
+                if (playerPosition.y < 0) {
+                    playerPosition.y = 0;
+                    verticalVelocity = 0;
+                    isOnGround = true;
+                }
+
+                // Update player mesh
+                playerMesh.position.copy(playerPosition);
+                playerMesh.rotation.y = playerRotation;
+
+                // ========== CAMERA ==========
+                // Calculate camera position (third-person behind player)
+                const cameraOffset = new THREE.Vector3(
+                    Math.sin(cameraYaw) * Math.cos(cameraPitch) * cameraDistance,
+                    Math.sin(cameraPitch) * cameraDistance + cameraHeight,
+                    Math.cos(cameraYaw) * Math.cos(cameraPitch) * cameraDistance
+                );
+
+                const targetCameraPos = playerPosition.clone().add(cameraOffset);
+                camera.position.lerp(targetCameraPos, 0.1);
+
+                // Look at player
+                const lookTarget = playerPosition.clone();
+                lookTarget.y += playerHeight * 0.6;
+                camera.lookAt(lookTarget);
+
+                // ========== UI UPDATES ==========
+                document.getElementById('pos-display').textContent =
+                    `${playerPosition.x.toFixed(0)}, ${playerPosition.z.toFixed(0)}`;
+                document.getElementById('district-display').textContent =
+                    getDistrict(playerPosition.x, playerPosition.z);
+                document.getElementById('speed-value').textContent = currentSpeed.toFixed(0);
+                document.getElementById('move-mode').textContent =
+                    currentSpeed === 0 ? 'STANDING' : (keys.shift ? 'SPRINTING' : 'WALKING');
+                document.getElementById('coords').textContent =
+                    `X: ${playerPosition.x.toFixed(1)} | Y: ${playerPosition.y.toFixed(1)} | Z: ${playerPosition.z.toFixed(1)}`;
+
+                // Minimap arrow rotation
+                document.getElementById('minimap-arrow').style.transform =
+                    `translate(-50%, -100%) rotate(${(-cameraYaw * 180 / Math.PI)}deg)`;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // ========== RESIZE ==========
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

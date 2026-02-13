@@ -1,0 +1,56 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Build/test
+coverage/
+output/
+**/dist/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+
+# Local agent tool metadata
+.adal/
+.agent/
+.agents/
+.augment/
+.cline/
+.codebuddy/
+.commandcode/
+.continue/
+.crush/
+.cursor/
+.factory/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+skills/
+
+# Large local world assets (keep local, don't commit)
+*.glb
+*.fbx
+
+# Temporary logs
+*.log

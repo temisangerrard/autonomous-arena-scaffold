@@ -1,0 +1,37 @@
+Original prompt: yes there's a file called train world or so , thats the base world we will use so we can scaffold that in so we start seeing the game, dont forget various entry points required
+
+- 2026-02-13: Started web scaffold work to integrate train world GLB as base world.
+- Plan: add `/`, `/play`, `/viewer`, and world asset aliases so world loads immediately.
+- Added world alias resolver and new web routes: `/`, `/play`, `/viewer`, `/api/worlds`, `/assets/world/:alias.glb`.
+- Added front-end entry point pages and Three.js modules for viewer + playable third-person scaffold.
+- Fixed runtime static/public path handling for both source and built server execution.
+- Added import maps so `three/addons/*` modules resolve cleanly.
+- Playwright smoke check passed with screenshot + state output at `/tmp/arena-playwright` and `worldLoaded: true`.
+- TODO next: server-authoritative movement snapshots + websocket sync for real multiplayer.
+- Motion inversion fix approach: moved play mode input simulation to server-authoritative input/snapshot flow over WebSocket.
+- Added `apps/server/src/WorldSim.ts` and websocket gateway in server `index.ts`.
+- Updated `play.js` to consume authoritative snapshots and use corrected +Z-forward input semantics.
+- Added arrow-key aliases for automated input checks.
+- Introduced server-authoritative movement over websocket (`/ws`), with snapshot tick loop at 20Hz.
+- Added WorldSim tests for speed cap, bounds, and deceleration.
+- Note: direct ad-hoc Playwright run in this environment can fail with WebGL context creation; the earlier skill-run screenshots remain valid for visual checks.
+- Fixed play controls to camera-relative input vector projection (not board-locked).
+- Added leg meshes + gait animation for local and remote avatars.
+- Added HUD status updates for nearby/proximity counts and agent count.
+- Added ChallengeService state machine (create/accept/decline/expire/resolve) with unit tests.
+- Wired websocket challenge protocol:
+  - client -> server: `challenge_send`, `challenge_response`
+  - server -> client: `challenge` events (`created`, `accepted`, `declined`, `expired`, `resolved`, `invalid`, `busy`)
+- Server enforces proximity for challenge initiation and one-active-challenge-per-player lock.
+- Agent runtime now proactively sends/answers challenges based on personality.
+- Web play UI now supports `C` (send), `Y/N` (accept/decline), and HUD challenge status text.
+- Added server challenge log API: `/challenges/recent` and websocket `challenge_feed` broadcast.
+- Added agent-runtime management APIs: `/agents/reconcile`, `/agents/:id/config`, `/secrets/openrouter`, `/capabilities/wallet`.
+- Added dedicated `/agents` frontend panel for bot management and key/capability setup.
+- Upgraded landing page `/` to an operational hub with links + live service/challenge telemetry.
+- Attempted `npx skills coinbase/agentwallet`; command form invalid and direct repo clone path required auth.
+- Installed Coinbase wallet skill pack via `npx skills add coinbase/agentic-wallet-skills --all -y` (9 skills installed).
+- Added Super Agent module with deterministic delegation and wallet/LLM policy contracts.
+- Added Super Agent APIs: `/super-agent/status`, `/super-agent/config`, `/super-agent/delegate/preview`, `/super-agent/delegate/apply`.
+- Extended worker target preference with `human_only` to avoid agent-agent challenge loops by default.
+- Updated `/agents` page with Super Agent controls and wallet-skill-aware defaults.

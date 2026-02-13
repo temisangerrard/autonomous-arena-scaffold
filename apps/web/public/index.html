@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arena Control Landing</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="panel" style="max-width: 1100px">
+        <h1>Autonomous Agent Betting Arena</h1>
+        <p>Central launchpad for gameplay, runtime controls, and challenge observability.</p>
+
+        <div id="service-health" style="display:flex; gap:10px; flex-wrap:wrap; margin: 14px 0;"></div>
+
+        <h3>Primary Entry Points</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap:12px;">
+          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
+            <strong>Play Arena</strong>
+            <p style="margin:8px 0; font-size:13px;">Third-person player mode, camera-relative controls, proximity/challenge HUD.</p>
+            <a class="btn" href="/play?world=train_world">Open Play</a>
+          </div>
+
+          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
+            <strong>World Viewer</strong>
+            <p style="margin:8px 0; font-size:13px;">Inspect world GLBs and composition with orbit camera.</p>
+            <a class="btn" href="/viewer?world=train_world">Open Viewer</a>
+          </div>
+
+          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
+            <strong>Agent Control</strong>
+            <p style="margin:8px 0; font-size:13px;">Tune bot count/behavior, set OpenRouter key, wallet/grand-agent capabilities.</p>
+            <a class="btn" href="/agents">Open Agents</a>
+          </div>
+
+          <div style="border:1px solid #d9ccbd; border-radius:10px; padding:12px; background:#fff;">
+            <strong>Quick Challenge Feed</strong>
+            <p style="margin:8px 0; font-size:13px;">Latest challenge events from server state machine.</p>
+            <button id="refresh-feed" class="btn" style="border:0; cursor:pointer;">Refresh Feed</button>
+          </div>
+        </div>
+
+        <h3 style="margin-top:16px;">Operational Shortcuts</h3>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <a class="btn" href="http://localhost:3000/health" target="_blank" rel="noreferrer" style="background:#4f6e67;">Web Health</a>
+          <a class="btn" href="http://localhost:4000/health" target="_blank" rel="noreferrer" style="background:#4f6e67;">Server Health</a>
+          <a class="btn" href="http://localhost:4100/status" target="_blank" rel="noreferrer" style="background:#4f6e67;">Agent Status JSON</a>
+          <a class="btn" href="http://localhost:4000/challenges/recent?limit=50" target="_blank" rel="noreferrer" style="background:#4f6e67;">Challenge JSON</a>
+        </div>
+
+        <h3 style="margin-top:16px;">Recent Challenges</h3>
+        <pre id="challenge-feed" style="background:#fff; padding:12px; border:1px solid #d9ccbd; border-radius:8px; max-height:280px; overflow:auto;">Loading...</pre>
+      </div>
+    </div>
+
+    <script type="module" src="/js/home.js"></script>
+  </body>
+</html>

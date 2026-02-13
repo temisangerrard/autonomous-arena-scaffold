@@ -1,0 +1,11 @@
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+COPY tsconfig.base.json ./
+COPY eslint.config.mjs ./
+COPY packages ./packages
+COPY apps/server ./apps/server
+RUN npm install
+RUN npm run -w @arena/shared build && npm run -w @arena/server build
+EXPOSE 4000
+CMD ["npm", "run", "-w", "@arena/server", "start"]

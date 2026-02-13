@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Control</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="panel" style="max-width: 1100px">
+        <h1>Agent Control Panel</h1>
+        <p>Manage Super Agent delegation, bot workers, OpenRouter key, and wallet capabilities.</p>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+          <input id="bot-count" type="number" min="1" max="60" value="8" style="padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
+          <button id="apply-count" class="btn" style="border:0; cursor:pointer;">Apply Bot Count</button>
+          <button id="refresh" class="btn" style="border:0; cursor:pointer; background:#4f6e67;">Refresh</button>
+          <a class="btn" href="/play?world=train_world" style="background:#946f1b;">Back To Play</a>
+          <a class="btn" href="/" style="background:#3b6480;">Back To Home</a>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+          <input id="openrouter-key" placeholder="OpenRouter API key" style="flex:1; min-width:320px; padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
+          <button id="save-openrouter" class="btn" style="border:0; cursor:pointer;">Save Key</button>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+          <label><input id="wallet-enabled" type="checkbox" /> Wallet Skills Enabled</label>
+          <input id="grand-agent" placeholder="super agent id" value="agent_1" style="padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
+          <input id="wallet-skills" placeholder="skills e.g authenticate-wallet,send-usdc,trade" style="min-width:260px; padding:8px; border-radius:8px; border:1px solid #d9ccbd;" />
+          <button id="save-wallet" class="btn" style="border:0; cursor:pointer; background:#4f6e67;">Save Wallet Caps</button>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+          <label>Super mode
+            <select id="super-mode">
+              <option value="balanced">balanced</option>
+              <option value="hunter">hunter</option>
+              <option value="defensive">defensive</option>
+            </select>
+          </label>
+          <label><input id="super-challenge-enabled" type="checkbox" checked /> Worker challenges enabled</label>
+          <label>Base cooldown <input id="super-cooldown" type="number" min="1200" max="120000" value="9000" style="width:100px;" /></label>
+          <label>Worker target
+            <select id="super-target">
+              <option value="human_only">human_only</option>
+              <option value="human_first">human_first</option>
+              <option value="any">any</option>
+            </select>
+          </label>
+          <button id="apply-super" class="btn" style="border:0; cursor:pointer; background:#946f1b;">Save Super Config</button>
+          <button id="apply-delegation" class="btn" style="border:0; cursor:pointer; background:#3b6480;">Apply Delegation</button>
+        </div>
+
+        <pre id="summary" style="background:#fff; padding:12px; border:1px solid #d9ccbd; border-radius:8px; overflow:auto;"></pre>
+        <h3>Agents</h3>
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+          <thead>
+            <tr>
+              <th align="left">id</th>
+              <th align="left">connected</th>
+              <th align="left">personality</th>
+              <th align="left">cooldown</th>
+              <th align="left">challenge</th>
+              <th align="left">target pref</th>
+              <th align="left">nearby</th>
+              <th align="left">wins/losses</th>
+              <th align="left">actions</th>
+            </tr>
+          </thead>
+          <tbody id="bots-body"></tbody>
+        </table>
+
+        <h3 style="margin-top:16px;">Recent Challenges</h3>
+        <pre id="challenge-log" style="background:#fff; padding:12px; border:1px solid #d9ccbd; border-radius:8px; overflow:auto; max-height:240px;"></pre>
+      </div>
+    </div>
+
+    <script type="module" src="/js/agents.js"></script>
+  </body>
+</html>
