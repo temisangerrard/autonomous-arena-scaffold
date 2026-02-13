@@ -11,6 +11,7 @@
     "dev": "npm run -ws dev",
     "lint": "npm run -ws lint",
     "test": "npm run -ws test",
+    "test:playable": "node scripts/playable-smoke.mjs",
     "typecheck": "npm run -ws typecheck",
     "format": "prettier --write ."
   },

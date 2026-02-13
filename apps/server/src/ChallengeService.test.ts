@@ -6,44 +6,45 @@ describe('ChallengeService', () => {
     const now = 1000;
     const service = new ChallengeService(() => now, () => 0.2, 10000, 6000);
 
-    const created = service.createChallenge('a', 'b');
+    const created = service.createChallenge('a', 'b', 'rps', 2);
     expect(created.event).toBe('created');
 
-    const busy = service.createChallenge('a', 'c');
+    const busy = service.createChallenge('a', 'c', 'coinflip', 1);
     expect(busy.event).toBe('busy');
   });
 
-  it('accepts and resolves challenge on tick', () => {
+  it('accepts and resolves coinflip when both players choose sides', () => {
     let now = 1000;
     const service = new ChallengeService(() => now, () => 0.1, 10000, 6000);
 
-    const created = service.createChallenge('a', 'b');
+    const created = service.createChallenge('a', 'b', 'coinflip', 3);
     const challengeId = created.challengeId;
     expect(challengeId).toBeDefined();
 
     const accepted = service.respond(challengeId!, 'b', true);
     expect(accepted.event).toBe('accepted');
-
-    now += 7000;
-    const events = service.tick();
-    expect(events.some((event) => event.event === 'resolved')).toBe(true);
-    expect(events[0]?.challenge?.winnerId).toBe('a');
+    service.submitMove(challengeId!, 'a', 'heads');
+    const resolved = service.submitMove(challengeId!, 'b', 'tails');
+    expect(resolved.event).toBe('resolved');
+    expect(resolved.challenge?.coinflipResult).toBe('heads');
+    expect(resolved.challenge?.winnerId).toBe('a');
   });
 
-  it('expires pending challenge on timeout', () => {
-    let now = 1000;
-    const service = new ChallengeService(() => now, () => 0.9, 10000, 6000);
+  it('resolves rps when both players submit moves', () => {
+    const service = new ChallengeService(() => 1000, () => 0.9);
+    const created = service.createChallenge('a', 'b', 'rps', 1);
 
-    service.createChallenge('a', 'b');
-    now += 10001;
-    const events = service.tick();
+    service.respond(created.challengeId!, 'b', true);
+    service.submitMove(created.challengeId!, 'a', 'rock');
+    const resolved = service.submitMove(created.challengeId!, 'b', 'scissors');
 
-    expect(events[0]?.event).toBe('expired');
+    expect(resolved.event).toBe('resolved');
+    expect(resolved.challenge?.winnerId).toBe('a');
   });
 
   it('declines challenge when opponent rejects', () => {
     const service = new ChallengeService(() => 1000, () => 0.5);
-    const created = service.createChallenge('a', 'b');
+    const created = service.createChallenge('a', 'b', 'rps', 1);
 
     const declined = service.respond(created.challengeId!, 'b', false);
     expect(declined.event).toBe('declined');

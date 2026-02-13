@@ -1,658 +1,503 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arena - Play Mode</title>
-    <link rel="stylesheet" href="/styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        /* Loading Screen */
-        #loading {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            transition: opacity 0.8s ease;
-        }
-        #loading.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-        .loader {
-            width: 80px;
-            height: 80px;
-            border: 5px solid #1a1a2e;
-            border-top: 5px solid var(--accent-primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        #loading h1 {
-            font-family: var(--font-display);
-            color: var(--accent-primary);
-            margin-top: 30px;
-            font-size: 2rem;
-            letter-spacing: 0.2em;
-        }
-        #loading p {
-            color: var(--text-muted);
-            margin-top: 15px;
-            font-size: 0.9rem;
-        }
-        #progress-bar {
-            width: 300px;
-            height: 4px;
-            background: #1a1a2e;
-            border-radius: 2px;
-            margin-top: 25px;
-            overflow: hidden;
-        }
-        #progress-fill {
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-            transition: width 0.2s ease;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arena Play</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; overflow: hidden; }
+    .canvas-shell { position: fixed; inset: 0; }
+    #scene { width: 100vw; height: 100vh; display: block; }
+
+    #hud {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      max-width: min(92vw, 460px);
+      padding: 8px 11px;
+      border-radius: 8px;
+      background: rgba(250, 248, 245, 0.92);
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      color: #2c2416;
+      font: 12px/1.3 'Crimson Text', serif;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+
+    .challenge-panel {
+      position: fixed;
+      right: 14px;
+      top: 14px;
+      width: min(92vw, 320px);
+      border-radius: 8px;
+      background: rgba(250, 248, 245, 0.95);
+      border: 1px solid rgba(201, 162, 39, 0.35);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+      padding: 12px;
+      z-index: 60;
+      color: #2c2416;
+      opacity: 0.9;
+      transition: opacity 0.18s ease;
+    }
+    .challenge-panel:hover { opacity: 1; }
+
+    .challenge-panel h2 {
+      margin: 0;
+      font: 600 14px/1.2 'Cormorant Garamond', serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #a68523;
+    }
+
+    .challenge-panel__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.25);
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+
+    .desk-toggle {
+      width: auto;
+      border: 1px solid rgba(201, 162, 39, 0.45);
+      background: rgba(255, 255, 255, 0.8);
+      color: #5c4a1a;
+      border-radius: 999px;
+      font: 700 10px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+
+    .challenge-panel__body {
+      display: block;
+    }
+
+    .challenge-panel.compact .challenge-panel__body {
+      display: none;
+    }
+
+    .challenge-panel.compact {
+      width: 210px;
+    }
+
+    .pill-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .pill {
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(201, 162, 39, 0.35);
+      background: rgba(255, 255, 255, 0.75);
+      font: 600 11px/1.1 var(--font-mono);
+      color: #5c4a1a;
+      letter-spacing: 0.03em;
+    }
+
+    .status-line {
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(201, 162, 39, 0.28);
+      background: rgba(255, 255, 255, 0.75);
+      font: 13px/1.3 'EB Garamond', serif;
+      color: #4a3f32;
+      min-height: 36px;
+    }
+
+    .challenge-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .challenge-grid label,
+    .challenge-panel label {
+      display: block;
+      font: 600 11px/1.2 'Cormorant Garamond', serif;
+      color: #6b5d4d;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .challenge-panel select,
+    .challenge-panel input {
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      background: #fff;
+      color: #2c2416;
+      padding: 10px 12px;
+      font: 14px/1.3 'Crimson Text', serif;
+    }
+
+    .challenge-panel button {
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid #c9a227;
+      background: linear-gradient(135deg, #c9a227 0%, #e8d48a 50%, #c9a227 100%);
+      color: #2c2416;
+      padding: 10px 12px;
+      font: 600 13px/1.2 'Cormorant Garamond', serif;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .challenge-panel button:hover {
+      background: linear-gradient(135deg, #a68523 0%, #c9a227 50%, #a68523 100%);
+    }
+
+    .challenge-panel .row { margin-bottom: 12px; }
+
+    .challenge-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .side-controls-note {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(201, 162, 39, 0.22);
+      background: rgba(255, 255, 255, 0.72);
+      color: #5a4a31;
+      font: 12px/1.3 'Crimson Text', serif;
+    }
+
+    .rps-buttons,
+    .coin-buttons {
+      display: none;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .coin-buttons { grid-template-columns: repeat(2, 1fr); }
+
+    .rps-buttons.visible,
+    .coin-buttons.visible { display: grid; }
+
+    .feed {
+      margin-top: 12px;
+      max-height: 170px;
+      overflow: auto;
+      padding: 10px;
+      border-radius: 6px;
+      background: rgba(245, 242, 237, 0.8);
+      border: 1px solid rgba(201, 162, 39, 0.2);
+      font: 13px/1.4 'EB Garamond', serif;
+      color: #4a3f32;
+    }
+
+    .feed-item {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(201, 162, 39, 0.22);
+      background: rgba(255, 255, 255, 0.66);
+      margin-bottom: 6px;
+    }
+
+    .feed-item:last-child { margin-bottom: 0; }
+
+    .feed-item__top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font: 600 10px/1 var(--font-mono);
+      color: #6b5d4d;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 3px;
+    }
+
+    .feed-item__body {
+      font: 13px/1.35 'EB Garamond', serif;
+      color: #3d3225;
+    }
+
+    .feed-empty {
+      font: 13px/1.3 'EB Garamond', serif;
+      color: #6b5d4d;
+      text-align: center;
+      padding: 12px 4px;
+    }
+
+    .feed-title {
+      margin-top: 10px;
+      margin-bottom: 6px;
+      font: 600 11px/1 var(--font-mono);
+      color: #6b5d4d;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .game-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(36, 26, 7, 0.35);
+      z-index: 120;
+    }
+
+    .game-modal.visible { display: flex; }
+
+    .game-card {
+      width: min(92vw, 520px);
+      border-radius: 10px;
+      background: rgba(255, 252, 244, 0.96);
+      border: 1px solid rgba(201, 162, 39, 0.38);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
+      padding: 16px;
+      color: #2c2416;
+      text-align: center;
+    }
+
+    .game-card h3 {
+      margin: 0 0 10px;
+      font: 700 24px/1.1 var(--font-display);
+      color: #a68523;
+    }
+
+    .game-card p { margin: 8px 0; font: 16px/1.4 var(--font-primary); }
+
+    .world-map-panel {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: 260px;
+      border-radius: 14px;
+      background: linear-gradient(165deg, rgba(255, 254, 249, 0.97), rgba(243, 236, 216, 0.95));
+      border: 1px solid rgba(177, 138, 26, 0.42);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+      padding: 12px;
+      z-index: 70;
+    }
+
+    .world-map-title {
+      font: 600 11px/1 var(--font-mono);
+      color: #6b5d4d;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .map-legend {
+      display: flex;
+      gap: 8px;
+      font: 600 10px/1 var(--font-mono);
+      color: #6b5d4d;
+      margin-top: 7px;
+      flex-wrap: wrap;
+    }
+
+    .map-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 3px;
+      vertical-align: middle;
+    }
+
+    #world-map {
+      width: 100%;
+      height: 180px;
+      border-radius: 10px;
+      border: 1px solid rgba(168, 130, 24, 0.36);
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.95), rgba(246, 236, 205, 0.92));
+      display: block;
+    }
+
+    .match-controls {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 20px;
+      width: min(94vw, 560px);
+      border-radius: 12px;
+      background: rgba(255, 252, 244, 0.96);
+      border: 1px solid rgba(201, 162, 39, 0.42);
+      box-shadow: 0 16px 26px rgba(0, 0, 0, 0.2);
+      padding: 12px;
+      z-index: 130;
+      display: none;
+    }
+    .match-controls.visible { display: block; }
+
+    .match-controls__title {
+      font: 700 16px/1.2 var(--font-display);
+      color: #7e6117;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .match-controls__status {
+      font: 14px/1.3 var(--font-primary);
+      color: #4a3f32;
+      margin-bottom: 10px;
+    }
+
+    .match-controls__actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .match-controls__actions.two { grid-template-columns: repeat(2, 1fr); }
+
+    .match-controls__actions button {
+      border-radius: 8px;
+      border: 1px solid #b48f27;
+      background: linear-gradient(135deg, #cbab4a 0%, #ebd792 45%, #c7a339 100%);
+      color: #2b2213;
+      padding: 12px 10px;
+      font: 700 13px/1.1 var(--font-display);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .match-controls__actions button:hover {
+      background: linear-gradient(135deg, #b28a1f 0%, #dcbc61 45%, #b38a1f 100%);
+    }
+
+    .match-controls__actions button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      filter: grayscale(0.2);
+    }
+
+    .interaction-prompt {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 106px;
+      z-index: 135;
+      display: none;
+      padding: 9px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(201, 162, 39, 0.45);
+      background: rgba(255, 250, 240, 0.96);
+      color: #4a3612;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+      font: 700 13px/1.2 'Crimson Text', serif;
+      letter-spacing: 0.02em;
+    }
+    .interaction-prompt.visible { display: block; }
+  </style>
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div id="loading">
-        <div class="loader"></div>
-        <h1>ARENA</h1>
-        <p>Loading Mega World...</p>
-        <div id="progress-bar"><div id="progress-fill"></div></div>
+  <div class="canvas-shell"><canvas id="scene"></canvas></div>
+  <div id="hud">Loading world...</div>
+  <div id="interaction-prompt" class="interaction-prompt"></div>
+
+  <aside class="challenge-panel">
+    <div class="challenge-panel__head">
+      <h2>Challenge Desk</h2>
+      <button id="desk-toggle" class="desk-toggle" type="button">Collapse</button>
     </div>
+    <div class="challenge-panel__body" id="desk-body">
+      <div class="pill-row">
+        <span class="pill">`C` send</span>
+        <span class="pill">`Y/N` respond</span>
+        <span class="pill">`1/2/3` RPS</span>
+        <span class="pill">`H/T` coinflip</span>
+      </div>
+      <div id="challenge-status-line" class="status-line">Find a nearby target and start a challenge.</div>
+      <div class="row">
+        <label for="challenge-target">Nearby target</label>
+        <select id="challenge-target"></select>
+      </div>
+      <div class="challenge-grid">
+        <div>
+          <label for="challenge-game">Game</label>
+          <select id="challenge-game">
+            <option value="rps">Rock Paper Scissors</option>
+            <option value="coinflip">Coin Flip</option>
+          </select>
+        </div>
+        <div>
+          <label for="challenge-wager">Wager</label>
+          <input id="challenge-wager" type="number" min="1" max="10000" step="1" value="1">
+        </div>
+      </div>
+      <div class="challenge-actions">
+        <button id="challenge-send" type="button">Send Challenge</button>
+        <button id="challenge-cancel" type="button">Clear</button>
+      </div>
 
-    <!-- Canvas Container -->
-    <div class="canvas-shell">
-        <canvas id="scene"></canvas>
+      <div class="challenge-actions">
+        <button id="challenge-accept" type="button">Accept (Y)</button>
+        <button id="challenge-decline" type="button">Decline (N)</button>
+      </div>
+
+      <div class="side-controls-note">Active match controls appear at center-bottom so they are always visible.</div>
+
+      <div class="feed-title">Live Match Feed</div>
+      <div class="feed" id="challenge-feed-panel">No challenge activity yet.</div>
     </div>
+  </aside>
 
-    <!-- HUD: Top Left - Player Info -->
-    <div class="hud-player">
-        <div class="hud-player__avatar">🎮</div>
-        <div class="hud-player__info">
-            <div class="hud-player__name" id="player-name">Explorer</div>
-            <div class="hud-player__title">Arena Champion</div>
-            <div class="hud-bars">
-                <div class="hud-bar hud-bar--health">
-                    <div class="hud-bar__fill" id="health-bar" style="width: 100%"></div>
-                    <span class="hud-bar__label">100</span>
-                </div>
-                <div class="hud-bar hud-bar--stamina">
-                    <div class="hud-bar__fill" id="stamina-bar" style="width: 100%"></div>
-                </div>
-            </div>
-        </div>
+  <aside class="world-map-panel">
+    <div class="world-map-title">
+      <span>Arena Map</span>
+      <span id="map-coords">x:0 z:0</span>
     </div>
-
-    <!-- HUD: Top Center - Location -->
-    <div class="hud-location">
-        <div class="hud-location__name" id="location-name">Station Plaza</div>
-        <div class="hud-location__coords" id="location-coords">X: 0 | Z: 0</div>
+    <canvas id="world-map" width="220" height="170"></canvas>
+    <div class="map-legend">
+      <span><i class="map-dot" style="background:#2f6dff"></i>You</span>
+      <span><i class="map-dot" style="background:#b4792a"></i>Agent</span>
+      <span><i class="map-dot" style="background:#4f8a63"></i>Human</span>
     </div>
+  </aside>
 
-    <!-- HUD: Top Right - Stats -->
-    <div class="hud-stats">
-        <div class="hud-stat">
-            <span class="hud-stat__icon">👥</span>
-            <div>
-                <div class="hud-stat__value" id="nearby-count">0</div>
-                <div class="hud-stat__label">Nearby</div>
-            </div>
-        </div>
-        <div class="hud-stat">
-            <span class="hud-stat__icon">🤖</span>
-            <div>
-                <div class="hud-stat__value" id="agent-count">0</div>
-                <div class="hud-stat__label">Agents</div>
-            </div>
-        </div>
-        <div class="hud-stat">
-            <span class="hud-stat__icon">⚔️</span>
-            <div>
-                <div class="hud-stat__value" id="challenge-count">0</div>
-                <div class="hud-stat__label">Challenges</div>
-            </div>
-        </div>
+  <div id="game-modal" class="game-modal">
+    <div class="game-card">
+      <h3 id="game-title">Match</h3>
+      <p id="game-players">Waiting...</p>
+      <p id="game-status">Preparing challenge.</p>
+      <p id="game-detail"></p>
+      <button id="game-close" type="button">Close</button>
     </div>
+  </div>
 
-    <!-- HUD: Challenge Feed -->
-    <div class="challenge-feed">
-        <div class="challenge-feed__header">
-            <span class="challenge-feed__title">
-                <span class="challenge-feed__live"></span>
-                Challenge Feed
-            </span>
-            <span class="text-muted" style="font-size: 0.7rem;">LIVE</span>
-        </div>
-        <div class="challenge-feed__list" id="challenge-list">
-        </div>
-    </div>
+  <section id="match-controls" class="match-controls">
+    <div class="match-controls__title" id="match-controls-title">Match Controls</div>
+    <div class="match-controls__status" id="match-controls-status">No active match.</div>
+    <div class="match-controls__actions" id="match-controls-actions"></div>
+  </section>
 
-    <!-- HUD: Bottom Left - Controls -->
-    <div class="hud-controls">
-        <div class="hud-controls__title">Controls</div>
-        <div class="hud-controls__row">
-            <span class="hud-key">W</span>
-            <span class="hud-key">A</span>
-            <span class="hud-key">S</span>
-            <span class="hud-key">D</span>
-            <span class="hud-controls__desc">Move</span>
-        </div>
-        <div class="hud-controls__row">
-            <span class="hud-key">SHIFT</span>
-            <span class="hud-controls__desc">Sprint</span>
-        </div>
-        <div class="hud-controls__row">
-            <span class="hud-key">DRAG</span>
-            <span class="hud-controls__desc">Orbit Camera</span>
-        </div>
-        <div class="hud-controls__row">
-            <span class="hud-key">SCROLL</span>
-            <span class="hud-controls__desc">Zoom</span>
-        </div>
-        <div class="hud-controls__row">
-            <span class="hud-key">C</span>
-            <span class="hud-controls__desc">Challenge</span>
-        </div>
-        <div class="hud-controls__row">
-            <span class="hud-key">Y</span>
-            <span class="hud-key">N</span>
-            <span class="hud-controls__desc">Accept/Decline</span>
-        </div>
-        <div class="hud-controls__row">
-            <span class="hud-key">F</span>
-            <span class="hud-controls__desc">Fullscreen</span>
-        </div>
-    </div>
-
-    <!-- HUD: Bottom Center - Speed -->
-    <div class="hud-speed">
-        <span class="hud-speed__value" id="speed-value">0</span>
-        <span class="hud-speed__unit">m/s</span>
-        <div class="hud-speed__mode" id="speed-mode">STANDING</div>
-    </div>
-
-    <!-- HUD: Bottom Right - Minimap -->
-    <div class="hud-minimap">
-        <div class="hud-minimap__compass">N</div>
-        <div class="hud-minimap__inner">
-            <div class="hud-minimap__player"></div>
-            <div class="hud-minimap__direction" id="minimap-direction"></div>
-        </div>
-    </div>
-
-    <!-- Challenge Popup (hidden by default) -->
-    <div class="challenge-popup" id="challenge-popup" style="display: none;">
-        <div class="challenge-popup__icon">⚔️</div>
-        <div class="challenge-popup__title">Incoming Challenge!</div>
-        <div class="challenge-popup__challenger" id="popup-challenger">Bot_Alpha wants to battle</div>
-        <div class="challenge-popup__timer" id="popup-timer">30</div>
-        <div class="challenge-popup__actions">
-            <button class="btn btn--success btn--lg" id="accept-btn">
-                <span class="hud-key" style="margin-right: 8px;">Y</span> Accept
-            </button>
-            <button class="btn btn--secondary btn--lg" id="decline-btn">
-                <span class="hud-key" style="margin-right: 8px;">N</span> Decline
-            </button>
-        </div>
-    </div>
-
-    <!-- Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
-
-    <script type="importmap">
+  <script type="importmap">
     {
-        "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
-        }
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
+      }
     }
-    </script>
-
-    <script type="module">
-        import * as THREE from 'three';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-        // ========== CONFIGURATION ==========
-        const WORLD_ALIAS = new URLSearchParams(window.location.search).get('world') || 'mega';
-
-        // ========== DOM ELEMENTS ==========
-        const canvas = document.getElementById('scene');
-        const loadingScreen = document.getElementById('loading');
-        const progressFill = document.getElementById('progress-fill');
-
-        // ========== SCENE SETUP ==========
-        const scene = new THREE.Scene();
-        const skyColor = new THREE.Color(0x87CEEB);
-        scene.background = skyColor;
-        scene.fog = new THREE.Fog(skyColor, 50, 300);
-
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
-
-        // ========== LIGHTING ==========
-        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        sunLight.position.set(80, 150, 80);
-        sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 4096;
-        sunLight.shadow.mapSize.height = 4096;
-        sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 500;
-        sunLight.shadow.camera.left = -150;
-        sunLight.shadow.camera.right = 150;
-        sunLight.shadow.camera.top = 150;
-        sunLight.shadow.camera.bottom = -150;
-        scene.add(sunLight);
-
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
-        fillLight.position.set(-50, 80, -50);
-        scene.add(fillLight);
-
-        scene.add(new THREE.HemisphereLight(0x87CEEB, 0x3d5c3d, 0.6));
-
-        // ========== CREATE CYLINDER CHARACTER WITH LEGS ==========
-        function createCharacter() {
-            const group = new THREE.Group();
-
-            // Body - Cylinder
-            const bodyGeo = new THREE.CylinderGeometry(0.35, 0.4, 1.2, 16);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe94560, metalness: 0.3, roughness: 0.7 });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 1.1;
-            body.castShadow = true;
-            group.add(body);
-
-            // Head - Smaller cylinder
-            const headGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.4, 16);
-            const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, metalness: 0.1, roughness: 0.8 });
-            const head = new THREE.Mesh(headGeo, headMat);
-            head.position.y = 1.9;
-            head.castShadow = true;
-            group.add(head);
-
-            // Eyes
-            const eyeGeo = new THREE.SphereGeometry(0.05, 8, 8);
-            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-            leftEye.position.set(-0.08, 1.95, 0.2);
-            group.add(leftEye);
-            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-            rightEye.position.set(0.08, 1.95, 0.2);
-            group.add(rightEye);
-
-            // Legs
-            const legGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.5, 8);
-            const legMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.2, roughness: 0.8 });
-
-            const leftLeg = new THREE.Mesh(legGeo, legMat);
-            leftLeg.position.set(-0.15, 0.25, 0);
-            leftLeg.castShadow = true;
-            group.add(leftLeg);
-
-            const rightLeg = new THREE.Mesh(legGeo, legMat);
-            rightLeg.position.set(0.15, 0.25, 0);
-            rightLeg.castShadow = true;
-            group.add(rightLeg);
-
-            // Feet
-            const footGeo = new THREE.BoxGeometry(0.15, 0.08, 0.25);
-            const footMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-
-            const leftFoot = new THREE.Mesh(footGeo, footMat);
-            leftFoot.position.set(-0.15, 0.04, 0.05);
-            leftFoot.castShadow = true;
-            group.add(leftFoot);
-
-            const rightFoot = new THREE.Mesh(footGeo, footMat);
-            rightFoot.position.set(0.15, 0.04, 0.05);
-            rightFoot.castShadow = true;
-            group.add(rightFoot);
-
-            // Store leg references for animation
-            group.userData.leftLeg = leftLeg;
-            group.userData.rightLeg = rightLeg;
-            group.userData.leftFoot = leftFoot;
-            group.userData.rightFoot = rightFoot;
-
-            return group;
-        }
-
-        // ========== PLAYER STATE ==========
-        let playerMesh = null;
-        const playerPos = new THREE.Vector3(5, 0, -5);
-        let playerRotation = 0;
-        let stamina = 100;
-        let walkCycle = 0;
-
-        // ========== CAMERA CONTROLS ==========
-        let cameraYaw = 0;
-        let cameraPitch = 0.3;
-        let cameraDistance = 8;
-        const minPitch = -0.2;
-        const maxPitch = 1.2;
-        const minDistance = 3;
-        const maxDistance = 20;
-
-        // ========== INPUT ==========
-        const keys = { w: false, a: false, s: false, d: false, shift: false };
-
-        document.addEventListener('keydown', (e) => {
-            const k = e.key.toLowerCase();
-            if (k === 'w') keys.w = true;
-            if (k === 'a') keys.a = true;
-            if (k === 's') keys.s = true;
-            if (k === 'd') keys.d = true;
-            if (k === 'shift') keys.shift = true;
-            if (k === 'f') toggleFullscreen();
-            if (k === 'c') sendChallenge();
-            if (k === 'y') respondChallenge(true);
-            if (k === 'n') respondChallenge(false);
-        });
-
-        document.addEventListener('keyup', (e) => {
-            const k = e.key.toLowerCase();
-            if (k === 'w') keys.w = false;
-            if (k === 'a') keys.a = false;
-            if (k === 's') keys.s = false;
-            if (k === 'd') keys.d = false;
-            if (k === 'shift') keys.shift = false;
-        });
-
-        // Mouse drag to orbit camera
-        let isMouseDown = false;
-        canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) isMouseDown = true;
-        });
-        document.addEventListener('mouseup', () => isMouseDown = false);
-        document.addEventListener('mousemove', (e) => {
-            if (!isMouseDown) return;
-            cameraYaw -= e.movementX * 0.005;
-            cameraPitch -= e.movementY * 0.005;
-            cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
-        });
-
-        // Scroll to zoom
-        canvas.addEventListener('wheel', (e) => {
-            cameraDistance += e.deltaY * 0.01;
-            cameraDistance = Math.max(minDistance, Math.min(maxDistance, cameraDistance));
-        });
-
-        // ========== DISTRICTS ==========
-        function getDistrict(x, z) {
-            if (x > 25 && z < 15) return "Harbor District";
-            if (x < -30 && z < -15) return "Residential Village";
-            if (z > 40) return "Festival Carnival";
-            if (x > 30 && z > 20) return "Park & Recreation";
-            if (x < -40 && z > -20 && z < 20) return "Industrial Workshop";
-            if (z < -35) return "Medieval Castle";
-            if (x < -30 && z > 30) return "Farm & Fields";
-            if (x > 25 && z < -20) return "Mystical Grove";
-            return "Station Plaza";
-        }
-
-        // ========== LOAD WORLD ==========
-        const loader = new GLTFLoader();
-
-        loader.load(
-            `/assets/world/${WORLD_ALIAS}.glb`,
-            (gltf) => {
-                const model = gltf.scene;
-
-                model.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                    // Hide the old embedded player character
-                    if (child.name === 'Player_Character' || child.name === 'The_Explorer' ||
-                        child.name.toLowerCase().includes('player') || child.name.toLowerCase().includes('explorer')) {
-                        child.visible = false;
-                    }
-                });
-
-                scene.add(model);
-
-                // Create our cylinder character with legs
-                playerMesh = createCharacter();
-                playerMesh.position.copy(playerPos);
-                scene.add(playerMesh);
-
-                setTimeout(() => {
-                    loadingScreen.classList.add('hidden');
-                }, 500);
-
-                showToast('success', 'World Loaded', `Welcome to the Arena!`);
-            },
-            (xhr) => {
-                if (xhr.total) {
-                    const progress = (xhr.loaded / xhr.total) * 100;
-                    progressFill.style.width = progress + '%';
-                }
-            },
-            (error) => {
-                console.error('Load error:', error);
-                showToast('error', 'Load Failed', 'Could not load world assets');
-            }
-        );
-
-        // ========== GAME LOOP ==========
-        const clock = new THREE.Clock();
-        let currentSpeed = 0;
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-
-            if (playerMesh) {
-                // Movement speeds
-                const walkSpeed = 8;
-                const sprintSpeed = 16;
-                const speed = (keys.shift && stamina > 0) ? sprintSpeed : walkSpeed;
-
-                // Get movement direction
-                const moveDir = new THREE.Vector3();
-                if (keys.w) moveDir.z -= 1;  // Forward
-                if (keys.s) moveDir.z += 1;  // Back
-                if (keys.a) moveDir.x -= 1;  // Left
-                if (keys.d) moveDir.x += 1;  // Right
-
-                if (moveDir.length() > 0) {
-                    moveDir.normalize();
-
-                    // Rotate movement by camera yaw (camera-relative movement)
-                    const rotatedDir = new THREE.Vector3(
-                        moveDir.x * Math.cos(cameraYaw) - moveDir.z * Math.sin(cameraYaw),
-                        0,
-                        moveDir.x * Math.sin(cameraYaw) + moveDir.z * Math.cos(cameraYaw)
-                    );
-
-                    // Move player
-                    playerPos.x += rotatedDir.x * speed * delta;
-                    playerPos.z += rotatedDir.z * speed * delta;
-
-                    // Rotate player to face movement direction
-                    playerRotation = Math.atan2(rotatedDir.x, rotatedDir.z);
-
-                    currentSpeed = speed;
-
-                    // Stamina drain when sprinting
-                    if (keys.shift && stamina > 0) {
-                        stamina = Math.max(0, stamina - 20 * delta);
-                    }
-
-                    // Walk cycle for leg animation
-                    walkCycle += delta * speed * 0.8;
-
-                } else {
-                    currentSpeed = 0;
-                }
-
-                // Stamina regen
-                if (!keys.shift && stamina < 100) {
-                    stamina = Math.min(100, stamina + 15 * delta);
-                }
-
-                // Update player position and rotation
-                playerMesh.position.copy(playerPos);
-                playerMesh.rotation.y = playerRotation;
-
-                // Animate legs when moving
-                if (currentSpeed > 0 && playerMesh.userData.leftLeg) {
-                    const legSwing = Math.sin(walkCycle) * 0.4;
-                    playerMesh.userData.leftLeg.rotation.x = legSwing;
-                    playerMesh.userData.rightLeg.rotation.x = -legSwing;
-                    playerMesh.userData.leftFoot.position.z = 0.05 + Math.sin(walkCycle) * 0.1;
-                    playerMesh.userData.rightFoot.position.z = 0.05 - Math.sin(walkCycle) * 0.1;
-                } else if (playerMesh.userData.leftLeg) {
-                    // Reset legs when standing
-                    playerMesh.userData.leftLeg.rotation.x = 0;
-                    playerMesh.userData.rightLeg.rotation.x = 0;
-                    playerMesh.userData.leftFoot.position.z = 0.05;
-                    playerMesh.userData.rightFoot.position.z = 0.05;
-                }
-
-                // ========== CAMERA ==========
-                const cameraOffset = new THREE.Vector3(
-                    Math.sin(cameraYaw) * Math.cos(cameraPitch) * cameraDistance,
-                    Math.sin(cameraPitch) * cameraDistance + 3,
-                    Math.cos(cameraYaw) * Math.cos(cameraPitch) * cameraDistance
-                );
-
-                const targetCamPos = playerPos.clone().add(cameraOffset);
-                camera.position.lerp(targetCamPos, 0.1);
-
-                // Look at player
-                const lookTarget = playerPos.clone();
-                lookTarget.y += 1.2;
-                camera.lookAt(lookTarget);
-
-                // ========== HUD UPDATES ==========
-                updateHUD();
-            }
-
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        // ========== HUD UPDATES ==========
-        function updateHUD() {
-            document.getElementById('location-name').textContent = getDistrict(playerPos.x, playerPos.z);
-            document.getElementById('location-coords').textContent = `X: ${playerPos.x.toFixed(0)} | Z: ${playerPos.z.toFixed(0)}`;
-            document.getElementById('speed-value').textContent = currentSpeed.toFixed(0);
-            document.getElementById('speed-mode').textContent =
-                currentSpeed === 0 ? 'STANDING' : (keys.shift && stamina > 0 ? 'SPRINTING' : 'WALKING');
-            document.getElementById('stamina-bar').style.width = `${stamina}%`;
-            document.getElementById('minimap-direction').style.transform =
-                `translate(-50%, -100%) rotate(${(-cameraYaw * 180 / Math.PI)}deg)`;
-        }
-
-        // ========== CHALLENGE SYSTEM ==========
-        function sendChallenge() {
-            showToast('info', 'Challenge Sent', 'Looking for nearby opponents...');
-        }
-
-        function respondChallenge(accept) {
-            const popup = document.getElementById('challenge-popup');
-            popup.style.display = 'none';
-            if (accept) {
-                showToast('success', 'Challenge Accepted', 'Battle starting...');
-            } else {
-                showToast('warning', 'Challenge Declined', 'You declined the challenge');
-            }
-        }
-
-        document.getElementById('accept-btn').addEventListener('click', () => respondChallenge(true));
-        document.getElementById('decline-btn').addEventListener('click', () => respondChallenge(false));
-
-        // ========== FULLSCREEN ==========
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
-                document.exitFullscreen();
-            }
-        }
-
-        // ========== TOAST NOTIFICATIONS ==========
-        function showToast(type, title, message) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast toast--${type}`;
-            toast.innerHTML = `
-                <span class="toast__icon">${type === 'success' ? '✓' : type === 'error' ? '✗' : type === 'warning' ? '⚠' : 'ℹ'}</span>
-                <div class="toast__content">
-                    <div class="toast__title">${title}</div>
-                    <div class="toast__message">${message}</div>
-                </div>
-            `;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
-        }
-
-        // ========== RESIZE ==========
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // ========== CHALLENGE FEED ==========
-        function addChallengeToFeed(event, challenger, target) {
-            const list = document.getElementById('challenge-list');
-            const time = new Date().toLocaleTimeString();
-            const item = document.createElement('div');
-            item.className = 'challenge-item';
-            item.innerHTML = `
-                <div class="challenge-item__header">
-                    <span class="challenge-item__type challenge-item__type--${event}">${event}</span>
-                    <span class="challenge-item__time">${time}</span>
-                </div>
-                <div class="challenge-item__players">
-                    <span class="challenge-item__player">
-                        <span class="challenge-item__avatar ${challenger.startsWith('Bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
-                        ${challenger}
-                    </span>
-                    <span class="challenge-item__vs">VS</span>
-                    <span class="challenge-item__player">
-                        <span class="challenge-item__avatar ${target.startsWith('Bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
-                        ${target}
-                    </span>
-                </div>
-            `;
-            list.insertBefore(item, list.firstChild);
-            if (list.children.length > 10) list.removeChild(list.lastChild);
-        }
-
-        // Demo challenges
-        setTimeout(() => addChallengeToFeed('created', 'Bot_Alpha', 'Bot_Beta'), 2000);
-        setTimeout(() => addChallengeToFeed('accepted', 'Bot_Alpha', 'Bot_Beta'), 4000);
-        setTimeout(() => addChallengeToFeed('resolved', 'Bot_Alpha', 'Bot_Beta'), 8000);
-    </script>
+  </script>
+  <script type="module" src="/js/auth-shell.js"></script>
+  <script type="module" src="/js/play.js"></script>
 </body>
 </html>

@@ -1,15 +1,24 @@
 export type ChallengeStatus = 'pending' | 'active' | 'resolved' | 'declined' | 'expired';
+export type GameType = 'coinflip' | 'rps';
+export type RpsMove = 'rock' | 'paper' | 'scissors';
+export type CoinflipMove = 'heads' | 'tails';
+export type GameMove = RpsMove | CoinflipMove;
 
 export type Challenge = {
   id: string;
   challengerId: string;
   opponentId: string;
   status: ChallengeStatus;
+  gameType: GameType;
+  wager: number;
   createdAt: number;
   expiresAt: number;
   acceptedAt: number | null;
   resolvedAt: number | null;
   winnerId: string | null;
+  challengerMove: GameMove | null;
+  opponentMove: GameMove | null;
+  coinflipResult: CoinflipMove | null;
 };
 
 export type ChallengeEvent = {
@@ -20,6 +29,7 @@ export type ChallengeEvent = {
     | 'declined'
     | 'expired'
     | 'resolved'
+    | 'move_submitted'
     | 'invalid'
     | 'busy';
   challengeId?: string;
@@ -34,6 +44,7 @@ export type ChallengeLog = {
   challengeId: string | null;
   challengerId: string | null;
   opponentId: string | null;
+  gameType: GameType | null;
   winnerId: string | null;
   reason: string | null;
 };
@@ -47,11 +58,16 @@ export class ChallengeService {
   constructor(
     private readonly now: () => number,
     private readonly random: () => number,
-    private readonly pendingTimeoutMs = 10_000,
-    private readonly activeResolveMs = 6_000
+    private readonly pendingTimeoutMs = 15_000,
+    private readonly activeResolveMs = 45_000
   ) {}
 
-  createChallenge(challengerId: string, opponentId: string): ChallengeEvent {
+  createChallenge(
+    challengerId: string,
+    opponentId: string,
+    gameType: GameType,
+    wager: number
+  ): ChallengeEvent {
     if (challengerId === opponentId) {
       return this.withLog({ type: 'challenge', event: 'invalid', reason: 'self_challenge' });
     }
@@ -65,16 +81,23 @@ export class ChallengeService {
       });
     }
 
+    const safeWager = Math.max(0, Math.min(10_000, Number.isFinite(wager) ? wager : 1));
+
     const challenge: Challenge = {
       id: `c_${this.challengeCounter++}`,
       challengerId,
       opponentId,
       status: 'pending',
+      gameType,
+      wager: safeWager,
       createdAt: this.now(),
       expiresAt: this.now() + this.pendingTimeoutMs,
       acceptedAt: null,
       resolvedAt: null,
-      winnerId: null
+      winnerId: null,
+      challengerMove: null,
+      opponentMove: null,
+      coinflipResult: null
     };
 
     this.challenges.set(challenge.id, challenge);
@@ -114,6 +137,8 @@ export class ChallengeService {
 
     challenge.status = 'active';
     challenge.acceptedAt = this.now();
+
+    // Both games require explicit moves; timeout resolves if one side is missing.
     challenge.expiresAt = this.now() + this.activeResolveMs;
 
     return this.withLog({
@@ -123,6 +148,62 @@ export class ChallengeService {
       challenge,
       to: [challenge.challengerId, challenge.opponentId]
     });
+  }
+
+  abortChallenge(challengeId: string, status: 'declined' | 'expired', reason: string): ChallengeEvent {
+    const challenge = this.challenges.get(challengeId);
+    if (!challenge || (challenge.status !== 'pending' && challenge.status !== 'active')) {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'challenge_not_open' });
+    }
+
+    challenge.status = status;
+    this.clearPlayerLocks(challenge);
+    return this.withLog({
+      type: 'challenge',
+      event: status,
+      challengeId,
+      challenge,
+      to: [challenge.challengerId, challenge.opponentId],
+      reason
+    });
+  }
+
+  submitMove(challengeId: string, playerId: string, move: GameMove): ChallengeEvent {
+    const challenge = this.challenges.get(challengeId);
+    if (!challenge || challenge.status !== 'active') {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'challenge_not_active' });
+    }
+
+    if (challenge.gameType === 'rps' && !this.isRpsMove(move)) {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'invalid_rps_move' });
+    }
+    if (challenge.gameType === 'coinflip' && !this.isCoinflipMove(move)) {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'invalid_coinflip_move' });
+    }
+
+    if (playerId === challenge.challengerId) {
+      challenge.challengerMove = move;
+    } else if (playerId === challenge.opponentId) {
+      challenge.opponentMove = move;
+    } else {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'not_participant' });
+    }
+
+    if (!challenge.challengerMove || !challenge.opponentMove) {
+      return this.withLog({
+        type: 'challenge',
+        event: 'move_submitted',
+        challengeId,
+        challenge,
+        to: [challenge.challengerId, challenge.opponentId]
+      });
+    }
+
+    if (challenge.gameType === 'rps') {
+      return this.resolveRps(challenge);
+    }
+
+    return this.resolveCoinflip(challenge);
   }
 
   tick(): ChallengeEvent[] {
@@ -146,19 +227,55 @@ export class ChallengeService {
       }
 
       if (challenge.status === 'active' && now >= challenge.expiresAt) {
-        challenge.status = 'resolved';
-        challenge.resolvedAt = now;
-        challenge.winnerId = this.random() < 0.5 ? challenge.challengerId : challenge.opponentId;
-        this.clearPlayerLocks(challenge);
-        events.push(
-          this.withLog({
-            type: 'challenge',
-            event: 'resolved',
-            challengeId: challenge.id,
-            challenge,
-            to: [challenge.challengerId, challenge.opponentId]
-          })
-        );
+        if (challenge.gameType === 'rps') {
+          if (challenge.challengerMove && !challenge.opponentMove) {
+            challenge.winnerId = challenge.challengerId;
+          } else if (!challenge.challengerMove && challenge.opponentMove) {
+            challenge.winnerId = challenge.opponentId;
+          } else {
+            challenge.winnerId = null;
+          }
+
+          challenge.status = 'resolved';
+          challenge.resolvedAt = now;
+          this.clearPlayerLocks(challenge);
+          events.push(
+            this.withLog({
+              type: 'challenge',
+              event: 'resolved',
+              challengeId: challenge.id,
+              challenge,
+              to: [challenge.challengerId, challenge.opponentId],
+              reason: 'timeout_resolution'
+            })
+          );
+          continue;
+        }
+
+        if (challenge.gameType === 'coinflip') {
+          if (challenge.challengerMove && !challenge.opponentMove) {
+            challenge.winnerId = challenge.challengerId;
+          } else if (!challenge.challengerMove && challenge.opponentMove) {
+            challenge.winnerId = challenge.opponentId;
+          } else {
+            challenge.winnerId = null;
+          }
+
+          challenge.status = 'resolved';
+          challenge.resolvedAt = now;
+          challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
+          this.clearPlayerLocks(challenge);
+          events.push(
+            this.withLog({
+              type: 'challenge',
+              event: 'resolved',
+              challengeId: challenge.id,
+              challenge,
+              to: [challenge.challengerId, challenge.opponentId],
+              reason: 'timeout_resolution'
+            })
+          );
+        }
       }
     }
 
@@ -177,7 +294,7 @@ export class ChallengeService {
       return [];
     }
 
-    if (challenge.status === 'pending') {
+    if (challenge.status === 'pending' || challenge.status === 'active') {
       challenge.status = 'expired';
       this.clearPlayerLocks(challenge);
       return [
@@ -199,9 +316,89 @@ export class ChallengeService {
     return this.recentLogs.slice(Math.max(0, this.recentLogs.length - limit));
   }
 
+  private resolveCoinflip(challenge: Challenge): ChallengeEvent {
+    if (!this.isCoinflipMove(challenge.challengerMove) || !this.isCoinflipMove(challenge.opponentMove)) {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'missing_coinflip_moves' });
+    }
+
+    challenge.status = 'resolved';
+    challenge.resolvedAt = this.now();
+    challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
+
+    if (challenge.challengerMove === challenge.opponentMove) {
+      challenge.winnerId = null;
+    } else if (challenge.challengerMove === challenge.coinflipResult) {
+      challenge.winnerId = challenge.challengerId;
+    } else if (challenge.opponentMove === challenge.coinflipResult) {
+      challenge.winnerId = challenge.opponentId;
+    } else {
+      challenge.winnerId = null;
+    }
+
+    this.clearPlayerLocks(challenge);
+    return this.withLog({
+      type: 'challenge',
+      event: 'resolved',
+      challengeId: challenge.id,
+      challenge,
+      to: [challenge.challengerId, challenge.opponentId]
+    });
+  }
+
+  private resolveRps(challenge: Challenge): ChallengeEvent {
+    const challenger = challenge.challengerMove;
+    const opponent = challenge.opponentMove;
+
+    if (!this.isRpsMove(challenger) || !this.isRpsMove(opponent)) {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'missing_moves' });
+    }
+
+    const winner = this.rpsWinner(challenger, opponent, challenge.challengerId, challenge.opponentId);
+
+    challenge.status = 'resolved';
+    challenge.resolvedAt = this.now();
+    challenge.winnerId = winner;
+    this.clearPlayerLocks(challenge);
+
+    return this.withLog({
+      type: 'challenge',
+      event: 'resolved',
+      challengeId: challenge.id,
+      challenge,
+      to: [challenge.challengerId, challenge.opponentId],
+      reason: winner ? 'rps_result' : 'rps_tie'
+    });
+  }
+
+  private rpsWinner(
+    challengerMove: RpsMove,
+    opponentMove: RpsMove,
+    challengerId: string,
+    opponentId: string
+  ): string | null {
+    if (challengerMove === opponentMove) {
+      return null;
+    }
+
+    const challengerWins =
+      (challengerMove === 'rock' && opponentMove === 'scissors') ||
+      (challengerMove === 'paper' && opponentMove === 'rock') ||
+      (challengerMove === 'scissors' && opponentMove === 'paper');
+
+    return challengerWins ? challengerId : opponentId;
+  }
+
   private clearPlayerLocks(challenge: Challenge): void {
     this.activeByPlayer.delete(challenge.challengerId);
     this.activeByPlayer.delete(challenge.opponentId);
+  }
+
+  private isRpsMove(move: GameMove | null): move is RpsMove {
+    return move === 'rock' || move === 'paper' || move === 'scissors';
+  }
+
+  private isCoinflipMove(move: GameMove | null): move is CoinflipMove {
+    return move === 'heads' || move === 'tails';
   }
 
   private withLog(event: ChallengeEvent): ChallengeEvent {
@@ -211,6 +408,7 @@ export class ChallengeService {
       challengeId: event.challenge?.id ?? event.challengeId ?? null,
       challengerId: event.challenge?.challengerId ?? null,
       opponentId: event.challenge?.opponentId ?? null,
+      gameType: event.challenge?.gameType ?? null,
       winnerId: event.challenge?.winnerId ?? null,
       reason: event.reason ?? null
     });

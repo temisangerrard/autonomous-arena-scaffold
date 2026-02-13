@@ -11,10 +11,16 @@ export type PolicyContext = {
   others: AgentPlayerState[];
   nearbyIds: string[];
   nowMs: number;
+  patrolSection?: number;
+  patrolRadius?: number;
 };
 
 export type PolicyMemory = {
   seed: number;
+  roamTargetIndex?: number;
+  roamTargetX?: number;
+  roamTargetZ?: number;
+  roamTargetUntilMs?: number;
 };
 
 export type PolicyDecision = {
@@ -58,14 +64,117 @@ function nearest(self: AgentPlayerState, others: AgentPlayerState[]): { target: 
   return best;
 }
 
+const ROAM_POINTS: Array<{ x: number; z: number }> = [
+  { x: -96, z: -96 },
+  { x: -96, z: -28 },
+  { x: -96, z: 32 },
+  { x: -96, z: 96 },
+  { x: -28, z: -96 },
+  { x: -28, z: 96 },
+  { x: 32, z: -96 },
+  { x: 32, z: 96 },
+  { x: 96, z: -96 },
+  { x: 96, z: -28 },
+  { x: 96, z: 32 },
+  { x: 96, z: 96 }
+];
+
+function crowdAvoidance(self: AgentPlayerState, others: AgentPlayerState[], radius = 9): { x: number; z: number } {
+  let avoidX = 0;
+  let avoidZ = 0;
+  const radiusSq = radius * radius;
+  for (const other of others) {
+    const dx = self.x - other.x;
+    const dz = self.z - other.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < 0.0001 || distSq > radiusSq) {
+      continue;
+    }
+    const dist = Math.sqrt(distSq);
+    const weight = (radius - dist) / radius;
+    avoidX += (dx / dist) * weight;
+    avoidZ += (dz / dist) * weight;
+  }
+  return normalize(avoidX, avoidZ);
+}
+
+function roamDirection(self: AgentPlayerState, memory: PolicyMemory, nowMs: number): { x: number; z: number } {
+  const ttl = memory.roamTargetUntilMs ?? 0;
+  const currentIndex = memory.roamTargetIndex ?? (memory.seed % ROAM_POINTS.length);
+
+  let nextIndex = currentIndex;
+  if (nowMs >= ttl) {
+    const step = Math.floor(stableNoise(memory.seed, Math.floor(nowMs / 5000)) * 5) + 1;
+    nextIndex = (currentIndex + step) % ROAM_POINTS.length;
+    memory.roamTargetIndex = nextIndex;
+    memory.roamTargetUntilMs = nowMs + 7_000 + Math.floor(stableNoise(memory.seed, step + nextIndex) * 9_000);
+  }
+
+  const point = ROAM_POINTS[nextIndex] ?? { x: 0, z: 0 };
+  const towardPoint = normalize(point.x - self.x, point.z - self.z);
+  const wander = wanderDirection(memory, nowMs);
+  return normalize(towardPoint.x * 0.72 + wander.x * 0.28, towardPoint.z * 0.72 + wander.z * 0.28);
+}
+
+const SECTION_CENTERS: Array<{ x: number; z: number }> = [
+  { x: -90, z: -70 },
+  { x: -30, z: -70 },
+  { x: 30, z: -70 },
+  { x: 90, z: -70 },
+  { x: -90, z: 70 },
+  { x: -30, z: 70 },
+  { x: 30, z: 70 },
+  { x: 90, z: 70 }
+];
+
+function sectionRoamDirection(
+  self: AgentPlayerState,
+  memory: PolicyMemory,
+  nowMs: number,
+  sectionIndex: number,
+  patrolRadius: number
+): { x: number; z: number } {
+  const safeSection = SECTION_CENTERS[((sectionIndex % SECTION_CENTERS.length) + SECTION_CENTERS.length) % SECTION_CENTERS.length] ?? { x: 0, z: 0 };
+  const ttl = memory.roamTargetUntilMs ?? 0;
+  if (nowMs >= ttl || typeof memory.roamTargetX !== 'number' || typeof memory.roamTargetZ !== 'number') {
+    const bucket = Math.floor(nowMs / 4200);
+    const angle = stableNoise(memory.seed + sectionIndex * 101, bucket) * Math.PI * 2;
+    const radius = Math.max(10, Math.min(44, patrolRadius)) * (0.35 + stableNoise(memory.seed + 7, bucket + 11) * 0.65);
+    memory.roamTargetX = safeSection.x + Math.cos(angle) * radius;
+    memory.roamTargetZ = safeSection.z + Math.sin(angle) * radius;
+    memory.roamTargetUntilMs = nowMs + 5_500 + Math.floor(stableNoise(memory.seed, bucket + sectionIndex) * 6_500);
+  }
+
+  const towardTarget = normalize((memory.roamTargetX ?? safeSection.x) - self.x, (memory.roamTargetZ ?? safeSection.z) - self.z);
+  const towardSection = normalize(safeSection.x - self.x, safeSection.z - self.z);
+  const wander = wanderDirection(memory, nowMs);
+  return normalize(
+    towardTarget.x * 0.58 + towardSection.x * 0.24 + wander.x * 0.18,
+    towardTarget.z * 0.58 + towardSection.z * 0.24 + wander.z * 0.18
+  );
+}
+
 export class PolicyEngine {
   decide(personality: Personality, context: PolicyContext, memory: PolicyMemory): PolicyDecision {
     const nearestResult = nearest(context.self, context.others);
+    const roam =
+      typeof context.patrolSection === 'number'
+        ? sectionRoamDirection(
+            context.self,
+            memory,
+            context.nowMs,
+            context.patrolSection,
+            context.patrolRadius ?? 28
+          )
+        : roamDirection(context.self, memory, context.nowMs);
+    const spacing = crowdAvoidance(context.self, context.others);
+
+    const blend = (baseX: number, baseZ: number): { x: number; z: number } =>
+      normalize(baseX * 0.84 + spacing.x * 0.16, baseZ * 0.84 + spacing.z * 0.16);
 
     if (!nearestResult) {
-      const wander = wanderDirection(memory, context.nowMs);
-      const norm = normalize(wander.x, wander.z);
-      return { moveX: norm.x, moveZ: norm.z, focusId: null };
+      const move = blend(roam.x, roam.z);
+      return { moveX: move.x, moveZ: move.z, focusId: null };
     }
 
     const dx = nearestResult.target.x - context.self.x;
@@ -74,24 +183,29 @@ export class PolicyEngine {
     const away = normalize(-dx, -dz);
 
     if (personality === 'aggressive') {
+      if (nearestResult.distance > 18) {
+        const move = blend(roam.x, roam.z);
+        return { moveX: move.x, moveZ: move.z, focusId: null };
+      }
+      const move = blend(toward.x, toward.z);
       return {
-        moveX: toward.x,
-        moveZ: toward.z,
+        moveX: move.x,
+        moveZ: move.z,
         focusId: nearestResult.target.id
       };
     }
 
     if (personality === 'conservative') {
       if (nearestResult.distance < 8 || context.nearbyIds.includes(nearestResult.target.id)) {
+        const move = blend(away.x, away.z);
         return {
-          moveX: away.x,
-          moveZ: away.z,
+          moveX: move.x,
+          moveZ: move.z,
           focusId: nearestResult.target.id
         };
       }
 
-      const wander = wanderDirection(memory, context.nowMs);
-      const norm = normalize(wander.x * 0.7 + toward.x * 0.3, wander.z * 0.7 + toward.z * 0.3);
+      const norm = blend(roam.x * 0.85 + toward.x * 0.15, roam.z * 0.85 + toward.z * 0.15);
       return { moveX: norm.x, moveZ: norm.z, focusId: null };
     }
 
@@ -99,16 +213,26 @@ export class PolicyEngine {
     const strafe = normalize(-toward.z * strafeSign, toward.x * strafeSign);
 
     if (nearestResult.distance > 4.5) {
+      if (nearestResult.distance > 16) {
+        const move = blend(roam.x, roam.z);
+        return {
+          moveX: move.x,
+          moveZ: move.z,
+          focusId: null
+        };
+      }
+      const move = blend(toward.x, toward.z);
       return {
-        moveX: toward.x,
-        moveZ: toward.z,
+        moveX: move.x,
+        moveZ: move.z,
         focusId: nearestResult.target.id
       };
     }
 
+    const move = blend(strafe.x, strafe.z);
     return {
-      moveX: strafe.x,
-      moveZ: strafe.z,
+      moveX: move.x,
+      moveZ: move.z,
       focusId: nearestResult.target.id
     };
   }

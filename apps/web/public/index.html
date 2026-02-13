@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="landing">
@@ -39,7 +39,7 @@
             <div class="card-grid">
                 <!-- Play Arena -->
                 <div class="feature-card">
-                    <div class="feature-card__icon">🎮</div>
+                    <div class="feature-card__icon"><img src="/img/icon-arena.svg" alt="" width="48" height="48"></div>
                     <h3 class="feature-card__title">Play Arena</h3>
                     <p class="feature-card__desc">
                         Enter the 3D world with third-person controls. Challenge AI agents
@@ -50,7 +50,7 @@
 
                 <!-- World Viewer -->
                 <div class="feature-card">
-                    <div class="feature-card__icon">🌍</div>
+                    <div class="feature-card__icon"><img src="/img/icon-world.svg" alt="" width="48" height="48"></div>
                     <h3 class="feature-card__title">World Viewer</h3>
                     <p class="feature-card__desc">
                         Explore the mega world with orbit camera controls. Inspect all
@@ -61,7 +61,7 @@
 
                 <!-- Agent Control -->
                 <div class="feature-card">
-                    <div class="feature-card__icon">🤖</div>
+                    <div class="feature-card__icon"><img src="/img/icon-agent.svg" alt="" width="48" height="48"></div>
                     <h3 class="feature-card__title">Agent Control</h3>
                     <p class="feature-card__desc">
                         Configure autonomous bots, set AI personalities, manage wallet
@@ -70,9 +70,19 @@
                     <a href="/agents" class="btn btn--secondary">Manage Agents</a>
                 </div>
 
+                <div class="feature-card">
+                    <div class="feature-card__icon"><img src="/img/icon-agent.svg" alt="" width="48" height="48"></div>
+                    <h3 class="feature-card__title">Player Profile</h3>
+                    <p class="feature-card__desc">
+                        Create/login profile, get a wallet + personal bot, and launch
+                        into the arena with wallet-backed wagering enabled.
+                    </p>
+                    <a href="/profile" class="btn btn--primary">Open Profile</a>
+                </div>
+
                 <!-- Challenge Feed -->
                 <div class="feature-card">
-                    <div class="feature-card__icon">⚔️</div>
+                    <div class="feature-card__icon"><img src="/img/icon-challenge.svg" alt="" width="48" height="48"></div>
                     <h3 class="feature-card__title">Live Challenges</h3>
                     <p class="feature-card__desc">
                         Real-time feed of all challenge events. Watch agents battle
@@ -138,6 +148,7 @@
         </footer>
     </div>
 
+    <script type="module" src="/js/auth-shell.js"></script>
     <script type="module">
         // Service health checks
         async function checkHealth(url, elementIndex) {
@@ -168,7 +179,7 @@
                 const res = await fetch('http://localhost:4000/challenges/recent?limit=20');
                 const data = await res.json();
 
-                if (!data.events || data.events.length === 0) {
+                if (!data.recent || data.recent.length === 0) {
                     container.innerHTML = `
                         <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
                             No challenges yet. Enter the arena to start!
@@ -177,9 +188,9 @@
                     return;
                 }
 
-                container.innerHTML = data.events.map(event => {
+                container.innerHTML = data.recent.slice().reverse().map(event => {
                     const typeClass = `challenge-item__type--${event.event}`;
-                    const time = new Date(event.timestamp).toLocaleTimeString();
+                    const time = new Date(event.at).toLocaleTimeString();
 
                     return `
                         <div class="challenge-item">
@@ -189,13 +200,13 @@
                             </div>
                             <div class="challenge-item__players">
                                 <span class="challenge-item__player">
-                                    <span class="challenge-item__avatar ${event.challenger?.startsWith('bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
-                                    ${event.challenger || 'Unknown'}
+                                    <span class="challenge-item__avatar ${event.challengerId?.startsWith('agent') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
+                                    ${event.challengerId || 'Unknown'}
                                 </span>
                                 <span class="challenge-item__vs">VS</span>
                                 <span class="challenge-item__player">
-                                    <span class="challenge-item__avatar ${event.target?.startsWith('bot') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
-                                    ${event.target || 'Unknown'}
+                                    <span class="challenge-item__avatar ${event.opponentId?.startsWith('agent') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
+                                    ${event.opponentId || 'Unknown'}
                                 </span>
                             </div>
                         </div>

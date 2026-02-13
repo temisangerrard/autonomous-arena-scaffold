@@ -1,26 +1,48 @@
 const runtimeBase = 'http://localhost:4100';
 const serverBase = 'http://localhost:4000';
 
-const botCountInput = document.getElementById('bot-count');
-const applyCountButton = document.getElementById('apply-count');
-const refreshButton = document.getElementById('refresh');
-const openRouterKeyInput = document.getElementById('openrouter-key');
-const saveOpenRouterButton = document.getElementById('save-openrouter');
-const walletEnabledInput = document.getElementById('wallet-enabled');
-const grandAgentInput = document.getElementById('grand-agent');
-const walletSkillsInput = document.getElementById('wallet-skills');
-const saveWalletButton = document.getElementById('save-wallet');
+const statusSummary = document.getElementById('status-summary');
+const challengeLogEl = document.getElementById('challenge-log');
+const profilesBody = document.getElementById('profiles-body');
+const botsBody = document.getElementById('bots-body');
 
+const superIdInput = document.getElementById('super-id');
 const superModeInput = document.getElementById('super-mode');
 const superChallengeEnabledInput = document.getElementById('super-challenge-enabled');
 const superCooldownInput = document.getElementById('super-cooldown');
 const superTargetInput = document.getElementById('super-target');
-const applySuperButton = document.getElementById('apply-super');
-const applyDelegationButton = document.getElementById('apply-delegation');
+const walletEnabledInput = document.getElementById('wallet-enabled');
+const walletSkillsInput = document.getElementById('wallet-skills');
+const openrouterKeyInput = document.getElementById('openrouter-key');
 
-const summaryEl = document.getElementById('summary');
-const botsBody = document.getElementById('bots-body');
-const challengeLogEl = document.getElementById('challenge-log');
+const saveSuperBtn = document.getElementById('save-super');
+const saveWalletBtn = document.getElementById('save-wallet');
+const saveOpenrouterBtn = document.getElementById('save-openrouter');
+const applyDelegationBtn = document.getElementById('apply-delegation');
+
+const newUsernameInput = document.getElementById('new-username');
+const newDisplayNameInput = document.getElementById('new-display-name');
+const newPersonalityInput = document.getElementById('new-personality');
+const newTargetInput = document.getElementById('new-target');
+const createProfileBtn = document.getElementById('create-profile');
+
+const bgCountInput = document.getElementById('bg-count');
+const applyBgCountBtn = document.getElementById('apply-bg-count');
+const refreshAllBtn = document.getElementById('refresh-all');
+const superChatInput = document.getElementById('super-chat-input');
+const superChatSendBtn = document.getElementById('super-chat-send');
+const superChatStatusBtn = document.getElementById('super-chat-status');
+const superChatLog = document.getElementById('super-chat-log');
+
+let latestStatus = null;
+
+async function getJson(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`GET ${url} failed (${response.status})`);
+  }
+  return response.json();
+}
 
 async function postJson(url, payload) {
   const response = await fetch(url, {
@@ -28,141 +50,152 @@ async function postJson(url, payload) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload)
   });
+
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`);
+    const reason = data?.reason || data?.error || `status_${response.status}`;
+    throw new Error(String(reason));
   }
-  return response.json();
+
+  return data;
+}
+
+function summarizeStatus(status) {
+  return JSON.stringify(
+    {
+      configuredBotCount: status.configuredBotCount,
+      connectedBotCount: status.connectedBotCount,
+      backgroundBotCount: status.backgroundBotCount,
+      profileBotCount: status.profileBotCount,
+      profileCount: status.profiles?.length || 0,
+      openRouterConfigured: status.openRouterConfigured,
+      superAgent: status.superAgent
+    },
+    null,
+    2
+  );
+}
+
+function renderProfiles(status) {
+  profilesBody.innerHTML = '';
+
+  for (const profile of status.profiles || []) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>
+        <div>${profile.displayName}</div>
+        <div style="color:var(--text-muted);font-size:11px;">${profile.id} · @${profile.username}</div>
+      </td>
+      <td>
+        <div>${profile.wallet?.id || 'n/a'}</div>
+        <div style="color:var(--text-muted);font-size:11px;">${profile.wallet?.address || 'n/a'}</div>
+      </td>
+      <td>${Number(profile.wallet?.balance || 0).toFixed(2)}</td>
+      <td>${(profile.ownedBotIds || []).join(', ')}</td>
+      <td>
+        <div class="actions">
+          <button data-action="fund" data-wallet-id="${profile.wallet?.id}" data-amount="10">+10</button>
+          <button data-action="withdraw" data-wallet-id="${profile.wallet?.id}" data-amount="5">-5</button>
+          <button data-action="export" data-wallet-id="${profile.wallet?.id}" data-profile-id="${profile.id}">Export key</button>
+          <button data-action="new-bot" data-profile-id="${profile.id}">+ bot</button>
+        </div>
+      </td>
+    `;
+    profilesBody.appendChild(row);
+  }
 }
 
 function renderBots(status) {
   botsBody.innerHTML = '';
 
   for (const bot of status.bots || []) {
+    const meta = bot.meta || {};
+
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${bot.id}</td>
+      <td><input data-bot-id="${bot.id}" data-field="displayName" type="text" value="${meta.displayName || bot.id}"></td>
+      <td>${meta.ownerProfileId || 'system'}</td>
+      <td>${meta.duty || 'n/a'}</td>
+      <td>${typeof meta.patrolSection === 'number' ? `S${meta.patrolSection + 1}` : '—'}</td>
       <td>${bot.connected ? 'yes' : 'no'}</td>
       <td>
-        <select data-id="${bot.id}" data-field="personality">
+        <select data-bot-id="${bot.id}" data-field="personality">
           ${['aggressive', 'conservative', 'social']
             .map((value) => `<option value="${value}" ${bot.behavior.personality === value ? 'selected' : ''}>${value}</option>`)
             .join('')}
         </select>
       </td>
-      <td><input type="number" min="1000" max="60000" data-id="${bot.id}" data-field="challengeCooldownMs" value="${bot.behavior.challengeCooldownMs}" style="width:90px;" /></td>
-      <td><input type="checkbox" data-id="${bot.id}" data-field="challengeEnabled" ${bot.behavior.challengeEnabled ? 'checked' : ''} /></td>
       <td>
-        <select data-id="${bot.id}" data-field="targetPreference">
+        <select data-bot-id="${bot.id}" data-field="targetPreference">
           ${['human_only', 'human_first', 'any']
             .map((value) => `<option value="${value}" ${bot.behavior.targetPreference === value ? 'selected' : ''}>${value}</option>`)
             .join('')}
         </select>
       </td>
-      <td>${bot.nearbyCount}</td>
-      <td>${bot.stats.challengesWon}/${bot.stats.challengesLost}</td>
-      <td><button data-id="${bot.id}" data-action="save">Save</button></td>
+      <td><input data-bot-id="${bot.id}" data-field="challengeCooldownMs" type="number" min="1200" max="120000" value="${bot.behavior.challengeCooldownMs}"></td>
+      <td><input data-bot-id="${bot.id}" data-field="managedBySuperAgent" type="checkbox" ${meta.managedBySuperAgent ? 'checked' : ''}></td>
+      <td><button data-action="save-bot" data-bot-id="${bot.id}">Save</button></td>
     `;
     botsBody.appendChild(row);
   }
 }
 
-function collectBotPatch(botId) {
-  const fields = [...document.querySelectorAll(`[data-id="${botId}"]`)];
-  const patch = {};
-
-  for (const field of fields) {
-    const key = field.getAttribute('data-field');
-    if (!key) {
-      continue;
-    }
-
-    if (field.type === 'checkbox') {
-      patch[key] = Boolean(field.checked);
-    } else if (field.type === 'number') {
-      patch[key] = Number(field.value);
-    } else {
-      patch[key] = field.value;
-    }
-  }
-
-  return patch;
-}
-
-async function load() {
-  const [statusResponse, challengeResponse] = await Promise.all([
-    fetch(`${runtimeBase}/status`).then((res) => res.json()),
-    fetch(`${serverBase}/challenges/recent?limit=30`).then((res) => res.json())
-  ]);
-
-  const superAgent = statusResponse.superAgent || {};
-
-  summaryEl.textContent = JSON.stringify(
-    {
-      configuredBotCount: statusResponse.configuredBotCount,
-      connectedBotCount: statusResponse.connectedBotCount,
-      openRouterConfigured: statusResponse.openRouterConfigured,
-      superAgent,
-      walletPolicy: superAgent.walletPolicy,
-      llmPolicy: superAgent.llmPolicy
-    },
-    null,
-    2
-  );
-
-  botCountInput.value = String(statusResponse.configuredBotCount ?? 0);
-  walletEnabledInput.checked = Boolean(superAgent.walletPolicy?.enabled);
-  grandAgentInput.value = superAgent.id ?? 'agent_1';
-  walletSkillsInput.value = Array.isArray(superAgent.walletPolicy?.allowedSkills)
-    ? superAgent.walletPolicy.allowedSkills.join(',')
-    : '';
-
-  superModeInput.value = superAgent.mode ?? 'balanced';
-  superChallengeEnabledInput.checked = Boolean(superAgent.challengeEnabled);
-  superCooldownInput.value = String(superAgent.defaultChallengeCooldownMs ?? 9000);
-  superTargetInput.value = superAgent.workerTargetPreference ?? 'human_only';
-
-  renderBots(statusResponse);
-
-  const lines = (challengeResponse.recent || [])
+function renderChallengeLog(challengeData) {
+  const lines = (challengeData.recent || [])
     .slice()
     .reverse()
     .map((entry) => {
-      const ts = new Date(entry.at).toLocaleTimeString();
+      const time = new Date(entry.at).toLocaleTimeString();
+      const versus = entry.challengerId && entry.opponentId ? `${entry.challengerId} vs ${entry.opponentId}` : 'n/a';
+      const gameType = entry.gameType || '-';
       const winner = entry.winnerId ? ` winner=${entry.winnerId}` : '';
-      const pair = entry.challengerId && entry.opponentId ? ` ${entry.challengerId} vs ${entry.opponentId}` : '';
       const reason = entry.reason ? ` reason=${entry.reason}` : '';
-      return `${ts} ${entry.event}${pair}${winner}${reason}`;
+      return `${time} ${entry.event} ${gameType} ${versus}${winner}${reason}`;
     });
 
-  challengeLogEl.textContent = lines.join('\n') || 'No challenge events yet.';
+  challengeLogEl.textContent = lines.join('\n') || 'No challenge activity yet.';
 }
 
-applyCountButton.addEventListener('click', async () => {
-  await postJson(`${runtimeBase}/agents/reconcile`, { count: Number(botCountInput.value) });
-  await load();
-});
+function populateControlValues(status) {
+  superIdInput.value = status.superAgent?.id || 'agent_1';
+  superModeInput.value = status.superAgent?.mode || 'balanced';
+  superChallengeEnabledInput.checked = Boolean(status.superAgent?.challengeEnabled);
+  superCooldownInput.value = String(status.superAgent?.defaultChallengeCooldownMs || 9000);
+  superTargetInput.value = status.superAgent?.workerTargetPreference || 'human_only';
+  walletEnabledInput.checked = Boolean(status.superAgent?.walletPolicy?.enabled);
+  walletSkillsInput.value = Array.isArray(status.superAgent?.walletPolicy?.allowedSkills)
+    ? status.superAgent.walletPolicy.allowedSkills.join(',')
+    : '';
+  bgCountInput.value = String(status.backgroundBotCount || 0);
+}
 
-saveOpenRouterButton.addEventListener('click', async () => {
-  await postJson(`${runtimeBase}/secrets/openrouter`, { apiKey: openRouterKeyInput.value.trim() });
-  openRouterKeyInput.value = '';
-  await load();
-});
+function appendSuperChat(line) {
+  if (!superChatLog) {
+    return;
+  }
+  const prev = superChatLog.textContent || '';
+  const next = `${new Date().toLocaleTimeString()} ${line}`;
+  superChatLog.textContent = `${next}\n${prev}`.slice(0, 12000);
+}
 
-saveWalletButton.addEventListener('click', async () => {
-  await postJson(`${runtimeBase}/capabilities/wallet`, {
-    enabled: walletEnabledInput.checked,
-    grandAgentId: grandAgentInput.value.trim(),
-    skills: walletSkillsInput.value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean)
-  });
-  await load();
-});
+async function load() {
+  const [status, challengeData] = await Promise.all([
+    getJson(`${runtimeBase}/status`),
+    getJson(`${serverBase}/challenges/recent?limit=60`)
+  ]);
 
-applySuperButton.addEventListener('click', async () => {
+  latestStatus = status;
+  statusSummary.textContent = summarizeStatus(status);
+  populateControlValues(status);
+  renderProfiles(status);
+  renderBots(status);
+  renderChallengeLog(challengeData);
+}
+
+saveSuperBtn.addEventListener('click', async () => {
   await postJson(`${runtimeBase}/super-agent/config`, {
-    id: grandAgentInput.value.trim(),
+    id: superIdInput.value.trim(),
     mode: superModeInput.value,
     challengeEnabled: superChallengeEnabledInput.checked,
     defaultChallengeCooldownMs: Number(superCooldownInput.value),
@@ -171,13 +204,138 @@ applySuperButton.addEventListener('click', async () => {
   await load();
 });
 
-applyDelegationButton.addEventListener('click', async () => {
+saveWalletBtn.addEventListener('click', async () => {
+  await postJson(`${runtimeBase}/capabilities/wallet`, {
+    enabled: walletEnabledInput.checked,
+    grandAgentId: superIdInput.value.trim(),
+    skills: walletSkillsInput.value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  });
+  await load();
+});
+
+saveOpenrouterBtn.addEventListener('click', async () => {
+  await postJson(`${runtimeBase}/secrets/openrouter`, {
+    apiKey: openrouterKeyInput.value.trim()
+  });
+  openrouterKeyInput.value = '';
+  await load();
+});
+
+applyDelegationBtn.addEventListener('click', async () => {
   await postJson(`${runtimeBase}/super-agent/delegate/apply`, {});
   await load();
 });
 
-refreshButton.addEventListener('click', () => {
-  load();
+createProfileBtn.addEventListener('click', async () => {
+  await postJson(`${runtimeBase}/profiles/create`, {
+    username: newUsernameInput.value.trim(),
+    displayName: newDisplayNameInput.value.trim(),
+    personality: newPersonalityInput.value,
+    targetPreference: newTargetInput.value
+  });
+
+  newUsernameInput.value = '';
+  newDisplayNameInput.value = '';
+  await load();
+});
+
+applyBgCountBtn.addEventListener('click', async () => {
+  await postJson(`${runtimeBase}/agents/reconcile`, {
+    count: Number(bgCountInput.value)
+  });
+  await load();
+});
+
+refreshAllBtn.addEventListener('click', () => {
+  load().catch((err) => {
+    statusSummary.textContent = `Refresh failed: ${String(err)}`;
+  });
+});
+
+superChatSendBtn?.addEventListener('click', async () => {
+  const message = (superChatInput?.value || '').trim();
+  if (!message) {
+    appendSuperChat('super-agent: message required');
+    return;
+  }
+  try {
+    appendSuperChat(`you: ${message}`);
+    const result = await postJson(`${runtimeBase}/super-agent/chat`, {
+      message,
+      includeStatus: true
+    });
+    appendSuperChat(`super-agent: ${String(result.reply || '').replace(/\n/g, ' | ')}`);
+    if (result.status) {
+      latestStatus = result.status;
+      statusSummary.textContent = summarizeStatus(result.status);
+      populateControlValues(result.status);
+      renderProfiles(result.status);
+      renderBots(result.status);
+    }
+    superChatInput.value = '';
+  } catch (error) {
+    appendSuperChat(`super-agent error: ${String(error.message || error)}`);
+  }
+});
+
+superChatStatusBtn?.addEventListener('click', async () => {
+  try {
+    const result = await postJson(`${runtimeBase}/super-agent/chat`, {
+      message: 'status',
+      includeStatus: true
+    });
+    appendSuperChat(`super-agent: ${String(result.reply || '').replace(/\n/g, ' | ')}`);
+    if (result.status) {
+      latestStatus = result.status;
+      statusSummary.textContent = summarizeStatus(result.status);
+      populateControlValues(result.status);
+      renderProfiles(result.status);
+      renderBots(result.status);
+    }
+  } catch (error) {
+    appendSuperChat(`super-agent error: ${String(error.message || error)}`);
+  }
+});
+
+profilesBody.addEventListener('click', async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const action = target.dataset.action;
+  const walletId = target.dataset.walletId;
+  const profileId = target.dataset.profileId;
+
+  if (action === 'fund' && walletId) {
+    await postJson(`${runtimeBase}/wallets/${walletId}/fund`, { amount: Number(target.dataset.amount || 10) });
+    await load();
+    return;
+  }
+
+  if (action === 'withdraw' && walletId) {
+    await postJson(`${runtimeBase}/wallets/${walletId}/withdraw`, { amount: Number(target.dataset.amount || 5) });
+    await load();
+    return;
+  }
+
+  if (action === 'export' && walletId && profileId) {
+    const result = await postJson(`${runtimeBase}/wallets/${walletId}/export-key`, { profileId });
+    window.alert(`Wallet ${walletId}\nAddress: ${result.address}\nPrivate key: ${result.privateKey}`);
+    return;
+  }
+
+  if (action === 'new-bot' && profileId) {
+    await postJson(`${runtimeBase}/profiles/${profileId}/bots/create`, {
+      managedBySuperAgent: true,
+      personality: 'social',
+      targetPreference: 'human_only'
+    });
+    await load();
+  }
 });
 
 botsBody.addEventListener('click', async (event) => {
@@ -186,23 +344,42 @@ botsBody.addEventListener('click', async (event) => {
     return;
   }
 
-  if (target.dataset.action !== 'save') {
+  if (target.dataset.action !== 'save-bot') {
     return;
   }
 
-  const botId = target.dataset.id;
+  const botId = target.dataset.botId;
   if (!botId) {
     return;
   }
 
-  const patch = collectBotPatch(botId);
+  const fields = [...document.querySelectorAll(`[data-bot-id="${botId}"]`)];
+  const patch = {};
+
+  for (const field of fields) {
+    const key = field.getAttribute('data-field');
+    if (!key) {
+      continue;
+    }
+
+    if (field instanceof HTMLInputElement && field.type === 'checkbox') {
+      patch[key] = field.checked;
+    } else if (field instanceof HTMLInputElement && field.type === 'number') {
+      patch[key] = Number(field.value);
+    } else if (field instanceof HTMLInputElement) {
+      patch[key] = field.value;
+    } else if (field instanceof HTMLSelectElement) {
+      patch[key] = field.value;
+    }
+  }
+
   await postJson(`${runtimeBase}/agents/${botId}/config`, patch);
   await load();
 });
 
 load().catch((err) => {
-  summaryEl.textContent = `Failed to load control panel: ${String(err)}`;
+  statusSummary.textContent = `Load failed: ${String(err)}`;
 });
 setInterval(() => {
   load().catch(() => undefined);
-}, 5000);
+}, 6000);

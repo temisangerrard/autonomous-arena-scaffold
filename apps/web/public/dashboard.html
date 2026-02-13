@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Crimson+Text:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell-page dashboard-wrap">
+    <section class="card card--gold">
+      <div class="dashboard-head">
+        <div>
+          <p class="eyebrow">Player Console</p>
+          <h1 class="hero__title" style="font-size:2rem;">Profile, wallet, and bot controls</h1>
+        </div>
+        <div class="dashboard-head__actions">
+          <a id="dashboard-enter-play" class="btn btn--primary" href="/play?world=mega">Play Arena</a>
+          <a class="btn btn--secondary" href="/viewer?world=mega">View World</a>
+        </div>
+      </div>
+      <p id="dashboard-status" class="text-muted">Loading player context...</p>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="card">
+        <h2 class="card__title">Identity</h2>
+        <div class="dashboard-kv"><span>Email</span><strong id="me-email">-</strong></div>
+        <div class="dashboard-kv"><span>Role</span><strong id="me-role">-</strong></div>
+        <div class="dashboard-kv"><span>Profile</span><strong id="me-profile">-</strong></div>
+        <div class="dashboard-kv"><span>Wallet</span><strong id="me-wallet">-</strong></div>
+        <div class="form-group" style="margin-top:10px;">
+          <label class="form-label" for="invite-link">Invite Play Link</label>
+          <input class="form-input" id="invite-link" type="text" readonly>
+        </div>
+        <button id="copy-invite" class="btn btn--ghost">Copy Invite Link</button>
+      </article>
+
+      <article class="card">
+        <h2 class="card__title">Profile</h2>
+        <div class="form-group">
+          <label class="form-label" for="profile-display-name">Display Name</label>
+          <input class="form-input" id="profile-display-name" type="text" maxlength="32">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="profile-username">Username</label>
+          <input class="form-input" id="profile-username" type="text" maxlength="20">
+        </div>
+        <button id="profile-save" class="btn btn--secondary">Save Profile</button>
+      </article>
+
+      <article class="card">
+        <h2 class="card__title">Wallet</h2>
+        <div class="dashboard-kv"><span>Balance</span><strong id="wallet-balance">0.00</strong></div>
+        <div class="dashboard-inline">
+          <input class="form-input" id="wallet-fund-amount" type="number" min="1" step="1" value="10">
+          <button id="wallet-fund" class="btn btn--secondary">Fund</button>
+        </div>
+        <div class="dashboard-inline" style="margin-top:8px;">
+          <input class="form-input" id="wallet-withdraw-amount" type="number" min="1" step="1" value="5">
+          <button id="wallet-withdraw" class="btn btn--secondary">Withdraw</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 class="card__title">Bot Behavior</h2>
+        <div class="form-group">
+          <label class="form-label" for="bot-personality">Personality</label>
+          <select class="form-input" id="bot-personality">
+            <option value="aggressive">Aggressive</option>
+            <option value="social">Social</option>
+            <option value="conservative">Conservative</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="bot-target">Target Preference</label>
+          <select class="form-input" id="bot-target">
+            <option value="human_first">Human first</option>
+            <option value="human_only">Human only</option>
+            <option value="any">Any</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="bot-cooldown">Challenge Cooldown (ms)</label>
+          <input class="form-input" id="bot-cooldown" type="number" min="1200" step="100" value="2600">
+        </div>
+        <button id="bot-save" class="btn btn--secondary">Save Bot Config</button>
+      </article>
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+      <h2 class="card__title">Bot Roster</h2>
+      <div id="bot-list" class="text-muted">No bots yet.</div>
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+      <h2 class="card__title">Talk To Super Agent</h2>
+      <p class="text-muted">Ask for status, roadmap, or apply commands like: <code>mode hunter</code>, <code>bot count 12</code>.</p>
+      <div class="form-group">
+        <textarea class="form-input" id="super-agent-message" rows="4" placeholder="status and next priorities for production"></textarea>
+      </div>
+      <div class="dashboard-head__actions">
+        <button id="super-agent-send" class="btn btn--secondary">Send</button>
+        <button id="super-agent-quick-status" class="btn btn--ghost">Quick Status</button>
+      </div>
+      <pre id="super-agent-response" style="margin-top:10px; max-height:260px; overflow:auto;">Super Agent ready.</pre>
+    </section>
+  </main>
+
+  <script type="module" src="/js/auth-shell.js"></script>
+  <script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>

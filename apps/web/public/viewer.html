@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -60,7 +60,7 @@
             justify-content: space-between;
             align-items: center;
             padding: var(--space-md) var(--space-lg);
-            background: linear-gradient(to bottom, rgba(10, 10, 15, 0.9), transparent);
+            background: linear-gradient(to bottom, rgba(255, 251, 243, 0.94), transparent);
         }
 
         .viewer-logo {
@@ -134,7 +134,7 @@
         }
 
         .world-stat {
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.76);
             border-radius: var(--radius-sm);
             padding: var(--space-sm);
             text-align: center;
@@ -252,7 +252,7 @@
         }
 
         .control-key {
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(255, 255, 255, 0.82);
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-sm);
             padding: 2px 8px;
@@ -783,5 +783,6 @@
         };
         document.getElementById('world-name').textContent = worldNames[worldAlias] || worldAlias;
     </script>
+    <script type="module" src="/js/auth-shell.js"></script>
 </body>
 </html>

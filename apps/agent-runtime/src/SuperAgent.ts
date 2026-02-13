@@ -39,14 +39,14 @@ export function createDefaultSuperAgentConfig(id: string): SuperAgentConfig {
     id,
     mode: 'balanced',
     challengeEnabled: true,
-    defaultChallengeCooldownMs: 9000,
-    workerTargetPreference: 'human_only',
+    defaultChallengeCooldownMs: 5000,
+    workerTargetPreference: 'any',
     llmPolicy: {
-      enabled: false,
+      enabled: true,
       provider: 'openrouter',
       model: 'openrouter/auto',
-      maxRequestsPerHourPerAgent: 8,
-      maxTokensPerDayPerAgent: 3000
+      maxRequestsPerHourPerAgent: 500,
+      maxTokensPerDayPerAgent: 2000000
     },
     walletPolicy: {
       enabled: false,

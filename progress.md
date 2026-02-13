@@ -35,3 +35,86 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Added Super Agent APIs: `/super-agent/status`, `/super-agent/config`, `/super-agent/delegate/preview`, `/super-agent/delegate/apply`.
 - Extended worker target preference with `human_only` to avoid agent-agent challenge loops by default.
 - Updated `/agents` page with Super Agent controls and wallet-skill-aware defaults.
+- 2026-02-13: Switched `/play` from stale inline demo logic to external `play.js` runtime wiring with real websocket gameplay.
+- Added in-world Challenge Desk UI: target picker, game type (`rps` / `coinflip`), wager input, send/accept/decline actions, and RPS move buttons.
+- Updated `play.js` challenge state handling to support `move_submitted`, active game status, and explicit per-game messaging.
+- Updated agent bot behavior so runtime agents now submit RPS moves after challenge acceptance (not just looping movement/challenge requests).
+- Rebuilt `apps/agent-runtime/src/index.ts` with super-agent-governed profile lifecycle:
+  - create profile -> auto wallet + auto bot bundle
+  - profile and wallet listing endpoints
+  - wallet fund/withdraw/transfer/export-key actions
+  - bot metadata (owner, display name, managed-by-super-agent) and config patching
+  - background bot pool reconciliation separate from profile-owned bots
+- Replaced `/agents` page with operations dashboard for:
+  - super-agent policy controls
+  - profile/bot/wallet bundle creation
+  - wallet ops and key export
+  - per-bot editing for personality/target/cooldown/super-agent management
+- Fixed landing page challenge feed parser to use server `recent` log shape.
+- Validation run:
+  - `npm run lint` ✅
+  - `npm test` ✅
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+- Live smoke:
+  - health endpoints at ports 3000/4000/4100 returned OK
+  - created `profile_1` + `wallet_1` + `agent_profile_1`
+  - enabled wallet policy and funded wallet via API
+  - exported private key for owner-authorized profile
+- TODO next:
+  - integrate real on-chain wallet execution service (Coinbase skills as signed tx backend rather than in-memory balances)
+  - connect `/agents` UI wallet actions to escrow contract flow once contracts are wired
+  - add UI game renderer for non-trivial game types beyond RPS/coinflip (for visible active match scene)
+- 2026-02-13: Fixed challenge-flow UX and identity clarity for live play.
+- Server now captures websocket `name` metadata and includes `displayName` in snapshots/proximity/welcome payloads.
+- Agent runtime now assigns random franchise-inspired names to bots (One Piece/DC/Marvel/Bleach pool) and sends names during agent websocket connect.
+- Play page now renders floating nametags above avatars, label-aware target picker/messages, and a modal game flow that visibly transitions through sent/incoming/accepted/move_submitted/resolved states.
+- Verified with synthetic websocket clients:
+  - inbound agent challenges received quickly
+  - accept -> move submit -> resolve path confirmed end-to-end for RPS.
+- 2026-02-13: Added direct game controls for both game modes in play scene.
+  - RPS controls: buttons + keyboard `1/2/3`
+  - Coinflip controls: buttons + keyboard `H/T`
+- Coinflip now requires explicit player/agent choices and resolves from coin toss against picks (not auto-roll on accept).
+- Reduced in-world nametag footprint significantly (smaller canvas, font, sprite scale/offset).
+- Updated policy engine with roam waypoints across 9 world regions; bots now spread and only hard-focus nearby targets.
+- Changed super-agent default worker targeting to `human_first` to keep human interaction while enabling agent-vs-agent activity.
+- Validation:
+  - RPS end-to-end via websocket harness: created -> accepted -> move submit -> resolved ✅
+  - Coinflip end-to-end via websocket harness: created -> accepted -> heads/tails -> resolved with toss result ✅
+  - Agent spread sampling average ~80 world units (indicates regional exploration, not player clustering) ✅
+- 2026-02-13: UX + behavior polish pass for user feedback.
+- Reduced nametag size again (roughly 3x smaller area vs first version).
+- Improved play challenge panel UX with key-hint pills and dedicated status line.
+- Added deterministic spawn distribution in `WorldSim` using 8 section spawn anchors + jitter; agents no longer spawn around center.
+- Updated agent pursuit/challenge targeting to avoid hard-locking on humans at long range and to rotate target selection.
+- Set super-agent default worker target preference to `any` for healthier world activity.
+- Validation:
+  - health endpoints all OK
+  - agent spatial spread probe avg ~199.6 world units
+  - coinflip flow still resolves end-to-end after changes.
+- 2026-02-13: Added bottom-right world map panel in play mode.
+  - 8-section grid visualization (`S1..S8`), live local coordinates, and player dots (self/agent/human colors).
+  - map updates every frame from authoritative snapshot positions.
+- Reworked challenge feed UX from wall-of-text to structured event cards:
+  - event type + timestamp + message body per item
+  - dedupe guard for repeated identical events within 2s
+  - capped history (14 items) and empty-state rendering
+- Play HTML/CSS now includes map panel styles and card-based feed styles.
+- 2026-02-13: Play HUD usability overhaul based on user feedback.
+- Added centered `Match Controls` dock (bottom-center) with large, explicit action buttons:
+  - incoming: Accept/Decline
+  - active RPS: Rock/Paper/Scissors
+  - active Coinflip: Heads/Tails
+- Reduced visual load of top-left HUD (compact line only).
+- Right challenge desk is now secondary support UI; core gameplay controls are no longer buried there.
+- Terminal result still uses modal; active gameplay uses dock.
+- 2026-02-13: Physics hardening pass in server authoritative world simulation.
+- Added static obstacle colliders (section-centered AABB footprints), safe spawn relocation, and axis-separated collision movement.
+- Added player-vs-player separation so avatars cannot overlap; includes velocity dampening on contact.
+- Added test hooks for deterministic position setup in WorldSim tests.
+- Expanded WorldSim tests:
+  - overlap separation
+  - obstacle blocking
+  - existing speed/bounds/deceleration tests still passing.
+- Live probe confirmed collision separation behavior (`minDist ~8.25` under converging input sequence).

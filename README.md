@@ -10,10 +10,12 @@
 - Challenge telemetry feed and operational landing page
 
 ## Entry Points
-- Landing hub: `http://localhost:3000/`
+- Welcome/Auth: `http://localhost:3000/welcome`
+- Landing hub: `http://localhost:3000/home`
+- Player dashboard: `http://localhost:3000/dashboard`
 - Play: `http://localhost:3000/play?world=train_world`
 - Viewer: `http://localhost:3000/viewer?world=train_world`
-- Agents panel: `http://localhost:3000/agents`
+- Admin operations panel: `http://localhost:3000/admin`
 
 ## Quick Start
 1. Install dependencies:
@@ -41,6 +43,21 @@ curl http://localhost:4100/status
 
 ## Environment
 Copy `.env.example` to `.env` and fill values as needed.
+
+Google sign-in scaffold expects:
+- `GOOGLE_CLIENT_ID` in web env (OAuth Web Client ID)
+
+Local scaffold admin auth is enabled by default:
+- username: `admin`
+- password: `12345`
+- set `LOCAL_AUTH_ENABLED=false` to disable it
+- set `ADMIN_EMAILS` to promote Google accounts to admin
+
+Web auth/session persistence:
+- file-backed state at `WEB_STATE_FILE` (default `output/web-auth-state.json`, resolved from web process cwd)
+- keeps active sessions/identities through local restarts in scaffold mode
+
+Auth UX is available on all pages via top-right shell nav (Home/Profile/Play/Viewer/Agents + login/logout).
 
 ## Wallet Skills
 Installed via:

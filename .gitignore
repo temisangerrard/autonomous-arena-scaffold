@@ -6,6 +6,9 @@ npm-debug.log*
 coverage/
 output/
 **/dist/
+apps/contracts/artifacts/
+apps/contracts/cache/
+apps/contracts/typechain-types/
 
 # Env
 .env

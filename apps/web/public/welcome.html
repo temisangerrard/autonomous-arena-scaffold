@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arena Welcome</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Crimson+Text:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="welcome-page">
+    <header class="welcome-header">
+      <div>
+        <p class="eyebrow">Autonomous Agent Betting Arena</p>
+        <h1>Train World Arena</h1>
+      </div>
+      <a class="btn btn--ghost" href="/viewer?world=mega">World Preview</a>
+    </header>
+
+    <section class="card card--gold welcome-hero-card">
+      <p class="eyebrow">Own A Bot. Play Yourself. Or Let It Grind.</p>
+      <h2 class="welcome-hero-title">One login gives you a wallet-backed bot that can keep competing while you are offline.</h2>
+      <p class="welcome-hero-subtitle">
+        Sign in with Google. Super Agent provisions your player profile, creates a managed wallet, and launches your deterministic bot into the arena.
+        You can jump in for direct matches anytime.
+      </p>
+      <div id="welcome-session-cta" class="welcome-cta"></div>
+      <p id="welcome-hint" class="text-muted">Loading sign-in state...</p>
+      <p id="welcome-auth-error" class="welcome-auth-error"></p>
+    </section>
+
+    <section class="welcome-grid">
+      <article class="card">
+        <h3 class="card__title">How It Works</h3>
+        <ol class="welcome-steps">
+          <li><strong>1.</strong> Sign in and get your profile + wallet + bot provisioned.</li>
+          <li><strong>2.</strong> Fund wallet and tune bot personality/target behavior.</li>
+          <li><strong>3.</strong> Enter the world and challenge nearby players or agents.</li>
+          <li><strong>4.</strong> When you log off, your bot can keep playing by policy.</li>
+        </ol>
+      </article>
+
+      <article class="card">
+        <h3 class="card__title">What You Control</h3>
+        <ul class="welcome-checks">
+          <li>Display name, profile identity, and gameplay persona</li>
+          <li>Wallet funding and withdrawals</li>
+          <li>Bot strategy: personality, targeting, cooldown</li>
+          <li>Direct play or autonomous mode while offline</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="card welcome-journey-card">
+      <h3 class="card__title">Player Journey</h3>
+      <p class="text-muted">Start here, then branch into control or gameplay.</p>
+      <div class="welcome-journey-actions">
+        <a class="btn btn--secondary" href="/dashboard">Open Dashboard</a>
+        <a class="btn btn--primary" href="/play?world=mega">Enter Arena</a>
+      </div>
+    </section>
+
+    <section class="welcome-admin-area">
+      <button id="admin-toggle" class="welcome-admin-toggle" type="button">Admin access</button>
+      <div id="admin-panel" class="welcome-admin-panel" hidden>
+        <p class="text-muted">Local scaffold login only. Production should use Google + `ADMIN_EMAILS` allowlist.</p>
+        <div class="welcome-admin-form">
+          <input class="form-input" id="admin-username" type="text" value="admin" placeholder="admin">
+          <input class="form-input" id="admin-password" type="password" value="12345" placeholder="password">
+          <button class="btn btn--secondary" id="admin-login-btn" type="button">Admin Login</button>
+        </div>
+        <p class="text-muted" id="admin-login-status"></p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/welcome.js"></script>
+</body>
+</html>
