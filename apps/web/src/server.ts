@@ -67,10 +67,12 @@ type PlayerProfile = {
 type RuntimeStatusPayload = {
   bots?: Array<{
     id: string;
+    connected?: boolean;
     behavior: {
       personality: 'aggressive' | 'conservative' | 'social';
       targetPreference: 'human_only' | 'human_first' | 'any';
       challengeCooldownMs: number;
+      challengeEnabled?: boolean;
     };
     meta?: {
       ownerProfileId?: string | null;
@@ -740,6 +742,70 @@ const server = createServer(async (req, res) => {
 
     try {
       const payload = await runtimePost(`/agents/${bot.id}/config`, body);
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'bot_update_failed' }, 400);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/bots/create' && req.method === 'POST') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+
+    const body = await readJsonBody<{
+      displayName?: string;
+      personality?: 'aggressive' | 'conservative' | 'social';
+      targetPreference?: 'human_only' | 'human_first' | 'any';
+      managedBySuperAgent?: boolean;
+    }>(req);
+
+    try {
+      const payload = await runtimePost(`/profiles/${auth.identity.profileId}/bots/create`, {
+        displayName: body?.displayName,
+        personality: body?.personality ?? 'social',
+        targetPreference: body?.targetPreference ?? 'human_first',
+        managedBySuperAgent: body?.managedBySuperAgent ?? true
+      });
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'bot_create_failed' }, 400);
+    }
+    return;
+  }
+
+  const playerBotConfigMatch = pathname.match(/^\/api\/player\/bots\/([^/]+)\/config$/);
+  if (playerBotConfigMatch && req.method === 'POST') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+
+    const botId = playerBotConfigMatch[1];
+    if (!botId) {
+      sendJson(res, { ok: false, reason: 'bot_not_found' }, 404);
+      return;
+    }
+
+    const body = await readJsonBody<Record<string, unknown>>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
+      return;
+    }
+
+    const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [] }));
+    const ownerBot = (runtimeStatus.bots ?? []).find((entry) => entry.id === botId && entry.meta?.ownerProfileId === auth.identity.profileId);
+    if (!ownerBot) {
+      sendJson(res, { ok: false, reason: 'bot_not_owned' }, 403);
+      return;
+    }
+
+    try {
+      const payload = await runtimePost(`/agents/${botId}/config`, body);
       sendJson(res, payload);
     } catch {
       sendJson(res, { ok: false, reason: 'bot_update_failed' }, 400);

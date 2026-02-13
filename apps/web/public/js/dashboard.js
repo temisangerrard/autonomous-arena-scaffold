@@ -23,6 +23,10 @@ const botTarget = document.getElementById('bot-target');
 const botCooldown = document.getElementById('bot-cooldown');
 const botSave = document.getElementById('bot-save');
 const botList = document.getElementById('bot-list');
+const newBotName = document.getElementById('new-bot-name');
+const newBotPersonality = document.getElementById('new-bot-personality');
+const newBotTarget = document.getElementById('new-bot-target');
+const createBot = document.getElementById('create-bot');
 const superAgentMessage = document.getElementById('super-agent-message');
 const superAgentSend = document.getElementById('super-agent-send');
 const superAgentQuickStatus = document.getElementById('super-agent-quick-status');
@@ -30,6 +34,15 @@ const superAgentResponse = document.getElementById('super-agent-response');
 
 let playerCtx = null;
 let bootstrapCtx = null;
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function setStatus(text) {
   if (statusLine) {
@@ -86,9 +99,23 @@ function renderContext() {
     botList.innerHTML = bots
       .map((bot) => {
         const section = bot.meta?.patrolSection;
-        return `<div class="dashboard-bot">
-          <strong>${bot.meta?.displayName || bot.id}</strong>
-          <span>${bot.behavior.personality} · ${bot.behavior.targetPreference} · cooldown ${bot.behavior.challengeCooldownMs}ms · patrol S${section ?? '-'}</span>
+        return `<div class="dashboard-bot" data-bot-id="${escapeHtml(bot.id)}">
+          <strong>${escapeHtml(bot.meta?.displayName || bot.id)}</strong>
+          <span>id ${escapeHtml(bot.id)} · patrol S${section ?? '-'} · connected ${bot.connected ? 'yes' : 'no'}</span>
+          <div class="dashboard-bot-edit">
+            <select data-field="personality">
+              <option value="aggressive" ${bot.behavior.personality === 'aggressive' ? 'selected' : ''}>Aggressive</option>
+              <option value="social" ${bot.behavior.personality === 'social' ? 'selected' : ''}>Social</option>
+              <option value="conservative" ${bot.behavior.personality === 'conservative' ? 'selected' : ''}>Conservative</option>
+            </select>
+            <select data-field="targetPreference">
+              <option value="human_first" ${bot.behavior.targetPreference === 'human_first' ? 'selected' : ''}>Human first</option>
+              <option value="human_only" ${bot.behavior.targetPreference === 'human_only' ? 'selected' : ''}>Human only</option>
+              <option value="any" ${bot.behavior.targetPreference === 'any' ? 'selected' : ''}>Any</option>
+            </select>
+            <input data-field="challengeCooldownMs" type="number" min="1200" step="100" value="${Number(bot.behavior.challengeCooldownMs || 2600)}">
+            <button class="btn btn--ghost dashboard-bot-save" data-action="save-bot">Save</button>
+          </div>
         </div>`;
       })
       .join('');
@@ -193,6 +220,67 @@ botSave?.addEventListener('click', async () => {
     setStatus('Bot behavior updated.');
   } catch (error) {
     setStatus(`Bot update failed: ${String(error.message || error)}`);
+  }
+});
+
+createBot?.addEventListener('click', async () => {
+  try {
+    setStatus('Creating bot...');
+    await api('/api/player/bots/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        displayName: String(newBotName?.value || '').trim() || undefined,
+        personality: newBotPersonality?.value || 'social',
+        targetPreference: newBotTarget?.value || 'human_first',
+        managedBySuperAgent: true
+      })
+    });
+    if (newBotName) {
+      newBotName.value = '';
+    }
+    await refreshContext();
+    setStatus('Bot created.');
+  } catch (error) {
+    setStatus(`Bot create failed: ${String(error.message || error)}`);
+  }
+});
+
+botList?.addEventListener('click', async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  if (target.getAttribute('data-action') !== 'save-bot') {
+    return;
+  }
+  const container = target.closest('[data-bot-id]');
+  if (!(container instanceof HTMLElement)) {
+    return;
+  }
+  const botId = container.getAttribute('data-bot-id');
+  if (!botId) {
+    return;
+  }
+
+  const personalityEl = container.querySelector('[data-field="personality"]');
+  const targetEl = container.querySelector('[data-field="targetPreference"]');
+  const cooldownEl = container.querySelector('[data-field="challengeCooldownMs"]');
+  const personality = personalityEl instanceof HTMLSelectElement ? personalityEl.value : 'social';
+  const targetPreference = targetEl instanceof HTMLSelectElement ? targetEl.value : 'human_first';
+  const challengeCooldownMs = cooldownEl instanceof HTMLInputElement ? Math.max(1200, Number(cooldownEl.value || 2600)) : 2600;
+
+  try {
+    setStatus(`Saving ${botId}...`);
+    await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ personality, targetPreference, challengeCooldownMs })
+    });
+    await refreshContext();
+    setStatus(`Saved ${botId}.`);
+  } catch (error) {
+    setStatus(`Bot save failed: ${String(error.message || error)}`);
   }
 });
 

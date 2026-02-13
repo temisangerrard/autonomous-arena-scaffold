@@ -1241,6 +1241,21 @@ h4 { font-size: 1.25rem; }
     font: 500 0.75rem/1.2 "IBM Plex Mono", monospace;
 }
 
+.dashboard-bot-edit {
+    margin-top: 6px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 140px auto;
+    gap: 6px;
+}
+
+.dashboard-bot-edit select,
+.dashboard-bot-edit input {
+    border: 1px solid var(--border-medium);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: 13px/1.2 var(--font-primary);
+}
+
 /* ========== Welcome Page ========== */
 .welcome-page {
     max-width: 1080px;
@@ -1403,6 +1418,10 @@ h4 { font-size: 1.25rem; }
     }
 
     .welcome-admin-form {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-bot-edit {
         grid-template-columns: 1fr;
     }
 }

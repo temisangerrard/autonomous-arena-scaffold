@@ -66,7 +66,7 @@
       </article>
 
       <article class="card">
-        <h2 class="card__title">Bot Behavior</h2>
+        <h2 class="card__title">Primary Bot Quick Edit</h2>
         <div class="form-group">
           <label class="form-label" for="bot-personality">Personality</label>
           <select class="form-input" id="bot-personality">
@@ -87,12 +87,26 @@
           <label class="form-label" for="bot-cooldown">Challenge Cooldown (ms)</label>
           <input class="form-input" id="bot-cooldown" type="number" min="1200" step="100" value="2600">
         </div>
-        <button id="bot-save" class="btn btn--secondary">Save Bot Config</button>
+        <button id="bot-save" class="btn btn--secondary">Save Primary Bot</button>
       </article>
     </section>
 
     <section class="card" style="margin-top:16px;">
       <h2 class="card__title">Bot Roster</h2>
+      <div class="dashboard-inline" style="margin-bottom:10px;">
+        <input class="form-input" id="new-bot-name" type="text" placeholder="Optional bot name">
+        <select class="form-input" id="new-bot-personality">
+          <option value="social">Social</option>
+          <option value="aggressive">Aggressive</option>
+          <option value="conservative">Conservative</option>
+        </select>
+        <select class="form-input" id="new-bot-target">
+          <option value="human_first">Human first</option>
+          <option value="human_only">Human only</option>
+          <option value="any">Any</option>
+        </select>
+        <button id="create-bot" class="btn btn--secondary">Create Bot</button>
+      </div>
       <div id="bot-list" class="text-muted">No bots yet.</div>
     </section>
 
