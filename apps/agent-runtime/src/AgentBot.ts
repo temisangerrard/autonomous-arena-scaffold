@@ -18,11 +18,14 @@ type ChallengePayload = {
 
 export type AgentBehaviorConfig = {
   personality: Personality;
+  mode: 'active' | 'passive';
   challengeEnabled: boolean;
   challengeCooldownMs: number;
   targetPreference: 'human_only' | 'human_first' | 'any';
   patrolSection?: number;
   patrolRadius?: number;
+  baseWager: number;
+  maxWager: number;
 };
 
 type AgentBotConfig = {
@@ -342,6 +345,9 @@ export class AgentBot {
   }
 
   private maybeSendChallenge(): void {
+    if (this.config.behavior.mode === 'passive') {
+      return;
+    }
     if (!this.config.behavior.challengeEnabled) {
       return;
     }
@@ -372,7 +378,10 @@ export class AgentBot {
     this.stats.challengesSent += 1;
     this.stats.lastChallengeAt = now;
     const gameType = this.config.behavior.personality === 'conservative' ? 'coinflip' : 'rps';
-    const wager = this.config.behavior.personality === 'aggressive' ? 3 : 1;
+    const personalityWager = this.config.behavior.personality === 'aggressive' ? 3 : 1;
+    const base = Math.max(1, Number(this.config.behavior.baseWager || personalityWager));
+    const max = Math.max(base, Number(this.config.behavior.maxWager || base));
+    const wager = Math.max(1, Math.min(max, base));
     this.ws.send(JSON.stringify({ type: 'challenge_send', targetId, gameType, wager }));
   }
 

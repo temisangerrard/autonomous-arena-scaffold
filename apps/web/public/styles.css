@@ -1244,7 +1244,7 @@ h4 { font-size: 1.25rem; }
 .dashboard-bot-edit {
     margin-top: 6px;
     display: grid;
-    grid-template-columns: 1fr 1fr 140px auto;
+    grid-template-columns: 1fr 1fr 120px 110px 110px auto;
     gap: 6px;
 }
 

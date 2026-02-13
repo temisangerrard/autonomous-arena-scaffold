@@ -21,16 +21,23 @@ const walletWithdraw = document.getElementById('wallet-withdraw');
 const botPersonality = document.getElementById('bot-personality');
 const botTarget = document.getElementById('bot-target');
 const botCooldown = document.getElementById('bot-cooldown');
+const botMode = document.getElementById('bot-mode');
+const botBaseWager = document.getElementById('bot-base-wager');
+const botMaxWager = document.getElementById('bot-max-wager');
 const botSave = document.getElementById('bot-save');
 const botList = document.getElementById('bot-list');
 const newBotName = document.getElementById('new-bot-name');
 const newBotPersonality = document.getElementById('new-bot-personality');
 const newBotTarget = document.getElementById('new-bot-target');
+const newBotMode = document.getElementById('new-bot-mode');
+const newBotBaseWager = document.getElementById('new-bot-base-wager');
+const newBotMaxWager = document.getElementById('new-bot-max-wager');
 const createBot = document.getElementById('create-bot');
 const superAgentMessage = document.getElementById('super-agent-message');
 const superAgentSend = document.getElementById('super-agent-send');
 const superAgentQuickStatus = document.getElementById('super-agent-quick-status');
 const superAgentResponse = document.getElementById('super-agent-response');
+const onboardingList = document.getElementById('onboarding-list');
 
 let playerCtx = null;
 let bootstrapCtx = null;
@@ -114,6 +121,12 @@ function renderContext() {
               <option value="any" ${bot.behavior.targetPreference === 'any' ? 'selected' : ''}>Any</option>
             </select>
             <input data-field="challengeCooldownMs" type="number" min="1200" step="100" value="${Number(bot.behavior.challengeCooldownMs || 2600)}">
+            <select data-field="mode">
+              <option value="active" ${bot.behavior.mode === 'active' ? 'selected' : ''}>Active</option>
+              <option value="passive" ${bot.behavior.mode === 'passive' ? 'selected' : ''}>Passive</option>
+            </select>
+            <input data-field="baseWager" type="number" min="1" step="1" value="${Number(bot.behavior.baseWager || 1)}">
+            <input data-field="maxWager" type="number" min="1" step="1" value="${Number(bot.behavior.maxWager || 3)}">
             <button class="btn btn--ghost dashboard-bot-save" data-action="save-bot">Save</button>
           </div>
         </div>`;
@@ -124,11 +137,34 @@ function renderContext() {
     if (botPersonality) botPersonality.value = first.behavior.personality;
     if (botTarget) botTarget.value = first.behavior.targetPreference;
     if (botCooldown) botCooldown.value = String(first.behavior.challengeCooldownMs || 2600);
+    if (botMode) botMode.value = first.behavior.mode || 'active';
+    if (botBaseWager) botBaseWager.value = String(first.behavior.baseWager || 1);
+    if (botMaxWager) botMaxWager.value = String(first.behavior.maxWager || 3);
   }
 
   bindPlayLink();
   if (inviteLink) {
     inviteLink.value = bootstrapCtx?.invite?.playUrl ? `${window.location.origin}${bootstrapCtx.invite.playUrl}` : '';
+  }
+
+  if (onboardingList) {
+    const hasUser = Boolean(user?.email);
+    const hasProfile = Boolean(profile?.id);
+    const hasFunds = Number(profile?.wallet?.balance || 0) > 0;
+    const hasBot = bots.length > 0;
+    const hasActiveBot = bots.some((entry) => entry.behavior?.mode !== 'passive' && entry.behavior?.challengeEnabled !== false);
+    const hasPlayLink = Boolean(inviteLink?.value);
+    const rows = [
+      [hasUser, 'Signed in'],
+      [hasProfile, 'Player profile provisioned'],
+      [hasFunds, 'Wallet funded'],
+      [hasBot, 'At least one bot created'],
+      [hasActiveBot, 'At least one bot in active mode'],
+      [hasPlayLink, 'Play link ready to share']
+    ];
+    onboardingList.innerHTML = rows
+      .map(([ok, text]) => `<li>${ok ? '✓' : '○'} ${escapeHtml(text)}</li>`)
+      .join('');
   }
 }
 
@@ -206,6 +242,8 @@ walletWithdraw?.addEventListener('click', async () => {
 botSave?.addEventListener('click', async () => {
   try {
     const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
+    const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
+    const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
     setStatus('Saving bot behavior...');
     await api('/api/player/bot/config', {
       method: 'POST',
@@ -213,7 +251,10 @@ botSave?.addEventListener('click', async () => {
       body: JSON.stringify({
         personality: botPersonality?.value || 'social',
         targetPreference: botTarget?.value || 'human_first',
-        challengeCooldownMs: cooldown
+        challengeCooldownMs: cooldown,
+        mode: botMode?.value || 'active',
+        baseWager,
+        maxWager
       })
     });
     await refreshContext();
@@ -233,6 +274,9 @@ createBot?.addEventListener('click', async () => {
         displayName: String(newBotName?.value || '').trim() || undefined,
         personality: newBotPersonality?.value || 'social',
         targetPreference: newBotTarget?.value || 'human_first',
+        mode: newBotMode?.value || 'active',
+        baseWager: Math.max(1, Number(newBotBaseWager?.value || 1)),
+        maxWager: Math.max(1, Number(newBotMaxWager?.value || 3)),
         managedBySuperAgent: true
       })
     });
@@ -266,16 +310,22 @@ botList?.addEventListener('click', async (event) => {
   const personalityEl = container.querySelector('[data-field="personality"]');
   const targetEl = container.querySelector('[data-field="targetPreference"]');
   const cooldownEl = container.querySelector('[data-field="challengeCooldownMs"]');
+  const modeEl = container.querySelector('[data-field="mode"]');
+  const baseWagerEl = container.querySelector('[data-field="baseWager"]');
+  const maxWagerEl = container.querySelector('[data-field="maxWager"]');
   const personality = personalityEl instanceof HTMLSelectElement ? personalityEl.value : 'social';
   const targetPreference = targetEl instanceof HTMLSelectElement ? targetEl.value : 'human_first';
   const challengeCooldownMs = cooldownEl instanceof HTMLInputElement ? Math.max(1200, Number(cooldownEl.value || 2600)) : 2600;
+  const mode = modeEl instanceof HTMLSelectElement ? modeEl.value : 'active';
+  const baseWager = baseWagerEl instanceof HTMLInputElement ? Math.max(1, Number(baseWagerEl.value || 1)) : 1;
+  const maxWager = maxWagerEl instanceof HTMLInputElement ? Math.max(baseWager, Number(maxWagerEl.value || baseWager)) : baseWager;
 
   try {
     setStatus(`Saving ${botId}...`);
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ personality, targetPreference, challengeCooldownMs })
+      body: JSON.stringify({ personality, targetPreference, challengeCooldownMs, mode, baseWager, maxWager })
     });
     await refreshContext();
     setStatus(`Saved ${botId}.`);

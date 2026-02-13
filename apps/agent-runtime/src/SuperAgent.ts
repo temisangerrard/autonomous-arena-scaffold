@@ -81,6 +81,7 @@ export function buildWorkerDirectives(
     botId,
     patch: {
       personality: personalityFor(config.mode, index),
+      mode: config.challengeEnabled ? 'active' : 'passive',
       challengeEnabled: config.challengeEnabled,
       challengeCooldownMs: Math.max(1200, config.defaultChallengeCooldownMs + index * 250),
       targetPreference: config.workerTargetPreference

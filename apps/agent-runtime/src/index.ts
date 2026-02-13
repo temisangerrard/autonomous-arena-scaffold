@@ -208,40 +208,52 @@ function makeBehaviorForDuty(duty: BotRecord['duty'], index: number, patrolSecti
   if (duty === 'duelist') {
     return {
       personality: 'aggressive',
+      mode: 'active',
       challengeEnabled: true,
       challengeCooldownMs: Math.max(1400, superAgentConfig.defaultChallengeCooldownMs - 2200 + (index % 3) * 180),
       targetPreference: 'any',
       patrolSection: patrolSection ?? 0,
-      patrolRadius
+      patrolRadius,
+      baseWager: 3,
+      maxWager: 6
     };
   }
   if (duty === 'sparrer') {
     return {
       personality: 'social',
+      mode: 'active',
       challengeEnabled: true,
       challengeCooldownMs: Math.max(1500, superAgentConfig.defaultChallengeCooldownMs - 1800 + (index % 4) * 120),
       targetPreference: 'any',
       patrolSection: patrolSection ?? 0,
-      patrolRadius
+      patrolRadius,
+      baseWager: 2,
+      maxWager: 4
     };
   }
   if (duty === 'sentinel') {
     return {
       personality: 'conservative',
+      mode: 'active',
       challengeEnabled: true,
       challengeCooldownMs: Math.max(1800, superAgentConfig.defaultChallengeCooldownMs - 1200 + (index % 4) * 180),
       targetPreference: 'any',
       patrolSection: patrolSection ?? 0,
-      patrolRadius
+      patrolRadius,
+      baseWager: 1,
+      maxWager: 3
     };
   }
   return {
     personality: personalities[index % personalities.length] ?? 'social',
+    mode: 'active',
     challengeEnabled: true,
     challengeCooldownMs: Math.max(1600, superAgentConfig.defaultChallengeCooldownMs - 1600 + (index % 5) * 140),
     targetPreference: 'any',
     patrolSection: patrolSection ?? 0,
-    patrolRadius
+    patrolRadius,
+    baseWager: 2,
+    maxWager: 5
   };
 }
 
@@ -329,9 +341,12 @@ function ensureSuperAgentExists(): void {
     superAgentConfig.id,
     {
       personality: 'aggressive',
+      mode: 'active',
       challengeEnabled: true,
       challengeCooldownMs: Math.max(1400, Math.floor(superAgentConfig.defaultChallengeCooldownMs * 0.5)),
-      targetPreference: 'any'
+      targetPreference: 'any',
+      baseWager: 3,
+      maxWager: 8
     },
     {
       id: superAgentConfig.id,
@@ -358,17 +373,20 @@ function applySuperAgentDelegation(): void {
     }
     const dutyBaseline = makeBehaviorForDuty(record.duty, 0, record.patrolSection);
     bots.get(directive.botId)?.updateBehavior({
-      ...directive.patch,
       ...dutyBaseline,
+      ...directive.patch,
       challengeEnabled: directive.patch.challengeEnabled ?? dutyBaseline.challengeEnabled
     });
   }
 
   bots.get(superAgentConfig.id)?.updateBehavior({
     personality: 'aggressive',
+    mode: 'active',
     challengeEnabled: true,
     challengeCooldownMs: Math.max(1400, Math.floor(superAgentConfig.defaultChallengeCooldownMs * 0.5)),
-    targetPreference: 'any'
+    targetPreference: 'any',
+    baseWager: 3,
+    maxWager: 8
   });
 }
 
@@ -1320,17 +1338,25 @@ const server = createServer(async (req, res) => {
       displayName?: string;
       personality?: Personality;
       targetPreference?: AgentBehaviorConfig['targetPreference'];
+      mode?: AgentBehaviorConfig['mode'];
+      baseWager?: number;
+      maxWager?: number;
       managedBySuperAgent?: boolean;
     }>(req);
 
     const botId = `agent_${profile.id}_${profile.ownedBotIds.length + 1}`;
     const patrolSection = hashString(botId) % PATROL_SECTION_COUNT;
+    const baseWager = Math.max(1, Number(body?.baseWager ?? 1));
+    const maxWager = Math.max(baseWager, Number(body?.maxWager ?? baseWager));
     registerBot(
       botId,
       {
         ...makeBehaviorForDuty('owner', patrolSection, patrolSection),
         personality: body?.personality ?? 'social',
-        targetPreference: body?.targetPreference ?? 'human_first'
+        targetPreference: body?.targetPreference ?? 'human_first',
+        mode: body?.mode ?? 'active',
+        baseWager,
+        maxWager
       },
       {
         id: botId,
@@ -1718,8 +1744,38 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
       return;
     }
+    const patch: Partial<AgentBehaviorConfig> = {};
+    if (body.personality === 'aggressive' || body.personality === 'social' || body.personality === 'conservative') {
+      patch.personality = body.personality;
+    }
+    if (body.mode === 'active' || body.mode === 'passive') {
+      patch.mode = body.mode;
+    }
+    if (typeof body.challengeEnabled === 'boolean') {
+      patch.challengeEnabled = body.challengeEnabled;
+    }
+    if (body.targetPreference === 'any' || body.targetPreference === 'human_only' || body.targetPreference === 'human_first') {
+      patch.targetPreference = body.targetPreference;
+    }
+    if (typeof body.challengeCooldownMs === 'number') {
+      patch.challengeCooldownMs = Math.max(1200, Math.min(120000, body.challengeCooldownMs));
+    }
+    if (typeof body.baseWager === 'number') {
+      patch.baseWager = Math.max(1, Math.min(50, Math.floor(body.baseWager)));
+    }
+    if (typeof body.maxWager === 'number') {
+      patch.maxWager = Math.max(1, Math.min(100, Math.floor(body.maxWager)));
+    }
+    if (typeof patch.baseWager === 'number' && typeof patch.maxWager === 'number' && patch.maxWager < patch.baseWager) {
+      patch.maxWager = patch.baseWager;
+    } else if (typeof patch.baseWager === 'number' && typeof patch.maxWager !== 'number') {
+      const currentMax = bot.getStatus().behavior.maxWager;
+      if (currentMax < patch.baseWager) {
+        patch.maxWager = patch.baseWager;
+      }
+    }
 
-    bot.updateBehavior(body);
+    bot.updateBehavior(patch);
 
     const record = botRegistry.get(id);
     if (record) {

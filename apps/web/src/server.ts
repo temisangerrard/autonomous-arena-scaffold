@@ -70,9 +70,12 @@ type RuntimeStatusPayload = {
     connected?: boolean;
     behavior: {
       personality: 'aggressive' | 'conservative' | 'social';
+      mode?: 'active' | 'passive';
       targetPreference: 'human_only' | 'human_first' | 'any';
       challengeCooldownMs: number;
       challengeEnabled?: boolean;
+      baseWager?: number;
+      maxWager?: number;
     };
     meta?: {
       ownerProfileId?: string | null;
@@ -760,14 +763,22 @@ const server = createServer(async (req, res) => {
       displayName?: string;
       personality?: 'aggressive' | 'conservative' | 'social';
       targetPreference?: 'human_only' | 'human_first' | 'any';
+      mode?: 'active' | 'passive';
+      baseWager?: number;
+      maxWager?: number;
       managedBySuperAgent?: boolean;
     }>(req);
 
     try {
+      const baseWager = Math.max(1, Number(body?.baseWager ?? 1));
+      const maxWager = Math.max(baseWager, Number(body?.maxWager ?? baseWager));
       const payload = await runtimePost(`/profiles/${auth.identity.profileId}/bots/create`, {
         displayName: body?.displayName,
         personality: body?.personality ?? 'social',
         targetPreference: body?.targetPreference ?? 'human_first',
+        mode: body?.mode ?? 'active',
+        baseWager,
+        maxWager,
         managedBySuperAgent: body?.managedBySuperAgent ?? true
       });
       sendJson(res, payload);

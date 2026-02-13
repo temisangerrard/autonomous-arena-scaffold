@@ -87,6 +87,17 @@
           <label class="form-label" for="bot-cooldown">Challenge Cooldown (ms)</label>
           <input class="form-input" id="bot-cooldown" type="number" min="1200" step="100" value="2600">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="bot-mode">Mode</label>
+          <select class="form-input" id="bot-mode">
+            <option value="active">Active</option>
+            <option value="passive">Passive</option>
+          </select>
+        </div>
+        <div class="dashboard-inline">
+          <input class="form-input" id="bot-base-wager" type="number" min="1" step="1" value="1" placeholder="Base wager">
+          <input class="form-input" id="bot-max-wager" type="number" min="1" step="1" value="3" placeholder="Max wager">
+        </div>
         <button id="bot-save" class="btn btn--secondary">Save Primary Bot</button>
       </article>
     </section>
@@ -105,9 +116,22 @@
           <option value="human_only">Human only</option>
           <option value="any">Any</option>
         </select>
+        <select class="form-input" id="new-bot-mode">
+          <option value="active">Active</option>
+          <option value="passive">Passive</option>
+        </select>
+        <input class="form-input" id="new-bot-base-wager" type="number" min="1" step="1" value="1" placeholder="Base wager">
+        <input class="form-input" id="new-bot-max-wager" type="number" min="1" step="1" value="3" placeholder="Max wager">
         <button id="create-bot" class="btn btn--secondary">Create Bot</button>
       </div>
       <div id="bot-list" class="text-muted">No bots yet.</div>
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+      <h2 class="card__title">Onboarding Checklist</h2>
+      <ul id="onboarding-list" class="welcome-checks">
+        <li>Checking session...</li>
+      </ul>
     </section>
 
     <section class="card" style="margin-top:16px;">
