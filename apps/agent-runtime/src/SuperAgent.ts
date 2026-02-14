@@ -50,7 +50,16 @@ export function createDefaultSuperAgentConfig(id: string): SuperAgentConfig {
     },
     walletPolicy: {
       enabled: false,
-      allowedSkills: ['authenticate-wallet', 'fund', 'send-usdc', 'trade', 'query-onchain-data'],
+      allowedSkills: [
+        'authenticate-wallet',
+        'fund',
+        'send-usdc',
+        'trade',
+        'query-onchain-data',
+        'solidity-contract-design',
+        'solidity-security-review',
+        'evm-gas-optimization'
+      ],
       maxBetPercentOfBankroll: 5,
       maxDailyTxCount: 24,
       requireEscrowForChallenges: true

@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
 import {
   AgentBot,
   type AgentBehaviorConfig,
@@ -50,6 +51,27 @@ const runtimeStateFile = process.env.AGENT_RUNTIME_STATE_FILE
 const encryptionKey = createHash('sha256')
   .update(process.env.WALLET_ENCRYPTION_KEY ?? 'arena-dev-wallet-key')
   .digest();
+const internalToken = resolveInternalServiceToken();
+const onchainRpcUrl = process.env.CHAIN_RPC_URL ?? '';
+const onchainTokenAddress = process.env.ESCROW_TOKEN_ADDRESS ?? '';
+const onchainEscrowAddress = process.env.ESCROW_CONTRACT_ADDRESS ?? '';
+const onchainTokenDecimals = Math.max(0, Math.min(18, Number(process.env.ESCROW_TOKEN_DECIMALS ?? 6)));
+const onchainProvider = onchainRpcUrl ? new JsonRpcProvider(onchainRpcUrl) : null;
+const gasFunderPrivateKey = process.env.GAS_FUNDING_PRIVATE_KEY || process.env.ESCROW_RESOLVER_PRIVATE_KEY || '';
+const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
+const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
+
+function resolveInternalServiceToken(): string {
+  const configured = process.env.INTERNAL_SERVICE_TOKEN?.trim();
+  if (configured) {
+    return configured;
+  }
+  const superAgentKey = (process.env.ESCROW_RESOLVER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY || '').trim();
+  if (!superAgentKey) {
+    return '';
+  }
+  return `sa_${createHash('sha256').update(superAgentKey).digest('hex')}`;
+}
 
 type Profile = {
   id: string;
@@ -78,6 +100,20 @@ type EscrowLockRecord = {
   opponentWalletId: string;
   amount: number;
   createdAt: number;
+  lockTxHash: string;
+};
+
+type EscrowSettlementRecord = {
+  challengeId: string;
+  outcome: 'resolved' | 'refunded';
+  challengerWalletId: string;
+  opponentWalletId: string;
+  winnerWalletId: string | null;
+  amount: number;
+  fee: number;
+  payout: number;
+  txHash: string;
+  at: number;
 };
 
 type BotRecord = {
@@ -109,6 +145,7 @@ const botRegistry = new Map<string, BotRecord>();
 const profiles = new Map<string, Profile>();
 const wallets = new Map<string, WalletRecord>();
 const escrowLocks = new Map<string, EscrowLockRecord>();
+const escrowSettlements: EscrowSettlementRecord[] = [];
 const backgroundBotIds = new Set<string>();
 const subjectToProfileId = new Map<string, string>();
 
@@ -116,6 +153,13 @@ type SuperAgentMemoryEntry = {
   at: number;
   type: 'command' | 'decision' | 'system';
   message: string;
+};
+
+type EthSkillDigest = {
+  url: string;
+  title: string;
+  summary: string;
+  fetchedAt: number;
 };
 
 type SuperAgentAction =
@@ -126,10 +170,12 @@ type SuperAgentAction =
   | { kind: 'set_wallet'; value: boolean }
   | { kind: 'reconcile_bots'; value: number }
   | { kind: 'apply_delegation' }
+  | { kind: 'sync_ethskills' }
   | { kind: 'status' }
   | { kind: 'help' };
 
 const superAgentMemory: SuperAgentMemoryEntry[] = [];
+const superAgentEthSkills: EthSkillDigest[] = [];
 const superAgentLlmUsage = {
   hourStamp: '',
   requestsThisHour: 0,
@@ -150,6 +196,7 @@ type PersistedRuntimeState = {
     walletPolicy: WalletPolicy;
   };
   superAgentMemory: SuperAgentMemoryEntry[];
+  superAgentEthSkills: EthSkillDigest[];
   superAgentLlmUsage: {
     hourStamp: string;
     requestsThisHour: number;
@@ -183,6 +230,15 @@ const namePool = [
 ];
 const usedDisplayNames = new Set<string>();
 const PATROL_SECTION_COUNT = 8;
+const ETHSKILLS_SOURCES = [
+  'https://ethskills.com/SKILL.md',
+  'https://ethskills.com/why/SKILL.md',
+  'https://ethskills.com/gas/SKILL.md',
+  'https://ethskills.com/wallets/SKILL.md',
+  'https://ethskills.com/standards/SKILL.md',
+  'https://ethskills.com/tools/SKILL.md',
+  'https://ethskills.com/l2s/SKILL.md'
+];
 
 function hashString(input: string): number {
   let hash = 0;
@@ -190,6 +246,76 @@ function hashString(input: string): number {
     hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
   }
   return hash;
+}
+
+function stripHtml(input: string): string {
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function digestEthSkillsPage(url: string, html: string): EthSkillDigest {
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  const paragraphMatches = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((entry) => stripHtml(entry[1] ?? ''))
+    .filter((entry) => entry.length > 20);
+  const markdownLines = html
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 18 && !line.startsWith('#') && !line.startsWith('```') && !line.startsWith('- '));
+  const summary =
+    paragraphMatches.slice(0, 2).join(' ').slice(0, 500) ||
+    markdownLines.slice(0, 3).join(' ').slice(0, 500) ||
+    'No summary extracted.';
+  const markdownTitle = html
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('# '));
+  return {
+    url,
+    title: stripHtml(h1Match?.[1] ?? titleMatch?.[1] ?? markdownTitle?.replace(/^#\s+/, '') ?? url).slice(0, 120) || url,
+    summary,
+    fetchedAt: Date.now()
+  };
+}
+
+async function syncEthSkillsKnowledge(force = false): Promise<{ ok: boolean; refreshed: number; reason?: string }> {
+  if (!force && superAgentEthSkills.length >= ETHSKILLS_SOURCES.length) {
+    const stale = superAgentEthSkills.some((entry) => Date.now() - entry.fetchedAt > 1000 * 60 * 60 * 24);
+    if (!stale) {
+      return { ok: true, refreshed: 0 };
+    }
+  }
+
+  let refreshed = 0;
+  const nextDigests: EthSkillDigest[] = [];
+  for (const url of ETHSKILLS_SOURCES) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        rememberSuperAgent('system', `ethskills fetch failed ${response.status} ${url}`);
+        continue;
+      }
+      const html = await response.text();
+      nextDigests.push(digestEthSkillsPage(url, html));
+      refreshed += 1;
+    } catch {
+      rememberSuperAgent('system', `ethskills fetch error ${url}`);
+    }
+  }
+
+  if (nextDigests.length === 0) {
+    return { ok: false, refreshed: 0, reason: 'ethskills_unreachable' };
+  }
+
+  superAgentEthSkills.splice(0, superAgentEthSkills.length, ...nextDigests);
+  rememberSuperAgent('decision', `synced ethskills pages=${nextDigests.length}`);
+  schedulePersistState();
+  return { ok: true, refreshed };
 }
 
 function dutyForIndex(index: number): BotRecord['duty'] {
@@ -525,6 +651,7 @@ function runtimeStatus() {
     backgroundBotCount: backgroundBotIds.size,
     profileBotCount: statuses.filter((bot) => bot.meta?.ownerProfileId).length,
     escrowLockCount: escrowLocks.size,
+    recentEscrowSettlements: escrowSettlements.slice(-20),
     wsBaseUrl,
     openRouterConfigured: Boolean(runtimeSecrets.openRouterApiKey),
     superAgent: {
@@ -537,13 +664,27 @@ function runtimeStatus() {
       walletPolicy: superAgentConfig.walletPolicy,
       brain: {
         memories: superAgentMemory.slice(-12),
-        llmUsage: { ...superAgentLlmUsage }
+        llmUsage: { ...superAgentLlmUsage },
+        ethSkills: superAgentEthSkills.slice(0, 8)
       }
     },
     bots: statuses,
     profiles: publicProfiles(),
     wallets: [...wallets.values()].map((wallet) => walletSummary(wallet))
   };
+}
+
+function pushEscrowSettlement(entry: EscrowSettlementRecord): void {
+  escrowSettlements.push(entry);
+  if (escrowSettlements.length > 400) {
+    escrowSettlements.splice(0, escrowSettlements.length - 400);
+  }
+}
+
+function pseudoTxHash(kind: 'lock' | 'resolve' | 'refund', challengeId: string): string {
+  const salt = randomBytes(8).toString('hex');
+  const hash = createHash('sha256').update(`${kind}:${challengeId}:${Date.now()}:${salt}`).digest('hex');
+  return `0x${hash}`;
 }
 
 function runtimeSnapshotText(): string {
@@ -553,6 +694,7 @@ function runtimeSnapshotText(): string {
     `bots configured=${status.configuredBotCount} connected=${status.connectedBotCount} background=${status.backgroundBotCount} profile=${status.profileBotCount}`,
     `profiles=${status.profiles.length} wallets=${status.wallets.length} escrowLocks=${status.escrowLockCount}`,
     `walletTotalBalance=${totalBalance.toFixed(2)}`,
+    `ethskillsCached=${superAgentEthSkills.length}`,
     `mode=${status.superAgent.mode} target=${status.superAgent.workerTargetPreference} cooldown=${status.superAgent.defaultChallengeCooldownMs} challengeEnabled=${status.superAgent.challengeEnabled}`,
     `walletPolicy enabled=${status.superAgent.walletPolicy.enabled} maxBetPct=${status.superAgent.walletPolicy.maxBetPercentOfBankroll} maxDailyTx=${status.superAgent.walletPolicy.maxDailyTxCount}`
   ].join('\n');
@@ -609,6 +751,10 @@ function parseSuperAgentActions(message: string): SuperAgentAction[] {
     actions.push({ kind: 'apply_delegation' });
   }
 
+  if (/\b(sync|refresh|update)\s+(ethskills|solidity skills?|evm skills?)\b/.test(normalized)) {
+    actions.push({ kind: 'sync_ethskills' });
+  }
+
   return actions;
 }
 
@@ -645,10 +791,12 @@ function applySuperAgentAction(action: SuperAgentAction): string {
       applySuperAgentDelegation();
       rememberSuperAgent('decision', 'applied worker delegation');
       return 'Re-applied worker delegation policy.';
+    case 'sync_ethskills':
+      return 'ETHSkills sync requested.';
     case 'status':
       return `Current status:\n${runtimeSnapshotText()}`;
     case 'help':
-      return 'Supported commands: status, mode <balanced|hunter|defensive>, target <human_only|human_first|any>, cooldown <ms>, enable/disable challenges, enable/disable wallet policy, bot count <n>, apply delegation.';
+      return 'Supported commands: status, mode <balanced|hunter|defensive>, target <human_only|human_first|any>, cooldown <ms>, enable/disable challenges, enable/disable wallet policy, bot count <n>, apply delegation, sync ethskills.';
     default:
       return 'No action applied.';
   }
@@ -673,7 +821,11 @@ async function askOpenRouterSuperAgent(message: string): Promise<string | null> 
     return null;
   }
   const context = runtimeSnapshotText();
-  const prompt = `You are the Super Agent managing an autonomous betting arena. Answer concisely, operationally, and safely.\n\nRuntime snapshot:\n${context}\n\nOperator message:\n${message}`;
+  const ethSkillsContext = superAgentEthSkills
+    .slice(0, 5)
+    .map((entry) => `- ${entry.title} (${entry.url}): ${entry.summary}`)
+    .join('\n');
+  const prompt = `You are the Super Agent managing an autonomous betting arena. Answer concisely, operationally, and safely.\n\nRuntime snapshot:\n${context}\n\nETHSkills knowledge:\n${ethSkillsContext || '- none cached'}\n\nOperator message:\n${message}`;
   const tokenEstimate = Math.ceil(prompt.length / 4);
   refreshLlmUsageBuckets();
 
@@ -746,20 +898,175 @@ function decryptSecret(encrypted: string): string {
   return plaintext.toString('utf8');
 }
 
-function newWalletAddress(): string {
-  return `0x${randomBytes(20).toString('hex')}`;
+const ERC20_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function mint(address to, uint256 amount)',
+  'function symbol() view returns (string)'
+];
+
+type Erc20Api = Contract & {
+  balanceOf: (owner: string) => Promise<bigint>;
+  allowance: (owner: string, spender: string) => Promise<bigint>;
+  approve: (spender: string, amount: bigint) => Promise<{ wait: () => Promise<unknown> }>;
+  mint: (to: string, amount: bigint) => Promise<{ wait: () => Promise<unknown> }>;
+};
+
+function isInternalAuthorized(req: import('node:http').IncomingMessage): boolean {
+  if (!internalToken) {
+    return true;
+  }
+  const header = req.headers['x-internal-token'];
+  const token = Array.isArray(header) ? header[0] : header;
+  return token === internalToken;
+}
+
+function walletById(walletId: string): WalletRecord | null {
+  if (!walletId) {
+    return null;
+  }
+  return wallets.get(walletId) ?? null;
+}
+
+function signerForWallet(wallet: WalletRecord): Wallet | null {
+  if (!onchainProvider) {
+    return null;
+  }
+  const key = decryptSecret(wallet.encryptedPrivateKey);
+  if (!key) {
+    return null;
+  }
+  return new Wallet(key, onchainProvider);
+}
+
+async function prepareWalletForEscrowOnchain(walletId: string, amount: number): Promise<{
+  ok: boolean;
+  reason?: string;
+  walletId: string;
+  address?: string;
+  approved?: boolean;
+  minted?: boolean;
+  allowance?: string;
+  balance?: string;
+  nativeBalanceEth?: string;
+}> {
+  const wallet = walletById(walletId);
+  if (!wallet) {
+    return { ok: false, reason: 'wallet_not_found', walletId };
+  }
+  if (!onchainProvider || !onchainTokenAddress || !onchainEscrowAddress) {
+    return { ok: false, reason: 'onchain_config_missing', walletId };
+  }
+  const signer = signerForWallet(wallet);
+  if (!signer) {
+    return { ok: false, reason: 'wallet_signer_unavailable', walletId };
+  }
+  const owner = signer.address;
+  const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
+  const required = parseUnits(String(amount), onchainTokenDecimals);
+
+  try {
+    let currentNative = 0n;
+    if (onchainProvider) {
+      currentNative = await onchainProvider.getBalance(owner);
+    }
+    if (onchainProvider && gasFunderPrivateKey) {
+      const minNative = parseEther(minWalletGasEth);
+      if (currentNative < minNative) {
+        const gasFunder = new Wallet(gasFunderPrivateKey, onchainProvider);
+        const topup = parseEther(walletGasTopupEth);
+        const topupTx = await gasFunder.sendTransaction({ to: owner, value: topup });
+        await topupTx.wait();
+        currentNative = await onchainProvider.getBalance(owner);
+      }
+    }
+
+    let balance = await token.balanceOf(owner) as bigint;
+    let minted = false;
+    if (balance < required) {
+      try {
+        const mintTx = await token.mint(owner, required - balance);
+        await mintTx.wait();
+        balance = await token.balanceOf(owner) as bigint;
+        minted = true;
+      } catch {
+        // likely real USDC (no mint); leave as-is
+      }
+    }
+
+    let allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
+    let approved = false;
+    if (allowance < required) {
+      const approveTx = await token.approve(onchainEscrowAddress, required);
+      await approveTx.wait();
+      allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
+      approved = true;
+    }
+
+    if (allowance < required) {
+      return {
+        ok: false,
+        reason: 'allowance_too_low',
+        walletId,
+        address: owner,
+        allowance: formatUnits(allowance, onchainTokenDecimals),
+        balance: formatUnits(balance, onchainTokenDecimals),
+        nativeBalanceEth: formatEther(currentNative)
+      };
+    }
+
+    if (balance < required) {
+      return {
+        ok: false,
+        reason: 'insufficient_token_balance',
+        walletId,
+        address: owner,
+        allowance: formatUnits(allowance, onchainTokenDecimals),
+        balance: formatUnits(balance, onchainTokenDecimals),
+        nativeBalanceEth: formatEther(currentNative)
+      };
+    }
+
+    return {
+      ok: true,
+      walletId,
+      address: owner,
+      approved,
+      minted,
+      allowance: formatUnits(allowance, onchainTokenDecimals),
+      balance: formatUnits(balance, onchainTokenDecimals),
+      nativeBalanceEth: formatEther(currentNative)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: String((error as { shortMessage?: string; message?: string }).shortMessage || (error as { message?: string }).message || 'onchain_prepare_failed').slice(0, 180),
+      walletId,
+      address: owner
+    };
+  }
 }
 
 function newPrivateKey(): string {
   return `0x${randomBytes(32).toString('hex')}`;
 }
 
+function addressFromPrivateKey(privateKey: string): string {
+  try {
+    return new Wallet(privateKey).address;
+  } catch {
+    return `0x${randomBytes(20).toString('hex')}`;
+  }
+}
+
 function createWallet(ownerProfileId: string, initialBalance = 0): WalletRecord {
+  const privateKey = newPrivateKey();
   const wallet: WalletRecord = {
     id: `wallet_${walletCounter++}`,
     ownerProfileId,
-    address: newWalletAddress(),
-    encryptedPrivateKey: encryptSecret(newPrivateKey()),
+    address: addressFromPrivateKey(privateKey),
+    encryptedPrivateKey: encryptSecret(privateKey),
     balance: initialBalance,
     dailyTxCount: 0,
     txDayStamp: dayStamp(),
@@ -768,6 +1075,25 @@ function createWallet(ownerProfileId: string, initialBalance = 0): WalletRecord 
   };
   wallets.set(wallet.id, wallet);
   return wallet;
+}
+
+function reconcileWalletAddressesFromKeys(): void {
+  let updated = 0;
+  for (const wallet of wallets.values()) {
+    const key = decryptSecret(wallet.encryptedPrivateKey);
+    if (!key) {
+      continue;
+    }
+    const derived = addressFromPrivateKey(key);
+    if (derived.toLowerCase() !== wallet.address.toLowerCase()) {
+      wallet.address = derived;
+      updated += 1;
+    }
+  }
+  if (updated > 0) {
+    rememberSuperAgent('system', `reconciled wallet addresses from keys count=${updated}`);
+    schedulePersistState();
+  }
 }
 
 function getOrCreateWallet(ownerProfileId: string): WalletRecord {
@@ -980,6 +1306,7 @@ function buildPersistedState(): PersistedRuntimeState {
       walletPolicy: superAgentConfig.walletPolicy
     },
     superAgentMemory: superAgentMemory.slice(-80),
+    superAgentEthSkills: superAgentEthSkills.slice(0, 40),
     superAgentLlmUsage: { ...superAgentLlmUsage },
     subjectLinks: [...subjectToProfileId.entries()].map(([subject, profileId]) => ({ subject, profileId })),
     profiles: [...profiles.values()],
@@ -1035,6 +1362,7 @@ async function loadPersistedState(): Promise<void> {
     }
 
     superAgentMemory.splice(0, superAgentMemory.length, ...(data.superAgentMemory || []).slice(-80));
+    superAgentEthSkills.splice(0, superAgentEthSkills.length, ...(data.superAgentEthSkills || []).slice(0, 40));
     if (data.superAgentLlmUsage) {
       superAgentLlmUsage.hourStamp = data.superAgentLlmUsage.hourStamp || '';
       superAgentLlmUsage.requestsThisHour = Number(data.superAgentLlmUsage.requestsThisHour || 0);
@@ -1080,6 +1408,8 @@ async function loadPersistedState(): Promise<void> {
   }
 }
 await loadPersistedState();
+reconcileWalletAddressesFromKeys();
+void syncEthSkillsKnowledge(false).catch(() => undefined);
 const initialBotCount = Math.max(8, Number(process.env.BOT_COUNT ?? 8));
 reconcileBots(initialBotCount);
 ensureSeedBalances();
@@ -1118,6 +1448,26 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/super-agent/status') {
     sendJson(res, runtimeStatus().superAgent);
+    return;
+  }
+
+  if (url.pathname === '/super-agent/ethskills') {
+    sendJson(res, {
+      ok: true,
+      sources: ETHSKILLS_SOURCES,
+      entries: superAgentEthSkills
+    });
+    return;
+  }
+
+  if (url.pathname === '/super-agent/ethskills/sync' && req.method === 'POST') {
+    const result = await syncEthSkillsKnowledge(true);
+    sendJson(res, {
+      ok: result.ok,
+      refreshed: result.refreshed,
+      reason: result.reason,
+      entries: superAgentEthSkills
+    }, result.ok ? 200 : 503);
     return;
   }
 
@@ -1191,6 +1541,15 @@ const server = createServer(async (req, res) => {
 
     for (const action of actions) {
       actionReplies.push(applySuperAgentAction(action));
+    }
+
+    if (actions.some((entry) => entry.kind === 'sync_ethskills')) {
+      const synced = await syncEthSkillsKnowledge(true);
+      actionReplies.push(
+        synced.ok
+          ? `ETHSkills synced (${synced.refreshed} pages).`
+          : `ETHSkills sync failed (${synced.reason ?? 'unknown_error'}).`
+      );
     }
 
     if (actions.some((entry) => entry.kind !== 'status' && entry.kind !== 'help')) {
@@ -1384,6 +1743,48 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/wallets/onchain/prepare-escrow' && req.method === 'POST') {
+    if (!isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+
+    const body = await readJsonBody<{
+      walletIds?: string[];
+      amount?: number;
+    }>(req);
+
+    const walletIds = Array.isArray(body?.walletIds)
+      ? body.walletIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [];
+    const amount = Math.max(0, Number(body?.amount ?? 0));
+    if (walletIds.length === 0 || amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_prepare_payload' }, 400);
+      return;
+    }
+
+    const results = [] as Array<Awaited<ReturnType<typeof prepareWalletForEscrowOnchain>>>;
+    for (const walletId of walletIds) {
+      results.push(await prepareWalletForEscrowOnchain(walletId, amount));
+    }
+
+    const failed = results.filter((entry) => !entry.ok);
+    const failureReason = failed
+      .map((entry) => entry.reason)
+      .find((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+      ?? null;
+    sendJson(res, {
+      ok: failed.length === 0,
+      reason: failureReason,
+      chain: onchainProvider ? await onchainProvider.getNetwork().then((net) => ({ id: Number(net.chainId) })).catch(() => null) : null,
+      tokenAddress: onchainTokenAddress || null,
+      escrowAddress: onchainEscrowAddress || null,
+      tokenDecimals: onchainTokenDecimals,
+      results
+    }, failed.length === 0 ? 200 : 400);
+    return;
+  }
+
   if (url.pathname.startsWith('/wallets/') && url.pathname.endsWith('/fund') && req.method === 'POST') {
     const walletId = url.pathname.split('/')[2];
     const wallet = walletId ? wallets.get(walletId) : null;
@@ -1534,6 +1935,7 @@ const server = createServer(async (req, res) => {
         ok: true,
         challengeId,
         escrow: existingLock,
+        txHash: existingLock.lockTxHash,
         idempotent: true
       });
       return;
@@ -1569,7 +1971,8 @@ const server = createServer(async (req, res) => {
       challengerWalletId,
       opponentWalletId,
       amount,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      lockTxHash: pseudoTxHash('lock', challengeId)
     };
     escrowLocks.set(challengeId, lock);
 
@@ -1577,6 +1980,7 @@ const server = createServer(async (req, res) => {
       ok: true,
       challengeId,
       escrow: lock,
+      txHash: lock.lockTxHash,
       challenger: walletSummary(challenger),
       opponent: walletSummary(opponent)
     });
@@ -1624,16 +2028,30 @@ const server = createServer(async (req, res) => {
     const pot = lock.amount * 2;
     const fee = (pot * feeBps) / 10000;
     const payout = pot - fee;
+    const txHash = pseudoTxHash('resolve', challengeId);
     winner.balance += payout;
     winner.dailyTxCount += 1;
     winner.lastTxAt = Date.now();
     escrowLocks.delete(challengeId);
+    pushEscrowSettlement({
+      challengeId,
+      outcome: 'resolved',
+      challengerWalletId: lock.challengerWalletId,
+      opponentWalletId: lock.opponentWalletId,
+      winnerWalletId,
+      amount: lock.amount,
+      fee,
+      payout,
+      txHash,
+      at: Date.now()
+    });
 
     sendJson(res, {
       ok: true,
       challengeId,
       payout,
       fee,
+      txHash,
       winner: walletSummary(winner)
     });
     schedulePersistState();
@@ -1665,15 +2083,35 @@ const server = createServer(async (req, res) => {
     opponent.balance += lock.amount;
     challenger.lastTxAt = Date.now();
     opponent.lastTxAt = Date.now();
+    const txHash = pseudoTxHash('refund', challengeId);
     escrowLocks.delete(challengeId);
+    pushEscrowSettlement({
+      challengeId,
+      outcome: 'refunded',
+      challengerWalletId: lock.challengerWalletId,
+      opponentWalletId: lock.opponentWalletId,
+      winnerWalletId: null,
+      amount: lock.amount,
+      fee: 0,
+      payout: lock.amount * 2,
+      txHash,
+      at: Date.now()
+    });
 
     sendJson(res, {
       ok: true,
       challengeId,
+      txHash,
       challenger: walletSummary(challenger),
       opponent: walletSummary(opponent)
     });
     schedulePersistState();
+    return;
+  }
+
+  if (url.pathname === '/wallets/escrow/history') {
+    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get('limit') ?? 60)));
+    sendJson(res, { ok: true, recent: escrowSettlements.slice(-limit).reverse() });
     return;
   }
 

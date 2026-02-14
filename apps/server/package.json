@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@arena/shared": "0.1.0",
+    "ethers": "^6.16.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {

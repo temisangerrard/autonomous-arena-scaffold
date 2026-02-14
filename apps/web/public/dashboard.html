@@ -63,6 +63,17 @@
           <input class="form-input" id="wallet-withdraw-amount" type="number" min="1" step="1" value="5">
           <button id="wallet-withdraw" class="btn btn--secondary">Withdraw</button>
         </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label class="form-label" for="wallet-transfer-target">Transfer To Player</label>
+          <select class="form-input" id="wallet-transfer-target">
+            <option value="">Select a player</option>
+          </select>
+        </div>
+        <div class="dashboard-inline" style="margin-top:8px;">
+          <input class="form-input" id="wallet-transfer-wallet-id" type="text" placeholder="or paste wallet id">
+          <input class="form-input" id="wallet-transfer-amount" type="number" min="1" step="1" value="2">
+          <button id="wallet-transfer" class="btn btn--secondary">Transfer</button>
+        </div>
       </article>
 
       <article class="card">
@@ -132,6 +143,11 @@
       <ul id="onboarding-list" class="welcome-checks">
         <li>Checking session...</li>
       </ul>
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+      <h2 class="card__title">Escrow Activity</h2>
+      <pre id="escrow-history" style="margin:0;max-height:220px;overflow:auto;">Loading escrow activity...</pre>
     </section>
 
     <section class="card" style="margin-top:16px;">

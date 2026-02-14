@@ -216,6 +216,18 @@
     }
 
     .feed-item:last-child { margin-bottom: 0; }
+    .feed-item--escrow {
+      border-color: rgba(201, 162, 39, 0.46);
+      background: rgba(249, 243, 219, 0.7);
+    }
+    .feed-item--match {
+      border-color: rgba(88, 110, 73, 0.45);
+      background: rgba(238, 245, 236, 0.72);
+    }
+    .feed-item--proximity {
+      border-color: rgba(69, 103, 120, 0.45);
+      background: rgba(235, 243, 247, 0.72);
+    }
 
     .feed-item__top {
       display: flex;
@@ -231,6 +243,39 @@
     .feed-item__body {
       font: 13px/1.35 'EB Garamond', serif;
       color: #3d3225;
+    }
+
+    .feed-item__tx {
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tx-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid rgba(201, 162, 39, 0.45);
+      background: rgba(232, 212, 138, 0.34);
+      color: #5b460f;
+      padding: 2px 8px;
+      font: 600 10px/1 var(--font-mono);
+      letter-spacing: 0.04em;
+    }
+
+    .tx-link {
+      color: #8d6c14;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font: 600 10px/1 var(--font-mono);
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(141, 108, 20, 0.55);
+    }
+
+    .tx-link:hover {
+      color: #5f4606;
+      border-bottom-color: rgba(95, 70, 6, 0.75);
     }
 
     .feed-empty {
@@ -406,11 +451,72 @@
       letter-spacing: 0.02em;
     }
     .interaction-prompt.visible { display: block; }
+
+    .quickstart-panel {
+      position: fixed;
+      left: 14px;
+      top: 78px;
+      width: min(92vw, 360px);
+      border-radius: 10px;
+      background: rgba(255, 252, 244, 0.95);
+      border: 1px solid rgba(201, 162, 39, 0.34);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
+      z-index: 52;
+      padding: 10px 12px;
+    }
+
+    .quickstart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .quickstart-head h3 {
+      margin: 0;
+      font: 700 12px/1 var(--font-mono);
+      color: #6b5d4d;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .quickstart-close {
+      border: none;
+      background: transparent;
+      color: #8a7341;
+      font: 700 11px/1 var(--font-mono);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0;
+    }
+
+    .quickstart-list {
+      display: grid;
+      gap: 5px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font: 14px/1.25 'Crimson Text', serif;
+      color: #4a3f32;
+    }
+
+    .quickstart-list li.done {
+      color: #2f6a43;
+    }
   </style>
 </head>
 <body>
   <div class="canvas-shell"><canvas id="scene"></canvas></div>
   <div id="hud">Loading world...</div>
+  <aside id="quickstart-panel" class="quickstart-panel">
+    <div class="quickstart-head">
+      <h3>First Match Guide</h3>
+      <button id="quickstart-close" class="quickstart-close" type="button">Hide</button>
+    </div>
+    <ul id="quickstart-list" class="quickstart-list"></ul>
+  </aside>
   <div id="interaction-prompt" class="interaction-prompt"></div>
 
   <aside class="challenge-panel">

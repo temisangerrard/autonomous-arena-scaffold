@@ -12,10 +12,13 @@
     "lint": "npm run -ws lint",
     "test": "npm run -ws test",
     "test:playable": "node scripts/playable-smoke.mjs",
+    "test:e2e": "node scripts/run-e2e.js",
+    "test:e2e:run": "npx playwright test --config=playwright.e2e.config.js",
     "typecheck": "npm run -ws typecheck",
     "format": "prettier --write ."
   },
   "devDependencies": {
+    "@playwright/test": "^1.50.0",
     "@types/node": "^22.13.4",
     "eslint": "^9.20.1",
     "prettier": "^3.5.0",

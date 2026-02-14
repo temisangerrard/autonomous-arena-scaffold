@@ -118,3 +118,93 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - obstacle blocking
   - existing speed/bounds/deceleration tests still passing.
 - Live probe confirmed collision separation behavior (`minDist ~8.25` under converging input sequence).
+- 2026-02-14: Escrow lifecycle hardening + visibility pass.
+- Added escrow tx metadata and settlement history in runtime:
+  - `EscrowLockRecord` now stores `lockTxHash`.
+  - Added `EscrowSettlementRecord` ledger and `recentEscrowSettlements` in runtime status.
+  - `/wallets/escrow/lock|resolve|refund` now return synthetic `txHash`; resolve returns `fee`/`payout`.
+  - Added `/wallets/escrow/history?limit=` endpoint for recent settlement events.
+- Server escrow adapter now preserves payload metadata (`txHash`, `fee`, `payout`).
+- Game server now broadcasts explicit escrow phase events over websocket:
+  - `challenge_escrow` with `phase=lock|resolve|refund`, `ok`, `reason`, and tx metadata.
+- Play UI now renders escrow feed lines and surfaces lock failures in status messaging.
+- Dashboard now includes `Escrow Activity` panel.
+- Added web API proxy route: `/api/player/wallet/escrow-history` and dashboard wiring.
+- Agent anti-loop challenge behavior upgraded:
+  - per-target cooldown map
+  - suppression backoff after invalid/busy/declined/expired outcomes
+  - reduced repetitive targeting loops
+- Validation:
+  - typecheck: `@arena/agent-runtime`, `@arena/server`, `@arena/web` ✅
+  - tests: `@arena/agent-runtime`, `@arena/server`, `@arena/web` ✅
+  - playable smoke: challenge create -> accept -> move -> resolve ✅
+- Playwright skill loop executed via `$WEB_GAME_CLIENT` against `/play`; run landed on auth-gated welcome route due unauthenticated session and captured expected auth-related console errors (`401/403`, Google origin restriction in local test context).
+- TODO next:
+  - wire real chain tx submission (replace synthetic tx hashes) from wallet execution service
+  - add authenticated Playwright scenario for `/play` (local auth bootstrap cookie step before visit)
+  - expose escrow state in admin/agents panel with filter by challengeId/player wallet
+- 2026-02-14: Integrated ETHSkills into Super Agent knowledge + controls.
+- Added Solidity/EVM-oriented capabilities into default super-agent wallet skill allowlist:
+  - `solidity-contract-design`, `solidity-security-review`, `evm-gas-optimization`.
+- Added live ETHSkills knowledge cache in runtime:
+  - source list includes `https://ethskills.com/` plus topic pages (`why`, `gas`, `wallets`, `standards`, `tools`, `l2s`).
+  - digest extractor stores title + summary + fetched timestamp.
+  - cached digests are now included in super-agent brain status.
+- Added runtime APIs:
+  - `GET /super-agent/ethskills`
+  - `POST /super-agent/ethskills/sync`
+- Added super-agent chat command: `sync ethskills` (also matches refresh/update solidity/evm skills phrasing).
+- OpenRouter super-agent prompt now includes ETHSkills digest context when available.
+- Added admin UI control on `/agents`:
+  - `Sync ETHSkills` button wired to runtime sync endpoint.
+- Runtime now attempts ETHSkills sync at startup and persists cached entries in runtime state.
+- Verification:
+  - `curl -X POST /super-agent/ethskills/sync` returned `ok:true` with ETHSkills digest.
+  - `@arena/agent-runtime` typecheck/test ✅
+  - `@arena/web` typecheck/test ✅
+- 2026-02-14: Continued real-build hardening with ETHSkills + optional onchain escrow adapter mode.
+- Added ETHSkills ingestion for Super Agent:
+  - sources now target explicit `.../SKILL.md` pages
+  - markdown-aware digest extraction and runtime cache persistence
+  - startup sync + manual sync command/endpoints
+- New runtime endpoints:
+  - `GET /super-agent/ethskills`
+  - `POST /super-agent/ethskills/sync`
+- Super-agent chat supports command: `sync ethskills`.
+- OpenRouter advisory prompt now injects cached ETHSkills context.
+- Added admin `/agents` button: `Sync ETHSkills`.
+- Added optional server escrow onchain execution path in `EscrowAdapter`:
+  - env-driven mode: `ESCROW_EXECUTION_MODE=runtime|onchain`
+  - onchain calls `createBet/resolveBet/refundBet` against deployed `BettingEscrow` using resolver signer.
+  - runtime mode remains default/fallback.
+- Added new env docs for onchain escrow in `.env.example` + `README.md`.
+- Validation:
+  - typecheck: `@arena/server`, `@arena/agent-runtime`, `@arena/web` ✅
+  - tests: `@arena/server`, `@arena/agent-runtime`, `@arena/web` ✅
+  - health: 3000/4000/4100 all OK ✅
+  - ETHSkills sync endpoint now refreshes 7 pages and returns parsed digests ✅
+- 2026-02-14: Added operational onchain wallet prep path for escrow.
+- Runtime (`@arena/agent-runtime`) now exposes internal endpoint:
+  - `POST /wallets/onchain/prepare-escrow` (auth via `INTERNAL_SERVICE_TOKEN`)
+  - prepares participant wallets for onchain escrow by:
+    - resolving signer from encrypted private key
+    - checking ERC20 balance + allowance
+    - attempting `mint` when token supports open mint (mock tokens)
+    - signing `approve(escrow, amount)` as needed
+- Server escrow adapter (`@arena/server`) onchain mode now calls prepare endpoint before `createBet`.
+- Added `ESCROW_TOKEN_ADDRESS` + `INTERNAL_SERVICE_TOKEN` env support/docs.
+- Added optional onchain mode config in server adapter constructor.
+- Validation:
+  - typecheck: server/runtime/web ✅
+  - tests: server/runtime/web ✅
+  - playable smoke ✅
+- 2026-02-14: Sepolia operational prep completed.
+- Contracts workspace updated with `sepolia` network support (`SEPOLIA_RPC_URL`, `DEPLOYER_PRIVATE_KEY`).
+- Deploy script now supports:
+  - existing token (`ESCROW_TOKEN_ADDRESS`) OR deploying new `MockUSDC`
+  - custom resolver (`ESCROW_RESOLVER_ADDRESS`), fee recipient (`ESCROW_FEE_RECIPIENT`), fee bps
+  - output artifact `output/escrow-deploy-<network>.json`
+- Added npm script: `deploy:sepolia` for contracts workspace.
+- Hardened contracts tests against startup slowness (extended timeout setup).
+- Runtime/server onchain preparation path now includes wallet-level ERC20 allowance setup before createBet.
+- Remaining external dependency: user-provided Sepolia RPC + keys + target token/escrow addresses.

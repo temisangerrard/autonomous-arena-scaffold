@@ -18,6 +18,7 @@ const openrouterKeyInput = document.getElementById('openrouter-key');
 const saveSuperBtn = document.getElementById('save-super');
 const saveWalletBtn = document.getElementById('save-wallet');
 const saveOpenrouterBtn = document.getElementById('save-openrouter');
+const syncEthskillsBtn = document.getElementById('sync-ethskills');
 const applyDelegationBtn = document.getElementById('apply-delegation');
 
 const newUsernameInput = document.getElementById('new-username');
@@ -227,6 +228,13 @@ saveOpenrouterBtn.addEventListener('click', async () => {
 applyDelegationBtn.addEventListener('click', async () => {
   await postJson(`${runtimeBase}/super-agent/delegate/apply`, {});
   await load();
+});
+
+syncEthskillsBtn?.addEventListener('click', async () => {
+  appendSuperChat('system: syncing ETHSkills...');
+  await postJson(`${runtimeBase}/super-agent/ethskills/sync`, {});
+  await load();
+  appendSuperChat('system: ETHSkills sync complete.');
 });
 
 createProfileBtn.addEventListener('click', async () => {

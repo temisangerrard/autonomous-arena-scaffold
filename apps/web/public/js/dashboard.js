@@ -17,6 +17,10 @@ const walletFundAmount = document.getElementById('wallet-fund-amount');
 const walletWithdrawAmount = document.getElementById('wallet-withdraw-amount');
 const walletFund = document.getElementById('wallet-fund');
 const walletWithdraw = document.getElementById('wallet-withdraw');
+const walletTransferTarget = document.getElementById('wallet-transfer-target');
+const walletTransferWalletId = document.getElementById('wallet-transfer-wallet-id');
+const walletTransferAmount = document.getElementById('wallet-transfer-amount');
+const walletTransfer = document.getElementById('wallet-transfer');
 
 const botPersonality = document.getElementById('bot-personality');
 const botTarget = document.getElementById('bot-target');
@@ -38,9 +42,11 @@ const superAgentSend = document.getElementById('super-agent-send');
 const superAgentQuickStatus = document.getElementById('super-agent-quick-status');
 const superAgentResponse = document.getElementById('super-agent-response');
 const onboardingList = document.getElementById('onboarding-list');
+const escrowHistory = document.getElementById('escrow-history');
 
 let playerCtx = null;
 let bootstrapCtx = null;
+let playerDirectory = [];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -146,6 +152,16 @@ function renderContext() {
   if (inviteLink) {
     inviteLink.value = bootstrapCtx?.invite?.playUrl ? `${window.location.origin}${bootstrapCtx.invite.playUrl}` : '';
   }
+  if (walletTransferTarget) {
+    walletTransferTarget.innerHTML = ['<option value="">Select a player</option>']
+      .concat(
+        playerDirectory.map((entry) => {
+          const label = `${escapeHtml(entry.displayName || entry.username)} (@${escapeHtml(entry.username)})`;
+          return `<option value="${escapeHtml(entry.walletId)}">${label}</option>`;
+        })
+      )
+      .join('');
+  }
 
   if (onboardingList) {
     const hasUser = Boolean(user?.email);
@@ -168,13 +184,39 @@ function renderContext() {
   }
 }
 
+function renderEscrowHistory(entries) {
+  if (!escrowHistory) {
+    return;
+  }
+  if (!Array.isArray(entries) || entries.length === 0) {
+    escrowHistory.textContent = 'No escrow activity yet.';
+    return;
+  }
+  escrowHistory.textContent = entries
+    .map((entry) => {
+      const at = entry?.at ? new Date(Number(entry.at)).toLocaleTimeString() : '--:--:--';
+      const outcome = String(entry?.outcome || 'unknown');
+      const challengeId = String(entry?.challengeId || 'n/a');
+      const amount = Number(entry?.amount || 0).toFixed(2);
+      const payout = Number(entry?.payout || 0).toFixed(2);
+      const txHash = String(entry?.txHash || '');
+      const shortTx = txHash ? `${txHash.slice(0, 10)}...${txHash.slice(-8)}` : 'n/a';
+      return `${at} ${outcome} ${challengeId} amount=${amount} payout=${payout} tx=${shortTx}`;
+    })
+    .join('\n');
+}
+
 async function refreshContext() {
-  const [ctx, bootstrap] = await Promise.all([
+  const [ctx, bootstrap, directory, escrow] = await Promise.all([
     api('/api/player/me'),
-    api('/api/player/bootstrap?world=mega')
+    api('/api/player/bootstrap?world=mega'),
+    api('/api/player/directory').catch(() => ({ players: [] })),
+    api('/api/player/wallet/escrow-history?limit=20').catch(() => ({ recent: [] }))
   ]);
   playerCtx = ctx;
   bootstrapCtx = bootstrap;
+  playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
+  renderEscrowHistory(Array.isArray(escrow?.recent) ? escrow.recent : []);
   renderContext();
 }
 
@@ -236,6 +278,36 @@ walletWithdraw?.addEventListener('click', async () => {
     setStatus(`Wallet withdrew -${amount}.`);
   } catch (error) {
     setStatus(`Wallet withdraw failed: ${String(error.message || error)}`);
+  }
+});
+
+walletTransfer?.addEventListener('click', async () => {
+  try {
+    const selectedWalletId = String(walletTransferTarget?.value || '').trim();
+    const manualWalletId = String(walletTransferWalletId?.value || '').trim();
+    const toWalletId = manualWalletId || selectedWalletId;
+    const amount = parseAmount(walletTransferAmount, 2);
+    if (!toWalletId) {
+      setStatus('Select a target player or enter target wallet id.');
+      return;
+    }
+    if (amount <= 0) {
+      setStatus('Transfer amount must be greater than 0.');
+      return;
+    }
+    setStatus('Transferring...');
+    await api('/api/player/wallet/transfer', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ toWalletId, amount })
+    });
+    if (walletTransferWalletId) {
+      walletTransferWalletId.value = '';
+    }
+    await refreshContext();
+    setStatus(`Transferred ${amount} to ${toWalletId}.`);
+  } catch (error) {
+    setStatus(`Wallet transfer failed: ${String(error.message || error)}`);
   }
 });
 

@@ -7,6 +7,46 @@ import { randomBytes } from 'node:crypto';
 import { createHealthStatus } from './health.js';
 import { availableWorldAliases, resolveWorldAssetPath } from './worldAssets.js';
 
+function loadEnvFromFile(): void {
+  const candidates = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), '../.env'),
+    path.resolve(process.cwd(), '../../.env')
+  ];
+
+  const envPath = candidates.find((candidate) => existsSync(candidate));
+  if (!envPath) {
+    return;
+  }
+
+  try {
+    const raw = readFileSync(envPath, 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const idx = trimmed.indexOf('=');
+      if (idx < 1) {
+        continue;
+      }
+      const key = trimmed.slice(0, idx).trim();
+      if (!key || process.env[key] !== undefined) {
+        continue;
+      }
+      let value = trimmed.slice(idx + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+  } catch {
+    // ignore env parse failures in scaffold mode
+  }
+}
+
+loadEnvFromFile();
+
 const port = Number(process.env.PORT ?? 3000);
 const googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
@@ -62,6 +102,13 @@ type PlayerProfile = {
     id: string;
     balance: number;
   };
+};
+
+type PlayerDirectoryEntry = {
+  id: string;
+  username: string;
+  displayName: string;
+  walletId: string;
 };
 
 type RuntimeStatusPayload = {
@@ -605,6 +652,28 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/player/directory') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+
+    const profiles = await runtimeProfiles().catch(() => []);
+    const entries: PlayerDirectoryEntry[] = profiles
+      .filter((profile) => profile.wallet?.id ?? profile.walletId)
+      .map((profile) => ({
+        id: profile.id,
+        username: profile.username,
+        displayName: profile.displayName,
+        walletId: profile.wallet?.id ?? profile.walletId
+      }))
+      .filter((entry) => entry.walletId && entry.id !== auth.identity.profileId);
+
+    sendJson(res, { ok: true, players: entries });
+    return;
+  }
+
   if (pathname === '/api/player/bootstrap') {
     const auth = requireRole(req, ['player']);
     if (!auth.ok) {
@@ -630,7 +699,8 @@ const server = createServer(async (req, res) => {
     const playParams = new URLSearchParams({
       world,
       name: profile.displayName,
-      walletId
+      walletId,
+      clientId: profile.id
     });
 
     sendJson(res, {
@@ -691,6 +761,58 @@ const server = createServer(async (req, res) => {
       sendJson(res, payload);
     } catch {
       sendJson(res, { ok: false, reason: 'wallet_withdraw_failed' }, 400);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/wallet/transfer' && req.method === 'POST') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.walletId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    const body = await readJsonBody<{ toWalletId?: string; amount?: number }>(req);
+    const amount = Math.max(0, Number(body?.amount ?? 0));
+    const toWalletId = String(body?.toWalletId ?? '').trim();
+    if (!toWalletId) {
+      sendJson(res, { ok: false, reason: 'target_wallet_required' }, 400);
+      return;
+    }
+    if (amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
+      return;
+    }
+
+    try {
+      const payload = await runtimePost(`/wallets/${auth.identity.walletId}/transfer`, { toWalletId, amount });
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'wallet_transfer_failed' }, 400);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/wallet/escrow-history') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.walletId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    const limit = Math.max(1, Math.min(120, Number(requestUrl.searchParams.get('limit') ?? 30)));
+    try {
+      const payload = await runtimeGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(`/wallets/escrow/history?limit=${limit}`);
+      const recent = (payload.recent ?? []).filter((entry) =>
+        entry &&
+        typeof entry === 'object' &&
+        (
+          entry.winnerWalletId === auth.identity.walletId ||
+          entry.challengerWalletId === auth.identity.walletId ||
+          entry.opponentWalletId === auth.identity.walletId
+        )
+      );
+      sendJson(res, { ok: true, recent });
+    } catch {
+      sendJson(res, { ok: false, reason: 'escrow_history_unavailable' }, 400);
     }
     return;
   }

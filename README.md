@@ -75,6 +75,38 @@ Installed skill ids include:
 - `monetize-service`
 - `search-for-service`
 - `x402`
+- `solidity-contract-design` (super-agent capability tag)
+- `solidity-security-review` (super-agent capability tag)
+- `evm-gas-optimization` (super-agent capability tag)
+
+Super-agent ETH skills source:
+- `https://ethskills.com/` (synced into runtime cache via `/super-agent/ethskills/sync`)
+
+## Escrow Execution Modes
+Default mode is runtime escrow simulation (fast scaffold).
+
+Set these env vars for optional onchain execution mode:
+- `ESCROW_EXECUTION_MODE=onchain`
+- `CHAIN_RPC_URL`
+- `ESCROW_RESOLVER_PRIVATE_KEY`
+- `ESCROW_CONTRACT_ADDRESS`
+- `ESCROW_TOKEN_ADDRESS`
+- `ESCROW_TOKEN_DECIMALS` (default `6`)
+- `INTERNAL_SERVICE_TOKEN` (same value on server + agent-runtime)
+
+When onchain mode is enabled, server escrow adapter calls `BettingEscrow` contract methods:
+- `createBet`
+- `resolveBet`
+- `refundBet`
+
+Automatic wallet prep in onchain mode:
+- server calls runtime `/wallets/onchain/prepare-escrow` before each `createBet`
+- runtime signs `approve(escrow, amount)` from each participant wallet
+- if token exposes open `mint` (e.g. local `MockUSDC`), runtime mints missing balance before approve
+- optional gas auto-topup in runtime:
+  - `GAS_FUNDING_PRIVATE_KEY` (funder key)
+  - `MIN_WALLET_GAS_ETH` (default `0.0003`)
+  - `WALLET_GAS_TOPUP_ETH` (default `0.001`)
 
 ## Important Asset Note
 The large `.glb` world files are intentionally ignored in git to keep repo size/pushes safe.

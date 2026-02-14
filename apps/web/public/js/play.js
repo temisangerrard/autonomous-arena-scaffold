@@ -28,6 +28,9 @@ const matchControlsTitle = document.getElementById('match-controls-title');
 const matchControlsStatus = document.getElementById('match-controls-status');
 const matchControlsActions = document.getElementById('match-controls-actions');
 const interactionPrompt = document.getElementById('interaction-prompt');
+const quickstartPanel = document.getElementById('quickstart-panel');
+const quickstartList = document.getElementById('quickstart-list');
+const quickstartClose = document.getElementById('quickstart-close');
 const queryParams = new URL(window.location.href).searchParams;
 
 const renderer = makeRenderer(canvas);
@@ -154,22 +157,39 @@ const state = {
   challengeFeed: [],
   cameraYawOffset: 0,
   cameraPitch: 0.27,
-  deskCollapsed: false
+  deskCollapsed: false,
+  deskAutoCollapsedByMatch: false,
+  quickstart: {
+    challengeSent: false,
+    matchActive: false,
+    moveSubmitted: false,
+    matchResolved: false,
+    dismissed: false
+  }
 };
 const WORLD_BOUND = 120;
 
 if (deskToggle && challengePanel) {
   deskToggle.addEventListener('click', () => {
     state.deskCollapsed = !state.deskCollapsed;
+    state.deskAutoCollapsedByMatch = false;
     challengePanel.classList.toggle('compact', state.deskCollapsed);
     deskToggle.textContent = state.deskCollapsed ? 'Expand' : 'Collapse';
   });
 }
 
+quickstartClose?.addEventListener('click', () => {
+  state.quickstart.dismissed = true;
+  if (quickstartPanel) {
+    quickstartPanel.style.display = 'none';
+  }
+});
+
 const wsUrlObj = new URL(queryParams.get('ws') ?? `ws://${window.location.hostname}:4000/ws`);
 let sessionName = queryParams.get('name') || localStorage.getItem('arena_last_name') || '';
 let sessionWalletId = queryParams.get('walletId') || localStorage.getItem('arena_wallet_id') || '';
-if (!sessionName || !sessionWalletId) {
+let sessionClientId = queryParams.get('clientId') || localStorage.getItem('arena_client_id') || '';
+if (!sessionName || !sessionWalletId || !sessionClientId) {
   try {
     const meResponse = await fetch('/api/player/me', { credentials: 'include' });
     if (meResponse.ok) {
@@ -180,6 +200,9 @@ if (!sessionName || !sessionWalletId) {
       }
       if (!sessionWalletId && (profile?.wallet?.id || profile?.walletId)) {
         sessionWalletId = String(profile.wallet?.id || profile.walletId);
+      }
+      if (!sessionClientId && profile?.id) {
+        sessionClientId = String(profile.id);
       }
     }
   } catch {
@@ -193,6 +216,10 @@ if (sessionName) {
 if (sessionWalletId) {
   wsUrlObj.searchParams.set('walletId', sessionWalletId);
   localStorage.setItem('arena_wallet_id', sessionWalletId);
+}
+if (sessionClientId) {
+  wsUrlObj.searchParams.set('clientId', sessionClientId);
+  localStorage.setItem('arena_client_id', sessionClientId);
 }
 const wsUrl = wsUrlObj.toString();
 const socket = new WebSocket(wsUrl);
@@ -296,10 +323,48 @@ socket.addEventListener('message', (event) => {
   }
 
   if (payload.type === 'challenge_feed' && payload.event) {
+    const challenge = payload.challenge || null;
+    if (challenge && state.playerId) {
+      const involvesMe =
+        challenge.challengerId === state.playerId || challenge.opponentId === state.playerId;
+      if (!involvesMe) {
+        return;
+      }
+    }
     const line = payload.challenge
       ? `${payload.event} ${payload.challenge.gameType} ${labelFor(payload.challenge.challengerId)} vs ${labelFor(payload.challenge.opponentId)}${payload.challenge.winnerId ? ` winner=${labelFor(payload.challenge.winnerId)}` : ''}`
       : `${payload.event}${payload.reason ? ` (${payload.reason})` : ''}`;
     addFeedEvent('match', line);
+    return;
+  }
+
+  if (payload.type === 'challenge_escrow' && typeof payload.challengeId === 'string') {
+    const activeId = state.activeChallenge?.id || '';
+    const incomingId = state.incomingChallengeId || '';
+    const outgoingId = state.outgoingChallengeId || '';
+    if (payload.challengeId !== activeId && payload.challengeId !== incomingId && payload.challengeId !== outgoingId) {
+      return;
+    }
+    const phase = String(payload.phase || 'escrow');
+    const ok = payload.ok !== false;
+    const tx = typeof payload.txHash === 'string' ? payload.txHash : '';
+    const phaseLabel =
+      phase === 'lock' ? 'Stake lock' : phase === 'resolve' ? 'Payout' : phase === 'refund' ? 'Refund' : 'Escrow';
+    const statusLabel = ok ? (phase === 'resolve' ? 'cleared' : 'sealed') : 'stalled';
+    const payout =
+      typeof payload.payout === 'number' ? ` payout=${Number(payload.payout).toFixed(2)}` : '';
+    const fee =
+      typeof payload.fee === 'number' ? ` fee=${Number(payload.fee).toFixed(2)}` : '';
+    const reason = payload.reason ? ` (${payload.reason})` : '';
+    addFeedEvent('escrow', `${phaseLabel} ${statusLabel}${payout}${fee}${reason}`, {
+      txHash: tx || null,
+      phase,
+      ok
+    });
+    if (!ok && phase === 'lock') {
+      state.challengeStatus = 'declined';
+      state.challengeMessage = `Escrow lock failed${reason}.`;
+    }
   }
 });
 
@@ -325,9 +390,19 @@ const keyMap = {
 };
 
 window.addEventListener('keydown', (event) => {
+  const target = event.target;
+  const editing =
+    target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+    || (target instanceof HTMLElement && target.isContentEditable);
+  if (editing) {
+    return;
+  }
   const action = keyMap[event.code];
   if (action) {
     state.input[action] = true;
+    event.preventDefault();
   }
 
   if (event.code === 'KeyF') {
@@ -351,26 +426,41 @@ window.addEventListener('keydown', (event) => {
   }
 
   if (event.code === 'Digit1') {
+    event.preventDefault();
     sendGameMove('rock');
   }
   if (event.code === 'Digit2') {
+    event.preventDefault();
     sendGameMove('paper');
   }
   if (event.code === 'Digit3') {
+    event.preventDefault();
     sendGameMove('scissors');
   }
   if (event.code === 'KeyH') {
+    event.preventDefault();
     sendGameMove('heads');
   }
   if (event.code === 'KeyT') {
+    event.preventDefault();
     sendGameMove('tails');
   }
 });
 
 window.addEventListener('keyup', (event) => {
+  const target = event.target;
+  const editing =
+    target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+    || (target instanceof HTMLElement && target.isContentEditable);
+  if (editing) {
+    return;
+  }
   const action = keyMap[event.code];
   if (action) {
     state.input[action] = false;
+    event.preventDefault();
   }
 });
 
@@ -628,8 +718,7 @@ function update(nowMs) {
     const nearbyCount = state.nearbyIds.size;
     const totalPlayers = state.players.size;
     const agents = [...state.players.values()].filter((entry) => entry.role === 'agent').length;
-    const hint = state.challengeMessage ? ` | ${state.challengeMessage}` : '';
-    hud.textContent = `WASD move | C challenge | Y/N respond | 1/2/3 RPS | H/T coin | Near ${nearbyCount} | Players ${totalPlayers} | Agents ${agents}${hint}`;
+    hud.textContent = `WASD move | C challenge | Y/N respond | 1/2/3 RPS | H/T coin | Near ${nearbyCount} | Players ${totalPlayers} | Agents ${agents}`;
   }
 
   if (challengeStatusLine) {
@@ -643,6 +732,7 @@ function update(nowMs) {
   renderWorldMap();
   renderInteractionPrompt();
   renderMatchControls();
+  renderQuickstart();
 }
 
 function render() {
@@ -758,6 +848,7 @@ function sendChallenge() {
 
   state.challengeStatus = 'sent';
   state.challengeMessage = `Challenge sent (${gameType}, wager ${wager}) to ${labelFor(targetId)}`;
+  state.quickstart.challengeSent = true;
 }
 
 function respondToIncoming(accept) {
@@ -773,6 +864,9 @@ function respondToIncoming(accept) {
       accept
     })
   );
+  if (accept) {
+    state.quickstart.challengeSent = true;
+  }
 }
 
 function sendGameMove(move) {
@@ -809,6 +903,7 @@ function sendGameMove(move) {
   );
 
   state.challengeMessage = `Submitted move: ${move}`;
+  state.quickstart.moveSubmitted = true;
 }
 
 function updateRpsVisibility() {
@@ -839,7 +934,7 @@ function updateRpsVisibility() {
   }
 }
 
-function addFeedEvent(type, text) {
+function addFeedEvent(type, text, meta = null) {
   const message = String(text || '').trim();
   if (!message) {
     return;
@@ -847,14 +942,18 @@ function addFeedEvent(type, text) {
 
   const at = Date.now();
   const last = state.challengeFeed[0];
-  if (last && last.text === message && at - last.at < 2000) {
+  const sameTx =
+    (last?.meta?.txHash || null) ===
+    (meta && typeof meta === 'object' && 'txHash' in meta ? meta.txHash || null : null);
+  if (last && last.type === type && last.text === message && sameTx && at - last.at < 5000) {
     return;
   }
 
   state.challengeFeed.unshift({
     type,
     text: message,
-    at
+    at,
+    meta
   });
   if (state.challengeFeed.length > 14) {
     state.challengeFeed.pop();
@@ -879,7 +978,7 @@ function renderFeed() {
 
   for (const entry of state.challengeFeed) {
     const item = document.createElement('div');
-    item.className = 'feed-item';
+    item.className = `feed-item feed-item--${entry.type}`;
 
     const top = document.createElement('div');
     top.className = 'feed-item__top';
@@ -898,6 +997,26 @@ function renderFeed() {
     top.appendChild(time);
     item.appendChild(top);
     item.appendChild(body);
+    const txHash = typeof entry?.meta?.txHash === 'string' ? entry.meta.txHash : '';
+    if (txHash) {
+      const txRow = document.createElement('div');
+      txRow.className = 'feed-item__tx';
+
+      const txBadge = document.createElement('span');
+      txBadge.className = 'tx-chip';
+      txBadge.textContent = `${txHash.slice(0, 8)}...${txHash.slice(-6)}`;
+
+      const txLink = document.createElement('a');
+      txLink.className = 'tx-link';
+      txLink.href = `https://sepolia.etherscan.io/tx/${txHash}`;
+      txLink.target = '_blank';
+      txLink.rel = 'noreferrer noopener';
+      txLink.textContent = 'view tx';
+
+      txRow.appendChild(txBadge);
+      txRow.appendChild(txLink);
+      item.appendChild(txRow);
+    }
     feedPanel.appendChild(item);
   }
 }
@@ -973,6 +1092,7 @@ function handleChallenge(payload) {
     state.outgoingChallengeId = null;
     state.challengeStatus = 'active';
     state.challengeMessage = `${challenge.gameType.toUpperCase()} active.`;
+    state.quickstart.matchActive = true;
     hideGameModal();
   }
 
@@ -986,7 +1106,8 @@ function handleChallenge(payload) {
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
     state.challengeStatus = 'declined';
-    state.challengeMessage = `Challenge declined (${challenge.id})`;
+    const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
+    state.challengeMessage = `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`;
     hideGameModal();
   }
 
@@ -995,7 +1116,8 @@ function handleChallenge(payload) {
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
     state.challengeStatus = 'expired';
-    state.challengeMessage = `Challenge expired (${challenge.id})`;
+    const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
+    state.challengeMessage = `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`;
     hideGameModal();
   }
 
@@ -1007,6 +1129,7 @@ function handleChallenge(payload) {
     const winnerLabel = challenge.winnerId ? labelFor(challenge.winnerId) : 'Draw';
     const coinInfo = challenge.gameType === 'coinflip' && challenge.coinflipResult ? ` | Toss: ${challenge.coinflipResult}` : '';
     state.challengeMessage = challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.';
+    state.quickstart.matchResolved = true;
     showGameModal(challenge, 'Match resolved', `Winner: ${winnerLabel}${coinInfo}`);
     setTimeout(() => {
       hideGameModal();
@@ -1051,6 +1174,8 @@ function challengeReasonLabel(reason) {
     case 'invalid_rps_move':
     case 'invalid_coinflip_move':
       return 'Invalid move for current game type.';
+    case 'human_challenge_cooldown':
+      return 'Target is in cooldown from recent agent challenges.';
     default:
       return reason ? `Action rejected: ${reason}` : 'Challenge action rejected.';
   }
@@ -1075,6 +1200,44 @@ function renderInteractionPrompt() {
   interactionPrompt.classList.add('visible');
 }
 
+function renderQuickstart() {
+  if (!quickstartPanel || !quickstartList) {
+    return;
+  }
+
+  if (state.quickstart.dismissed) {
+    quickstartPanel.style.display = 'none';
+    return;
+  }
+
+  const active = state.activeChallenge;
+  const inActiveMatch = Boolean(
+    active &&
+    active.status === 'active' &&
+    (active.challengerId === state.playerId || active.opponentId === state.playerId)
+  );
+  if (inActiveMatch) {
+    state.quickstart.matchActive = true;
+    const myMove = active.challengerId === state.playerId ? active.challengerMove : active.opponentMove;
+    if (myMove) {
+      state.quickstart.moveSubmitted = true;
+    }
+  }
+
+  const steps = [
+    { done: Boolean(state.playerId && state.wsConnected), text: 'Connected to arena server' },
+    { done: state.nearbyIds.size > 0, text: 'Find a nearby player/agent' },
+    { done: state.quickstart.challengeSent, text: 'Send or accept a challenge (C / Y)' },
+    { done: state.quickstart.matchActive, text: 'Match started' },
+    { done: state.quickstart.moveSubmitted, text: 'Submit your move (1/2/3 or H/T)' },
+    { done: state.quickstart.matchResolved, text: 'Match resolved and payout posted' }
+  ];
+
+  quickstartList.innerHTML = steps
+    .map((step) => `<li class="${step.done ? 'done' : ''}">${step.done ? '✓' : '○'} ${step.text}</li>`)
+    .join('');
+}
+
 function renderMatchControls() {
   if (!matchControls || !matchControlsActions || !matchControlsStatus || !matchControlsTitle) {
     return;
@@ -1085,10 +1248,24 @@ function renderMatchControls() {
   const isParticipant =
     challenge && (challenge.challengerId === state.playerId || challenge.opponentId === state.playerId);
 
-  if (!isIncoming && !(challenge && challenge.status === 'active' && isParticipant)) {
+  const shouldShow = Boolean(isIncoming || (challenge && challenge.status === 'active' && isParticipant));
+  if (!shouldShow) {
+    if (state.deskAutoCollapsedByMatch && challengePanel && deskToggle) {
+      state.deskCollapsed = false;
+      state.deskAutoCollapsedByMatch = false;
+      challengePanel.classList.remove('compact');
+      deskToggle.textContent = 'Collapse';
+    }
     matchControls.classList.remove('visible');
     matchControlsActions.innerHTML = '';
     return;
+  }
+
+  if (!state.deskCollapsed && challengePanel && deskToggle) {
+    state.deskCollapsed = true;
+    state.deskAutoCollapsedByMatch = true;
+    challengePanel.classList.add('compact');
+    deskToggle.textContent = 'Expand';
   }
 
   matchControls.classList.add('visible');

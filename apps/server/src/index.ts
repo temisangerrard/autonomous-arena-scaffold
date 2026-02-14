@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { ChallengeService, type ChallengeEvent, type GameMove, type GameType } from './ChallengeService.js';
 import { EscrowAdapter } from './EscrowAdapter.js';
@@ -47,9 +48,18 @@ type PlayerMeta = {
 const port = Number(process.env.PORT ?? 4000);
 const worldSim = new WorldSim();
 const challengeService = new ChallengeService(() => Date.now(), () => Math.random());
+const internalServiceToken = resolveInternalServiceToken();
 const escrowAdapter = new EscrowAdapter(
   process.env.AGENT_RUNTIME_URL ?? 'http://localhost:4100',
-  Math.max(0, Math.min(10_000, Number(process.env.ESCROW_FEE_BPS ?? 0)))
+  Math.max(0, Math.min(10_000, Number(process.env.ESCROW_FEE_BPS ?? 0))),
+  {
+    mode: (process.env.ESCROW_EXECUTION_MODE === 'onchain' ? 'onchain' : 'runtime'),
+    rpcUrl: process.env.CHAIN_RPC_URL,
+    resolverPrivateKey: process.env.ESCROW_RESOLVER_PRIVATE_KEY,
+    escrowContractAddress: process.env.ESCROW_CONTRACT_ADDRESS,
+    tokenDecimals: Number(process.env.ESCROW_TOKEN_DECIMALS ?? 6),
+    internalToken: internalServiceToken
+  }
 );
 
 const server = createServer((req, res) => {
@@ -92,6 +102,21 @@ const metaByPlayer = new Map<string, PlayerMeta>();
 const activeProximityPairs = new Set<string>();
 let nextClient = 1;
 const proximityThreshold = Number(process.env.PROXIMITY_THRESHOLD ?? 12);
+const escrowLockedChallenges = new Set<string>();
+const agentToHumanChallengeCooldownMs = Math.max(0, Number(process.env.AGENT_TO_HUMAN_CHALLENGE_COOLDOWN_MS ?? 20000));
+const recentAgentToHumanChallengeAt = new Map<string, number>();
+
+function resolveInternalServiceToken(): string {
+  const configured = process.env.INTERNAL_SERVICE_TOKEN?.trim();
+  if (configured) {
+    return configured;
+  }
+  const superAgentKey = (process.env.ESCROW_RESOLVER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY || '').trim();
+  if (!superAgentKey) {
+    return '';
+  }
+  return `sa_${createHash('sha256').update(superAgentKey).digest('hex')}`;
+}
 
 function setCorsHeaders(res: import('node:http').ServerResponse): void {
   res.setHeader('access-control-allow-origin', '*');
@@ -231,6 +256,31 @@ function dispatchChallengeEvent(event: ChallengeEvent): void {
   });
 }
 
+function broadcastEscrowEvent(payload: {
+  phase: 'lock' | 'resolve' | 'refund';
+  challengeId: string;
+  ok: boolean;
+  reason?: string;
+  txHash?: string;
+  fee?: number;
+  payout?: number;
+}): void {
+  broadcast({
+    type: 'challenge_escrow',
+    ...payload
+  });
+}
+
+function withActorRecipient(event: ChallengeEvent, actorId: string): ChallengeEvent {
+  if (event.to && event.to.length > 0) {
+    return event;
+  }
+  return {
+    ...event,
+    to: [actorId]
+  };
+}
+
 async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<void> {
   if (event.challenge) {
     const challenge = event.challenge;
@@ -252,6 +302,12 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         amount: wager
       });
       if (!locked.ok) {
+        broadcastEscrowEvent({
+          phase: 'lock',
+          challengeId: challenge.id,
+          ok: false,
+          reason: locked.reason
+        });
         if (locked.reason?.includes('wallet_policy_disabled')) {
           dispatchChallengeEvent(event);
           return;
@@ -260,21 +316,74 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         dispatchChallengeEvent(aborted);
         return;
       }
+      escrowLockedChallenges.add(challenge.id);
+      broadcastEscrowEvent({
+        phase: 'lock',
+        challengeId: challenge.id,
+        ok: true,
+        txHash: locked.txHash
+      });
     }
 
     if (event.event === 'resolved' && wager > 0) {
+      if (!escrowLockedChallenges.has(challenge.id)) {
+        broadcastEscrowEvent({
+          phase: 'resolve',
+          challengeId: challenge.id,
+          ok: false,
+          reason: 'escrow_not_locked'
+        });
+        dispatchChallengeEvent(event);
+        return;
+      }
       const winnerWalletId = challenge.winnerId ? walletIdFor(challenge.winnerId) : null;
       const settled = await escrowAdapter.resolve({
         challengeId: challenge.id,
         winnerWalletId
       });
       if (!settled.ok) {
-        await escrowAdapter.refund(challenge.id);
+        broadcastEscrowEvent({
+          phase: 'resolve',
+          challengeId: challenge.id,
+          ok: false,
+          reason: settled.reason
+        });
+        const refunded = await escrowAdapter.refund(challenge.id);
+        broadcastEscrowEvent({
+          phase: 'refund',
+          challengeId: challenge.id,
+          ok: refunded.ok,
+          reason: refunded.reason,
+          txHash: refunded.txHash
+        });
+        escrowLockedChallenges.delete(challenge.id);
+      } else {
+        broadcastEscrowEvent({
+          phase: 'resolve',
+          challengeId: challenge.id,
+          ok: true,
+          txHash: settled.txHash,
+          fee: settled.fee,
+          payout: settled.payout
+        });
+        escrowLockedChallenges.delete(challenge.id);
       }
     }
 
     if ((event.event === 'declined' || event.event === 'expired') && wager > 0) {
-      await escrowAdapter.refund(challenge.id);
+      if (!escrowLockedChallenges.has(challenge.id)) {
+        dispatchChallengeEvent(event);
+        return;
+      }
+      const refunded = await escrowAdapter.refund(challenge.id);
+      broadcastEscrowEvent({
+        phase: 'refund',
+        challengeId: challenge.id,
+        ok: refunded.ok,
+        reason: refunded.reason,
+        txHash: refunded.txHash
+      });
+      escrowLockedChallenges.delete(challenge.id);
     }
   }
 
@@ -340,8 +449,27 @@ wss.on('connection', (ws, request) => {
   const role: PlayerRole = requestedRole === 'agent' ? 'agent' : 'human';
   const preferredName = parsed.searchParams.get('name')?.trim();
   const walletId = parsed.searchParams.get('walletId')?.trim() || null;
+  const requestedClientId = parsed.searchParams.get('clientId')?.trim();
+  const normalizedClientId = requestedClientId?.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  const preferredId =
+    role === 'agent'
+      ? parsed.searchParams.get('agentId')?.trim()
+      : normalizedClientId
+        ? `u_${normalizedClientId}`
+        : undefined;
 
-  const preferredId = parsed.searchParams.get('agentId')?.trim();
+  if (preferredId && sockets.has(preferredId)) {
+    const existing = sockets.get(preferredId);
+    try {
+      existing?.close(4000, 'replaced_by_reconnect');
+    } catch {
+      // ignore
+    }
+    sockets.delete(preferredId);
+    metaByPlayer.delete(preferredId);
+    worldSim.removePlayer(preferredId);
+  }
+
   let playerId = preferredId && !sockets.has(preferredId) ? preferredId : `p${nextClient}`;
   nextClient += 1;
 
@@ -393,29 +521,49 @@ wss.on('connection', (ws, request) => {
         return;
       }
 
+      const senderRole = metaByPlayer.get(playerId)?.role ?? 'human';
+      const targetRole = metaByPlayer.get(payload.targetId)?.role ?? 'human';
+      if (senderRole === 'agent' && targetRole === 'human' && agentToHumanChallengeCooldownMs > 0) {
+        const key = `${playerId}|${payload.targetId}`;
+        const now = Date.now();
+        const last = recentAgentToHumanChallengeAt.get(key) ?? 0;
+        if (now - last < agentToHumanChallengeCooldownMs) {
+          sendTo(playerId, {
+            type: 'challenge',
+            event: 'invalid',
+            reason: 'human_challenge_cooldown'
+          });
+          return;
+        }
+        recentAgentToHumanChallengeAt.set(key, now);
+      }
+
       const event = challengeService.createChallenge(
         playerId,
         payload.targetId,
         payload.gameType,
         payload.wager
       );
-      await dispatchChallengeEventWithEscrow(event);
+      await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
       return;
     }
 
     if (payload.type === 'challenge_response') {
       const event = challengeService.respond(payload.challengeId, playerId, payload.accept);
-      await dispatchChallengeEventWithEscrow(event);
+      await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
       return;
     }
 
     if (payload.type === 'challenge_move') {
       const event = challengeService.submitMove(payload.challengeId, playerId, payload.move);
-      await dispatchChallengeEventWithEscrow(event);
+      await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
     }
   });
 
   ws.on('close', () => {
+    if (sockets.get(playerId) !== ws) {
+      return;
+    }
     sockets.delete(playerId);
     metaByPlayer.delete(playerId);
     worldSim.removePlayer(playerId);

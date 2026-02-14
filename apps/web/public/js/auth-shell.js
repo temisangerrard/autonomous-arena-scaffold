@@ -1,5 +1,6 @@
 const AUTH_KEY = 'arena_auth_user';
 const CLIENT_KEY = 'arena_google_client_id';
+const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
 
 function readUser() {
   try {
@@ -35,6 +36,9 @@ function currentPath() {
 }
 
 function ensureShell() {
+  if (HIDE_SHELL_PATHS.has(window.location.pathname)) {
+    return null;
+  }
   let shell = document.getElementById('global-shell-nav');
   if (shell) {
     return shell;
@@ -202,21 +206,28 @@ async function loadConfig() {
 async function getSessionUser() {
   try {
     const data = await fetchJson('/api/session');
-    return data.user ?? null;
+    return { user: data.user ?? null, source: 'server' };
   } catch {
-    return null;
+    return { user: readUser(), source: 'cache' };
   }
 }
 
 async function boot() {
-  ensureShell();
+  const shell = ensureShell();
+  if (!shell) {
+    return;
+  }
   const cfg = await loadConfig();
   const clientId = cfg.googleClientId || localStorage.getItem(CLIENT_KEY) || '';
   const finalCfg = { ...cfg, googleClientId: clientId, authEnabled: Boolean(clientId) };
-  const sessionUser = await getSessionUser();
-  if (sessionUser) {
-    writeUser(sessionUser);
-  } else {
+  const session = await getSessionUser();
+  if (session.source === 'server') {
+    if (session.user) {
+      writeUser(session.user);
+    } else {
+      writeUser(null);
+    }
+  } else if (!session.user) {
     writeUser(null);
   }
 

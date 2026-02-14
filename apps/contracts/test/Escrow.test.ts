@@ -1,7 +1,13 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
+import { describe } from 'mocha';
 
 describe('BettingEscrow', () => {
+  // Hardhat startup/first deploy can be slow on some machines; avoid flaky timeout.
+  before(function () {
+    this.timeout(120_000);
+  });
+
   it('locks and resolves a bet to winner with fee', async () => {
     const [admin, resolver, challenger, opponent, feeRecipient] = await ethers.getSigners();
 

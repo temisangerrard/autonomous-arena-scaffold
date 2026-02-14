@@ -68,6 +68,8 @@ export class AgentBot {
   private reconnectTimer: NodeJS.Timeout | null = null;
 
   private lastChallengeSentAt = 0;
+  private challengeSuppressedUntil = 0;
+  private targetCooldownUntil = new Map<string, number>();
   private submittedMoveByChallenge = new Set<string>();
   private stallFrames = 0;
   private lastSample: { x: number; z: number } | null = null;
@@ -356,6 +358,9 @@ export class AgentBot {
     }
 
     const now = Date.now();
+    if (now < this.challengeSuppressedUntil) {
+      return;
+    }
     if (now - this.lastChallengeSentAt < this.config.behavior.challengeCooldownMs) {
       return;
     }
@@ -386,14 +391,17 @@ export class AgentBot {
   }
 
   private pickChallengeTarget(): string | null {
+    const now = Date.now();
     const candidates = [...this.nearbyIds].filter((id) => id !== this.playerId);
     if (candidates.length === 0) {
       return null;
     }
+    const cooled = candidates.filter((id) => (this.targetCooldownUntil.get(id) ?? 0) <= now);
+    const pool = cooled.length > 0 ? cooled : candidates;
 
-    const nowBucket = Math.floor(Date.now() / 1000);
-    const rotateBy = (this.memory.seed + nowBucket) % candidates.length;
-    const rotated = candidates.slice(rotateBy).concat(candidates.slice(0, rotateBy));
+    const nowBucket = Math.floor(now / 1000);
+    const rotateBy = (this.memory.seed + nowBucket) % pool.length;
+    const rotated = pool.slice(rotateBy).concat(pool.slice(0, rotateBy));
     const humanCandidates = rotated.filter((id) => this.playersById.get(id)?.role !== 'agent');
     const agentCandidates = rotated.filter((id) => this.playersById.get(id)?.role === 'agent');
 
@@ -424,6 +432,18 @@ export class AgentBot {
     }
 
     const challenge = record.challenge as ChallengePayload | undefined;
+    const reason = typeof record.reason === 'string' ? record.reason : '';
+
+    if (record.event === 'invalid' || record.event === 'busy') {
+      this.challengeSuppressedUntil = Date.now() + 2200 + (this.memory.seed % 700);
+      if (reason === 'target_not_nearby' || reason === 'player_busy') {
+        const current = this.pickChallengeTarget();
+        if (current) {
+          this.targetCooldownUntil.set(current, Date.now() + 9000);
+        }
+      }
+      return;
+    }
 
     if (record.event === 'created' && challenge && challenge.opponentId === this.playerId) {
       this.stats.challengesReceived += 1;
@@ -447,12 +467,17 @@ export class AgentBot {
       }, 400 + (this.memory.seed % 250));
     }
 
+    if (record.event === 'created' && challenge && challenge.challengerId === this.playerId) {
+      this.targetCooldownUntil.set(challenge.opponentId, Date.now() + 7000 + (this.memory.seed % 1500));
+    }
+
     if ((record.event === 'accepted' || record.event === 'move_submitted') && challenge) {
       this.maybeSubmitGameMove(challenge);
     }
 
     if (record.event === 'resolved' && challenge) {
       this.submittedMoveByChallenge.delete(challenge.id);
+      this.challengeSuppressedUntil = Date.now() + 1400;
       if (challenge.winnerId === this.playerId) {
         this.stats.challengesWon += 1;
       } else if (
@@ -460,6 +485,15 @@ export class AgentBot {
         challenge.opponentId === this.playerId
       ) {
         this.stats.challengesLost += 1;
+      }
+    }
+
+    if ((record.event === 'declined' || record.event === 'expired') && challenge) {
+      this.submittedMoveByChallenge.delete(challenge.id);
+      this.challengeSuppressedUntil = Date.now() + 1800;
+      const otherId = challenge.challengerId === this.playerId ? challenge.opponentId : challenge.challengerId;
+      if (otherId && otherId !== this.playerId) {
+        this.targetCooldownUntil.set(otherId, Date.now() + 11000 + (this.memory.seed % 1800));
       }
     }
   }
