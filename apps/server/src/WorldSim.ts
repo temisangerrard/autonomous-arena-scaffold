@@ -179,7 +179,7 @@ export class WorldSim {
     return { x: 0, z: 30 };
   }
 
-  joinPlayer(id: string): void {
+  joinPlayer(id: string, preferred?: { x: number; z: number }): void {
     const hash = hashId(id);
     const isAgent = id.startsWith('agent');
     const section = SECTION_SPAWNS[hash % SECTION_SPAWNS.length] ?? { x: 0, z: 0 };
@@ -187,8 +187,8 @@ export class WorldSim {
     const jitterZ = ((hash >> 16) % 20) - 10;
 
     const humanSpawn = HUMAN_SPAWNS[hash % HUMAN_SPAWNS.length] ?? { x: 0, z: 30 };
-    const desiredX = isAgent ? section.x + jitterX : humanSpawn.x;
-    const desiredZ = isAgent ? section.z + jitterZ : humanSpawn.z;
+    const desiredX = preferred?.x ?? (isAgent ? section.x + jitterX : humanSpawn.x);
+    const desiredZ = preferred?.z ?? (isAgent ? section.z + jitterZ : humanSpawn.z);
     const safe = this.findSafeSpawnFor(id, desiredX, desiredZ);
 
     this.players.set(id, {

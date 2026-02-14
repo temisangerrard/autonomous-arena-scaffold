@@ -100,6 +100,7 @@ type PlayerProfile = {
   ownedBotIds: string[];
   wallet?: {
     id: string;
+    address?: string;
     balance: number;
   };
 };
@@ -109,12 +110,15 @@ type PlayerDirectoryEntry = {
   username: string;
   displayName: string;
   walletId: string;
+  walletAddress?: string;
 };
 
 type RuntimeStatusPayload = {
   bots?: Array<{
     id: string;
     connected?: boolean;
+    walletId?: string | null;
+    walletAddress?: string | null;
     behavior: {
       personality: 'aggressive' | 'conservative' | 'social';
       mode?: 'active' | 'passive';
@@ -131,6 +135,12 @@ type RuntimeStatusPayload = {
       managedBySuperAgent?: boolean;
       patrolSection?: number | null;
     };
+  }>;
+  wallets?: Array<{
+    id: string;
+    ownerProfileId?: string | null;
+    address?: string;
+    balance?: number;
   }>;
 };
 
@@ -640,8 +650,18 @@ const server = createServer(async (req, res) => {
     identity.username = profile.username;
     schedulePersistWebState();
 
-    const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [] }));
-    const bots = (runtimeStatus.bots ?? []).filter((bot) => bot.meta?.ownerProfileId === identity.profileId);
+    const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [], wallets: [] }));
+    const ownerWalletId = profile.wallet?.id ?? profile.walletId;
+    const ownerWalletAddress = profile.wallet?.address
+      ?? (runtimeStatus.wallets ?? []).find((wallet) => wallet?.id === ownerWalletId)?.address
+      ?? '';
+    const bots = (runtimeStatus.bots ?? [])
+      .filter((bot) => bot.meta?.ownerProfileId === identity.profileId)
+      .map((bot) => ({
+        ...bot,
+        walletId: ownerWalletId,
+        walletAddress: ownerWalletAddress || undefined
+      }));
 
     sendJson(res, {
       ok: true,
@@ -666,7 +686,8 @@ const server = createServer(async (req, res) => {
         id: profile.id,
         username: profile.username,
         displayName: profile.displayName,
-        walletId: profile.wallet?.id ?? profile.walletId
+        walletId: profile.wallet?.id ?? profile.walletId,
+        walletAddress: profile.wallet?.address
       }))
       .filter((entry) => entry.walletId && entry.id !== auth.identity.profileId);
 
@@ -813,6 +834,39 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: true, recent });
     } catch {
       sendJson(res, { ok: false, reason: 'escrow_history_unavailable' }, 400);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/wallet/summary') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.walletId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    try {
+      const payload = await runtimeGet(`/wallets/${auth.identity.walletId}/summary`);
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'wallet_summary_unavailable' }, 400);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/wallet/export-key' && req.method === 'POST') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.walletId || !auth.identity.profileId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+
+    try {
+      const payload = await runtimePost(`/wallets/${auth.identity.walletId}/export-key`, {
+        profileId: auth.identity.profileId
+      });
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'wallet_export_failed' }, 400);
     }
     return;
   }

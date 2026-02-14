@@ -39,6 +39,7 @@ curl http://localhost:3000/health
 curl http://localhost:4000/health
 curl http://localhost:4100/health
 curl http://localhost:4100/status
+curl http://localhost:4000/presence
 ```
 
 ## Environment
@@ -56,6 +57,21 @@ Local scaffold admin auth is enabled by default:
 Web auth/session persistence:
 - file-backed state at `WEB_STATE_FILE` (default `output/web-auth-state.json`, resolved from web process cwd)
 - keeps active sessions/identities through local restarts in scaffold mode
+- pass-through `clientId` is now used on `/play` websocket to keep the same in-world player id across reconnects
+
+Multiplayer shared presence (new scaffold):
+- set `REDIS_URL` to enable Redis-backed presence sync across server instances
+- each server advertises `SERVER_INSTANCE_ID`
+- server keeps player state in redis keys with ttl `PRESENCE_TTL_SECONDS`
+- inspect with `GET /presence` (all players) or `GET /presence?id=<playerId>`
+
+Distributed challenge scaffold (new):
+- challenge ownership tracked per challenge id in redis (`ownerServerId`)
+- per-player distributed challenge locks prevent duplicate cross-node matches
+- direct player event routing via redis bus for non-local participants
+- cross-node response/move forwarding to owner node (challenge command bus)
+- orphaned open challenges are auto-expired if owner server heartbeat disappears beyond `CHALLENGE_ORPHAN_GRACE_MS`
+- distributed recent feed available via `GET /challenges/recent`
 
 Auth UX is available on all pages via top-right shell nav (Home/Profile/Play/Viewer/Agents + login/logout).
 

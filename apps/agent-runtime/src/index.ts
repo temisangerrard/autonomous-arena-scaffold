@@ -902,6 +902,7 @@ const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
+  'function transfer(address to, uint256 amount) returns (bool)',
   'function mint(address to, uint256 amount)',
   'function symbol() view returns (string)'
 ];
@@ -910,8 +911,82 @@ type Erc20Api = Contract & {
   balanceOf: (owner: string) => Promise<bigint>;
   allowance: (owner: string, spender: string) => Promise<bigint>;
   approve: (spender: string, amount: bigint) => Promise<{ wait: () => Promise<unknown> }>;
-  mint: (to: string, amount: bigint) => Promise<{ wait: () => Promise<unknown> }>;
+  transfer: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
+  mint: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
+  symbol: () => Promise<string>;
 };
+
+function gasFunderSigner(): Wallet | null {
+  if (!onchainProvider || !gasFunderPrivateKey) {
+    return null;
+  }
+  return new Wallet(gasFunderPrivateKey, onchainProvider);
+}
+
+async function ensureWalletGas(address: string): Promise<string | null> {
+  if (!onchainProvider) {
+    return null;
+  }
+  const currentNative = await onchainProvider.getBalance(address);
+  const minNative = parseEther(minWalletGasEth);
+  if (currentNative >= minNative) {
+    return null;
+  }
+  const funder = gasFunderSigner();
+  if (!funder) {
+    return null;
+  }
+  const topup = parseEther(walletGasTopupEth);
+  const topupTx = await funder.sendTransaction({ to: address, value: topup });
+  await topupTx.wait();
+  return topupTx.hash;
+}
+
+async function onchainWalletSummary(wallet: WalletRecord): Promise<{
+  mode: 'runtime' | 'onchain';
+  chainId: number | null;
+  tokenAddress: string | null;
+  tokenSymbol: string | null;
+  tokenDecimals: number;
+  address: string;
+  nativeBalanceEth: string | null;
+  tokenBalance: string | null;
+  synced: boolean;
+}> {
+  if (!onchainProvider || !onchainTokenAddress) {
+    return {
+      mode: 'runtime',
+      chainId: null,
+      tokenAddress: null,
+      tokenSymbol: null,
+      tokenDecimals: onchainTokenDecimals,
+      address: wallet.address,
+      nativeBalanceEth: null,
+      tokenBalance: null,
+      synced: false
+    };
+  }
+  const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  const token = new Contract(onchainTokenAddress, ERC20_ABI, onchainProvider) as Erc20Api;
+  const [native, tokenBalanceRaw, symbol] = await Promise.all([
+    onchainProvider.getBalance(wallet.address),
+    token.balanceOf(wallet.address),
+    token.symbol().catch(() => 'TOKEN')
+  ]);
+  const tokenBalance = formatUnits(tokenBalanceRaw, onchainTokenDecimals);
+  wallet.balance = Number.parseFloat(tokenBalance) || 0;
+  return {
+    mode: 'onchain',
+    chainId,
+    tokenAddress: onchainTokenAddress,
+    tokenSymbol: symbol || 'TOKEN',
+    tokenDecimals: onchainTokenDecimals,
+    address: wallet.address,
+    nativeBalanceEth: formatEther(native),
+    tokenBalance,
+    synced: true
+  };
+}
 
 function isInternalAuthorized(req: import('node:http').IncomingMessage): boolean {
   if (!internalToken) {
@@ -1806,10 +1881,40 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (onchainProvider && onchainTokenAddress) {
+      const funder = gasFunderSigner();
+      if (!funder) {
+        sendJson(res, { ok: false, reason: 'gas_funder_unavailable' }, 400);
+        return;
+      }
+      const token = new Contract(onchainTokenAddress, ERC20_ABI, funder) as Erc20Api;
+      const value = parseUnits(String(amount), onchainTokenDecimals);
+      try {
+        await ensureWalletGas(wallet.address);
+        const mintTx = await token.mint(wallet.address, value);
+        await mintTx.wait();
+        const summary = await onchainWalletSummary(wallet);
+        wallet.dailyTxCount += 1;
+        wallet.lastTxAt = Date.now();
+        sendJson(res, {
+          ok: true,
+          mode: 'onchain',
+          txHash: mintTx.hash ?? null,
+          wallet: walletSummary(wallet),
+          onchain: summary
+        });
+        schedulePersistState();
+        return;
+      } catch (error) {
+        sendJson(res, { ok: false, reason: String((error as Error).message || 'onchain_fund_failed').slice(0, 160) }, 400);
+        return;
+      }
+    }
+
     wallet.balance += amount;
     wallet.dailyTxCount += 1;
     wallet.lastTxAt = Date.now();
-    sendJson(res, { ok: true, wallet: walletSummary(wallet) });
+    sendJson(res, { ok: true, mode: 'runtime', wallet: walletSummary(wallet) });
     schedulePersistState();
     return;
   }
@@ -1835,6 +1940,38 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (onchainProvider && onchainTokenAddress) {
+      const signer = signerForWallet(wallet);
+      const treasury = process.env.WITHDRAW_TREASURY_ADDRESS?.trim() || gasFunderSigner()?.address || '';
+      if (!signer || !treasury) {
+        sendJson(res, { ok: false, reason: 'withdraw_destination_unavailable' }, 400);
+        return;
+      }
+      const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
+      const value = parseUnits(String(amount), onchainTokenDecimals);
+      try {
+        await ensureWalletGas(wallet.address);
+        const tx = await token.transfer(treasury, value);
+        await tx.wait();
+        const summary = await onchainWalletSummary(wallet);
+        wallet.dailyTxCount += 1;
+        wallet.lastTxAt = Date.now();
+        sendJson(res, {
+          ok: true,
+          mode: 'onchain',
+          txHash: tx.hash ?? null,
+          to: treasury,
+          wallet: walletSummary(wallet),
+          onchain: summary
+        });
+        schedulePersistState();
+        return;
+      } catch (error) {
+        sendJson(res, { ok: false, reason: String((error as Error).message || 'onchain_withdraw_failed').slice(0, 160) }, 400);
+        return;
+      }
+    }
+
     if (wallet.balance < amount) {
       sendJson(res, { ok: false, reason: 'insufficient_balance' }, 400);
       return;
@@ -1843,7 +1980,7 @@ const server = createServer(async (req, res) => {
     wallet.balance -= amount;
     wallet.dailyTxCount += 1;
     wallet.lastTxAt = Date.now();
-    sendJson(res, { ok: true, wallet: walletSummary(wallet) });
+    sendJson(res, { ok: true, mode: 'runtime', wallet: walletSummary(wallet) });
     schedulePersistState();
     return;
   }
@@ -1885,6 +2022,43 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (onchainProvider && onchainTokenAddress) {
+      const signer = signerForWallet(source);
+      if (!signer) {
+        sendJson(res, { ok: false, reason: 'wallet_signer_unavailable' }, 400);
+        return;
+      }
+      const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
+      const value = parseUnits(String(amount), onchainTokenDecimals);
+      try {
+        await ensureWalletGas(source.address);
+        const tx = await token.transfer(target.address, value);
+        await tx.wait();
+        const [sourceOnchain, targetOnchain] = await Promise.all([
+          onchainWalletSummary(source),
+          onchainWalletSummary(target)
+        ]);
+        source.dailyTxCount += 1;
+        target.dailyTxCount += 1;
+        source.lastTxAt = Date.now();
+        target.lastTxAt = Date.now();
+        sendJson(res, {
+          ok: true,
+          mode: 'onchain',
+          txHash: tx.hash ?? null,
+          source: walletSummary(source),
+          target: walletSummary(target),
+          sourceOnchain,
+          targetOnchain
+        });
+        schedulePersistState();
+        return;
+      } catch (error) {
+        sendJson(res, { ok: false, reason: String((error as Error).message || 'onchain_transfer_failed').slice(0, 160) }, 400);
+        return;
+      }
+    }
+
     if (source.balance < amount) {
       sendJson(res, { ok: false, reason: 'insufficient_balance' }, 400);
       return;
@@ -1899,10 +2073,47 @@ const server = createServer(async (req, res) => {
 
     sendJson(res, {
       ok: true,
+      mode: 'runtime',
       source: walletSummary(source),
       target: walletSummary(target)
     });
     schedulePersistState();
+    return;
+  }
+
+  if (url.pathname.startsWith('/wallets/') && url.pathname.endsWith('/summary') && req.method === 'GET') {
+    const walletId = url.pathname.split('/')[2];
+    const wallet = walletId ? wallets.get(walletId) : null;
+    if (!wallet) {
+      sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
+      return;
+    }
+    try {
+      const onchain = await onchainWalletSummary(wallet);
+      sendJson(res, {
+        ok: true,
+        wallet: walletSummary(wallet),
+        onchain
+      });
+      schedulePersistState();
+    } catch (error) {
+      sendJson(res, {
+        ok: true,
+        wallet: walletSummary(wallet),
+        onchain: {
+          mode: 'runtime',
+          chainId: null,
+          tokenAddress: onchainTokenAddress || null,
+          tokenSymbol: null,
+          tokenDecimals: onchainTokenDecimals,
+          address: wallet.address,
+          nativeBalanceEth: null,
+          tokenBalance: null,
+          synced: false,
+          reason: String((error as Error).message || 'onchain_summary_failed').slice(0, 160)
+        }
+      });
+    }
     return;
   }
 

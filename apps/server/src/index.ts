@@ -2,8 +2,11 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { ChallengeService, type ChallengeEvent, type GameMove, type GameType } from './ChallengeService.js';
+import { DistributedBus, type ChallengeCommand } from './DistributedBus.js';
+import { DistributedChallengeStore } from './DistributedChallengeStore.js';
 import { EscrowAdapter } from './EscrowAdapter.js';
 import { createHealthStatus } from './health.js';
+import { PresenceStore } from './PresenceStore.js';
 import { WorldSim } from './WorldSim.js';
 
 type InputMessage = {
@@ -46,6 +49,9 @@ type PlayerMeta = {
 };
 
 const port = Number(process.env.PORT ?? 4000);
+const serverInstanceId = process.env.SERVER_INSTANCE_ID?.trim() || `srv_${Math.random().toString(36).slice(2, 9)}`;
+const presenceStore = new PresenceStore(serverInstanceId, Math.max(10, Number(process.env.PRESENCE_TTL_SECONDS ?? 40)));
+const distributedChallengeStore = new DistributedChallengeStore(serverInstanceId);
 const worldSim = new WorldSim();
 const challengeService = new ChallengeService(() => Date.now(), () => Math.random());
 const internalServiceToken = resolveInternalServiceToken();
@@ -78,11 +84,41 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (req.url?.startsWith('/presence')) {
+    const parsed = new URL(req.url, 'http://localhost');
+    const id = parsed.searchParams.get('id')?.trim();
+    res.setHeader('content-type', 'application/json');
+    if (id) {
+      void presenceStore.get(id).then((entry) => {
+        res.end(JSON.stringify({ ok: true, presence: entry }));
+      }).catch(() => {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ ok: false, reason: 'presence_lookup_failed' }));
+      });
+      return;
+    }
+    void presenceStore.list().then((entries) => {
+      res.end(JSON.stringify({ ok: true, serverId: serverInstanceId, players: entries }));
+    }).catch(() => {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ ok: false, reason: 'presence_list_failed' }));
+    });
+    return;
+  }
+
   if (req.url?.startsWith('/challenges/recent')) {
     const parsed = new URL(req.url, 'http://localhost');
-    const limit = Number(parsed.searchParams.get('limit') ?? 60);
+    const limit = Math.max(1, Math.min(300, Number(parsed.searchParams.get('limit') ?? 60)));
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ recent: challengeService.getRecent(limit) }));
+    void distributedChallengeStore.recentHistory(limit).then((recent) => {
+      if (recent.length > 0) {
+        res.end(JSON.stringify({ recent }));
+        return;
+      }
+      res.end(JSON.stringify({ recent: challengeService.getRecent(limit) }));
+    }).catch(() => {
+      res.end(JSON.stringify({ recent: challengeService.getRecent(limit) }));
+    });
     return;
   }
 
@@ -105,6 +141,45 @@ const proximityThreshold = Number(process.env.PROXIMITY_THRESHOLD ?? 12);
 const escrowLockedChallenges = new Set<string>();
 const agentToHumanChallengeCooldownMs = Math.max(0, Number(process.env.AGENT_TO_HUMAN_CHALLENGE_COOLDOWN_MS ?? 20000));
 const recentAgentToHumanChallengeAt = new Map<string, number>();
+let lastPresenceSyncAt = 0;
+let lastPresenceRefreshAt = 0;
+const challengePendingTimeoutMs = Math.max(5_000, Number(process.env.CHALLENGE_PENDING_TIMEOUT_MS ?? 15_000));
+const challengeOrphanGraceMs = Math.max(challengePendingTimeoutMs * 2, Number(process.env.CHALLENGE_ORPHAN_GRACE_MS ?? 30_000));
+const presenceByPlayerId = new Map<string, {
+  playerId: string;
+  role: PlayerRole;
+  displayName: string;
+  walletId: string | null;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  speed: number;
+}>();
+let cachedPresence: Array<{
+  playerId: string;
+  role: PlayerRole;
+  displayName: string;
+  walletId: string | null;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  speed: number;
+}> = [];
+const distributedBus = new DistributedBus(
+  serverInstanceId,
+  (message) => {
+    const ws = sockets.get(message.playerId);
+    if (!ws || ws.readyState !== ws.OPEN) {
+      return;
+    }
+    ws.send(JSON.stringify(message.payload));
+  },
+  (command) => {
+    void handleDistributedCommand(command);
+  }
+);
 
 function resolveInternalServiceToken(): string {
   const configured = process.env.INTERNAL_SERVICE_TOKEN?.trim();
@@ -219,12 +294,21 @@ function sendTo(playerId: string, payload: object): void {
   ws.send(JSON.stringify(payload));
 }
 
+function sendToDistributed(playerId: string, payload: object): void {
+  const ws = sockets.get(playerId);
+  if (ws && ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify(payload));
+    return;
+  }
+  void distributedBus.publishToPlayer(playerId, payload);
+}
+
 function displayNameFor(playerId: string): string {
-  return metaByPlayer.get(playerId)?.displayName ?? playerId;
+  return metaByPlayer.get(playerId)?.displayName ?? presenceByPlayerId.get(playerId)?.displayName ?? playerId;
 }
 
 function walletIdFor(playerId: string): string | null {
-  return metaByPlayer.get(playerId)?.walletId ?? null;
+  return metaByPlayer.get(playerId)?.walletId ?? presenceByPlayerId.get(playerId)?.walletId ?? null;
 }
 
 function broadcast(payload: object): void {
@@ -239,7 +323,7 @@ function broadcast(payload: object): void {
 function dispatchChallengeEvent(event: ChallengeEvent): void {
   if (event.to) {
     for (const playerId of event.to) {
-      sendTo(playerId, {
+      sendToDistributed(playerId, {
         type: 'challenge',
         event: event.event,
         reason: event.reason,
@@ -282,9 +366,16 @@ function withActorRecipient(event: ChallengeEvent, actorId: string): ChallengeEv
 }
 
 async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<void> {
+  await distributedChallengeStore.appendHistory({
+    event: event.event,
+    reason: event.reason ?? null,
+    challenge: event.challenge ?? null
+  });
+
   if (event.challenge) {
     const challenge = event.challenge;
     const wager = Math.max(0, challenge.wager);
+    await distributedChallengeStore.updateStatus(challenge.id, event.event, JSON.stringify(challenge));
 
     if (event.event === 'accepted' && wager > 0) {
       const challengerWalletId = walletIdFor(challenge.challengerId);
@@ -385,6 +476,11 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
       });
       escrowLockedChallenges.delete(challenge.id);
     }
+
+    if (event.event === 'resolved' || event.event === 'declined' || event.event === 'expired') {
+      await distributedChallengeStore.releasePlayers(challenge.id, [challenge.challengerId, challenge.opponentId]);
+      await distributedChallengeStore.clear(challenge.id);
+    }
   }
 
   dispatchChallengeEvent(event);
@@ -407,8 +503,8 @@ function emitProximityEvents(players: Array<{ id: string; x: number; z: number }
         nowNear.add(key);
 
         if (!activeProximityPairs.has(key)) {
-          sendTo(a.id, { type: 'proximity', event: 'enter', otherId: b.id, otherName: displayNameFor(b.id), distance });
-          sendTo(b.id, { type: 'proximity', event: 'enter', otherId: a.id, otherName: displayNameFor(a.id), distance });
+          sendToDistributed(a.id, { type: 'proximity', event: 'enter', otherId: b.id, otherName: displayNameFor(b.id), distance });
+          sendToDistributed(b.id, { type: 'proximity', event: 'enter', otherId: a.id, otherName: displayNameFor(a.id), distance });
         }
       }
     }
@@ -421,8 +517,8 @@ function emitProximityEvents(players: Array<{ id: string; x: number; z: number }
 
     const [a, b] = key.split('|');
     if (a && b) {
-      sendTo(a, { type: 'proximity', event: 'exit', otherId: b, otherName: displayNameFor(b) });
-      sendTo(b, { type: 'proximity', event: 'exit', otherId: a, otherName: displayNameFor(a) });
+      sendToDistributed(a, { type: 'proximity', event: 'exit', otherId: b, otherName: displayNameFor(b) });
+      sendToDistributed(b, { type: 'proximity', event: 'exit', otherId: a, otherName: displayNameFor(a) });
     }
   }
 
@@ -484,9 +580,17 @@ wss.on('connection', (ws, request) => {
     displayName: preferredName && preferredName.length > 0 ? preferredName : (role === 'agent' ? playerId : `Player ${playerId}`),
     walletId
   });
-  worldSim.joinPlayer(playerId);
+  void presenceStore.get(playerId).then((presence) => {
+    if (presence) {
+      worldSim.joinPlayer(playerId, { x: presence.x, z: presence.z });
+    } else {
+      worldSim.joinPlayer(playerId);
+    }
+  }).catch(() => {
+    worldSim.joinPlayer(playerId);
+  });
 
-  ws.send(JSON.stringify({ type: 'welcome', playerId, role, displayName: displayNameFor(playerId) }));
+  ws.send(JSON.stringify({ type: 'welcome', playerId, role, displayName: displayNameFor(playerId), serverId: serverInstanceId }));
 
   ws.on('message', async (raw: RawData) => {
     const payload = parseClientMessage(raw);
@@ -503,7 +607,9 @@ wss.on('connection', (ws, request) => {
     }
 
     if (payload.type === 'challenge_send') {
-      if (!sockets.has(payload.targetId)) {
+      const targetLocal = sockets.has(payload.targetId);
+      const targetPresence = targetLocal ? null : await presenceStore.get(payload.targetId);
+      if (!targetLocal && !targetPresence) {
         sendTo(playerId, {
           type: 'challenge',
           event: 'invalid',
@@ -522,7 +628,10 @@ wss.on('connection', (ws, request) => {
       }
 
       const senderRole = metaByPlayer.get(playerId)?.role ?? 'human';
-      const targetRole = metaByPlayer.get(payload.targetId)?.role ?? 'human';
+      const targetRole =
+        metaByPlayer.get(payload.targetId)?.role
+        ?? targetPresence?.role
+        ?? 'human';
       if (senderRole === 'agent' && targetRole === 'human' && agentToHumanChallengeCooldownMs > 0) {
         const key = `${playerId}|${payload.targetId}`;
         const now = Date.now();
@@ -544,18 +653,61 @@ wss.on('connection', (ws, request) => {
         payload.gameType,
         payload.wager
       );
+      if (event.event === 'created' && event.challenge) {
+        const lockResult = await distributedChallengeStore.tryLockPlayers(
+          event.challenge.id,
+          [event.challenge.challengerId, event.challenge.opponentId],
+          Math.max(6_000, Number(process.env.CHALLENGE_PENDING_TIMEOUT_MS ?? 15_000))
+        );
+        if (!lockResult.ok) {
+          const aborted = challengeService.abortChallenge(event.challenge.id, 'declined', lockResult.reason ?? 'player_busy');
+          await dispatchChallengeEventWithEscrow(withActorRecipient(aborted, playerId));
+          return;
+        }
+        await distributedChallengeStore.registerChallenge({
+          challengeId: event.challenge.id,
+          challengerId: event.challenge.challengerId,
+          opponentId: event.challenge.opponentId,
+          status: event.event,
+          challengeJson: JSON.stringify(event.challenge)
+        });
+      }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
       return;
     }
 
     if (payload.type === 'challenge_response') {
       const event = challengeService.respond(payload.challengeId, playerId, payload.accept);
+      if (event.event === 'invalid' && event.reason === 'challenge_not_pending') {
+        const owner = await distributedChallengeStore.getOwnerServerId(payload.challengeId);
+        if (owner && owner !== serverInstanceId) {
+          await distributedBus.publishCommand(owner, {
+            type: 'challenge_response',
+            challengeId: payload.challengeId,
+            actorId: playerId,
+            accept: payload.accept
+          });
+          return;
+        }
+      }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
       return;
     }
 
     if (payload.type === 'challenge_move') {
       const event = challengeService.submitMove(payload.challengeId, playerId, payload.move);
+      if (event.event === 'invalid' && event.reason === 'challenge_not_active') {
+        const owner = await distributedChallengeStore.getOwnerServerId(payload.challengeId);
+        if (owner && owner !== serverInstanceId) {
+          await distributedBus.publishCommand(owner, {
+            type: 'challenge_move',
+            challengeId: payload.challengeId,
+            actorId: playerId,
+            move: payload.move
+          });
+          return;
+        }
+      }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
     }
   });
@@ -567,6 +719,7 @@ wss.on('connection', (ws, request) => {
     sockets.delete(playerId);
     metaByPlayer.delete(playerId);
     worldSim.removePlayer(playerId);
+    void presenceStore.remove(playerId);
 
     for (const key of [...activeProximityPairs]) {
       if (key.includes(`${playerId}|`) || key.includes(`|${playerId}`)) {
@@ -582,22 +735,76 @@ wss.on('connection', (ws, request) => {
 
 setInterval(() => {
   const snapshot = worldSim.step(1 / 20);
-  emitProximityEvents(snapshot.players);
+  const now = Date.now();
+  if (now - lastPresenceRefreshAt >= 500) {
+    lastPresenceRefreshAt = now;
+    void presenceStore.list().then((entries) => {
+      cachedPresence = entries;
+      presenceByPlayerId.clear();
+      for (const entry of entries) {
+        presenceByPlayerId.set(entry.playerId, entry);
+      }
+    }).catch(() => {
+      // ignore transient presence read errors
+    });
+  }
+
+  const remotePlayers = cachedPresence
+    .filter((entry) => !snapshot.players.some((local) => local.id === entry.playerId))
+    .map((entry) => ({
+      id: entry.playerId,
+      x: entry.x,
+      y: entry.y,
+      z: entry.z,
+      yaw: entry.yaw,
+      speed: entry.speed,
+      role: entry.role,
+      displayName: entry.displayName,
+      walletId: entry.walletId
+    }));
+
+  const mergedPlayers = [
+    ...snapshot.players.map((player) => ({
+      ...player,
+      role: metaByPlayer.get(player.id)?.role ?? 'human',
+      displayName: displayNameFor(player.id),
+      walletId: walletIdFor(player.id)
+    })),
+    ...remotePlayers
+  ];
+
+  emitProximityEvents(mergedPlayers.map((player) => ({ id: player.id, x: player.x, z: player.z })));
 
   for (const event of challengeService.tick()) {
     void dispatchChallengeEventWithEscrow(event);
   }
 
-  const playersWithRole = snapshot.players.map((player) => ({
-    ...player,
-    role: metaByPlayer.get(player.id)?.role ?? 'human',
-    displayName: displayNameFor(player.id)
-  }));
+  const syncNow = Date.now();
+  if (syncNow - lastPresenceSyncAt >= 500) {
+    lastPresenceSyncAt = syncNow;
+    for (const player of snapshot.players) {
+      const meta = metaByPlayer.get(player.id);
+      if (!meta) {
+        continue;
+      }
+      void presenceStore.upsert({
+        playerId: player.id,
+        role: meta.role,
+        displayName: meta.displayName,
+        walletId: meta.walletId,
+        x: player.x,
+        y: player.y,
+        z: player.z,
+        yaw: player.yaw,
+        speed: player.speed
+      });
+    }
+  }
 
   const message = JSON.stringify({
     type: 'snapshot',
     tick: snapshot.tick,
-    players: playersWithRole
+    players: mergedPlayers
   });
 
   for (const ws of sockets.values()) {
@@ -607,6 +814,132 @@ setInterval(() => {
   }
 }, 50);
 
-server.listen(port, () => {
-  console.log(`server listening on :${port}`);
-});
+async function handleDistributedCommand(command: ChallengeCommand): Promise<void> {
+  if (command.type === 'challenge_response') {
+    const event = challengeService.respond(command.challengeId, command.actorId, command.accept);
+    await dispatchChallengeEventWithEscrow(withActorRecipient(event, command.actorId));
+    return;
+  }
+  const event = challengeService.submitMove(command.challengeId, command.actorId, command.move);
+  await dispatchChallengeEventWithEscrow(withActorRecipient(event, command.actorId));
+}
+
+setInterval(() => {
+  void presenceStore.heartbeatServer();
+}, 2_000);
+
+setInterval(() => {
+  void expireOrphanedChallenges();
+}, 3_000);
+
+async function expireOrphanedChallenges(): Promise<void> {
+  const liveServers = new Set(await presenceStore.liveServers());
+  const metas = await distributedChallengeStore.listMetas();
+  const now = Date.now();
+
+  for (const meta of metas) {
+    const isOpen =
+      meta.status === 'created'
+      || meta.status === 'accepted'
+      || meta.status === 'move_submitted'
+      || meta.status === 'pending'
+      || meta.status === 'active';
+    if (!isOpen) {
+      continue;
+    }
+    if (liveServers.has(meta.ownerServerId)) {
+      continue;
+    }
+    if (now - meta.updatedAt < challengeOrphanGraceMs) {
+      continue;
+    }
+
+    const challenge = safeParseChallenge(meta.challengeJson);
+    if (!challenge) {
+      await distributedChallengeStore.releasePlayers(meta.challengeId, [meta.challengerId, meta.opponentId]);
+      await distributedChallengeStore.clear(meta.challengeId);
+      continue;
+    }
+
+    const expiredChallenge = {
+      ...challenge,
+      status: 'expired',
+      winnerId: null,
+      resolvedAt: now
+    };
+
+    sendToDistributed(meta.challengerId, {
+      type: 'challenge',
+      event: 'expired',
+      reason: 'owner_failover_expired',
+      challenge: expiredChallenge
+    });
+    sendToDistributed(meta.opponentId, {
+      type: 'challenge',
+      event: 'expired',
+      reason: 'owner_failover_expired',
+      challenge: expiredChallenge
+    });
+    await distributedChallengeStore.appendHistory({
+      event: 'expired',
+      reason: 'owner_failover_expired',
+      challenge: expiredChallenge
+    });
+    await distributedChallengeStore.releasePlayers(meta.challengeId, [meta.challengerId, meta.opponentId]);
+    await distributedChallengeStore.clear(meta.challengeId);
+  }
+}
+
+function safeParseChallenge(raw: string): {
+  id: string;
+  challengerId: string;
+  opponentId: string;
+  status: string;
+  gameType: string;
+  wager: number;
+  createdAt: number;
+  expiresAt: number;
+  acceptedAt: number | null;
+  resolvedAt: number | null;
+  winnerId: string | null;
+  challengerMove: string | null;
+  opponentMove: string | null;
+  coinflipResult: string | null;
+} | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed.id !== 'string' || typeof parsed.challengerId !== 'string' || typeof parsed.opponentId !== 'string') {
+      return null;
+    }
+    return {
+      id: parsed.id,
+      challengerId: parsed.challengerId,
+      opponentId: parsed.opponentId,
+      status: typeof parsed.status === 'string' ? parsed.status : 'pending',
+      gameType: typeof parsed.gameType === 'string' ? parsed.gameType : 'rps',
+      wager: Number(parsed.wager ?? 0),
+      createdAt: Number(parsed.createdAt ?? Date.now()),
+      expiresAt: Number(parsed.expiresAt ?? Date.now()),
+      acceptedAt: parsed.acceptedAt == null ? null : Number(parsed.acceptedAt),
+      resolvedAt: parsed.resolvedAt == null ? null : Number(parsed.resolvedAt),
+      winnerId: typeof parsed.winnerId === 'string' ? parsed.winnerId : null,
+      challengerMove: typeof parsed.challengerMove === 'string' ? parsed.challengerMove : null,
+      opponentMove: typeof parsed.opponentMove === 'string' ? parsed.opponentMove : null,
+      coinflipResult: typeof parsed.coinflipResult === 'string' ? parsed.coinflipResult : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+void (async () => {
+  await presenceStore.connect(process.env.REDIS_URL);
+  await distributedChallengeStore.connect(process.env.REDIS_URL);
+  await distributedBus.connect(process.env.REDIS_URL);
+  server.listen(port, () => {
+    console.log(`server listening on :${port} instance=${serverInstanceId}`);
+  });
+})();

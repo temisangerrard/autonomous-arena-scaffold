@@ -5,9 +5,17 @@ const meEmail = document.getElementById('me-email');
 const meRole = document.getElementById('me-role');
 const meProfile = document.getElementById('me-profile');
 const meWallet = document.getElementById('me-wallet');
+const meWalletAddress = document.getElementById('me-wallet-address');
 const walletBalance = document.getElementById('wallet-balance');
+const walletBalanceNote = document.getElementById('wallet-balance-note');
 const inviteLink = document.getElementById('invite-link');
 const copyInvite = document.getElementById('copy-invite');
+const copyWallet = document.getElementById('copy-wallet');
+const copyWalletAddress = document.getElementById('copy-wallet-address');
+
+const sidebarName = document.getElementById('sidebar-name');
+const sidebarHandle = document.getElementById('sidebar-handle');
+const sidebarWallet = document.getElementById('sidebar-wallet');
 
 const profileDisplayName = document.getElementById('profile-display-name');
 const profileUsername = document.getElementById('profile-username');
@@ -21,6 +29,7 @@ const walletTransferTarget = document.getElementById('wallet-transfer-target');
 const walletTransferWalletId = document.getElementById('wallet-transfer-wallet-id');
 const walletTransferAmount = document.getElementById('wallet-transfer-amount');
 const walletTransfer = document.getElementById('wallet-transfer');
+const walletPlayerList = document.getElementById('wallet-player-list');
 
 const botPersonality = document.getElementById('bot-personality');
 const botTarget = document.getElementById('bot-target');
@@ -37,16 +46,35 @@ const newBotMode = document.getElementById('new-bot-mode');
 const newBotBaseWager = document.getElementById('new-bot-base-wager');
 const newBotMaxWager = document.getElementById('new-bot-max-wager');
 const createBot = document.getElementById('create-bot');
+
 const superAgentMessage = document.getElementById('super-agent-message');
 const superAgentSend = document.getElementById('super-agent-send');
 const superAgentQuickStatus = document.getElementById('super-agent-quick-status');
 const superAgentResponse = document.getElementById('super-agent-response');
+
+const superAgentMessageAlt = document.getElementById('super-agent-message-alt');
+const superAgentSendAlt = document.getElementById('super-agent-send-alt');
+const superAgentQuickStatusAlt = document.getElementById('super-agent-quick-status-alt');
+const superAgentResponseAlt = document.getElementById('super-agent-response-alt');
+
 const onboardingList = document.getElementById('onboarding-list');
 const escrowHistory = document.getElementById('escrow-history');
+const exportPrivateKey = document.getElementById('export-private-key');
+
+const botModal = document.getElementById('bot-modal');
+const botModalClose = document.getElementById('bot-modal-close');
+const botModalTitle = document.getElementById('bot-modal-title');
+const botModalSub = document.getElementById('bot-modal-sub');
+
+const sidebarButtons = [...document.querySelectorAll('.sidebar-nav [data-view]')];
+const views = [...document.querySelectorAll('.dash-view')];
+const quickCommandButtons = [...document.querySelectorAll('[data-quick-cmd]')];
 
 let playerCtx = null;
 let bootstrapCtx = null;
 let playerDirectory = [];
+let selectedBotId = '';
+let walletSummaryCtx = null;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -60,6 +88,15 @@ function escapeHtml(value) {
 function setStatus(text) {
   if (statusLine) {
     statusLine.textContent = text;
+  }
+}
+
+function setView(nextView) {
+  for (const button of sidebarButtons) {
+    button.classList.toggle('active', button.getAttribute('data-view') === nextView);
+  }
+  for (const view of views) {
+    view.classList.toggle('active', view.id === `view-${nextView}`);
   }
 }
 
@@ -92,75 +129,134 @@ function bindPlayLink() {
   playLink.href = `/play?${params.toString()}`;
 }
 
+function getBotById(botId) {
+  return (playerCtx?.bots || []).find((entry) => entry.id === botId) || null;
+}
+
+function statusClassForBot(bot) {
+  if (!bot.connected) {
+    return 'disconnected';
+  }
+  if (bot.behavior?.mode === 'passive' || bot.behavior?.challengeEnabled === false) {
+    return 'idle';
+  }
+  return 'active';
+}
+
+function statusTextForBot(bot) {
+  const cls = statusClassForBot(bot);
+  if (cls === 'active') return 'Active';
+  if (cls === 'idle') return 'Idle';
+  return 'Disconnected';
+}
+
+function renderBotCards() {
+  const bots = playerCtx?.bots || [];
+  if (!botList) {
+    return;
+  }
+
+  if (bots.length === 0) {
+    botList.innerHTML = '<article class="panel"><p class="muted" style="margin:0;">No owner bot found yet.</p></article>';
+    return;
+  }
+
+  botList.innerHTML = bots
+    .map((bot) => {
+      const section = bot.meta?.patrolSection;
+      const personality = String(bot.behavior?.personality || 'social');
+      const target = String(bot.behavior?.targetPreference || 'human_first').replace(/_/g, ' ');
+      const cooldown = Number(bot.behavior?.challengeCooldownMs || 2600);
+      const badgeClass = statusClassForBot(bot);
+      const badgeText = statusTextForBot(bot);
+      const botWalletId = String(bot.walletId || playerCtx?.profile?.wallet?.id || playerCtx?.profile?.walletId || '-');
+      const botWalletAddress = String(bot.walletAddress || playerCtx?.profile?.wallet?.address || '-');
+
+      return `<article class="bot-card" data-bot-id="${escapeHtml(bot.id)}" data-action="edit-bot">
+        <div class="bot-card__head">
+          <i class="bot-avatar personality-${escapeHtml(personality)}"></i>
+          <div>
+            <h3 class="bot-name">${escapeHtml(bot.meta?.displayName || bot.id)}</h3>
+            <p class="bot-sub">${escapeHtml(bot.id)} · S${section ?? '-'} · wallet ${escapeHtml(botWalletId)}</p>
+          </div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="pill-row">
+          <span class="pill">${escapeHtml(personality)}</span>
+          <span class="pill">${escapeHtml(target)}</span>
+          <span class="pill">${cooldown}ms</span>
+        </div>
+        <div class="wager-box">Wager Range: ${Number(bot.behavior?.baseWager || 1)} to ${Number(bot.behavior?.maxWager || 3)}<br><span class="mono">${escapeHtml(botWalletAddress)}</span></div>
+      </article>`;
+    })
+    .join('');
+}
+
 function renderContext() {
   const user = playerCtx?.user;
   const profile = playerCtx?.profile;
   const bots = playerCtx?.bots || [];
+  const runtimeBalanceValue = Number(profile?.wallet?.balance || 0).toFixed(2);
+  const walletId = profile?.wallet?.id || profile?.walletId || walletSummaryCtx?.wallet?.id || '-';
+  const walletAddress = profile?.wallet?.address || walletSummaryCtx?.onchain?.address || walletSummaryCtx?.wallet?.address || '-';
+  const tokenBalance = walletSummaryCtx?.onchain?.tokenBalance ?? runtimeBalanceValue;
+  const tokenSymbol = walletSummaryCtx?.onchain?.tokenSymbol || 'TOKEN';
+  const nativeBalance = walletSummaryCtx?.onchain?.nativeBalanceEth || null;
+  const onchainMode = walletSummaryCtx?.onchain?.mode === 'onchain';
 
   if (meEmail) meEmail.textContent = user?.email || '-';
   if (meRole) meRole.textContent = user?.role || '-';
   if (meProfile) meProfile.textContent = profile?.displayName ? `${profile.displayName} (@${profile.username})` : '-';
-  if (meWallet) meWallet.textContent = profile?.wallet?.id || profile?.walletId || '-';
-  if (walletBalance) walletBalance.textContent = Number(profile?.wallet?.balance || 0).toFixed(2);
+  if (meWallet) meWallet.textContent = walletId;
+  if (meWalletAddress) meWalletAddress.textContent = walletAddress;
+  if (walletBalance) walletBalance.textContent = Number(tokenBalance || 0).toFixed(4);
+  if (walletBalanceNote) {
+    walletBalanceNote.textContent = onchainMode
+      ? `${tokenSymbol} onchain${nativeBalance ? ` · gas ${Number(nativeBalance).toFixed(5)} ETH` : ''}`
+      : `Runtime wallet balance (scaffold mode) · ${tokenSymbol}`;
+  }
+
+  if (sidebarName) sidebarName.textContent = profile?.displayName || user?.name || 'Player';
+  if (sidebarHandle) sidebarHandle.textContent = `@${profile?.username || 'player'}`;
+  if (sidebarWallet) sidebarWallet.textContent = `◆ ${Number(tokenBalance || 0).toFixed(2)}`;
 
   if (profileDisplayName) profileDisplayName.value = profile?.displayName || '';
   if (profileUsername) profileUsername.value = profile?.username || '';
 
-  if (bots.length === 0) {
-    botList.textContent = 'No owner bot found yet.';
-  } else {
-    botList.innerHTML = bots
-      .map((bot) => {
-        const section = bot.meta?.patrolSection;
-        return `<div class="dashboard-bot" data-bot-id="${escapeHtml(bot.id)}">
-          <strong>${escapeHtml(bot.meta?.displayName || bot.id)}</strong>
-          <span>id ${escapeHtml(bot.id)} · patrol S${section ?? '-'} · connected ${bot.connected ? 'yes' : 'no'}</span>
-          <div class="dashboard-bot-edit">
-            <select data-field="personality">
-              <option value="aggressive" ${bot.behavior.personality === 'aggressive' ? 'selected' : ''}>Aggressive</option>
-              <option value="social" ${bot.behavior.personality === 'social' ? 'selected' : ''}>Social</option>
-              <option value="conservative" ${bot.behavior.personality === 'conservative' ? 'selected' : ''}>Conservative</option>
-            </select>
-            <select data-field="targetPreference">
-              <option value="human_first" ${bot.behavior.targetPreference === 'human_first' ? 'selected' : ''}>Human first</option>
-              <option value="human_only" ${bot.behavior.targetPreference === 'human_only' ? 'selected' : ''}>Human only</option>
-              <option value="any" ${bot.behavior.targetPreference === 'any' ? 'selected' : ''}>Any</option>
-            </select>
-            <input data-field="challengeCooldownMs" type="number" min="1200" step="100" value="${Number(bot.behavior.challengeCooldownMs || 2600)}">
-            <select data-field="mode">
-              <option value="active" ${bot.behavior.mode === 'active' ? 'selected' : ''}>Active</option>
-              <option value="passive" ${bot.behavior.mode === 'passive' ? 'selected' : ''}>Passive</option>
-            </select>
-            <input data-field="baseWager" type="number" min="1" step="1" value="${Number(bot.behavior.baseWager || 1)}">
-            <input data-field="maxWager" type="number" min="1" step="1" value="${Number(bot.behavior.maxWager || 3)}">
-            <button class="btn btn--ghost dashboard-bot-save" data-action="save-bot">Save</button>
-          </div>
-        </div>`;
-      })
-      .join('');
+  renderBotCards();
 
-    const first = bots[0];
-    if (botPersonality) botPersonality.value = first.behavior.personality;
-    if (botTarget) botTarget.value = first.behavior.targetPreference;
-    if (botCooldown) botCooldown.value = String(first.behavior.challengeCooldownMs || 2600);
-    if (botMode) botMode.value = first.behavior.mode || 'active';
-    if (botBaseWager) botBaseWager.value = String(first.behavior.baseWager || 1);
-    if (botMaxWager) botMaxWager.value = String(first.behavior.maxWager || 3);
+  const first = bots[0];
+  if (first && !selectedBotId) {
+    selectedBotId = first.id;
   }
 
-  bindPlayLink();
   if (inviteLink) {
     inviteLink.value = bootstrapCtx?.invite?.playUrl ? `${window.location.origin}${bootstrapCtx.invite.playUrl}` : '';
   }
+
   if (walletTransferTarget) {
     walletTransferTarget.innerHTML = ['<option value="">Select a player</option>']
       .concat(
         playerDirectory.map((entry) => {
-          const label = `${escapeHtml(entry.displayName || entry.username)} (@${escapeHtml(entry.username)})`;
+          const shortAddress = entry.walletAddress ? `${String(entry.walletAddress).slice(0, 8)}...${String(entry.walletAddress).slice(-6)}` : '';
+          const label = `${escapeHtml(entry.displayName || entry.username)} (@${escapeHtml(entry.username)})${shortAddress ? ` · ${escapeHtml(shortAddress)}` : ''}`;
           return `<option value="${escapeHtml(entry.walletId)}">${label}</option>`;
         })
       )
       .join('');
+  }
+
+  if (walletPlayerList) {
+    if (!playerDirectory.length) {
+      walletPlayerList.innerHTML = '<div>No other players found yet.</div>';
+    } else {
+      walletPlayerList.innerHTML = playerDirectory
+        .map((entry) => {
+          const address = entry.walletAddress || '-';
+          return `<div><strong>${escapeHtml(entry.displayName || entry.username)}</strong><br><span class="mono">${escapeHtml(entry.walletId)}</span><br><span class="mono">${escapeHtml(address)}</span></div>`;
+        })
+        .join('');
+    }
   }
 
   if (onboardingList) {
@@ -182,6 +278,8 @@ function renderContext() {
       .map(([ok, text]) => `<li>${ok ? '✓' : '○'} ${escapeHtml(text)}</li>`)
       .join('');
   }
+
+  bindPlayLink();
 }
 
 function renderEscrowHistory(entries) {
@@ -207,17 +305,49 @@ function renderEscrowHistory(entries) {
 }
 
 async function refreshContext() {
-  const [ctx, bootstrap, directory, escrow] = await Promise.all([
+  const [ctx, bootstrap, directory, escrow, walletSummary] = await Promise.all([
     api('/api/player/me'),
     api('/api/player/bootstrap?world=mega'),
     api('/api/player/directory').catch(() => ({ players: [] })),
-    api('/api/player/wallet/escrow-history?limit=20').catch(() => ({ recent: [] }))
+    api('/api/player/wallet/escrow-history?limit=20').catch(() => ({ recent: [] })),
+    api('/api/player/wallet/summary').catch(() => null)
   ]);
   playerCtx = ctx;
   bootstrapCtx = bootstrap;
   playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
+  walletSummaryCtx = walletSummary;
   renderEscrowHistory(Array.isArray(escrow?.recent) ? escrow.recent : []);
   renderContext();
+}
+
+function openBotModal(botId) {
+  const bot = getBotById(botId);
+  if (!bot || !botModal) {
+    return;
+  }
+  selectedBotId = botId;
+  if (botModalTitle) {
+    botModalTitle.textContent = `Edit ${bot.meta?.displayName || bot.id}`;
+  }
+  if (botModalSub) {
+    botModalSub.textContent = `${bot.id} · patrol S${bot.meta?.patrolSection ?? '-'} · ${bot.connected ? 'connected' : 'disconnected'}`;
+  }
+  if (botPersonality) botPersonality.value = bot.behavior.personality;
+  if (botTarget) botTarget.value = bot.behavior.targetPreference;
+  if (botCooldown) botCooldown.value = String(bot.behavior.challengeCooldownMs || 2600);
+  if (botMode) botMode.value = bot.behavior.mode || 'active';
+  if (botBaseWager) botBaseWager.value = String(bot.behavior.baseWager || 1);
+  if (botMaxWager) botMaxWager.value = String(bot.behavior.maxWager || 3);
+  botModal.classList.add('open');
+  botModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeBotModal() {
+  if (!botModal) {
+    return;
+  }
+  botModal.classList.remove('open');
+  botModal.setAttribute('aria-hidden', 'true');
 }
 
 profileSave?.addEventListener('click', async () => {
@@ -263,7 +393,7 @@ walletFund?.addEventListener('click', async () => {
 
 walletWithdraw?.addEventListener('click', async () => {
   try {
-    const amount = parseAmount(walletWithdrawAmount, 5);
+    const amount = parseAmount(walletWithdrawAmount, parseAmount(walletFundAmount, 5));
     if (amount <= 0) {
       setStatus('Withdraw amount must be greater than 0.');
       return;
@@ -313,11 +443,18 @@ walletTransfer?.addEventListener('click', async () => {
 
 botSave?.addEventListener('click', async () => {
   try {
+    const botId = selectedBotId || playerCtx?.bots?.[0]?.id;
+    if (!botId) {
+      setStatus('No bot selected.');
+      return;
+    }
+
     const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
     const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
     const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
-    setStatus('Saving bot behavior...');
-    await api('/api/player/bot/config', {
+
+    setStatus(`Saving ${botId}...`);
+    await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -330,9 +467,10 @@ botSave?.addEventListener('click', async () => {
       })
     });
     await refreshContext();
-    setStatus('Bot behavior updated.');
+    closeBotModal();
+    setStatus(`Saved ${botId}.`);
   } catch (error) {
-    setStatus(`Bot update failed: ${String(error.message || error)}`);
+    setStatus(`Bot save failed: ${String(error.message || error)}`);
   }
 });
 
@@ -362,47 +500,32 @@ createBot?.addEventListener('click', async () => {
   }
 });
 
-botList?.addEventListener('click', async (event) => {
+botList?.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
     return;
   }
-  if (target.getAttribute('data-action') !== 'save-bot') {
+  const card = target.closest('[data-action="edit-bot"]');
+  if (!(card instanceof HTMLElement)) {
     return;
   }
-  const container = target.closest('[data-bot-id]');
-  if (!(container instanceof HTMLElement)) {
-    return;
-  }
-  const botId = container.getAttribute('data-bot-id');
+  const botId = String(card.getAttribute('data-bot-id') || '').trim();
   if (!botId) {
     return;
   }
+  openBotModal(botId);
+});
 
-  const personalityEl = container.querySelector('[data-field="personality"]');
-  const targetEl = container.querySelector('[data-field="targetPreference"]');
-  const cooldownEl = container.querySelector('[data-field="challengeCooldownMs"]');
-  const modeEl = container.querySelector('[data-field="mode"]');
-  const baseWagerEl = container.querySelector('[data-field="baseWager"]');
-  const maxWagerEl = container.querySelector('[data-field="maxWager"]');
-  const personality = personalityEl instanceof HTMLSelectElement ? personalityEl.value : 'social';
-  const targetPreference = targetEl instanceof HTMLSelectElement ? targetEl.value : 'human_first';
-  const challengeCooldownMs = cooldownEl instanceof HTMLInputElement ? Math.max(1200, Number(cooldownEl.value || 2600)) : 2600;
-  const mode = modeEl instanceof HTMLSelectElement ? modeEl.value : 'active';
-  const baseWager = baseWagerEl instanceof HTMLInputElement ? Math.max(1, Number(baseWagerEl.value || 1)) : 1;
-  const maxWager = maxWagerEl instanceof HTMLInputElement ? Math.max(baseWager, Number(maxWagerEl.value || baseWager)) : baseWager;
+botModalClose?.addEventListener('click', closeBotModal);
+botModal?.addEventListener('click', (event) => {
+  if (event.target === botModal) {
+    closeBotModal();
+  }
+});
 
-  try {
-    setStatus(`Saving ${botId}...`);
-    await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ personality, targetPreference, challengeCooldownMs, mode, baseWager, maxWager })
-    });
-    await refreshContext();
-    setStatus(`Saved ${botId}.`);
-  } catch (error) {
-    setStatus(`Bot save failed: ${String(error.message || error)}`);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeBotModal();
   }
 });
 
@@ -412,13 +535,33 @@ async function sendSuperAgent(message) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ message, includeStatus: false })
   });
+
+  const reply = String(result?.reply || 'No reply.');
   if (superAgentResponse) {
-    superAgentResponse.textContent = String(result?.reply || 'No reply.');
+    superAgentResponse.textContent = reply;
+  }
+  if (superAgentResponseAlt) {
+    superAgentResponseAlt.textContent = reply;
   }
 }
 
-superAgentSend?.addEventListener('click', async () => {
-  const message = String(superAgentMessage?.value || '').trim();
+function getSuperMessage() {
+  const primary = String(superAgentMessage?.value || '').trim();
+  const alternate = String(superAgentMessageAlt?.value || '').trim();
+  return primary || alternate;
+}
+
+function setSuperMessage(value) {
+  if (superAgentMessage) {
+    superAgentMessage.value = value;
+  }
+  if (superAgentMessageAlt) {
+    superAgentMessageAlt.value = value;
+  }
+}
+
+async function runSuperCommand(inputValue) {
+  const message = String(inputValue || '').trim();
   if (!message) {
     setStatus('Enter a message for Super Agent.');
     return;
@@ -430,17 +573,36 @@ superAgentSend?.addEventListener('click', async () => {
   } catch (error) {
     setStatus(`Super Agent error: ${String(error.message || error)}`);
   }
+}
+
+superAgentSend?.addEventListener('click', async () => {
+  await runSuperCommand(getSuperMessage());
+});
+
+superAgentSendAlt?.addEventListener('click', async () => {
+  await runSuperCommand(getSuperMessage());
 });
 
 superAgentQuickStatus?.addEventListener('click', async () => {
-  try {
-    setStatus('Fetching Super Agent status...');
-    await sendSuperAgent('status');
-    setStatus('Status loaded.');
-  } catch (error) {
-    setStatus(`Super Agent error: ${String(error.message || error)}`);
-  }
+  setSuperMessage('status');
+  await runSuperCommand('status');
 });
+
+superAgentQuickStatusAlt?.addEventListener('click', async () => {
+  setSuperMessage('status');
+  await runSuperCommand('status');
+});
+
+for (const button of quickCommandButtons) {
+  button.addEventListener('click', async () => {
+    const cmd = String(button.getAttribute('data-quick-cmd') || '').trim();
+    if (!cmd) {
+      return;
+    }
+    setSuperMessage(cmd);
+    await runSuperCommand(cmd);
+  });
+}
 
 copyInvite?.addEventListener('click', async () => {
   const value = String(inviteLink?.value || '').trim();
@@ -455,6 +617,74 @@ copyInvite?.addEventListener('click', async () => {
     setStatus('Could not copy automatically. Copy from the field manually.');
   }
 });
+
+copyWallet?.addEventListener('click', async () => {
+  const value = String(meWallet?.textContent || '').trim();
+  if (!value || value === '-') {
+    setStatus('No wallet id available.');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    setStatus('Wallet id copied.');
+  } catch {
+    setStatus('Could not copy wallet automatically.');
+  }
+});
+
+copyWalletAddress?.addEventListener('click', async () => {
+  const value = String(meWalletAddress?.textContent || '').trim();
+  if (!value || value === '-') {
+    setStatus('No wallet address available.');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    setStatus('Wallet address copied.');
+  } catch {
+    setStatus('Could not copy wallet address automatically.');
+  }
+});
+
+exportPrivateKey?.addEventListener('click', async () => {
+  const approved = window.confirm('Export private key? Keep it offline and secure.');
+  if (!approved) {
+    return;
+  }
+  try {
+    setStatus('Exporting private key...');
+    const result = await api('/api/player/wallet/export-key', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}'
+    });
+
+    const key = String(result?.privateKey || '');
+    const walletId = String(result?.walletId || meWallet?.textContent || '-');
+    if (!key) {
+      setStatus('Private key export unavailable.');
+      return;
+    }
+
+    const text = `Wallet: ${walletId}\nPrivate Key: ${key}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus('Private key copied to clipboard. Move it to secure storage now.');
+    } catch {
+      window.alert(text);
+      setStatus('Private key exported to screen. Store it safely.');
+    }
+  } catch (error) {
+    setStatus(`Private key export failed: ${String(error.message || error)}`);
+  }
+});
+
+for (const button of sidebarButtons) {
+  button.addEventListener('click', () => {
+    const view = String(button.getAttribute('data-view') || 'bots');
+    setView(view);
+  });
+}
 
 (async function init() {
   try {

@@ -2,6 +2,13 @@ const AUTH_KEY = 'arena_auth_user';
 const CLIENT_KEY = 'arena_google_client_id';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
 
+function shouldHideShell(pathname) {
+  if (HIDE_SHELL_PATHS.has(pathname)) {
+    return true;
+  }
+  return pathname === '/play' || pathname === '/play/' || pathname === '/viewer' || pathname === '/viewer/' || pathname === '/dashboard' || pathname === '/dashboard/';
+}
+
 function readUser() {
   try {
     return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
@@ -36,7 +43,9 @@ function currentPath() {
 }
 
 function ensureShell() {
-  if (HIDE_SHELL_PATHS.has(window.location.pathname)) {
+  if (shouldHideShell(window.location.pathname)) {
+    const staleShell = document.getElementById('global-shell-nav');
+    staleShell?.remove();
     return null;
   }
   let shell = document.getElementById('global-shell-nav');

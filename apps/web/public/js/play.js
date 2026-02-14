@@ -2,6 +2,14 @@ import { THREE, installResizeHandler, loadWorld, makeCamera, makeRenderer, makeS
 
 const canvas = document.getElementById('scene');
 const hud = document.getElementById('hud');
+const topbarName = document.getElementById('topbar-name');
+const topbarWallet = document.getElementById('topbar-wallet');
+const topbarStreak = document.getElementById('topbar-streak');
+const topbarMenu = document.getElementById('topbar-menu');
+const topbarMenuPop = document.getElementById('topbar-menu-pop');
+const menuDashboard = document.getElementById('menu-dashboard');
+const menuViewer = document.getElementById('menu-viewer');
+const menuLogout = document.getElementById('menu-logout');
 const targetSelect = document.getElementById('challenge-target');
 const gameSelect = document.getElementById('challenge-game');
 const wagerInput = document.getElementById('challenge-wager');
@@ -23,6 +31,8 @@ const gamePlayers = document.getElementById('game-players');
 const gameStatus = document.getElementById('game-status');
 const gameDetail = document.getElementById('game-detail');
 const gameClose = document.getElementById('game-close');
+const challengeTimerWrap = document.getElementById('challenge-timer-wrap');
+const challengeTimerBar = document.getElementById('challenge-timer-bar');
 const matchControls = document.getElementById('match-controls');
 const matchControlsTitle = document.getElementById('match-controls-title');
 const matchControlsStatus = document.getElementById('match-controls-status');
@@ -159,6 +169,9 @@ const state = {
   cameraPitch: 0.27,
   deskCollapsed: false,
   deskAutoCollapsedByMatch: false,
+  walletBalance: 0,
+  streak: 0,
+  incomingChallengeExpiresAt: null,
   quickstart: {
     challengeSent: false,
     matchActive: false,
@@ -177,6 +190,57 @@ if (deskToggle && challengePanel) {
     deskToggle.textContent = state.deskCollapsed ? 'Expand' : 'Collapse';
   });
 }
+
+function setMenuOpen(nextOpen) {
+  if (!topbarMenuPop) {
+    return;
+  }
+  topbarMenuPop.classList.toggle('open', nextOpen);
+  topbarMenuPop.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
+}
+
+topbarMenu?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const isOpen = Boolean(topbarMenuPop?.classList.contains('open'));
+  setMenuOpen(!isOpen);
+});
+
+menuDashboard?.addEventListener('click', () => {
+  window.location.href = '/dashboard';
+});
+
+menuViewer?.addEventListener('click', () => {
+  const world = queryParams.get('world') || 'mega';
+  window.location.href = `/viewer?world=${encodeURIComponent(world)}`;
+});
+
+menuLogout?.addEventListener('click', async () => {
+  try {
+    await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: '{}'
+    });
+  } catch {
+    // best effort
+  }
+  window.location.href = '/welcome';
+});
+
+document.addEventListener('click', (event) => {
+  if (!topbarMenuPop || !topbarMenu) {
+    return;
+  }
+  const target = event.target;
+  if (!(target instanceof Node)) {
+    return;
+  }
+  if (topbarMenuPop.contains(target) || topbarMenu.contains(target)) {
+    return;
+  }
+  setMenuOpen(false);
+});
 
 quickstartClose?.addEventListener('click', () => {
   state.quickstart.dismissed = true;
@@ -204,6 +268,7 @@ if (!sessionName || !sessionWalletId || !sessionClientId) {
       if (!sessionClientId && profile?.id) {
         sessionClientId = String(profile.id);
       }
+      state.walletBalance = Number(profile?.wallet?.balance ?? 0);
     }
   } catch {
     // ignore; query/localStorage fallback remains in use
@@ -714,11 +779,11 @@ function update(nowMs) {
   refreshNearbyDistances();
   renderMatchSpotlight();
 
-  if (hud) {
-    const nearbyCount = state.nearbyIds.size;
-    const totalPlayers = state.players.size;
-    const agents = [...state.players.values()].filter((entry) => entry.role === 'agent').length;
-    hud.textContent = `WASD move | C challenge | Y/N respond | 1/2/3 RPS | H/T coin | Near ${nearbyCount} | Players ${totalPlayers} | Agents ${agents}`;
+  if (hud && topbarName && topbarWallet && topbarStreak) {
+    const me = state.playerId ? state.players.get(state.playerId) : null;
+    topbarName.textContent = me?.displayName || 'Player';
+    topbarWallet.textContent = `$${state.walletBalance.toFixed(2)}`;
+    topbarStreak.textContent = `Streak ${state.streak}`;
   }
 
   if (challengeStatusLine) {
@@ -730,6 +795,7 @@ function update(nowMs) {
   }
 
   renderWorldMap();
+  renderContextPanel();
   renderInteractionPrompt();
   renderMatchControls();
   renderQuickstart();
@@ -740,6 +806,17 @@ function render() {
 }
 
 function frame(nowMs) {
+  if (state.incomingChallengeExpiresAt && challengeTimerBar) {
+    const remaining = Math.max(0, state.incomingChallengeExpiresAt - Date.now());
+    const ratio = Math.max(0, Math.min(1, remaining / 15000));
+    challengeTimerBar.style.width = `${(ratio * 100).toFixed(1)}%`;
+    if (remaining <= 0) {
+      state.incomingChallengeExpiresAt = null;
+      if (challengeTimerWrap) {
+        challengeTimerWrap.style.display = 'none';
+      }
+    }
+  }
   update(nowMs);
   render();
   requestAnimationFrame(frame);
@@ -984,7 +1061,17 @@ function renderFeed() {
     top.className = 'feed-item__top';
 
     const kind = document.createElement('span');
-    kind.textContent = entry.type;
+    const dot = document.createElement('i');
+    dot.className = 'feed-dot';
+    if (entry.type === 'escrow') {
+      dot.classList.add('gold');
+    } else if (entry.text.includes('declined') || entry.text.includes('failed') || entry.text.includes('expired')) {
+      dot.classList.add('red');
+    } else {
+      dot.classList.add('green');
+    }
+    kind.appendChild(dot);
+    kind.appendChild(document.createTextNode(` ${entry.type}`));
 
     const time = document.createElement('span');
     time.textContent = new Date(entry.at).toLocaleTimeString();
@@ -1030,9 +1117,8 @@ function showGameModal(challenge, statusText, detailText = '') {
   gamePlayers.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | Wager ${challenge.wager}`;
   gameStatus.textContent = statusText;
   gameDetail.textContent = detailText;
-  // Keep modal only for terminal states; active controls now live in the match dock.
-  const terminal = statusText.toLowerCase().includes('resolved');
-  if (terminal) {
+  const showAlways = statusText.toLowerCase().includes('incoming') || statusText.toLowerCase().includes('resolved');
+  if (showAlways) {
     gameModal.classList.add('visible');
   }
 }
@@ -1076,7 +1162,18 @@ function handleChallenge(payload) {
       state.incomingChallengeId = challenge.id;
       state.challengeStatus = 'incoming';
       state.challengeMessage = `Incoming ${challenge.gameType} challenge from ${labelFor(challenge.challengerId)} (wager ${challenge.wager}).`;
-      hideGameModal();
+      state.incomingChallengeExpiresAt = Number(challenge.expiresAt || (Date.now() + 15000));
+      if (challengeTimerWrap) {
+        challengeTimerWrap.style.display = 'block';
+      }
+      if (challengeTimerBar) {
+        challengeTimerBar.style.width = '100%';
+      }
+      showGameModal(
+        challenge,
+        'Incoming challenge',
+        `${labelFor(challenge.challengerId)} challenges you to ${challenge.gameType.toUpperCase()} for ${challenge.wager}.`
+      );
     }
 
     if (challenge.challengerId === state.playerId) {
@@ -1092,6 +1189,10 @@ function handleChallenge(payload) {
     state.outgoingChallengeId = null;
     state.challengeStatus = 'active';
     state.challengeMessage = `${challenge.gameType.toUpperCase()} active.`;
+    state.incomingChallengeExpiresAt = null;
+    if (challengeTimerWrap) {
+      challengeTimerWrap.style.display = 'none';
+    }
     state.quickstart.matchActive = true;
     hideGameModal();
   }
@@ -1108,6 +1209,10 @@ function handleChallenge(payload) {
     state.challengeStatus = 'declined';
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     state.challengeMessage = `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`;
+    state.incomingChallengeExpiresAt = null;
+    if (challengeTimerWrap) {
+      challengeTimerWrap.style.display = 'none';
+    }
     hideGameModal();
   }
 
@@ -1118,6 +1223,10 @@ function handleChallenge(payload) {
     state.challengeStatus = 'expired';
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     state.challengeMessage = `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`;
+    state.incomingChallengeExpiresAt = null;
+    if (challengeTimerWrap) {
+      challengeTimerWrap.style.display = 'none';
+    }
     hideGameModal();
   }
 
@@ -1128,6 +1237,13 @@ function handleChallenge(payload) {
     state.challengeStatus = 'resolved';
     const winnerLabel = challenge.winnerId ? labelFor(challenge.winnerId) : 'Draw';
     const coinInfo = challenge.gameType === 'coinflip' && challenge.coinflipResult ? ` | Toss: ${challenge.coinflipResult}` : '';
+    if (challenge.winnerId === state.playerId) {
+      state.streak += 1;
+      state.walletBalance += Number(challenge.wager || 0);
+    } else if (challenge.winnerId) {
+      state.streak = 0;
+      state.walletBalance = Math.max(0, state.walletBalance - Number(challenge.wager || 0));
+    }
     state.challengeMessage = challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.';
     state.quickstart.matchResolved = true;
     showGameModal(challenge, 'Match resolved', `Winner: ${winnerLabel}${coinInfo}`);
@@ -1181,6 +1297,16 @@ function challengeReasonLabel(reason) {
   }
 }
 
+function renderContextPanel() {
+  if (!challengePanel) {
+    return;
+  }
+  const hasNearby = state.nearbyIds.size > 0;
+  const isIncoming = Boolean(state.incomingChallengeId && state.challengeStatus === 'incoming');
+  const inMatch = Boolean(state.activeChallenge && state.activeChallenge.status === 'active');
+  challengePanel.classList.toggle('active', hasNearby || isIncoming || inMatch);
+}
+
 function renderInteractionPrompt() {
   if (!interactionPrompt) {
     return;
@@ -1196,7 +1322,7 @@ function renderInteractionPrompt() {
     return;
   }
   const distance = state.nearbyDistances.get(targetId);
-  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. Press C to challenge.`;
+  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. C challenge · V profile`;
   interactionPrompt.classList.add('visible');
 }
 

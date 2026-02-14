@@ -6,163 +6,867 @@
   <title>Player Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Crimson+Text:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Crimson+Text:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root {
+      --dash-ink: #1e1e1e;
+      --dash-cream: #fdf5e6;
+      --dash-coral: #ff7f7f;
+      --dash-gold: #d2a63d;
+      --dash-mint: #cdeee0;
+      --dash-lav: #e6e6fa;
+      --dash-muted: #8d8577;
+      --dash-border: #e4d8bb;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #fffaf0 0%, #f8f1df 100%);
+      font-family: 'Crimson Text', serif;
+      color: #2a2217;
+    }
+
+    .dashboard-app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+    }
+
+    .dashboard-sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: rgba(30, 30, 30, 0.95);
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 18px 14px;
+      box-sizing: border-box;
+      z-index: 20;
+    }
+
+    .player-chip {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 14px;
+    }
+
+    .player-chip__avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ffc6a6 0%, #ff7f7f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .player-chip__name {
+      color: #fff5dd;
+      font: 700 15px/1.1 'Cormorant Garamond', serif;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .player-chip__handle {
+      color: #bbb;
+      font: 600 11px/1.1 'Crimson Text', serif;
+      letter-spacing: 0.02em;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .wallet-pill {
+      margin: 0 0 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 215, 122, 0.35);
+      background: rgba(255, 212, 112, 0.15);
+      color: #ffe8a8;
+      padding: 7px 10px;
+      font: 700 12px/1 'Crimson Text', serif;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sidebar-nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .sidebar-nav button {
+      width: 100%;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: transparent;
+      color: #999;
+      text-align: left;
+      padding: 0 10px;
+      font: 700 12px/1 'Crimson Text', serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .sidebar-nav button:hover {
+      border-color: rgba(255, 255, 255, 0.28);
+      color: #ece7dd;
+    }
+
+    .sidebar-nav button.active {
+      background: var(--dash-coral);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .sidebar-actions {
+      margin-top: auto;
+      display: grid;
+      gap: 8px;
+    }
+
+    .sidebar-actions .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .dashboard-content {
+      background: var(--dash-cream);
+      padding: 30px;
+      box-sizing: border-box;
+    }
+
+    .content-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero-card {
+      background: #fff;
+      border: 2px solid var(--dash-border);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 6px 24px rgba(41, 30, 9, 0.08);
+    }
+
+    .hero-card h1 {
+      margin: 0;
+      font: 700 40px/1 'Cormorant Garamond', serif;
+      color: #2c2418;
+    }
+
+    .hero-card p {
+      margin: 6px 0 0;
+      color: #6f6554;
+      font: 600 16px/1.4 'Crimson Text', serif;
+    }
+
+    .status-line {
+      margin-top: 10px;
+      color: #795b18;
+      font: 700 14px/1.2 'Crimson Text', serif;
+    }
+
+    .dash-view { display: none; }
+    .dash-view.active { display: block; }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .panel {
+      background: #fff;
+      border: 2px solid var(--dash-lav);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font: 700 24px/1.1 'Cormorant Garamond', serif;
+      color: #2a2114;
+    }
+
+    .muted { color: var(--dash-muted); }
+
+    .bot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .bot-card {
+      min-height: 200px;
+      background: #fff;
+      border: 2px solid var(--dash-lav);
+      border-radius: 12px;
+      padding: 12px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+    }
+
+    .bot-card:hover {
+      border-color: #9ad4b4;
+      box-shadow: 0 8px 26px rgba(45, 75, 59, 0.12);
+    }
+
+    .bot-card__head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .bot-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 2px solid rgba(0, 0, 0, 0.1);
+    }
+    .bot-avatar.personality-conservative { background: #9ad4b4; }
+    .bot-avatar.personality-aggressive { background: #ff7f7f; }
+    .bot-avatar.personality-social { background: #e6e6fa; }
+    .bot-avatar.personality-shark { background: #f2cc66; }
+    .bot-avatar.personality-chaos { background: #9f8cf0; }
+
+    .bot-name {
+      margin: 0;
+      font: 700 21px/1 'Cormorant Garamond', serif;
+      color: #2b241b;
+    }
+
+    .bot-sub {
+      margin: 3px 0 0;
+      font: 600 12px/1.2 'Crimson Text', serif;
+      color: #756a59;
+      word-break: break-word;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 4px 8px;
+      font: 700 10px/1 'Crimson Text', serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .badge.active { background: rgba(34, 197, 94, 0.2); color: #0f7a36; }
+    .badge.idle { background: rgba(148, 163, 184, 0.2); color: #5d6674; }
+    .badge.disconnected { background: rgba(239, 68, 68, 0.2); color: #b91c1c; }
+
+    .pill-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      border-radius: 999px;
+      border: 1px solid #e4d8bb;
+      background: #fffaf0;
+      color: #5f5039;
+      padding: 4px 9px;
+      font: 700 11px/1 'Crimson Text', serif;
+    }
+
+    .wager-box {
+      border-radius: 10px;
+      border: 1px solid #e4c470;
+      background: rgba(241, 212, 128, 0.24);
+      color: #6f4e1d;
+      padding: 8px;
+      font: 700 13px/1.2 'Crimson Text', serif;
+    }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .input-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 10px;
+    }
+
+    .stack { display: grid; gap: 10px; }
+
+    .label {
+      display: block;
+      margin-bottom: 5px;
+      font: 700 11px/1 'Crimson Text', serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #6a5b45;
+    }
+
+    .field, select.field, textarea.field {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 10px;
+      border: 1px solid #dfcfac;
+      background: #fff;
+      color: #2f2517;
+      padding: 10px 11px;
+      font: 600 15px/1.2 'Crimson Text', serif;
+      min-height: 42px;
+    }
+
+    textarea.field { resize: vertical; }
+
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .btn-gold,
+    .btn-green,
+    .btn-coral,
+    .btn-ghost,
+    .btn-dark,
+    .btn-danger-ghost {
+      border-radius: 9px;
+      min-height: 40px;
+      border: 1px solid transparent;
+      padding: 0 14px;
+      font: 700 12px/1 'Crimson Text', serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+
+    .btn-gold { background: #d2a63d; color: #2a200f; }
+    .btn-gold:hover { background: #ba8f2a; }
+    .btn-green { background: #22c55e; color: #08230f; }
+    .btn-green:hover { background: #18aa4f; }
+    .btn-coral { background: var(--dash-coral); color: #2d1a1a; }
+    .btn-coral:hover { background: #ff6969; }
+    .btn-ghost { border-color: #d2a63d; background: transparent; color: #6a531f; }
+    .btn-dark { background: #2a2a2a; color: #efe7d1; border-color: #3b3b3b; }
+    .btn-danger-ghost { border-color: #dc2626; color: #b91c1c; background: transparent; }
+
+    .super-bar {
+      border: 2px solid #ffd700;
+      background: rgba(30, 30, 30, 0.95);
+      color: #f3e8c8;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .super-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .super-title {
+      margin: 0;
+      color: #ffd700;
+      font: 700 24px/1 'Cormorant Garamond', serif;
+    }
+
+    .ready {
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: rgba(34, 197, 94, 0.2);
+      color: #9af2bc;
+      font: 700 11px/1 'Crimson Text', serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .quick-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 8px 0;
+    }
+
+    .quick-pills button {
+      border-radius: 8px;
+      border: 1px solid #454545;
+      background: #333;
+      color: #9fe4c8;
+      min-height: 34px;
+      padding: 0 10px;
+      font: 700 11px/1 'Crimson Text', serif;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+
+    .super-response {
+      margin-top: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.25);
+      color: #f6efdb;
+      padding: 10px;
+      min-height: 120px;
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font: 600 13px/1.4 'Crimson Text', serif;
+    }
+
+    .balance-label {
+      color: #8a7f6a;
+      font: 700 12px/1 'Crimson Text', serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .balance-value {
+      color: #22c55e;
+      font: 700 36px/1 'Cormorant Garamond', serif;
+      margin: 0 0 10px;
+    }
+
+    .wallet-id-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .danger-zone {
+      border-radius: 12px;
+      border: 1px solid #fca5a5;
+      background: #fef2f2;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .danger-zone h3 {
+      margin: 0 0 8px;
+      color: #b91c1c;
+      font: 700 18px/1.1 'Cormorant Garamond', serif;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      z-index: 200;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(620px, 100%);
+      background: #fff;
+      border-radius: 14px;
+      border: 2px solid var(--dash-lav);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+      padding: 16px;
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .modal h3 {
+      margin: 0;
+      font: 700 24px/1 'Cormorant Garamond', serif;
+      color: #2f2519;
+    }
+
+    .modal-close {
+      border: 1px solid #d9c8a5;
+      background: #fffaf0;
+      color: #6b5626;
+      border-radius: 8px;
+      min-height: 34px;
+      padding: 0 10px;
+      font: 700 11px/1 'Crimson Text', serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .mono {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-app { grid-template-columns: 60px minmax(0, 1fr); }
+      .dashboard-sidebar { padding: 10px 8px; }
+      .player-chip,
+      .wallet-pill,
+      .sidebar-nav button span,
+      .sidebar-actions .btn span { display: none; }
+      .sidebar-nav button,
+      .sidebar-actions .btn {
+        padding: 0;
+        justify-content: center;
+      }
+      .sidebar-nav button::before { font-size: 16px; }
+      .sidebar-nav button[data-view="bots"]::before { content: "◈"; }
+      .sidebar-nav button[data-view="wallet"]::before { content: "◆"; }
+      .sidebar-nav button[data-view="settings"]::before { content: "⚙"; }
+      .sidebar-nav button[data-view="super"]::before { content: "✦"; }
+      .card-grid,
+      .bot-grid { grid-template-columns: 1fr; }
+      .input-row,
+      .input-row-3 { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr auto;
+      }
+      .dashboard-sidebar {
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: auto;
+        z-index: 90;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+        padding: 8px;
+      }
+      .player-chip,
+      .wallet-pill { display: none; }
+      .sidebar-nav,
+      .sidebar-actions {
+        display: contents;
+      }
+      .sidebar-nav button,
+      .sidebar-actions .btn {
+        min-height: 44px;
+        border-radius: 10px;
+      }
+      .dashboard-content {
+        padding: 20px 14px 88px;
+      }
+      .hero-card h1 { font-size: 32px; }
+    }
+  </style>
 </head>
 <body>
-  <main class="shell-page dashboard-wrap">
-    <section class="card card--gold">
-      <div class="dashboard-head">
+  <main class="dashboard-app">
+    <aside class="dashboard-sidebar">
+      <div class="player-chip">
+        <i class="player-chip__avatar"></i>
         <div>
-          <p class="eyebrow">Player Console</p>
-          <h1 class="hero__title" style="font-size:2rem;">Profile, wallet, and bot controls</h1>
-        </div>
-        <div class="dashboard-head__actions">
-          <a id="dashboard-enter-play" class="btn btn--primary" href="/play?world=mega">Play Arena</a>
-          <a class="btn btn--secondary" href="/viewer?world=mega">View World</a>
+          <div class="player-chip__name" id="sidebar-name">Loading...</div>
+          <div class="player-chip__handle" id="sidebar-handle">@player</div>
         </div>
       </div>
-      <p id="dashboard-status" class="text-muted">Loading player context...</p>
+      <div class="wallet-pill" id="sidebar-wallet">◆ 0.00</div>
+
+      <nav class="sidebar-nav">
+        <button type="button" data-view="bots" class="active"><span>My Bots</span></button>
+        <button type="button" data-view="wallet"><span>Wallet</span></button>
+        <button type="button" data-view="settings"><span>Settings</span></button>
+        <button type="button" data-view="super"><span>Super Agent</span></button>
+      </nav>
+
+      <div class="sidebar-actions">
+        <a id="dashboard-enter-play" class="btn-gold" href="/play?world=mega"><span>Enter Arena</span></a>
+      </div>
+    </aside>
+
+    <section class="dashboard-content">
+      <div class="content-inner">
+        <section class="hero-card">
+          <h1>Player Command Center</h1>
+          <p>Manage bots, tune strategy, fund wallet, and keep your autonomous agents active while you are offline.</p>
+          <div id="dashboard-status" class="status-line">Loading player context...</div>
+        </section>
+
+        <section id="view-bots" class="dash-view active">
+          <div class="card-grid" style="margin-bottom:14px;">
+            <article class="panel">
+              <h2>New Bot</h2>
+              <div class="input-row" style="margin-bottom:8px;">
+                <div>
+                  <label class="label" for="new-bot-name">Display Name</label>
+                  <input id="new-bot-name" class="field" type="text" maxlength="32" placeholder="Optional bot name">
+                </div>
+                <div>
+                  <label class="label" for="new-bot-personality">Personality</label>
+                  <select id="new-bot-personality" class="field">
+                    <option value="social">Social</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="conservative">Conservative</option>
+                  </select>
+                </div>
+              </div>
+              <div class="input-row" style="margin-bottom:8px;">
+                <div>
+                  <label class="label" for="new-bot-target">Target Preference</label>
+                  <select id="new-bot-target" class="field">
+                    <option value="human_first">Human first</option>
+                    <option value="human_only">Human only</option>
+                    <option value="any">Any</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="new-bot-mode">Mode</label>
+                  <select id="new-bot-mode" class="field">
+                    <option value="active">Active</option>
+                    <option value="passive">Passive</option>
+                  </select>
+                </div>
+              </div>
+              <div class="input-row-3" style="margin-bottom:8px;">
+                <input id="new-bot-base-wager" class="field" type="number" min="1" step="1" value="1" placeholder="Base wager">
+                <input id="new-bot-max-wager" class="field" type="number" min="1" step="1" value="3" placeholder="Max wager">
+                <button id="create-bot" class="btn-gold" type="button">Create</button>
+              </div>
+              <p class="muted" style="margin:0;">Every new profile gets a managed bot and wallet from Super Agent. Add extra bots here.</p>
+            </article>
+
+            <article class="panel">
+              <h2>Onboarding Checklist</h2>
+              <ul id="onboarding-list" class="welcome-checks" style="margin:0;"></ul>
+              <div style="margin-top:10px;" class="actions">
+                <a class="btn-ghost" href="/viewer?world=mega">World Viewer</a>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel" style="margin-bottom:14px;">
+            <h2>Bot Roster</h2>
+            <div id="bot-list" class="bot-grid"></div>
+          </article>
+
+          <article class="super-bar">
+            <div class="super-head">
+              <h2 class="super-title">Super Agent</h2>
+              <span class="ready">Ready</span>
+            </div>
+            <p class="muted" style="margin:0 0 8px;color:#cfb985;">Use policy commands and diagnostics across your bot fleet.</p>
+            <div class="quick-pills">
+              <button type="button" data-quick-cmd="mode hunter">mode hunter</button>
+              <button type="button" data-quick-cmd="bot count 12">bot count 12</button>
+              <button type="button" data-quick-cmd="status">status</button>
+            </div>
+            <textarea id="super-agent-message" class="field" rows="3" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="status and next priorities for production"></textarea>
+            <div class="actions" style="margin-top:8px;">
+              <button id="super-agent-send" class="btn-gold" type="button">Send</button>
+              <button id="super-agent-quick-status" class="btn-dark" type="button">Quick Status</button>
+            </div>
+            <pre id="super-agent-response" class="super-response">Super Agent ready.</pre>
+          </article>
+        </section>
+
+        <section id="view-wallet" class="dash-view">
+          <div class="card-grid" style="margin-bottom:14px;">
+            <article class="panel">
+              <h2>Wallet</h2>
+              <div class="balance-label">Balance</div>
+              <p class="balance-value">◆ <span id="wallet-balance">0.00</span></p>
+              <p id="wallet-balance-note" class="muted" style="margin:-6px 0 10px;">Runtime wallet balance (scaffold mode).</p>
+
+              <div class="input-row" style="margin-bottom:8px;">
+                <div>
+                  <label class="label" for="wallet-fund-amount">Fund Amount</label>
+                  <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10">
+                </div>
+                <div style="display:flex;align-items:end;gap:8px;">
+                  <button id="wallet-fund" class="btn-green" type="button">Fund</button>
+                  <button id="wallet-withdraw" class="btn-ghost" type="button">Withdraw</button>
+                </div>
+              </div>
+
+              <div style="display:none;">
+                <input id="wallet-withdraw-amount" type="number" min="1" step="1" value="5">
+              </div>
+
+              <div class="wallet-id-row">
+                <div class="field mono" id="me-wallet">-</div>
+                <button id="copy-wallet" class="btn-ghost" type="button">Copy</button>
+              </div>
+              <div class="wallet-id-row" style="margin-top:8px;">
+                <div class="field mono" id="me-wallet-address">-</div>
+                <button id="copy-wallet-address" class="btn-ghost" type="button">Copy</button>
+              </div>
+            </article>
+
+            <article class="panel">
+              <h2>Transfer</h2>
+              <div class="stack">
+                <div>
+                  <label class="label" for="wallet-transfer-target">Player</label>
+                  <select id="wallet-transfer-target" class="field">
+                    <option value="">Select a player</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="wallet-transfer-wallet-id">Or Wallet ID</label>
+                  <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="Paste wallet id">
+                </div>
+                <div class="input-row-3">
+                  <input id="wallet-transfer-amount" class="field" type="number" min="1" step="1" value="2">
+                  <div></div>
+                  <button id="wallet-transfer" class="btn-coral" type="button">Send</button>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <h2>Escrow Activity</h2>
+            <pre id="escrow-history" style="margin:0;max-height:280px;overflow:auto;">Loading escrow activity...</pre>
+          </article>
+          <article class="panel" style="margin-top:14px;">
+            <h2>Player Wallet Directory</h2>
+            <div id="wallet-player-list" class="stack muted">Loading players...</div>
+          </article>
+        </section>
+
+        <section id="view-settings" class="dash-view">
+          <div class="card-grid">
+            <article class="panel">
+              <h2>Profile</h2>
+              <div class="stack">
+                <div>
+                  <label class="label" for="profile-display-name">Display Name</label>
+                  <input id="profile-display-name" class="field" type="text" maxlength="32">
+                </div>
+                <div>
+                  <label class="label" for="profile-username">Username</label>
+                  <input id="profile-username" class="field" type="text" maxlength="20">
+                </div>
+                <button id="profile-save" class="btn-green" type="button">Save Profile</button>
+              </div>
+            </article>
+
+            <article class="panel">
+              <h2>Identity</h2>
+              <div class="stack">
+                <div><span class="muted">Email</span><div id="me-email"></div></div>
+                <div><span class="muted">Role</span><div id="me-role"></div></div>
+                <div><span class="muted">Profile</span><div id="me-profile"></div></div>
+                <div>
+                  <label class="label" for="invite-link">Invite Link</label>
+                  <input id="invite-link" class="field mono" type="text" readonly>
+                </div>
+                <button id="copy-invite" class="btn-ghost" type="button">Copy Invite Link</button>
+              </div>
+            </article>
+          </div>
+
+          <article class="danger-zone">
+            <h3>Danger Zone</h3>
+            <p class="muted" style="margin:0 0 8px;color:#7f1d1d;">Export private key only for recovery. Keep this offline and secure.</p>
+            <div class="actions">
+              <button id="export-private-key" class="btn-danger-ghost" type="button">Export Private Key</button>
+            </div>
+          </article>
+        </section>
+
+        <section id="view-super" class="dash-view">
+          <article class="super-bar">
+            <div class="super-head">
+              <h2 class="super-title">Super Agent Desk</h2>
+              <span class="ready">Ready</span>
+            </div>
+            <p class="muted" style="margin:0 0 8px;color:#cfb985;">Central policy brain for auth, wallets, bot lifecycle, and product operations.</p>
+            <div class="quick-pills">
+              <button type="button" data-quick-cmd="status">status</button>
+              <button type="button" data-quick-cmd="mode hunter">mode hunter</button>
+              <button type="button" data-quick-cmd="bot count 12">bot count 12</button>
+            </div>
+            <textarea id="super-agent-message-alt" class="field" rows="4" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="Ask Super Agent what to do next for production readiness"></textarea>
+            <div class="actions" style="margin-top:8px;">
+              <button id="super-agent-send-alt" class="btn-gold" type="button">Send</button>
+              <button id="super-agent-quick-status-alt" class="btn-dark" type="button">Quick Status</button>
+            </div>
+            <pre id="super-agent-response-alt" class="super-response">Super Agent ready.</pre>
+          </article>
+        </section>
+      </div>
     </section>
+  </main>
 
-    <section class="dashboard-grid">
-      <article class="card">
-        <h2 class="card__title">Identity</h2>
-        <div class="dashboard-kv"><span>Email</span><strong id="me-email">-</strong></div>
-        <div class="dashboard-kv"><span>Role</span><strong id="me-role">-</strong></div>
-        <div class="dashboard-kv"><span>Profile</span><strong id="me-profile">-</strong></div>
-        <div class="dashboard-kv"><span>Wallet</span><strong id="me-wallet">-</strong></div>
-        <div class="form-group" style="margin-top:10px;">
-          <label class="form-label" for="invite-link">Invite Play Link</label>
-          <input class="form-input" id="invite-link" type="text" readonly>
-        </div>
-        <button id="copy-invite" class="btn btn--ghost">Copy Invite Link</button>
-      </article>
-
-      <article class="card">
-        <h2 class="card__title">Profile</h2>
-        <div class="form-group">
-          <label class="form-label" for="profile-display-name">Display Name</label>
-          <input class="form-input" id="profile-display-name" type="text" maxlength="32">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="profile-username">Username</label>
-          <input class="form-input" id="profile-username" type="text" maxlength="20">
-        </div>
-        <button id="profile-save" class="btn btn--secondary">Save Profile</button>
-      </article>
-
-      <article class="card">
-        <h2 class="card__title">Wallet</h2>
-        <div class="dashboard-kv"><span>Balance</span><strong id="wallet-balance">0.00</strong></div>
-        <div class="dashboard-inline">
-          <input class="form-input" id="wallet-fund-amount" type="number" min="1" step="1" value="10">
-          <button id="wallet-fund" class="btn btn--secondary">Fund</button>
-        </div>
-        <div class="dashboard-inline" style="margin-top:8px;">
-          <input class="form-input" id="wallet-withdraw-amount" type="number" min="1" step="1" value="5">
-          <button id="wallet-withdraw" class="btn btn--secondary">Withdraw</button>
-        </div>
-        <div class="form-group" style="margin-top:10px;">
-          <label class="form-label" for="wallet-transfer-target">Transfer To Player</label>
-          <select class="form-input" id="wallet-transfer-target">
-            <option value="">Select a player</option>
-          </select>
-        </div>
-        <div class="dashboard-inline" style="margin-top:8px;">
-          <input class="form-input" id="wallet-transfer-wallet-id" type="text" placeholder="or paste wallet id">
-          <input class="form-input" id="wallet-transfer-amount" type="number" min="1" step="1" value="2">
-          <button id="wallet-transfer" class="btn btn--secondary">Transfer</button>
-        </div>
-      </article>
-
-      <article class="card">
-        <h2 class="card__title">Primary Bot Quick Edit</h2>
-        <div class="form-group">
-          <label class="form-label" for="bot-personality">Personality</label>
-          <select class="form-input" id="bot-personality">
+  <div id="bot-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bot-modal-title">
+      <div class="modal-head">
+        <h3 id="bot-modal-title">Edit Bot</h3>
+        <button id="bot-modal-close" class="modal-close" type="button">Close</button>
+      </div>
+      <p id="bot-modal-sub" class="muted" style="margin:0 0 10px;">Configure behavior and wager policy.</p>
+      <div class="input-row" style="margin-bottom:8px;">
+        <div>
+          <label class="label" for="bot-personality">Personality</label>
+          <select id="bot-personality" class="field">
             <option value="aggressive">Aggressive</option>
             <option value="social">Social</option>
             <option value="conservative">Conservative</option>
           </select>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="bot-target">Target Preference</label>
-          <select class="form-input" id="bot-target">
+        <div>
+          <label class="label" for="bot-target">Target Preference</label>
+          <select id="bot-target" class="field">
             <option value="human_first">Human first</option>
             <option value="human_only">Human only</option>
             <option value="any">Any</option>
           </select>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="bot-cooldown">Challenge Cooldown (ms)</label>
-          <input class="form-input" id="bot-cooldown" type="number" min="1200" step="100" value="2600">
+      </div>
+      <div class="input-row" style="margin-bottom:8px;">
+        <div>
+          <label class="label" for="bot-cooldown">Challenge Cooldown (ms)</label>
+          <input id="bot-cooldown" class="field" type="number" min="1200" step="100" value="2600">
         </div>
-        <div class="form-group">
-          <label class="form-label" for="bot-mode">Mode</label>
-          <select class="form-input" id="bot-mode">
+        <div>
+          <label class="label" for="bot-mode">Mode</label>
+          <select id="bot-mode" class="field">
             <option value="active">Active</option>
             <option value="passive">Passive</option>
           </select>
         </div>
-        <div class="dashboard-inline">
-          <input class="form-input" id="bot-base-wager" type="number" min="1" step="1" value="1" placeholder="Base wager">
-          <input class="form-input" id="bot-max-wager" type="number" min="1" step="1" value="3" placeholder="Max wager">
-        </div>
-        <button id="bot-save" class="btn btn--secondary">Save Primary Bot</button>
-      </article>
-    </section>
-
-    <section class="card" style="margin-top:16px;">
-      <h2 class="card__title">Bot Roster</h2>
-      <div class="dashboard-inline" style="margin-bottom:10px;">
-        <input class="form-input" id="new-bot-name" type="text" placeholder="Optional bot name">
-        <select class="form-input" id="new-bot-personality">
-          <option value="social">Social</option>
-          <option value="aggressive">Aggressive</option>
-          <option value="conservative">Conservative</option>
-        </select>
-        <select class="form-input" id="new-bot-target">
-          <option value="human_first">Human first</option>
-          <option value="human_only">Human only</option>
-          <option value="any">Any</option>
-        </select>
-        <select class="form-input" id="new-bot-mode">
-          <option value="active">Active</option>
-          <option value="passive">Passive</option>
-        </select>
-        <input class="form-input" id="new-bot-base-wager" type="number" min="1" step="1" value="1" placeholder="Base wager">
-        <input class="form-input" id="new-bot-max-wager" type="number" min="1" step="1" value="3" placeholder="Max wager">
-        <button id="create-bot" class="btn btn--secondary">Create Bot</button>
       </div>
-      <div id="bot-list" class="text-muted">No bots yet.</div>
-    </section>
-
-    <section class="card" style="margin-top:16px;">
-      <h2 class="card__title">Onboarding Checklist</h2>
-      <ul id="onboarding-list" class="welcome-checks">
-        <li>Checking session...</li>
-      </ul>
-    </section>
-
-    <section class="card" style="margin-top:16px;">
-      <h2 class="card__title">Escrow Activity</h2>
-      <pre id="escrow-history" style="margin:0;max-height:220px;overflow:auto;">Loading escrow activity...</pre>
-    </section>
-
-    <section class="card" style="margin-top:16px;">
-      <h2 class="card__title">Talk To Super Agent</h2>
-      <p class="text-muted">Ask for status, roadmap, or apply commands like: <code>mode hunter</code>, <code>bot count 12</code>.</p>
-      <div class="form-group">
-        <textarea class="form-input" id="super-agent-message" rows="4" placeholder="status and next priorities for production"></textarea>
+      <div class="input-row" style="margin-bottom:8px;">
+        <input id="bot-base-wager" class="field" type="number" min="1" step="1" value="1" placeholder="Base wager">
+        <input id="bot-max-wager" class="field" type="number" min="1" step="1" value="3" placeholder="Max wager">
       </div>
-      <div class="dashboard-head__actions">
-        <button id="super-agent-send" class="btn btn--secondary">Send</button>
-        <button id="super-agent-quick-status" class="btn btn--ghost">Quick Status</button>
+      <div class="actions">
+        <button id="bot-save" class="btn-gold" type="button">Save Bot</button>
       </div>
-      <pre id="super-agent-response" style="margin-top:10px; max-height:260px; overflow:auto;">Super Agent ready.</pre>
-    </section>
-  </main>
+    </div>
+  </div>
 
   <script type="module" src="/js/auth-shell.js"></script>
   <script type="module" src="/js/dashboard.js"></script>

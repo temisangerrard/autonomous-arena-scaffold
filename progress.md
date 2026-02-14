@@ -208,3 +208,74 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Hardened contracts tests against startup slowness (extended timeout setup).
 - Runtime/server onchain preparation path now includes wallet-level ERC20 allowance setup before createBet.
 - Remaining external dependency: user-provided Sepolia RPC + keys + target token/escrow addresses.
+- 2026-02-14: Multiplayer scaffold hardening pass (Redis presence + stable reconnect ids).
+- Server now supports optional Redis-backed presence registry (`REDIS_URL`) with TTL keys.
+  - New endpoint: `GET /presence` and `GET /presence?id=<playerId>`.
+  - New env knobs: `REDIS_URL`, `SERVER_INSTANCE_ID`, `PRESENCE_TTL_SECONDS`.
+  - Presence is synced every ~500ms from world snapshot and removed on disconnect.
+  - Rejoin restores last known position from presence store before spawn fallback.
+- Web/play identity stability:
+  - `/api/player/bootstrap` now includes `clientId` from authenticated profile.
+  - Play WS now sends `clientId` and persists it in local storage, keeping stable player id across reconnect.
+- Challenge + escrow signal cleanup:
+  - Prevented unnecessary resolve/refund attempts when escrow lock never succeeded.
+  - Added clearer prepare failure propagation (`reason` from runtime prepare endpoint).
+- Arena UI signal/noise cleanup:
+  - Feed now scoped to matches involving the local player.
+  - Escrow feed ignores unrelated challenge ids.
+- Validation:
+  - typecheck: server/agent-runtime/web ✅
+  - tests: server/web ✅
+  - health + new `/presence` endpoint live ✅
+- 2026-02-14: Added distributed challenge scaffolding for cross-node gameplay.
+- New files:
+  - `apps/server/src/DistributedBus.ts`
+  - `apps/server/src/DistributedChallengeStore.ts`
+- Server now:
+  - tracks challenge owner server id in distributed store
+  - acquires per-player distributed locks on challenge create
+  - releases distributed locks on resolved/declined/expired
+  - forwards challenge response/move commands to owner server when challenge is remote
+  - sends direct per-player events via redis bus when recipient is on another node
+- Snapshot/proximity loop now merges remote players from presence cache, enabling cross-node visibility/proximity checks.
+- `WorldSim.joinPlayer` now accepts preferred spawn coordinates for reconnect restore.
+- Validation:
+  - server/web/agent-runtime typecheck ✅
+  - server tests ✅
+  - playable smoke ✅
+  - live `/presence` endpoint ✅
+- 2026-02-14: Extended distributed gameplay scaffold further.
+- Added distributed challenge history storage (`arena:challenge:history`) with `/challenges/recent` reading redis-backed feed when available.
+- Added server heartbeat + orphaned challenge failover expiry:
+  - periodic `PresenceStore.heartbeatServer()` writes server-liveness keys
+  - `expireOrphanedChallenges()` scans distributed challenge metas and auto-expires stale open challenges when owner server disappears past grace window
+  - env knob: `CHALLENGE_ORPHAN_GRACE_MS`
+- Added remote-player metadata fallback for displayName/wallet lookup via presence cache map.
+- Distributed challenge status updates now carry serialized challenge state to support failover expiry notifications.
+- 2026-02-14: Applied Arena Play UI Design System doc pass to gameplay HUD/layout.
+- Updated `apps/web/public/play.html`:
+  - Added Nintendo-style top bar (avatar/name/wallet/streak/menu ghost button).
+  - Converted challenge desk into contextual bottom-left panel style.
+  - Added bottom-center live toast feed container.
+  - Minimap resized to 130x130 with hover expand to 260x260.
+  - Added incoming challenge timer bar in modal.
+  - Introduced doc color tokens (coral/peach/mint/lavender/gold/cream/dark) and matching component styling.
+- Updated `apps/web/public/js/play.js`:
+  - Top bar binding for profile display + wallet/streak counters.
+  - Context panel visibility tied to state (nearby/incoming/in-match) instead of always-on desk.
+  - Incoming challenge modal now opens with timer/progress behavior.
+  - Toast feed entries now show status dots and cleaner event semantics.
+  - Interaction prompt hotkey text aligned with doc style.
+- Validation: web typecheck/tests and playable smoke all passing.
+
+- Dashboard design system applied (left sidebar, card views, bot cards, modal bot editor, elevated Super Agent bar, wallet/settings panels, danger zone, responsive behavior) and wired to existing player APIs.
+- Added `/api/player/wallet/export-key` endpoint in web server and dashboard action with confirmation + clipboard flow.
+- Hid global auth shell on `/dashboard` to prevent duplicate navigation.
+
+- Fixed dashboard wallet visibility: show wallet IDs + onchain addresses for player and bot cards; added player wallet directory panel and transfer labels with short addresses.
+- Updated player API surface to include walletAddress in directory and bot wallet info in /api/player/me response.
+- Replaced play top-right menu hard redirect with dropdown menu (Dashboard, Viewer, Logout).
+
+- Wallet panel switched to onchain-first data source: added runtime `/wallets/:id/summary`, web `/api/player/wallet/summary`, dashboard now renders token/native balances and address from onchain summary when available.
+- Wallet actions (`fund`, `transfer`, `withdraw`) now execute onchain ERC20 transactions when chain config is present, with sponsored gas top-ups from Super Agent gas funder.
+- Play menu icon now opens in-game dropdown (Dashboard, Viewer, Logout) instead of redirect-only behavior.
