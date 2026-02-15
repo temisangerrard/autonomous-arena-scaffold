@@ -119,10 +119,10 @@
 
             <!-- Quick Links -->
             <div style="margin-top: var(--space-xl); display: flex; flex-wrap: wrap; gap: var(--space-sm);">
-                <a href="http://localhost:3000/health" target="_blank" class="btn btn--ghost btn--sm">Web Health</a>
-                <a href="http://localhost:4000/health" target="_blank" class="btn btn--ghost btn--sm">Server Health</a>
-                <a href="http://localhost:4100/status" target="_blank" class="btn btn--ghost btn--sm">Agent Status</a>
-                <a href="http://localhost:4000/challenges/recent?limit=50" target="_blank" class="btn btn--ghost btn--sm">Challenge JSON</a>
+                <a href="/health" target="_blank" class="btn btn--ghost btn--sm">Web Health</a>
+                <a href="/server/health" target="_blank" class="btn btn--ghost btn--sm">Server Health</a>
+                <a href="/runtime/status" target="_blank" class="btn btn--ghost btn--sm">Agent Status</a>
+                <a href="/challenges/recent?limit=50" target="_blank" class="btn btn--ghost btn--sm">Challenge JSON</a>
             </div>
 
             <!-- Challenge Feed Panel -->
@@ -204,14 +204,14 @@
 
         // Check all services
         checkHealth('/health', 0);
-        checkHealth('http://localhost:4000/health', 1);
-        checkHealth('http://localhost:4100/health', 2);
+        checkHealth('/server/health', 1);
+        checkHealth('/runtime/health', 2);
 
         // Challenge feed
         async function loadChallenges() {
             const container = document.getElementById('challenge-feed');
             try {
-                const res = await fetch('http://localhost:4000/challenges/recent?limit=20');
+                const res = await fetch('/challenges/recent?limit=20');
                 const data = await res.json();
 
                 if (!data.recent || data.recent.length === 0) {

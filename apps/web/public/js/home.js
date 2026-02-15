@@ -3,9 +3,9 @@ const feedEl = document.getElementById('challenge-feed');
 const refreshFeedButton = document.getElementById('refresh-feed');
 
 const services = [
-  { name: 'web', url: 'http://localhost:3000/health' },
-  { name: 'server', url: 'http://localhost:4000/health' },
-  { name: 'agent-runtime', url: 'http://localhost:4100/health' }
+  { name: 'web', url: '/health' },
+  { name: 'server', url: '/server/health' },
+  { name: 'agent-runtime', url: '/runtime/health' }
 ];
 
 function badge(name, ok, extra = '') {
@@ -35,7 +35,7 @@ async function loadHealth() {
 
 async function loadChallengeFeed() {
   try {
-    const response = await fetch('http://localhost:4000/challenges/recent?limit=25');
+    const response = await fetch('/challenges/recent?limit=25');
     const payload = await response.json();
     const lines = (payload.recent || [])
       .slice()
