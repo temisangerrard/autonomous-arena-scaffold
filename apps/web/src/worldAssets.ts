@@ -22,9 +22,13 @@ export function worldFilenameByAlias(): Record<string, string> {
   return { ...WORLD_FILE_BY_ALIAS };
 }
 
+export function worldFilenameForAlias(alias: string): string | null {
+  const normalized = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+  return WORLD_FILE_BY_ALIAS[normalized] ?? null;
+}
+
 export function resolveWorldAssetPath(alias: string): string | null {
-  const normalized = alias.toLowerCase().replace(/\.glb$/i, '');
-  const filename = WORLD_FILE_BY_ALIAS[normalized];
+  const filename = worldFilenameForAlias(alias);
   if (!filename) {
     return null;
   }

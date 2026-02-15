@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { availableWorldAliases, resolveWorldAssetPath } from './worldAssets.js';
+import { availableWorldAliases, resolveWorldAssetPath, worldFilenameForAlias } from './worldAssets.js';
 
 describe('resolveWorldAssetPath', () => {
   it('maps train-world aliases to mega world file', () => {
-    expect(resolveWorldAssetPath('train_world')?.endsWith('train_station_mega_world.glb')).toBe(true);
-    expect(resolveWorldAssetPath('train-world')?.endsWith('train_station_mega_world.glb')).toBe(true);
-    expect(resolveWorldAssetPath('mega.glb')?.endsWith('train_station_mega_world.glb')).toBe(true);
+    // Mapping should not depend on whether the GLB exists in the repo checkout (CI won't have it).
+    expect(worldFilenameForAlias('train_world')).toBe('train_station_mega_world.glb');
+    expect(worldFilenameForAlias('train-world')).toBe('train_station_mega_world.glb');
+    expect(worldFilenameForAlias('mega.glb')).toBe('train_station_mega_world.glb');
   });
 
   it('returns null for unknown aliases', () => {
