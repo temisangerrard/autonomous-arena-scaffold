@@ -44,7 +44,8 @@ const runtimeConfig = {
   challengesBase: '/challenges',
   presenceBase: '/presence',
   runtimeBase: '/runtime',
-  serverHealthPath: '/server/health'
+  serverHealthPath: '/server/health',
+  gameWsPath: '/ws'
 };
 
 await writeFile(
@@ -82,4 +83,3 @@ const redirects = [
 await writeFile(path.join(PUBLIC_DIR, '_redirects'), redirects, 'utf8');
 
 console.log('[netlify-build] wrote apps/web/public/runtime-config.js and apps/web/public/_redirects');
-
