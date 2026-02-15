@@ -1,4 +1,6 @@
 [build]
+  # Ensure CLI deploys run from repo root even when the linked folder is `apps/web`.
+  base = "."
   # Netlify hosts the static frontend; APIs/WebSocket are proxied to Cloud Run via `apps/web/public/_redirects`.
   publish = "apps/web/public"
   command = "node scripts/netlify-build.mjs"
