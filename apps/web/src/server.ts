@@ -1,6 +1,5 @@
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
@@ -8,44 +7,8 @@ import { createHealthStatus } from './health.js';
 import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias } from './worldAssets.js';
 import { signWsAuthToken } from '@arena/shared';
-
-function loadEnvFromFile(): void {
-  const candidates = [
-    path.resolve(process.cwd(), '.env'),
-    path.resolve(process.cwd(), '../.env'),
-    path.resolve(process.cwd(), '../../.env')
-  ];
-
-  const envPath = candidates.find((candidate) => existsSync(candidate));
-  if (!envPath) {
-    return;
-  }
-
-  try {
-    const raw = readFileSync(envPath, 'utf8');
-    for (const line of raw.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) {
-        continue;
-      }
-      const idx = trimmed.indexOf('=');
-      if (idx < 1) {
-        continue;
-      }
-      const key = trimmed.slice(0, idx).trim();
-      if (!key || process.env[key] !== undefined) {
-        continue;
-      }
-      let value = trimmed.slice(idx + 1).trim();
-      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
-      }
-      process.env[key] = value;
-    }
-  } catch {
-    // ignore env parse failures in scaffold mode
-  }
-}
+import { loadEnvFromFile } from './lib/env.js';
+import { clearSessionCookie, parseCookies, readJsonBody, redirect, sendFile, sendJson, setSessionCookie } from './lib/http.js';
 
 loadEnvFromFile();
 
@@ -254,69 +217,6 @@ function loadWebState(): void {
 }
 
 loadWebState();
-
-function parseCookies(req: import('node:http').IncomingMessage): Record<string, string> {
-  const header = req.headers.cookie ?? '';
-  const out: Record<string, string> = {};
-  for (const part of header.split(';')) {
-    const idx = part.indexOf('=');
-    if (idx <= 0) {
-      continue;
-    }
-    const key = part.slice(0, idx).trim();
-    const value = part.slice(idx + 1).trim();
-    if (key) {
-      out[key] = decodeURIComponent(value);
-    }
-  }
-  return out;
-}
-
-function setSessionCookie(res: import('node:http').ServerResponse, sessionId: string): void {
-  res.setHeader('set-cookie', `${COOKIE_NAME}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`);
-}
-
-function clearSessionCookie(res: import('node:http').ServerResponse): void {
-  res.setHeader('set-cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
-}
-
-function sendJson(res: import('node:http').ServerResponse, payload: unknown, statusCode = 200): void {
-  res.statusCode = statusCode;
-  res.setHeader('content-type', 'application/json; charset=utf-8');
-  res.end(JSON.stringify(payload));
-}
-
-function redirect(res: import('node:http').ServerResponse, location: string): void {
-  res.statusCode = 302;
-  res.setHeader('location', location);
-  res.end();
-}
-
-async function readJsonBody<T>(req: import('node:http').IncomingMessage): Promise<T | null> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-  }
-  if (chunks.length === 0) {
-    return null;
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
-  } catch {
-    return null;
-  }
-}
-
-async function sendFile(res: import('node:http').ServerResponse, filePath: string, contentType: string): Promise<void> {
-  try {
-    const body = await readFile(filePath);
-    res.setHeader('content-type', contentType);
-    res.end(body);
-  } catch {
-    res.statusCode = 404;
-    res.end('Not Found');
-  }
-}
 
 function extractSession(req: import('node:http').IncomingMessage): SessionRecord | null {
   const sid = parseCookies(req)[COOKIE_NAME];
@@ -611,7 +511,7 @@ const server = createServer(async (req, res) => {
       expiresAt: now + SESSION_TTL_MS
     });
     schedulePersistWebState();
-    setSessionCookie(res, sid);
+    setSessionCookie(res, COOKIE_NAME, sid, SESSION_TTL_MS);
 
     // Allow local admins to play too (same as Google users).
     await ensurePlayerProvisioned(identity);
@@ -678,7 +578,7 @@ const server = createServer(async (req, res) => {
         expiresAt: now + SESSION_TTL_MS
       });
       schedulePersistWebState();
-      setSessionCookie(res, sid);
+      setSessionCookie(res, COOKIE_NAME, sid, SESSION_TTL_MS);
 
       sendJson(res, {
         ok: true,
@@ -699,7 +599,7 @@ const server = createServer(async (req, res) => {
       sessions.delete(sid);
       schedulePersistWebState();
     }
-    clearSessionCookie(res);
+    clearSessionCookie(res, COOKIE_NAME);
     sendJson(res, { ok: true });
     return;
   }

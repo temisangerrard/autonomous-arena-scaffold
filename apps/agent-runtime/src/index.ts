@@ -15,7 +15,7 @@ import {
   pseudoTxHash,
   redactSecrets
 } from './lib/crypto.js';
-import { readJsonBody, sendJson, setCorsHeaders, SimpleRouter } from './lib/http.js';
+import { sendJson, setCorsHeaders, SimpleRouter } from './lib/http.js';
 import type {
   BotRecord,
   EscrowLockRecord,
@@ -27,6 +27,7 @@ import type {
   WalletDenied,
   WalletRecord
 } from '@arena/shared';
+import { registerRuntimeRoutes } from './routes/index.js';
 import {
   AgentBot,
   type AgentBehaviorConfig,
@@ -828,16 +829,6 @@ ${message}`;
   return content.length > 0 ? content : null;
 }
 
-type SuperAgentPatch = Partial<{
-  id: string;
-  mode: SuperAgentConfig['mode'];
-  challengeEnabled: boolean;
-  defaultChallengeCooldownMs: number;
-  workerTargetPreference: SuperAgentConfig['workerTargetPreference'];
-  llmPolicy: Partial<LlmPolicy>;
-  walletPolicy: Partial<WalletPolicy>;
-}>;
-
 function dayStamp(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -848,6 +839,24 @@ function encryptSecret(raw: string): string {
 
 function decryptSecret(encrypted: string): string {
   return decryptSecretRaw(encrypted, encryptionKey);
+}
+
+function getHouseConfig(): { npcWalletFloor: number; npcWalletTopupAmount: number; superAgentWalletFloor: number } {
+  return { npcWalletFloor, npcWalletTopupAmount, superAgentWalletFloor };
+}
+
+function setHouseConfig(patch: { npcWalletFloor?: number; npcWalletTopupAmount?: number; superAgentWalletFloor?: number }): void {
+  if (typeof patch.npcWalletFloor === 'number' && Number.isFinite(patch.npcWalletFloor)) {
+    npcWalletFloor = Math.max(0, Math.min(10_000, patch.npcWalletFloor));
+    // Keep super agent floor at least npc floor.
+    superAgentWalletFloor = Math.max(npcWalletFloor, superAgentWalletFloor);
+  }
+  if (typeof patch.npcWalletTopupAmount === 'number' && Number.isFinite(patch.npcWalletTopupAmount)) {
+    npcWalletTopupAmount = Math.max(0, Math.min(10_000, patch.npcWalletTopupAmount));
+  }
+  if (typeof patch.superAgentWalletFloor === 'number' && Number.isFinite(patch.superAgentWalletFloor)) {
+    superAgentWalletFloor = Math.max(npcWalletFloor, Math.min(10_000, patch.superAgentWalletFloor));
+  }
 }
 
 const ERC20_ABI = [
@@ -1403,6 +1412,53 @@ function provisionProfileForSubject(params: {
   };
 }
 
+function createOwnerBotForProfile(profile: Profile, body: {
+  displayName?: string;
+  personality?: Personality;
+  targetPreference?: AgentBehaviorConfig['targetPreference'];
+  mode?: AgentBehaviorConfig['mode'];
+  baseWager?: number;
+  maxWager?: number;
+  managedBySuperAgent?: boolean;
+}): { ok: true; botId: string } | { ok: false; reason: string; botId?: string; profileId?: string } {
+  // Product constraint: one owner bot per player profile (the "character" + offline agent).
+  if (profile.ownedBotIds.length >= 1) {
+    return { ok: false as const, reason: 'bot_already_exists', botId: profile.ownedBotIds[0], profileId: profile.id };
+  }
+
+  const botId = `agent_${profile.id}_${profile.ownedBotIds.length + 1}`;
+  const patrolSection = hashString(botId) % PATROL_SECTION_COUNT;
+  const baseWager = Math.max(1, Number(body?.baseWager ?? 1));
+  const maxWager = Math.max(baseWager, Number(body?.maxWager ?? baseWager));
+  registerBot(
+    botId,
+    {
+      ...makeBehaviorForDuty('owner', patrolSection, patrolSection),
+      personality: body?.personality ?? 'social',
+      targetPreference: body?.targetPreference ?? 'human_first',
+      mode: body?.mode ?? 'active',
+      baseWager,
+      maxWager
+    },
+    {
+      id: botId,
+      ownerProfileId: profile.id,
+      displayName: body?.displayName?.trim() || pickDisplayName(`${profile.displayName} Bot ${profile.ownedBotIds.length + 1}`),
+      createdAt: Date.now(),
+      managedBySuperAgent: body?.managedBySuperAgent ?? true,
+      duty: 'owner',
+      patrolSection,
+      walletId: profile.walletId
+    }
+  );
+
+  profile.ownedBotIds.push(botId);
+  applySuperAgentDelegation();
+  schedulePersistState();
+
+  return { ok: true as const, botId };
+}
+
 function ensureSeedBalances(): void {
   for (const record of botRegistry.values()) {
     if (!record.walletId) {
@@ -1581,1062 +1637,88 @@ process.on('SIGTERM', () => {
 
 const router = new SimpleRouter();
 
-router.get('/health', (_req, res) => {
-  sendJson(res, createHealthStatus());
-});
-
-router.get('/status', (_req, res) => {
-  sendJson(res, runtimeStatus());
-});
-
-router.get('/house/status', (_req, res) => {
-  sendJson(res, { ok: true, house: runtimeStatus().house });
-});
-
-router.post('/house/config', async (req, res) => {
-  if (!isInternalAuthorized(req)) {
-    sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
-    return;
-  }
-  const body = await readJsonBody<{ npcWalletFloor?: number; npcWalletTopupAmount?: number; superAgentWalletFloor?: number }>(req);
-  if (!body) {
-    sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
-    return;
-  }
-  if (typeof body.npcWalletFloor === 'number' && Number.isFinite(body.npcWalletFloor)) {
-    npcWalletFloor = Math.max(0, Math.min(10_000, body.npcWalletFloor));
-    // Keep super agent floor at least npc floor.
-    superAgentWalletFloor = Math.max(npcWalletFloor, superAgentWalletFloor);
-  }
-  if (typeof body.npcWalletTopupAmount === 'number' && Number.isFinite(body.npcWalletTopupAmount)) {
-    npcWalletTopupAmount = Math.max(0, Math.min(10_000, body.npcWalletTopupAmount));
-  }
-  if (typeof body.superAgentWalletFloor === 'number' && Number.isFinite(body.superAgentWalletFloor)) {
-    superAgentWalletFloor = Math.max(npcWalletFloor, Math.min(10_000, body.superAgentWalletFloor));
-  }
-  ensureSeedBalances();
-  schedulePersistState();
-  sendJson(res, { ok: true, house: runtimeStatus().house });
-});
-
-router.post('/house/transfer', async (req, res) => {
-  if (!isInternalAuthorized(req)) {
-    sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
-    return;
-  }
-  const body = await readJsonBody<{ toWalletId?: string; amount?: number; reason?: string }>(req);
-  const toWalletId = String(body?.toWalletId ?? '').trim();
-  const amount = Math.max(0, Number(body?.amount ?? 0));
-  const reason = String(body?.reason ?? 'admin_transfer').trim() || 'admin_transfer';
-  if (!toWalletId || amount <= 0) {
-    sendJson(res, { ok: false, reason: 'invalid_transfer_payload' }, 400);
-    return;
-  }
-  const result = transferFromHouse(toWalletId, amount, reason);
-  if (!result.ok) {
-    sendJson(res, result, 400);
-    return;
-  }
-  sendJson(res, { ok: true, transferred: result.amount, house: runtimeStatus().house });
-});
-
-router.post('/house/refill', async (req, res) => {
-  if (!isInternalAuthorized(req)) {
-    sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
-    return;
-  }
-  const body = await readJsonBody<{ amount?: number; reason?: string }>(req);
-  const amount = Math.max(0, Number(body?.amount ?? 0));
-  const reason = String(body?.reason ?? 'admin_refill').trim() || 'admin_refill';
-  if (amount <= 0) {
-    sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
-    return;
-  }
-  const result = refillHouse(amount, reason);
-  if (!result.ok) {
-    sendJson(res, result, 400);
-    return;
-  }
-  sendJson(res, { ok: true, refilled: result.amount, house: runtimeStatus().house });
-});
-
-router.post('/owners/:profileId/presence', async (req, res, params) => {
-  if (!isInternalAuthorized(req)) {
-    sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
-    return;
-  }
-  const profileId = String(params?.profileId ?? '').trim();
-  if (!profileId) {
-    sendJson(res, { ok: false, reason: 'profile_required' }, 400);
-    return;
-  }
-  const body = await readJsonBody<{ state?: 'online' | 'offline'; ttlMs?: number }>(req);
-  const state = body?.state === 'offline' ? 'offline' : 'online';
-  if (state === 'online') {
-    setOwnerOnline(profileId, Number(body?.ttlMs ?? 90_000));
-    schedulePersistState();
-    sendJson(res, { ok: true, state: 'online', until: ownerPresence.get(profileId)?.until ?? null });
-    return;
-  }
-  setOwnerOffline(profileId);
-  schedulePersistState();
-  sendJson(res, { ok: true, state: 'offline' });
-});
-
-router.get('/super-agent/status', (_req, res) => {
-  sendJson(res, runtimeStatus().superAgent);
-});
-
-router.get('/super-agent/ethskills', (_req, res) => {
-  sendJson(res, {
-    ok: true,
-    sources: ETHSKILLS_SOURCES,
-    entries: superAgentEthSkills
-  });
-});
-
-router.post('/super-agent/ethskills/sync', async (_req, res) => {
-  const result = await syncEthSkillsKnowledge(true);
-  sendJson(res, {
-    ok: result.ok,
-    refreshed: result.refreshed,
-    reason: result.reason,
-    entries: superAgentEthSkills
-  }, result.ok ? 200 : 503);
-});
-
-router.post('/super-agent/config', async (req, res) => {
-  const body = await readJsonBody<SuperAgentPatch>(req);
-  if (!body) {
-    sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
-    return;
-  }
-
-  if (typeof body.id === 'string' && body.id.trim().length > 0) {
-    superAgentConfig.id = body.id.trim();
-  }
-  if (body.mode) {
-    superAgentConfig.mode = body.mode;
-  }
-  if (typeof body.challengeEnabled === 'boolean') {
-    superAgentConfig.challengeEnabled = body.challengeEnabled;
-  }
-  if (typeof body.defaultChallengeCooldownMs === 'number') {
-    superAgentConfig.defaultChallengeCooldownMs = Math.max(1200, Math.min(120000, body.defaultChallengeCooldownMs));
-  }
-  if (body.workerTargetPreference) {
-    superAgentConfig.workerTargetPreference = body.workerTargetPreference;
-  }
-  if (body.llmPolicy) {
-    superAgentConfig.llmPolicy = { ...superAgentConfig.llmPolicy, ...body.llmPolicy };
-  }
-  if (body.walletPolicy) {
-    superAgentConfig.walletPolicy = { ...superAgentConfig.walletPolicy, ...body.walletPolicy };
-  }
-
-  ensureSuperAgentExists();
-  applySuperAgentDelegation();
-  schedulePersistState();
-  sendJson(res, { ok: true, superAgent: runtimeStatus().superAgent });
-});
-
-router.post('/super-agent/delegate/apply', async (_req, res) => {
-  ensureSuperAgentExists();
-  applySuperAgentDelegation();
-  schedulePersistState();
-  sendJson(res, {
-    ok: true,
-    directivesApplied: buildWorkerDirectives(superAgentConfig, [...bots.keys()]).length,
-    superAgent: runtimeStatus().superAgent
-  });
-});
-
-router.get('/super-agent/delegate/preview', (_req, res) => {
-  sendJson(res, {
-    superAgentId: superAgentConfig.id,
-    directives: buildWorkerDirectives(superAgentConfig, [...bots.keys()])
-  });
-});
-
-router.post('/super-agent/chat', async (req, res) => {
-  const body = await readJsonBody<{ message?: string; includeStatus?: boolean }>(req);
-  const message = body?.message?.trim() ?? '';
-  if (!message) {
-    sendJson(res, { ok: false, reason: 'message_required' }, 400);
-    return;
-  }
-
-  rememberSuperAgent('command', message);
-  const actions = parseSuperAgentActions(message);
-  const actionReplies: string[] = [];
-
-  for (const action of actions) {
-    actionReplies.push(applySuperAgentAction(action));
-  }
-
-  if (actions.some((entry) => entry.kind === 'sync_ethskills')) {
-    const synced = await syncEthSkillsKnowledge(true);
-    actionReplies.push(
-      synced.ok
-        ? `ETHSkills synced (${synced.refreshed} pages).`
-        : `ETHSkills sync failed (${synced.reason ?? 'unknown_error'}).`
-    );
-  }
-
-  if (actions.some((entry) => entry.kind !== 'status' && entry.kind !== 'help')) {
-    ensureSuperAgentExists();
-    applySuperAgentDelegation();
-  }
-
-  const advisory = (await askOpenRouterSuperAgent(message)) ?? '';
-
-  const replyParts: string[] = [];
-  if (actionReplies.length > 0) {
-    replyParts.push(actionReplies.join('\n'));
-  }
-  if (advisory) {
-    replyParts.push(`Advisory:\n${advisory}`);
-    rememberSuperAgent('decision', 'provided llm advisory');
-  }
-  if (replyParts.length === 0) {
-    replyParts.push('No direct command detected. Ask for "status" or "help", or use commands like "mode hunter", "bot count 16", "enable wallet policy".');
-  }
-
-  sendJson(res, {
-    ok: true,
-    reply: replyParts.join('\n\n'),
-    actionsApplied: actions.map((entry) => entry.kind),
-    status: body?.includeStatus ? runtimeStatus() : undefined
-  });
-  schedulePersistState();
-});
-
-router.get('/profiles', (_req, res) => {
-  sendJson(res, { profiles: publicProfiles() });
-});
-
-router.post('/profiles/create', async (req, res) => {
-  const body = await readJsonBody<{
-    username?: string;
-    displayName?: string;
-    personality?: Personality;
-    targetPreference?: AgentBehaviorConfig['targetPreference'];
-  }>(req);
-
-  if (!body?.username || typeof body.username !== 'string') {
-    sendJson(res, { ok: false, reason: 'username_required' }, 400);
-    return;
-  }
-
-  const created = createProfileWithBot({
-    username: body.username,
-    displayName: body.displayName,
-    personality: body.personality,
-    targetPreference: body.targetPreference
-  });
-
-  if (!created.ok) {
-    sendJson(res, created, 400);
-    return;
-  }
-
-  sendJson(res, created);
-  schedulePersistState();
-});
-
-router.post('/profiles/provision', async (req, res) => {
-  const body = await readJsonBody<{
-    externalSubject?: string;
-    email?: string;
-    displayName?: string;
-    personality?: Personality;
-    targetPreference?: AgentBehaviorConfig['targetPreference'];
-  }>(req);
-
-  if (!body?.externalSubject || typeof body.externalSubject !== 'string') {
-    sendJson(res, { ok: false, reason: 'external_subject_required' }, 400);
-    return;
-  }
-
-  const provisioned = provisionProfileForSubject({
-    externalSubject: body.externalSubject,
-    email: body.email,
-    displayName: body.displayName,
-    personality: body.personality,
-    targetPreference: body.targetPreference
-  });
-
-  if (!provisioned.ok) {
-    sendJson(res, provisioned, 400);
-    return;
-  }
-
-  sendJson(res, provisioned);
-  schedulePersistState();
-});
-
-router.post('/profiles/:profileId/update', async (req, res, params) => {
-  const profileId = String(params?.profileId ?? '').trim();
-  const profile = profileId ? profiles.get(profileId) : null;
-  if (!profile) {
-    sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
-    return;
-  }
-
-  const body = await readJsonBody<{ displayName?: string; username?: string }>(req);
-  if (!body) {
-    sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
-    return;
-  }
-
-  if (typeof body.displayName === 'string' && body.displayName.trim().length > 0) {
-    profile.displayName = body.displayName.trim();
-  }
-
-  if (typeof body.username === 'string' && body.username.trim().length > 1) {
-    const normalized = body.username.toLowerCase();
-    const taken = [...profiles.values()].some(
-      (item) => item.id !== profile.id && item.username.toLowerCase() === normalized
-    );
-
-    if (taken) {
-      sendJson(res, { ok: false, reason: 'username_taken' }, 400);
-      return;
-    }
-
-    profile.username = body.username.trim();
-  }
-
-  sendJson(res, { ok: true, profile: { ...profile, wallet: walletSummary(wallets.get(profile.walletId) ?? null) } });
-  schedulePersistState();
-});
-
-router.post('/profiles/:profileId/bots/create', async (req, res, params) => {
-  const profileId = String(params?.profileId ?? '').trim();
-  const profile = profileId ? profiles.get(profileId) : null;
-  if (!profile) {
-    sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
-    return;
-  }
-
-  if (profile.ownedBotIds.length >= 1) {
-    sendJson(res, { ok: false, reason: 'bot_already_exists', botId: profile.ownedBotIds[0], profileId: profile.id }, 409);
-    return;
-  }
-
-  const body = await readJsonBody<{
-    displayName?: string;
-    personality?: Personality;
-    targetPreference?: AgentBehaviorConfig['targetPreference'];
-    mode?: AgentBehaviorConfig['mode'];
-    baseWager?: number;
-    maxWager?: number;
-    managedBySuperAgent?: boolean;
-  }>(req);
-
-  const botId = `agent_${profile.id}_${profile.ownedBotIds.length + 1}`;
-  const patrolSection = hashString(botId) % PATROL_SECTION_COUNT;
-  const baseWager = Math.max(1, Number(body?.baseWager ?? 1));
-  const maxWager = Math.max(baseWager, Number(body?.maxWager ?? baseWager));
-  registerBot(
-    botId,
-    {
-      ...makeBehaviorForDuty('owner', patrolSection, patrolSection),
-      personality: body?.personality ?? 'social',
-      targetPreference: body?.targetPreference ?? 'human_first',
-      mode: body?.mode ?? 'active',
-      baseWager,
-      maxWager
+registerRuntimeRoutes(router, {
+  health: {
+    createHealthStatus,
+    runtimeStatus
+  },
+  house: {
+    isInternalAuthorized,
+    runtimeStatus,
+    ensureSeedBalances,
+    schedulePersistState,
+    transferFromHouse,
+    refillHouse,
+    setOwnerOnline,
+    setOwnerOffline,
+    ownerPresence,
+    getHouseConfig,
+    setHouseConfig
+  },
+  bots: {
+    bots,
+    botRegistry,
+    backgroundBotIds,
+    usedDisplayNames,
+    wallets,
+    walletSummary,
+    reconcileBots,
+    schedulePersistState
+  },
+  profiles: {
+    profiles,
+    wallets,
+    bots,
+    botRegistry,
+    walletSummary,
+    publicProfiles,
+    createProfileWithBot,
+    provisionProfileForSubject,
+    createOwnerBotForProfile,
+    schedulePersistState
+  },
+  wallets: {
+    isInternalAuthorized,
+    wallets,
+    escrowLocks,
+    escrowSettlements,
+    pushEscrowSettlement,
+    pseudoTxHash,
+    walletSummary,
+    canUseWallet,
+    canLockStake,
+    schedulePersistState,
+    onchainProvider,
+    onchainTokenAddress,
+    onchainEscrowAddress,
+    onchainTokenDecimals,
+    ERC20_ABI,
+    ensureWalletGas,
+    gasFunderSigner,
+    signerForWallet,
+    decryptSecret,
+    onchainWalletSummary,
+    prepareWalletForEscrowOnchain
+  },
+  superAgent: {
+    bots,
+    superAgentConfig,
+    getOpenRouterApiKey: () => runtimeSecrets.openRouterApiKey,
+    setOpenRouterApiKey: (apiKey) => {
+      runtimeSecrets.openRouterApiKey = apiKey;
     },
-    {
-      id: botId,
-      ownerProfileId: profile.id,
-      displayName:
-        body?.displayName?.trim() || pickDisplayName(`${profile.displayName} Bot ${profile.ownedBotIds.length + 1}`),
-      createdAt: Date.now(),
-      managedBySuperAgent: body?.managedBySuperAgent ?? true,
-      duty: 'owner',
-      patrolSection,
-      walletId: profile.walletId
-    }
-  );
-
-  profile.ownedBotIds.push(botId);
-  applySuperAgentDelegation();
-  schedulePersistState();
-
-  sendJson(res, { ok: true, botId, profileId: profile.id });
-});
-
-router.get('/wallets', (_req, res) => {
-  sendJson(res, { wallets: [...wallets.values()].map((entry) => walletSummary(entry)) });
-});
-
-router.post('/wallets/onchain/prepare-escrow', async (req, res) => {
-  if (!isInternalAuthorized(req)) {
-    sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
-    return;
+    runtimeStatus,
+    ETHSKILLS_SOURCES,
+    superAgentEthSkills,
+    syncEthSkillsKnowledge,
+    ensureSuperAgentExists,
+    applySuperAgentDelegation,
+    schedulePersistState,
+    rememberSuperAgent,
+    parseSuperAgentActions,
+    applySuperAgentAction: (action) => applySuperAgentAction(action as SuperAgentAction),
+    askOpenRouterSuperAgent
   }
-
-  const body = await readJsonBody<{
-    walletIds?: string[];
-    amount?: number;
-  }>(req);
-
-  const walletIds = Array.isArray(body?.walletIds)
-    ? body.walletIds.map((entry) => String(entry || '').trim()).filter(Boolean)
-    : [];
-  const amount = Math.max(0, Number(body?.amount ?? 0));
-  if (walletIds.length === 0 || amount <= 0) {
-    sendJson(res, { ok: false, reason: 'invalid_prepare_payload' }, 400);
-    return;
-  }
-
-  const results = [] as Array<Awaited<ReturnType<typeof prepareWalletForEscrowOnchain>>>;
-  for (const walletId of walletIds) {
-    results.push(await prepareWalletForEscrowOnchain(walletId, amount));
-  }
-
-  const failed = results.filter((entry) => !entry.ok);
-  const failureReason = failed
-    .map((entry) => entry.reason)
-    .find((entry): entry is string => typeof entry === 'string' && entry.length > 0)
-    ?? null;
-  sendJson(res, {
-    ok: failed.length === 0,
-    reason: failureReason,
-    chain: onchainProvider ? await onchainProvider.getNetwork().then((net) => ({ id: Number(net.chainId) })).catch(() => null) : null,
-    tokenAddress: onchainTokenAddress || null,
-    escrowAddress: onchainEscrowAddress || null,
-    tokenDecimals: onchainTokenDecimals,
-    results
-  }, failed.length === 0 ? 200 : 400);
-});
-
-router.post('/wallets/:walletId/fund', async (req, res, params) => {
-  const walletId = String(params?.walletId ?? '').trim();
-  const wallet = walletId ? wallets.get(walletId) : null;
-  if (!wallet) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-
-  const body = await readJsonBody<{ amount?: number }>(req);
-  const amount = Math.max(0, Number(body?.amount ?? 0));
-  if (amount <= 0) {
-    sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
-    return;
-  }
-
-  const denied = canUseWallet(wallet);
-  if (denied) {
-    sendJson(res, denied, 403);
-    return;
-  }
-
-  if (onchainProvider && onchainTokenAddress) {
-    const funder = gasFunderSigner();
-    if (!funder) {
-      sendJson(res, { ok: false, reason: 'gas_funder_unavailable' }, 400);
-      return;
-    }
-    const token = new Contract(onchainTokenAddress, ERC20_ABI, funder) as Erc20Api;
-    const value = parseUnits(String(amount), onchainTokenDecimals);
-    try {
-      await ensureWalletGas(wallet.address);
-      const mintTx = await token.mint(wallet.address, value);
-      await mintTx.wait();
-      const summary = await onchainWalletSummary(wallet);
-      wallet.dailyTxCount += 1;
-      wallet.lastTxAt = Date.now();
-      sendJson(res, {
-        ok: true,
-        mode: 'onchain',
-        txHash: mintTx.hash ?? null,
-        wallet: walletSummary(wallet),
-        onchain: summary
-      });
-      schedulePersistState();
-      return;
-    } catch (error) {
-      sendJson(res, { ok: false, reason: String((error as Error).message || 'onchain_fund_failed').slice(0, 160) }, 400);
-      return;
-    }
-  }
-
-  wallet.balance += amount;
-  wallet.dailyTxCount += 1;
-  wallet.lastTxAt = Date.now();
-  sendJson(res, { ok: true, mode: 'runtime', wallet: walletSummary(wallet) });
-  schedulePersistState();
-});
-
-router.post('/wallets/:walletId/withdraw', async (req, res, params) => {
-  const walletId = String(params?.walletId ?? '').trim();
-  const wallet = walletId ? wallets.get(walletId) : null;
-  if (!wallet) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-
-  const body = await readJsonBody<{ amount?: number }>(req);
-  const amount = Math.max(0, Number(body?.amount ?? 0));
-  if (amount <= 0) {
-    sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
-    return;
-  }
-
-  const denied = canUseWallet(wallet);
-  if (denied) {
-    sendJson(res, denied, 403);
-    return;
-  }
-
-  if (onchainProvider && onchainTokenAddress) {
-    const signer = signerForWallet(wallet);
-    const treasury = process.env.WITHDRAW_TREASURY_ADDRESS?.trim() || gasFunderSigner()?.address || '';
-    if (!signer || !treasury) {
-      sendJson(res, { ok: false, reason: 'withdraw_destination_unavailable' }, 400);
-      return;
-    }
-    const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
-    const value = parseUnits(String(amount), onchainTokenDecimals);
-    try {
-      await ensureWalletGas(wallet.address);
-      const tx = await token.transfer(treasury, value);
-      await tx.wait();
-      const summary = await onchainWalletSummary(wallet);
-      wallet.dailyTxCount += 1;
-      wallet.lastTxAt = Date.now();
-      sendJson(res, {
-        ok: true,
-        mode: 'onchain',
-        txHash: tx.hash ?? null,
-        to: treasury,
-        wallet: walletSummary(wallet),
-        onchain: summary
-      });
-      schedulePersistState();
-      return;
-    } catch (error) {
-      sendJson(res, { ok: false, reason: String((error as Error).message || 'onchain_withdraw_failed').slice(0, 160) }, 400);
-      return;
-    }
-  }
-
-  if (wallet.balance < amount) {
-    sendJson(res, { ok: false, reason: 'insufficient_balance' }, 400);
-    return;
-  }
-
-  wallet.balance -= amount;
-  wallet.dailyTxCount += 1;
-  wallet.lastTxAt = Date.now();
-  sendJson(res, { ok: true, mode: 'runtime', wallet: walletSummary(wallet) });
-  schedulePersistState();
-});
-
-router.post('/wallets/:walletId/transfer', async (req, res, params) => {
-  const walletId = String(params?.walletId ?? '').trim();
-  const source = walletId ? wallets.get(walletId) : null;
-  if (!source) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-
-  const body = await readJsonBody<{ toWalletId?: string; amount?: number }>(req);
-  const target = body?.toWalletId ? wallets.get(body.toWalletId) : null;
-  const amount = Math.max(0, Number(body?.amount ?? 0));
-
-  if (!target) {
-    sendJson(res, { ok: false, reason: 'target_wallet_not_found' }, 404);
-    return;
-  }
-  if (target.id === source.id) {
-    sendJson(res, { ok: false, reason: 'same_wallet' }, 400);
-    return;
-  }
-  if (amount <= 0) {
-    sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
-    return;
-  }
-
-  const sourceDenied = canUseWallet(source);
-  if (sourceDenied) {
-    sendJson(res, sourceDenied, 403);
-    return;
-  }
-
-  const targetDenied = canUseWallet(target);
-  if (targetDenied) {
-    sendJson(res, { ok: false, reason: 'target_wallet_tx_limited' }, 403);
-    return;
-  }
-
-  if (onchainProvider && onchainTokenAddress) {
-    const signer = signerForWallet(source);
-    if (!signer) {
-      sendJson(res, { ok: false, reason: 'wallet_signer_unavailable' }, 400);
-      return;
-    }
-    const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
-    const value = parseUnits(String(amount), onchainTokenDecimals);
-    try {
-      await ensureWalletGas(source.address);
-      const tx = await token.transfer(target.address, value);
-      await tx.wait();
-      const [sourceOnchain, targetOnchain] = await Promise.all([
-        onchainWalletSummary(source),
-        onchainWalletSummary(target)
-      ]);
-      source.dailyTxCount += 1;
-      target.dailyTxCount += 1;
-      source.lastTxAt = Date.now();
-      target.lastTxAt = Date.now();
-      sendJson(res, {
-        ok: true,
-        mode: 'onchain',
-        txHash: tx.hash ?? null,
-        source: walletSummary(source),
-        target: walletSummary(target),
-        sourceOnchain,
-        targetOnchain
-      });
-      schedulePersistState();
-      return;
-    } catch (error) {
-      sendJson(res, { ok: false, reason: String((error as Error).message || 'onchain_transfer_failed').slice(0, 160) }, 400);
-      return;
-    }
-  }
-
-  if (source.balance < amount) {
-    sendJson(res, { ok: false, reason: 'insufficient_balance' }, 400);
-    return;
-  }
-
-  source.balance -= amount;
-  target.balance += amount;
-  source.dailyTxCount += 1;
-  target.dailyTxCount += 1;
-  source.lastTxAt = Date.now();
-  target.lastTxAt = Date.now();
-
-  sendJson(res, {
-    ok: true,
-    mode: 'runtime',
-    source: walletSummary(source),
-    target: walletSummary(target)
-  });
-  schedulePersistState();
-});
-
-router.get('/wallets/:walletId/summary', async (req, res, params) => {
-  const walletId = String(params?.walletId ?? '').trim();
-  const wallet = walletId ? wallets.get(walletId) : null;
-  if (!wallet) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-  try {
-    const onchain = await onchainWalletSummary(wallet);
-    sendJson(res, {
-      ok: true,
-      wallet: walletSummary(wallet),
-      onchain
-    });
-    schedulePersistState();
-  } catch (error) {
-    sendJson(res, {
-      ok: true,
-      wallet: walletSummary(wallet),
-      onchain: {
-        mode: 'runtime',
-        chainId: null,
-        tokenAddress: onchainTokenAddress || null,
-        tokenSymbol: null,
-        tokenDecimals: onchainTokenDecimals,
-        address: wallet.address,
-        nativeBalanceEth: null,
-        tokenBalance: null,
-        synced: false,
-        reason: String((error as Error).message || 'onchain_summary_failed').slice(0, 160)
-      }
-    });
-  }
-});
-
-router.post('/wallets/escrow/lock', async (req, res) => {
-  const body = await readJsonBody<{
-    challengeId?: string;
-    challengerWalletId?: string;
-    opponentWalletId?: string;
-    amount?: number;
-  }>(req);
-
-  const challengeId = body?.challengeId?.trim() ?? '';
-  const challengerWalletId = body?.challengerWalletId?.trim() ?? '';
-  const opponentWalletId = body?.opponentWalletId?.trim() ?? '';
-  const amount = Number(body?.amount ?? 0);
-
-  if (!challengeId || !challengerWalletId || !opponentWalletId || !Number.isFinite(amount) || amount <= 0) {
-    sendJson(res, { ok: false, reason: 'invalid_escrow_payload' }, 400);
-    return;
-  }
-
-  if (challengerWalletId === opponentWalletId) {
-    sendJson(res, { ok: false, reason: 'same_wallet' }, 400);
-    return;
-  }
-
-  const existingLock = escrowLocks.get(challengeId);
-  if (existingLock) {
-    sendJson(res, {
-      ok: true,
-      challengeId,
-      escrow: existingLock,
-      txHash: existingLock.lockTxHash,
-      idempotent: true
-    });
-    return;
-  }
-
-  const challenger = wallets.get(challengerWalletId);
-  const opponent = wallets.get(opponentWalletId);
-  if (!challenger || !opponent) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-
-  const challengerDenied = canLockStake(challenger, amount);
-  if (challengerDenied) {
-    sendJson(res, { ok: false, reason: `challenger_${challengerDenied.reason}` }, 403);
-    return;
-  }
-  const opponentDenied = canLockStake(opponent, amount);
-  if (opponentDenied) {
-    sendJson(res, { ok: false, reason: `opponent_${opponentDenied.reason}` }, 403);
-    return;
-  }
-
-  challenger.balance -= amount;
-  opponent.balance -= amount;
-  challenger.dailyTxCount += 1;
-  opponent.dailyTxCount += 1;
-  challenger.lastTxAt = Date.now();
-  opponent.lastTxAt = Date.now();
-
-  const lock: EscrowLockRecord = {
-    challengeId,
-    challengerWalletId,
-    opponentWalletId,
-    amount,
-    createdAt: Date.now(),
-    lockTxHash: pseudoTxHash('lock', challengeId)
-  };
-  escrowLocks.set(challengeId, lock);
-
-  sendJson(res, {
-    ok: true,
-    challengeId,
-    escrow: lock,
-    txHash: lock.lockTxHash,
-    challenger: walletSummary(challenger),
-    opponent: walletSummary(opponent)
-  });
-  schedulePersistState();
-});
-
-router.post('/wallets/escrow/resolve', async (req, res) => {
-  const body = await readJsonBody<{
-    challengeId?: string;
-    winnerWalletId?: string | null;
-    feeBps?: number;
-  }>(req);
-
-  const challengeId = body?.challengeId?.trim() ?? '';
-  const winnerWalletId = body?.winnerWalletId?.trim() ?? '';
-  const feeBps = Math.max(0, Math.min(10000, Number(body?.feeBps ?? 0)));
-  if (!challengeId) {
-    sendJson(res, { ok: false, reason: 'challenge_id_required' }, 400);
-    return;
-  }
-
-  const lock = escrowLocks.get(challengeId);
-  if (!lock) {
-    sendJson(res, { ok: false, reason: 'escrow_not_found' }, 404);
-    return;
-  }
-
-  if (!winnerWalletId) {
-    sendJson(res, { ok: false, reason: 'winner_wallet_required' }, 400);
-    return;
-  }
-
-  if (winnerWalletId !== lock.challengerWalletId && winnerWalletId !== lock.opponentWalletId) {
-    sendJson(res, { ok: false, reason: 'winner_wallet_not_participant' }, 400);
-    return;
-  }
-
-  const winner = wallets.get(winnerWalletId);
-  if (!winner) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-
-  const pot = lock.amount * 2;
-  const fee = (pot * feeBps) / 10000;
-  const payout = pot - fee;
-  const txHash = pseudoTxHash('resolve', challengeId);
-  winner.balance += payout;
-  winner.dailyTxCount += 1;
-  winner.lastTxAt = Date.now();
-  escrowLocks.delete(challengeId);
-  pushEscrowSettlement({
-    challengeId,
-    outcome: 'resolved',
-    challengerWalletId: lock.challengerWalletId,
-    opponentWalletId: lock.opponentWalletId,
-    winnerWalletId,
-    amount: lock.amount,
-    fee,
-    payout,
-    txHash,
-    at: Date.now()
-  });
-
-  sendJson(res, {
-    ok: true,
-    challengeId,
-    payout,
-    fee,
-    txHash,
-    winner: walletSummary(winner)
-  });
-  schedulePersistState();
-});
-
-router.post('/wallets/escrow/refund', async (req, res) => {
-  const body = await readJsonBody<{ challengeId?: string }>(req);
-  const challengeId = body?.challengeId?.trim() ?? '';
-  if (!challengeId) {
-    sendJson(res, { ok: false, reason: 'challenge_id_required' }, 400);
-    return;
-  }
-
-  const lock = escrowLocks.get(challengeId);
-  if (!lock) {
-    sendJson(res, { ok: false, reason: 'escrow_not_found' }, 404);
-    return;
-  }
-
-  const challenger = wallets.get(lock.challengerWalletId);
-  const opponent = wallets.get(lock.opponentWalletId);
-  if (!challenger || !opponent) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-
-  challenger.balance += lock.amount;
-  opponent.balance += lock.amount;
-  challenger.lastTxAt = Date.now();
-  opponent.lastTxAt = Date.now();
-  const txHash = pseudoTxHash('refund', challengeId);
-  escrowLocks.delete(challengeId);
-  pushEscrowSettlement({
-    challengeId,
-    outcome: 'refunded',
-    challengerWalletId: lock.challengerWalletId,
-    opponentWalletId: lock.opponentWalletId,
-    winnerWalletId: null,
-    amount: lock.amount,
-    fee: 0,
-    payout: lock.amount * 2,
-    txHash,
-    at: Date.now()
-  });
-
-  sendJson(res, {
-    ok: true,
-    challengeId,
-    txHash,
-    challenger: walletSummary(challenger),
-    opponent: walletSummary(opponent)
-  });
-  schedulePersistState();
-});
-
-router.get('/wallets/escrow/history', (req, res) => {
-  const url = new URL(req.url ?? '/wallets/escrow/history', 'http://localhost');
-  const limit = Math.max(1, Math.min(200, Number(url.searchParams.get('limit') ?? 60)));
-  sendJson(res, { ok: true, recent: escrowSettlements.slice(-limit).reverse() });
-});
-
-router.get('/bots/:botId/wallet', (_req, res, params) => {
-  const botId = String(params?.botId ?? '').trim();
-  const record = botId ? botRegistry.get(botId) : null;
-  if (!record || !record.walletId) {
-    sendJson(res, { ok: false, reason: 'bot_wallet_not_found' }, 404);
-    return;
-  }
-  const wallet = wallets.get(record.walletId);
-  sendJson(res, {
-    ok: true,
-    botId,
-    wallet: walletSummary(wallet ?? null)
-  });
-});
-
-router.post('/wallets/:walletId/export-key', async (req, res, params) => {
-  const walletId = String(params?.walletId ?? '').trim();
-  const wallet = walletId ? wallets.get(walletId) : null;
-  if (!wallet) {
-    sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
-    return;
-  }
-
-  const body = await readJsonBody<{ profileId?: string }>(req);
-  if (!body?.profileId || body.profileId !== wallet.ownerProfileId) {
-    sendJson(res, { ok: false, reason: 'owner_mismatch' }, 403);
-    return;
-  }
-
-  const privateKey = decryptSecret(wallet.encryptedPrivateKey);
-  sendJson(res, {
-    ok: true,
-    walletId,
-    address: wallet.address,
-    privateKey,
-    warning: 'Treat this private key as highly sensitive. Move to a vault before production.'
-  });
-});
-
-router.post('/agents/reconcile', async (req, res) => {
-  const body = await readJsonBody<{ count?: number }>(req);
-  const count = Math.max(0, Math.min(60, Number(body?.count ?? backgroundBotIds.size)));
-  reconcileBots(count);
-  schedulePersistState();
-  sendJson(res, { ok: true, configuredBackgroundBotCount: backgroundBotIds.size, configuredBotCount: bots.size });
-});
-
-router.post('/agents/:botId/config', async (req, res, params) => {
-  const id = String(params?.botId ?? '').trim();
-  if (!id) {
-    sendJson(res, { ok: false, reason: 'bot_not_found' }, 404);
-    return;
-  }
-  const bot = bots.get(id);
-  if (!bot) {
-    sendJson(res, { ok: false, reason: 'bot_not_found' }, 404);
-    return;
-  }
-
-  const body = await readJsonBody<Partial<AgentBehaviorConfig> & { displayName?: string; managedBySuperAgent?: boolean }>(req);
-  if (!body) {
-    sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
-    return;
-  }
-  const patch: Partial<AgentBehaviorConfig> = {};
-  if (body.personality === 'aggressive' || body.personality === 'social' || body.personality === 'conservative') {
-    patch.personality = body.personality;
-  }
-  if (body.mode === 'active' || body.mode === 'passive') {
-    patch.mode = body.mode;
-  }
-  if (typeof body.challengeEnabled === 'boolean') {
-    patch.challengeEnabled = body.challengeEnabled;
-  }
-  if (body.targetPreference === 'any' || body.targetPreference === 'human_only' || body.targetPreference === 'human_first') {
-    patch.targetPreference = body.targetPreference;
-  }
-  if (typeof body.challengeCooldownMs === 'number') {
-    patch.challengeCooldownMs = Math.max(1200, Math.min(120000, body.challengeCooldownMs));
-  }
-  if (typeof body.baseWager === 'number') {
-    patch.baseWager = Math.max(1, Math.min(50, Math.floor(body.baseWager)));
-  }
-  if (typeof body.maxWager === 'number') {
-    patch.maxWager = Math.max(1, Math.min(100, Math.floor(body.maxWager)));
-  }
-  if (typeof patch.baseWager === 'number' && typeof patch.maxWager === 'number' && patch.maxWager < patch.baseWager) {
-    patch.maxWager = patch.baseWager;
-  } else if (typeof patch.baseWager === 'number' && typeof patch.maxWager !== 'number') {
-    const currentMax = bot.getStatus().behavior.maxWager;
-    if (currentMax < patch.baseWager) {
-      patch.maxWager = patch.baseWager;
-    }
-  }
-
-  bot.updateBehavior(patch);
-
-  const record = botRegistry.get(id);
-  if (record) {
-    if (typeof body.displayName === 'string' && body.displayName.trim().length > 0) {
-      record.displayName = body.displayName.trim();
-      usedDisplayNames.add(record.displayName);
-      bot.updateDisplayName(record.displayName);
-    }
-    if (typeof body.managedBySuperAgent === 'boolean') {
-      record.managedBySuperAgent = body.managedBySuperAgent;
-    }
-  }
-
-  sendJson(res, { ok: true, bot: bot.getStatus(), meta: record });
-  schedulePersistState();
-});
-
-router.post('/secrets/openrouter', async (req, res) => {
-  const body = await readJsonBody<{ apiKey?: string }>(req);
-  runtimeSecrets.openRouterApiKey = body?.apiKey?.trim() ?? '';
-  superAgentConfig.llmPolicy.enabled = true;
-  schedulePersistState();
-  sendJson(res, {
-    ok: true,
-    openRouterConfigured: Boolean(runtimeSecrets.openRouterApiKey),
-    masked: runtimeSecrets.openRouterApiKey
-      ? `${runtimeSecrets.openRouterApiKey.slice(0, 7)}...${runtimeSecrets.openRouterApiKey.slice(-4)}`
-      : null
-  });
-});
-
-router.post('/capabilities/wallet', async (req, res) => {
-  const body = await readJsonBody<{
-    enabled?: boolean;
-    grandAgentId?: string;
-    skills?: string[];
-    maxBetPercentOfBankroll?: number;
-    maxDailyTxCount?: number;
-    requireEscrowForChallenges?: boolean;
-  }>(req);
-
-  if (typeof body?.enabled === 'boolean') {
-    superAgentConfig.walletPolicy.enabled = body.enabled;
-  }
-  if (body?.grandAgentId) {
-    superAgentConfig.id = body.grandAgentId;
-  }
-  if (Array.isArray(body?.skills)) {
-    superAgentConfig.walletPolicy.allowedSkills = body.skills.filter((item) => typeof item === 'string' && item.trim().length > 0);
-  }
-  if (typeof body?.maxBetPercentOfBankroll === 'number') {
-    superAgentConfig.walletPolicy.maxBetPercentOfBankroll = Math.max(0.1, Math.min(100, body.maxBetPercentOfBankroll));
-  }
-  if (typeof body?.maxDailyTxCount === 'number') {
-    superAgentConfig.walletPolicy.maxDailyTxCount = Math.max(1, Math.min(10000, body.maxDailyTxCount));
-  }
-  if (typeof body?.requireEscrowForChallenges === 'boolean') {
-    superAgentConfig.walletPolicy.requireEscrowForChallenges = body.requireEscrowForChallenges;
-  }
-
-  ensureSuperAgentExists();
-  applySuperAgentDelegation();
-  schedulePersistState();
-
-  sendJson(res, {
-    ok: true,
-    superAgentId: superAgentConfig.id,
-    walletPolicy: superAgentConfig.walletPolicy
-  });
 });
 
 const server = createServer(async (req, res) => {
