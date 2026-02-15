@@ -14,7 +14,6 @@ export type Logger = {
 function createLogger(name: string): Logger {
   try {
     const require = createRequire(import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pinoModule = require('pino') as Record<string, unknown>;
     const pino = (typeof pinoModule === 'function' ? pinoModule : pinoModule.default) as (opts: Record<string, unknown>) => Logger;
 

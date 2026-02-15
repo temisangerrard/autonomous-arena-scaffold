@@ -15,7 +15,6 @@ function createLogger(name: string): Logger {
   try {
     // Dynamic require so the import doesn't fail at typecheck if pino isn't installed yet.
     const require = createRequire(import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pinoModule = require('pino') as Record<string, unknown>;
     const pino = (typeof pinoModule === 'function' ? pinoModule : pinoModule.default) as (opts: Record<string, unknown>) => Logger;
 
