@@ -1,52 +1,24 @@
-export type ChallengeStatus = 'pending' | 'active' | 'resolved' | 'declined' | 'expired';
-export type GameType = 'coinflip' | 'rps';
-export type RpsMove = 'rock' | 'paper' | 'scissors';
-export type CoinflipMove = 'heads' | 'tails';
-export type GameMove = RpsMove | CoinflipMove;
+import type {
+  ChallengeStatus,
+  GameType,
+  RpsMove,
+  CoinflipMove,
+  GameMove,
+  Challenge,
+  ChallengeEvent,
+  ChallengeLog
+} from '@arena/shared';
 
-export type Challenge = {
-  id: string;
-  challengerId: string;
-  opponentId: string;
-  status: ChallengeStatus;
-  gameType: GameType;
-  wager: number;
-  createdAt: number;
-  expiresAt: number;
-  acceptedAt: number | null;
-  resolvedAt: number | null;
-  winnerId: string | null;
-  challengerMove: GameMove | null;
-  opponentMove: GameMove | null;
-  coinflipResult: CoinflipMove | null;
-};
-
-export type ChallengeEvent = {
-  type: 'challenge';
-  event:
-    | 'created'
-    | 'accepted'
-    | 'declined'
-    | 'expired'
-    | 'resolved'
-    | 'move_submitted'
-    | 'invalid'
-    | 'busy';
-  challengeId?: string;
-  challenge?: Challenge;
-  to?: string[];
-  reason?: string;
-};
-
-export type ChallengeLog = {
-  at: number;
-  event: ChallengeEvent['event'];
-  challengeId: string | null;
-  challengerId: string | null;
-  opponentId: string | null;
-  gameType: GameType | null;
-  winnerId: string | null;
-  reason: string | null;
+// Re-export types for backward compatibility
+export type {
+  ChallengeStatus,
+  GameType,
+  RpsMove,
+  CoinflipMove,
+  GameMove,
+  Challenge,
+  ChallengeEvent,
+  ChallengeLog
 };
 
 export class ChallengeService {

@@ -1,56 +1,29 @@
 import { createServer } from 'node:http';
-import { createHash } from 'node:crypto';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
-import { ChallengeService, type ChallengeEvent, type GameMove, type GameType } from './ChallengeService.js';
+import { ChallengeService, type ChallengeEvent } from './ChallengeService.js';
+import { config, resolveInternalServiceToken } from './config.js';
 import { Database } from './Database.js';
 import { DistributedBus, type ChallengeCommand } from './DistributedBus.js';
 import { DistributedChallengeStore } from './DistributedChallengeStore.js';
 import { EscrowAdapter } from './EscrowAdapter.js';
-import { createHealthStatus } from './health.js';
 import { log } from './logger.js';
 import { PresenceStore } from './PresenceStore.js';
 import { WorldSim } from './WorldSim.js';
-import { verifyWsAuthToken } from '@arena/shared';
-
-type InputMessage = {
-  type: 'input';
-  moveX: number;
-  moveZ: number;
-};
-
-type ChallengeSendMessage = {
-  type: 'challenge_send';
-  targetId: string;
-  gameType: GameType;
-  wager: number;
-};
-
-type ChallengeResponseMessage = {
-  type: 'challenge_response';
-  challengeId: string;
-  accept: boolean;
-};
-
-type ChallengeCounterMessage = {
-  type: 'challenge_counter';
-  challengeId: string;
-  wager: number;
-};
-
-type ChallengeMoveMessage = {
-  type: 'challenge_move';
-  challengeId: string;
-  move: GameMove;
-};
-
-type ClientMessage =
-  | InputMessage
-  | ChallengeSendMessage
-  | ChallengeResponseMessage
-  | ChallengeCounterMessage
-  | ChallengeMoveMessage;
-
-type PlayerRole = 'human' | 'agent';
+import { createRouter } from './routes/index.js';
+import { parseClientMessage } from './websocket/messages.js';
+import {
+  validateSession,
+  verifyWsAuth,
+  validateHumanAuthClaims,
+  validateAgentAuthClaims,
+  type PlayerRole,
+  type ValidatedIdentity
+} from './websocket/auth.js';
+import {
+  arePlayersNear,
+  emitProximityEvents,
+  clearPlayerProximityPairs
+} from './game/proximity.js';
 
 type PlayerMeta = {
   role: PlayerRole;
@@ -58,105 +31,50 @@ type PlayerMeta = {
   walletId: string | null;
 };
 
-const port = Number(process.env.PORT ?? 4000);
-const serverInstanceId = process.env.SERVER_INSTANCE_ID?.trim() || `srv_${Math.random().toString(36).slice(2, 9)}`;
+// Use centralized config
+const serverInstanceId = config.serverInstanceId;
 const database = new Database();
-const presenceStore = new PresenceStore(serverInstanceId, Math.max(10, Number(process.env.PRESENCE_TTL_SECONDS ?? 40)));
+const presenceStore = new PresenceStore(serverInstanceId, config.presenceTtlSeconds);
 const distributedChallengeStore = new DistributedChallengeStore(serverInstanceId);
 const worldSim = new WorldSim();
 const challengeService = new ChallengeService(() => Date.now(), () => Math.random());
 const internalServiceToken = resolveInternalServiceToken();
 const escrowAdapter = new EscrowAdapter(
-  process.env.AGENT_RUNTIME_URL ?? 'http://localhost:4100',
-  Math.max(0, Math.min(10_000, Number(process.env.ESCROW_FEE_BPS ?? 0))),
+  config.agentRuntimeUrl,
+  config.escrowFeeBps,
   {
-    mode: (process.env.ESCROW_EXECUTION_MODE === 'onchain' ? 'onchain' : 'runtime'),
-    rpcUrl: process.env.CHAIN_RPC_URL,
-    resolverPrivateKey: process.env.ESCROW_RESOLVER_PRIVATE_KEY,
-    escrowContractAddress: process.env.ESCROW_CONTRACT_ADDRESS,
-    tokenDecimals: Number(process.env.ESCROW_TOKEN_DECIMALS ?? 6),
+    mode: config.escrowExecutionMode,
+    rpcUrl: config.chainRpcUrl,
+    resolverPrivateKey: config.escrowResolverPrivateKey,
+    escrowContractAddress: config.escrowContractAddress,
+    tokenDecimals: config.escrowTokenDecimals,
     internalToken: internalServiceToken
   }
 );
 
-const server = createServer((req, res) => {
-  setCorsHeaders(res);
-
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
-    return;
-  }
-
-  if (req.url === '/health') {
-    const payload = createHealthStatus();
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify(payload));
-    return;
-  }
-
-  if (req.url?.startsWith('/presence')) {
-    const parsed = new URL(req.url, 'http://localhost');
-    const id = parsed.searchParams.get('id')?.trim();
-    res.setHeader('content-type', 'application/json');
-    if (id) {
-      void presenceStore.get(id).then((entry) => {
-        res.end(JSON.stringify({ ok: true, presence: entry }));
-      }).catch(() => {
-        res.statusCode = 500;
-        res.end(JSON.stringify({ ok: false, reason: 'presence_lookup_failed' }));
-      });
-      return;
-    }
-    void presenceStore.list().then((entries) => {
-      res.end(JSON.stringify({ ok: true, serverId: serverInstanceId, players: entries }));
-    }).catch(() => {
-      res.statusCode = 500;
-      res.end(JSON.stringify({ ok: false, reason: 'presence_list_failed' }));
-    });
-    return;
-  }
-
-  if (req.url?.startsWith('/challenges/recent')) {
-    const parsed = new URL(req.url, 'http://localhost');
-    const limit = Math.max(1, Math.min(300, Number(parsed.searchParams.get('limit') ?? 60)));
-    res.setHeader('content-type', 'application/json');
-    void distributedChallengeStore.recentHistory(limit).then((recent) => {
-      if (recent.length > 0) {
-        res.end(JSON.stringify({ recent }));
-        return;
-      }
-      res.end(JSON.stringify({ recent: challengeService.getRecent(limit) }));
-    }).catch(() => {
-      res.end(JSON.stringify({ recent: challengeService.getRecent(limit) }));
-    });
-    return;
-  }
-
-  if (req.url === '/favicon.ico') {
-    res.statusCode = 204;
-    res.end();
-    return;
-  }
-
-  res.statusCode = 404;
-  res.end('Not Found');
-});
+// HTTP server using extracted router
+const server = createServer(createRouter({
+  serverInstanceId,
+  presenceStore,
+  distributedChallengeStore,
+  challengeService
+}));
 
 const wss = new WebSocketServer({ noServer: true });
 const sockets = new Map<string, WebSocket>();
 const metaByPlayer = new Map<string, PlayerMeta>();
 const activeProximityPairs = new Set<string>();
 let nextClient = 1;
-const proximityThreshold = Number(process.env.PROXIMITY_THRESHOLD ?? 12);
+// Use config values
+const proximityThreshold = config.proximityThreshold;
 const escrowLockedChallenges = new Set<string>();
-const agentToHumanChallengeCooldownMs = Math.max(0, Number(process.env.AGENT_TO_HUMAN_CHALLENGE_COOLDOWN_MS ?? 20000));
+const agentToHumanChallengeCooldownMs = config.agentToHumanChallengeCooldownMs;
 const recentAgentToHumanChallengeAt = new Map<string, number>();
 let lastPresenceSyncAt = 0;
 let lastPresenceRefreshAt = 0;
-const challengePendingTimeoutMs = Math.max(5_000, Number(process.env.CHALLENGE_PENDING_TIMEOUT_MS ?? 15_000));
-const challengeOrphanGraceMs = Math.max(challengePendingTimeoutMs * 2, Number(process.env.CHALLENGE_ORPHAN_GRACE_MS ?? 30_000));
-const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
+const challengePendingTimeoutMs = config.challengePendingTimeoutMs;
+const challengeOrphanGraceMs = config.challengeOrphanGraceMs;
+const wsAuthSecret = config.wsAuthSecret;
 const presenceByPlayerId = new Map<string, {
   playerId: string;
   role: PlayerRole;
@@ -193,121 +111,10 @@ const distributedBus = new DistributedBus(
   }
 );
 
-function resolveInternalServiceToken(): string {
-  const configured = process.env.INTERNAL_SERVICE_TOKEN?.trim();
-  if (configured) {
-    return configured;
-  }
-  const superAgentKey = (process.env.ESCROW_RESOLVER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY || '').trim();
-  if (!superAgentKey) {
-    return '';
-  }
-  return `sa_${createHash('sha256').update(superAgentKey).digest('hex')}`;
-}
-
-function setCorsHeaders(res: import('node:http').ServerResponse): void {
-  res.setHeader('access-control-allow-origin', '*');
-  res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
-  res.setHeader('access-control-allow-headers', 'content-type');
-}
-
-function rawToString(raw: RawData): string {
-  if (typeof raw === 'string') {
-    return raw;
-  }
-  if (raw instanceof Buffer) {
-    return raw.toString('utf8');
-  }
-  if (Array.isArray(raw)) {
-    return Buffer.concat(raw).toString('utf8');
-  }
-  if (raw instanceof ArrayBuffer) {
-    return Buffer.from(new Uint8Array(raw)).toString('utf8');
-  }
-  return '';
-}
-
-function parseClientMessage(raw: RawData): ClientMessage | null {
-  try {
-    const payload = JSON.parse(rawToString(raw)) as Record<string, unknown>;
-
-    if (
-      payload.type === 'input' &&
-      typeof payload.moveX === 'number' &&
-      typeof payload.moveZ === 'number'
-    ) {
-      return {
-        type: 'input',
-        moveX: payload.moveX,
-        moveZ: payload.moveZ
-      };
-    }
-
-    if (
-      payload.type === 'challenge_send' &&
-      typeof payload.targetId === 'string' &&
-      (payload.gameType === 'rps' || payload.gameType === 'coinflip')
-    ) {
-      return {
-        type: 'challenge_send',
-        targetId: payload.targetId,
-        gameType: payload.gameType,
-        wager: typeof payload.wager === 'number' ? payload.wager : 1
-      };
-    }
-
-    if (
-      payload.type === 'challenge_response' &&
-      typeof payload.challengeId === 'string' &&
-      typeof payload.accept === 'boolean'
-    ) {
-      return {
-        type: 'challenge_response',
-        challengeId: payload.challengeId,
-        accept: payload.accept
-      };
-    }
-
-    if (
-      payload.type === 'challenge_counter' &&
-      typeof payload.challengeId === 'string'
-    ) {
-      return {
-        type: 'challenge_counter',
-        challengeId: payload.challengeId,
-        wager: typeof payload.wager === 'number' ? payload.wager : 1
-      };
-    }
-
-    if (
-      payload.type === 'challenge_move' &&
-      typeof payload.challengeId === 'string' &&
-      (payload.move === 'rock' ||
-        payload.move === 'paper' ||
-        payload.move === 'scissors' ||
-        payload.move === 'heads' ||
-        payload.move === 'tails')
-    ) {
-      return {
-        type: 'challenge_move',
-        challengeId: payload.challengeId,
-        move: payload.move
-      };
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function makePairKey(a: string, b: string): string {
-  return a < b ? `${a}|${b}` : `${b}|${a}`;
-}
-
-function arePlayersNear(a: string, b: string): boolean {
-  return activeProximityPairs.has(makePairKey(a, b));
-}
+// Note: resolveInternalServiceToken is imported from config.ts
+// Note: parseClientMessage is imported from websocket/messages.ts
+// Note: makePairKey, arePlayersNear, emitProximityEvents are imported from game/proximity.ts
+// Note: validateSession is imported from websocket/auth.ts
 
 function sendTo(playerId: string, payload: object): void {
   const ws = sockets.get(playerId);
@@ -550,7 +357,7 @@ async function registerCreatedChallenge(event: ChallengeEvent, actorId: string):
   const lockResult = await distributedChallengeStore.tryLockPlayers(
     event.challenge.id,
     [event.challenge.challengerId, event.challenge.opponentId],
-    Math.max(6_000, Number(process.env.CHALLENGE_PENDING_TIMEOUT_MS ?? 15_000))
+    Math.max(6_000, challengePendingTimeoutMs)
   );
   if (!lockResult.ok) {
     const aborted = challengeService.abortChallenge(event.challenge.id, 'declined', lockResult.reason ?? 'player_busy');
@@ -567,92 +374,11 @@ async function registerCreatedChallenge(event: ChallengeEvent, actorId: string):
   return true;
 }
 
-function emitProximityEvents(players: Array<{ id: string; x: number; z: number }>): void {
-  const nowNear = new Set<string>();
+// Note: emitProximityEvents is imported from game/proximity.ts
+// Note: ValidatedIdentity is imported from websocket/auth.ts
+// Note: validateSession is imported from websocket/auth.ts
 
-  for (let i = 0; i < players.length; i += 1) {
-    for (let j = i + 1; j < players.length; j += 1) {
-      const a = players[i];
-      const b = players[j];
-      if (!a || !b) {
-        continue;
-      }
-
-      const distance = Math.hypot(a.x - b.x, a.z - b.z);
-      if (distance <= proximityThreshold) {
-        const key = makePairKey(a.id, b.id);
-        nowNear.add(key);
-
-        if (!activeProximityPairs.has(key)) {
-          sendToDistributed(a.id, { type: 'proximity', event: 'enter', otherId: b.id, otherName: displayNameFor(b.id), distance });
-          sendToDistributed(b.id, { type: 'proximity', event: 'enter', otherId: a.id, otherName: displayNameFor(a.id), distance });
-        }
-      }
-    }
-  }
-
-  for (const key of activeProximityPairs) {
-    if (nowNear.has(key)) {
-      continue;
-    }
-
-    const [a, b] = key.split('|');
-    if (a && b) {
-      sendToDistributed(a, { type: 'proximity', event: 'exit', otherId: b, otherName: displayNameFor(b) });
-      sendToDistributed(b, { type: 'proximity', event: 'exit', otherId: a, otherName: displayNameFor(a) });
-    }
-  }
-
-  activeProximityPairs.clear();
-  for (const key of nowNear) {
-    activeProximityPairs.add(key);
-  }
-}
-
-type ValidatedIdentity = {
-  sub: string;
-  role: string;
-  walletId: string | null;
-  displayName: string | null;
-};
-
-const webAuthUrl = process.env.WEB_AUTH_URL?.trim() || '';
-
-function extractCookie(cookieHeader: string | undefined, name: string): string | null {
-  if (!cookieHeader) return null;
-  for (const part of cookieHeader.split(';')) {
-    const idx = part.indexOf('=');
-    if (idx <= 0) continue;
-    const key = part.slice(0, idx).trim();
-    const value = part.slice(idx + 1).trim();
-    if (key === name) return decodeURIComponent(value);
-  }
-  return null;
-}
-
-async function validateSession(cookieHeader: string | undefined): Promise<ValidatedIdentity | null> {
-  if (!webAuthUrl) return null; // Auth not configured — skip validation
-  const sid = extractCookie(cookieHeader, 'arena_sid');
-  if (!sid) return null;
-
-  try {
-    const response = await fetch(`${webAuthUrl}/api/session`, {
-      headers: { cookie: `arena_sid=${encodeURIComponent(sid)}` }
-    });
-    if (!response.ok) return null;
-    const data = await response.json() as { ok?: boolean; user?: { sub?: string; role?: string; walletId?: string | null; displayName?: string | null } };
-    if (!data.ok || !data.user?.sub) return null;
-    return {
-      sub: data.user.sub,
-      role: data.user.role ?? 'player',
-      walletId: data.user.walletId ?? null,
-      displayName: data.user.displayName ?? null
-    };
-  } catch (err) {
-    log.warn({ err }, 'session validation failed');
-    return null;
-  }
-}
+const webAuthUrl = config.webAuthUrl;
 
 server.on('upgrade', (request, socket, head) => {
   if (!request.url?.startsWith('/ws')) {
@@ -714,7 +440,7 @@ wss.on('connection', (ws, request) => {
   // (including bypassing the web server and connecting directly to /ws).
   if (wsAuthSecret) {
     const token = parsed.searchParams.get('wsAuth')?.trim() || '';
-    const verified = verifyWsAuthToken(wsAuthSecret, token);
+    const verified = verifyWsAuth(token, role);
     if (!verified.ok) {
       try {
         ws.close(4401, verified.reason);
@@ -723,55 +449,22 @@ wss.on('connection', (ws, request) => {
       }
       return;
     }
-    const claims = verified.claims;
-    if (claims.role !== role) {
-      try {
-        ws.close(4403, 'ws_auth_role_mismatch');
-      } catch {
-        // ignore
-      }
-      return;
-    }
+    const claims = verified.claims ?? {};
     if (role === 'human') {
-      const claimClientId = String(claims.clientId || '').trim();
-      const claimWalletId = claims.walletId ? String(claims.walletId).trim() : '';
-      if (!claimClientId || !claimWalletId) {
+      const validated = validateHumanAuthClaims(claims, normalizedClientId, walletId ?? undefined);
+      if (!validated.ok) {
         try {
-          ws.close(4403, 'ws_auth_missing_claims');
-        } catch {
-          // ignore
-        }
-        return;
-      }
-      if (normalizedClientId && normalizedClientId !== claimClientId) {
-        try {
-          ws.close(4403, 'ws_auth_client_mismatch');
-        } catch {
-          // ignore
-        }
-        return;
-      }
-      if (walletId && walletId !== claimWalletId) {
-        try {
-          ws.close(4403, 'ws_auth_wallet_mismatch');
+          ws.close(4403, validated.reason ?? 'ws_auth_invalid_claims');
         } catch {
           // ignore
         }
         return;
       }
     } else {
-      const claimAgentId = String(claims.agentId || '').trim();
-      if (!claimAgentId || (requestedAgentId && requestedAgentId !== claimAgentId)) {
+      const validated = validateAgentAuthClaims(claims, requestedAgentId, walletId ?? undefined);
+      if (!validated.ok) {
         try {
-          ws.close(4403, 'ws_auth_agent_mismatch');
-        } catch {
-          // ignore
-        }
-        return;
-      }
-      if (claims.walletId && walletId && String(claims.walletId) !== walletId) {
-        try {
-          ws.close(4403, 'ws_auth_wallet_mismatch');
+          ws.close(4403, validated.reason ?? 'ws_auth_invalid_claims');
         } catch {
           // ignore
         }
@@ -851,7 +544,7 @@ wss.on('connection', (ws, request) => {
         return;
       }
 
-      if (!arePlayersNear(playerId, payload.targetId)) {
+      if (!arePlayersNear(activeProximityPairs, playerId, payload.targetId)) {
         sendTo(playerId, {
           type: 'challenge',
           event: 'invalid',
@@ -985,11 +678,7 @@ wss.on('connection', (ws, request) => {
     worldSim.removePlayer(playerId);
     void presenceStore.remove(playerId);
 
-    for (const key of [...activeProximityPairs]) {
-      if (key.includes(`${playerId}|`) || key.includes(`|${playerId}`)) {
-        activeProximityPairs.delete(key);
-      }
-    }
+    clearPlayerProximityPairs(activeProximityPairs, playerId);
 
     for (const event of challengeService.clearDisconnectedPlayer(playerId)) {
       void dispatchChallengeEventWithEscrow(event);
@@ -1037,7 +726,13 @@ setInterval(() => {
     ...remotePlayers
   ];
 
-  emitProximityEvents(mergedPlayers.map((player) => ({ id: player.id, x: player.x, z: player.z })));
+  emitProximityEvents(
+    mergedPlayers.map((player) => ({ id: player.id, x: player.x, z: player.z })),
+    activeProximityPairs,
+    proximityThreshold,
+    displayNameFor,
+    sendToDistributed
+  );
 
   for (const event of challengeService.tick()) {
     void dispatchChallengeEventWithEscrow(event);
@@ -1235,11 +930,11 @@ function safeParseChallenge(raw: string): {
 }
 
 void (async () => {
-  await database.connect(process.env.DATABASE_URL);
-  await presenceStore.connect(process.env.REDIS_URL);
-  await distributedChallengeStore.connect(process.env.REDIS_URL);
-  await distributedBus.connect(process.env.REDIS_URL);
-  server.listen(port, () => {
-    log.info({ port, instanceId: serverInstanceId }, 'server listening');
+  await database.connect(config.databaseUrl);
+  await presenceStore.connect(config.redisUrl);
+  await distributedChallengeStore.connect(config.redisUrl);
+  await distributedBus.connect(config.redisUrl);
+  server.listen(config.port, () => {
+    log.info({ port: config.port, instanceId: serverInstanceId }, 'server listening');
   });
 })();

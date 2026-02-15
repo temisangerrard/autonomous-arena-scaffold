@@ -130,33 +130,72 @@ export type CoinflipMove = 'heads' | 'tails';
 export type GameMove = RpsMove | CoinflipMove;
 
 /**
- * Challenge status
+ * Challenge status (server-authoritative states)
  */
 export type ChallengeStatus = 
   | 'pending' 
-  | 'accepted' 
-  | 'declined' 
-  | 'expired' 
+  | 'active'
   | 'resolved' 
-  | 'refunded';
+  | 'declined' 
+  | 'expired';
 
 /**
- * Challenge record
+ * Challenge event types
+ */
+export type ChallengeEventType =
+  | 'created'
+  | 'accepted'
+  | 'declined'
+  | 'expired'
+  | 'resolved'
+  | 'move_submitted'
+  | 'invalid'
+  | 'busy';
+
+/**
+ * Challenge record (server-side shape with all fields)
  */
 export interface Challenge {
   id: string;
   challengerId: string;
-  responderId: string;
+  opponentId: string;
+  status: ChallengeStatus;
   gameType: GameType;
   wager: number;
-  status: ChallengeStatus;
   createdAt: number;
-  acceptedAt?: number;
-  resolvedAt?: number;
-  challengerMove?: GameMove;
-  responderMove?: GameMove;
-  winnerId?: string;
-  escrowLockId?: string;
+  expiresAt: number;
+  acceptedAt: number | null;
+  resolvedAt: number | null;
+  winnerId: string | null;
+  challengerMove: GameMove | null;
+  opponentMove: GameMove | null;
+  coinflipResult: CoinflipMove | null;
+}
+
+/**
+ * Challenge event for state machine transitions
+ */
+export interface ChallengeEvent {
+  type: 'challenge';
+  event: ChallengeEventType;
+  challengeId?: string;
+  challenge?: Challenge;
+  to?: string[];
+  reason?: string;
+}
+
+/**
+ * Challenge log entry for history tracking
+ */
+export interface ChallengeLog {
+  at: number;
+  event: ChallengeEventType;
+  challengeId: string | null;
+  challengerId: string | null;
+  opponentId: string | null;
+  gameType: GameType | null;
+  winnerId: string | null;
+  reason: string | null;
 }
 
 /**
