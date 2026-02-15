@@ -1,3 +1,7 @@
+import { log as rootLog } from './logger.js';
+
+const log = rootLog.child({ module: 'presence' });
+
 type PresenceEntry = {
   playerId: string;
   role: 'human' | 'agent';
@@ -75,11 +79,11 @@ export class PresenceStore {
     const mod = await import('redis');
     const client = mod.createClient({ url: redisUrl }) as unknown as RedisLike;
     client.on('error', (error) => {
-      console.error('presence redis error', error);
+      log.error({ err: error }, 'redis connection error');
     });
     await client.connect();
     this.redis = client;
-    console.log('presence store connected to redis');
+    log.info('connected to redis');
   }
 
   async upsert(entry: Omit<PresenceEntry, 'updatedAt' | 'serverId'>): Promise<void> {

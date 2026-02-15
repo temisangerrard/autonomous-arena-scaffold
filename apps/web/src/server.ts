@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { createHealthStatus } from './health.js';
+import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias } from './worldAssets.js';
 import { signWsAuthToken } from '@arena/shared';
 
@@ -65,6 +66,22 @@ const adminEmails = new Set(
 const localAdminUsername = process.env.ADMIN_USERNAME ?? '';
 const localAdminPassword = process.env.ADMIN_PASSWORD ?? '';
 const localAuthEnabled = (process.env.LOCAL_AUTH_ENABLED ?? 'false') === 'true';
+const isProduction = process.env.NODE_ENV === 'production';
+
+// --- Startup secret validation ---
+if (localAuthEnabled && !localAdminPassword) {
+  if (isProduction) {
+    log.fatal('ADMIN_PASSWORD must be set when LOCAL_AUTH_ENABLED=true in production. Refusing to start.');
+    process.exit(1);
+  } else {
+    log.warn('ADMIN_PASSWORD is not set. Local admin auth will reject all login attempts. Set ADMIN_PASSWORD in .env.');
+  }
+}
+
+if (isProduction && localAuthEnabled && localAdminPassword && localAdminPassword.length < 8) {
+  log.fatal('ADMIN_PASSWORD is too short for production (min 8 characters). Refusing to start.');
+  process.exit(1);
+}
 const webStateFile = process.env.WEB_STATE_FILE
   ? path.resolve(process.cwd(), process.env.WEB_STATE_FILE)
   : path.resolve(process.cwd(), 'output', 'web-auth-state.json');
@@ -1226,5 +1243,5 @@ process.on('SIGTERM', () => {
 });
 
 server.listen(port, () => {
-  console.log(`web listening on :${port}`);
+  log.info({ port }, 'web server listening');
 });

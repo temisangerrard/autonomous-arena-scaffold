@@ -1,3 +1,7 @@
+import { log as rootLog } from './logger.js';
+
+const log = rootLog.child({ module: 'challenge-store' });
+
 type RedisClientLike = {
   connect: () => Promise<unknown>;
   on: (event: 'error', listener: (error: unknown) => void) => void;
@@ -49,11 +53,11 @@ export class DistributedChallengeStore {
     const mod = await import('redis');
     const client = mod.createClient({ url: redisUrl }) as unknown as RedisClientLike;
     client.on('error', (error) => {
-      console.error('challenge store redis error', error);
+      log.error({ err: error }, 'redis connection error');
     });
     await client.connect();
     this.redis = client;
-    console.log('challenge store connected to redis');
+    log.info('connected to redis');
   }
 
   async registerChallenge(params: {

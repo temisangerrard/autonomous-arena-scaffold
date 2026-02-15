@@ -1,3 +1,7 @@
+import { log as rootLog } from './logger.js';
+
+const log = rootLog.child({ module: 'bus' });
+
 type RedisClientLike = {
   connect: () => Promise<unknown>;
   on: (event: 'error', listener: (error: unknown) => void) => void;
@@ -54,8 +58,8 @@ export class DistributedBus {
     const mod = await import('redis');
     this.publisher = mod.createClient({ url: redisUrl }) as unknown as RedisClientLike;
     this.subscriber = mod.createClient({ url: redisUrl }) as unknown as RedisClientLike;
-    this.publisher.on('error', (error) => console.error('bus publish redis error', error));
-    this.subscriber.on('error', (error) => console.error('bus subscribe redis error', error));
+    this.publisher.on('error', (error) => log.error({ err: error }, 'publisher redis error'));
+    this.subscriber.on('error', (error) => log.error({ err: error }, 'subscriber redis error'));
     await this.publisher.connect();
     await this.subscriber.connect();
     await this.subscriber.subscribe(PLAYER_DIRECT_CHANNEL, (raw) => {
@@ -80,7 +84,7 @@ export class DistributedBus {
         // ignore malformed commands
       }
     });
-    console.log('distributed bus connected to redis');
+    log.info('connected to redis');
   }
 
   async publishToPlayer(playerId: string, payload: object): Promise<void> {

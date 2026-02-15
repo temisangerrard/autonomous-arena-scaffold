@@ -2,10 +2,12 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { ChallengeService, type ChallengeEvent, type GameMove, type GameType } from './ChallengeService.js';
+import { Database } from './Database.js';
 import { DistributedBus, type ChallengeCommand } from './DistributedBus.js';
 import { DistributedChallengeStore } from './DistributedChallengeStore.js';
 import { EscrowAdapter } from './EscrowAdapter.js';
 import { createHealthStatus } from './health.js';
+import { log } from './logger.js';
 import { PresenceStore } from './PresenceStore.js';
 import { WorldSim } from './WorldSim.js';
 import { verifyWsAuthToken } from '@arena/shared';
@@ -58,6 +60,7 @@ type PlayerMeta = {
 
 const port = Number(process.env.PORT ?? 4000);
 const serverInstanceId = process.env.SERVER_INSTANCE_ID?.trim() || `srv_${Math.random().toString(36).slice(2, 9)}`;
+const database = new Database();
 const presenceStore = new PresenceStore(serverInstanceId, Math.max(10, Number(process.env.PRESENCE_TTL_SECONDS ?? 40)));
 const distributedChallengeStore = new DistributedChallengeStore(serverInstanceId);
 const worldSim = new WorldSim();
@@ -369,6 +372,17 @@ function broadcastEscrowEvent(payload: {
   fee?: number;
   payout?: number;
 }): void {
+  // Persist escrow event to database before broadcasting
+  void database.insertEscrowEvent({
+    challengeId: payload.challengeId,
+    phase: payload.phase,
+    ok: payload.ok,
+    reason: payload.reason,
+    txHash: payload.txHash,
+    fee: payload.fee,
+    payout: payload.payout
+  });
+
   broadcast({
     type: 'challenge_escrow',
     ...payload
@@ -396,6 +410,29 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
     const challenge = event.challenge;
     const wager = Math.max(0, challenge.wager);
     await distributedChallengeStore.updateStatus(challenge.id, event.event, JSON.stringify(challenge));
+
+    // Persist challenge state to database
+    if (event.event === 'created') {
+      void database.insertChallenge({
+        id: challenge.id,
+        challengerId: challenge.challengerId,
+        opponentId: challenge.opponentId,
+        gameType: challenge.gameType,
+        wager: challenge.wager,
+        status: event.event,
+        challengeJson: challenge
+      });
+    } else {
+      void database.updateChallengeStatus({
+        id: challenge.id,
+        status: event.event,
+        winnerId: challenge.winnerId,
+        challengerMove: challenge.challengerMove,
+        opponentMove: challenge.opponentMove,
+        coinflipResult: challenge.coinflipResult,
+        challengeJson: challenge
+      });
+    }
 
     if (event.event === 'accepted' && wager > 0) {
       const challengerWalletId = walletIdFor(challenge.challengerId);
@@ -572,12 +609,85 @@ function emitProximityEvents(players: Array<{ id: string; x: number; z: number }
   }
 }
 
+type ValidatedIdentity = {
+  sub: string;
+  role: string;
+  walletId: string | null;
+  displayName: string | null;
+};
+
+const webAuthUrl = process.env.WEB_AUTH_URL?.trim() || '';
+
+function extractCookie(cookieHeader: string | undefined, name: string): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    const key = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (key === name) return decodeURIComponent(value);
+  }
+  return null;
+}
+
+async function validateSession(cookieHeader: string | undefined): Promise<ValidatedIdentity | null> {
+  if (!webAuthUrl) return null; // Auth not configured — skip validation
+  const sid = extractCookie(cookieHeader, 'arena_sid');
+  if (!sid) return null;
+
+  try {
+    const response = await fetch(`${webAuthUrl}/api/session`, {
+      headers: { cookie: `arena_sid=${encodeURIComponent(sid)}` }
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { ok?: boolean; user?: { sub?: string; role?: string; walletId?: string | null; displayName?: string | null } };
+    if (!data.ok || !data.user?.sub) return null;
+    return {
+      sub: data.user.sub,
+      role: data.user.role ?? 'player',
+      walletId: data.user.walletId ?? null,
+      displayName: data.user.displayName ?? null
+    };
+  } catch (err) {
+    log.warn({ err }, 'session validation failed');
+    return null;
+  }
+}
+
 server.on('upgrade', (request, socket, head) => {
   if (!request.url?.startsWith('/ws')) {
     socket.destroy();
     return;
   }
 
+  // If WEB_AUTH_URL is configured, validate session before upgrade
+  if (webAuthUrl) {
+    void validateSession(request.headers.cookie).then((identity) => {
+      // Allow agents through without session (they use agentId param)
+      const parsed = new URL(request.url ?? '/ws', 'http://localhost');
+      const isAgent = parsed.searchParams.get('role') === 'agent';
+
+      if (!identity && !isAgent) {
+        log.warn({ url: request.url }, 'WebSocket upgrade rejected: no valid session');
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // Attach validated identity for use in connection handler
+      (request as unknown as Record<string, unknown>).__validatedIdentity = identity;
+
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }).catch(() => {
+      socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+      socket.destroy();
+    });
+    return;
+  }
+
+  // No auth configured — allow all connections (dev mode)
   wss.handleUpgrade(request, socket, head, (ws) => {
     wss.emit('connection', ws, request);
   });
@@ -585,10 +695,17 @@ server.on('upgrade', (request, socket, head) => {
 
 wss.on('connection', (ws, request) => {
   const parsed = new URL(request.url ?? '/ws', 'http://localhost');
+  const validatedIdentity = (request as unknown as Record<string, unknown>).__validatedIdentity as ValidatedIdentity | null | undefined;
+
   const requestedRole = parsed.searchParams.get('role');
   const role: PlayerRole = requestedRole === 'agent' ? 'agent' : 'human';
-  const preferredName = parsed.searchParams.get('name')?.trim();
-  const walletId = parsed.searchParams.get('walletId')?.trim() || null;
+  // Prefer validated identity data over URL params for humans
+  const preferredName = (role === 'human' && validatedIdentity?.displayName)
+    ? validatedIdentity.displayName
+    : parsed.searchParams.get('name')?.trim();
+  const walletId = (role === 'human' && validatedIdentity?.walletId)
+    ? validatedIdentity.walletId
+    : parsed.searchParams.get('walletId')?.trim() || null;
   const requestedClientId = parsed.searchParams.get('clientId')?.trim();
   const normalizedClientId = requestedClientId?.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
   const requestedAgentId = parsed.searchParams.get('agentId')?.trim();
@@ -1118,10 +1235,11 @@ function safeParseChallenge(raw: string): {
 }
 
 void (async () => {
+  await database.connect(process.env.DATABASE_URL);
   await presenceStore.connect(process.env.REDIS_URL);
   await distributedChallengeStore.connect(process.env.REDIS_URL);
   await distributedBus.connect(process.env.REDIS_URL);
   server.listen(port, () => {
-    console.log(`server listening on :${port} instance=${serverInstanceId}`);
+    log.info({ port, instanceId: serverInstanceId }, 'server listening');
   });
 })();
