@@ -102,6 +102,16 @@ export function createInputSystem({
       event.preventDefault();
       actions.sendGameMove?.('tails');
     }
+
+    // Toggle control hints panel
+    if (event.code === 'Slash' && event.shiftKey) {
+      event.preventDefault();
+      const hintsPanel = document.getElementById('control-hints');
+      if (hintsPanel) {
+        const isHidden = hintsPanel.getAttribute('aria-hidden') === 'true';
+        hintsPanel.setAttribute('aria-hidden', isHidden ? 'false' : 'true');
+      }
+    }
   }
 
   function onKeyUp(event) {

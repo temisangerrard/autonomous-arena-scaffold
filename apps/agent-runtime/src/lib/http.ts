@@ -80,32 +80,40 @@ export class SimpleRouter {
    * Match a request to a route and extract params
    */
   match(method: string, pathname: string): { handler: HttpHandler; params: Record<string, string> } | null {
+    const normalizedMethod = String(method || '').toUpperCase();
+    const rawPath = String(pathname || '');
+    const withoutQuery = rawPath.split('?')[0] ?? '';
+    const withoutHash = withoutQuery.split('#')[0] ?? '';
+    const pathSegments = withoutHash.split('/').filter(Boolean);
+
     for (const route of this.routes) {
-      if (route.method !== method && route.method !== 'OPTIONS') {
+      if (route.method !== normalizedMethod) {
+        continue;
+      }
+
+      const routeSegments = route.path.split('/').filter(Boolean);
+      if (routeSegments.length !== pathSegments.length) {
         continue;
       }
 
       const params: Record<string, string> = {};
-      const routeParts = route.path.split('/');
-      const pathParts = pathname.split('/');
-
-      if (routeParts.length !== pathParts.length) {
-        continue;
-      }
-
       let matched = true;
-      for (let i = 0; i < routeParts.length; i++) {
-        const routePart = routeParts[i];
-        const pathPart = pathParts[i];
-        
-        if (!routePart || !pathPart) {
-          matched = false;
-          break;
-        }
-        
+
+      for (let i = 0; i < routeSegments.length; i++) {
+        const routePart = routeSegments[i] ?? '';
+        const pathPart = pathSegments[i] ?? '';
+
         if (routePart.startsWith(':')) {
-          params[routePart.slice(1)] = pathPart;
-        } else if (routePart !== pathPart) {
+          const key = routePart.slice(1);
+          if (!key) {
+            matched = false;
+            break;
+          }
+          params[key] = pathPart;
+          continue;
+        }
+
+        if (routePart !== pathPart) {
           matched = false;
           break;
         }
@@ -115,6 +123,7 @@ export class SimpleRouter {
         return { handler: route.handler, params };
       }
     }
+
     return null;
   }
 

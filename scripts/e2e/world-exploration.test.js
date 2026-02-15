@@ -84,6 +84,7 @@ test.describe('World Exploration', () => {
     
     const afterLeft = await getPosition();
     console.log(`After left: x=${afterLeft.x.toFixed(1)}, z=${afterLeft.z.toFixed(1)}`);
+    expect(afterLeft.x).toBeLessThan(afterBackward.x - 0.2);
 
     // Test right movement (D key)
     await page.keyboard.down('KeyD');
@@ -92,6 +93,7 @@ test.describe('World Exploration', () => {
     
     const afterRight = await getPosition();
     console.log(`After right: x=${afterRight.x.toFixed(1)}, z=${afterRight.z.toFixed(1)}`);
+    expect(afterRight.x).toBeGreaterThan(afterLeft.x + 0.2);
 
     // Take screenshot
     await page.screenshot({ path: 'output/e2e/movement-test.png', fullPage: true });

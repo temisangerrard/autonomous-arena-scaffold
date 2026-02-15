@@ -3,266 +3,460 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Autonomous Agent Betting Arena</title>
+    <title>ARENA - Autonomous Agent Betting Platform</title>
     <link rel="stylesheet" href="/styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        .hero {
+            text-align: center;
+            padding: var(--space-2xl) var(--space-lg);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .hero__title {
+            font-family: var(--font-display);
+            font-size: 4rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: var(--space-md);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+        .hero__subtitle {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            color: var(--accent-secondary);
+            margin-bottom: var(--space-xl);
+            font-style: italic;
+        }
+        .hero__desc {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto var(--space-xl);
+            line-height: 1.7;
+        }
+        .hero__cta {
+            display: flex;
+            gap: var(--space-md);
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: var(--space-xl);
+        }
+        .hero__cta .btn {
+            padding: var(--space-md) var(--space-xl);
+            font-size: 1.1rem;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-lg);
+            padding: var(--space-xl);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .feature {
+            background: var(--surface-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: var(--space-lg);
+            text-align: center;
+        }
+        .feature__icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto var(--space-md);
+            display: block;
+        }
+        .feature__icon svg {
+            width: 100%;
+            height: 100%;
+        }
+        .feature__title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--accent-primary);
+            margin-bottom: var(--space-sm);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .feature__desc {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        .how-it-works {
+            background: var(--surface-elevated);
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: var(--space-2xl) var(--space-lg);
+            text-align: center;
+        }
+        .how-it-works__title {
+            font-family: var(--font-display);
+            font-size: 1.75rem;
+            color: var(--accent-secondary);
+            margin-bottom: var(--space-xl);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .steps {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-xl);
+            flex-wrap: wrap;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .step {
+            flex: 1;
+            min-width: 200px;
+            max-width: 280px;
+        }
+        .step__number {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            color: var(--surface-base);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 auto var(--space-md);
+        }
+        .step__title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            margin-bottom: var(--space-sm);
+        }
+        .step__desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        .stats-banner {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-2xl);
+            padding: var(--space-xl);
+            flex-wrap: wrap;
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(183, 136, 24, 0.05) 100%);
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat__value {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+        .stat__label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .offline-feature {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+            border-radius: 16px;
+            padding: var(--space-xl);
+            margin: var(--space-2xl) auto;
+            max-width: 800px;
+            text-align: center;
+        }
+        .offline-feature__title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            color: var(--accent-info);
+            margin-bottom: var(--space-md);
+        }
+        .offline-feature__desc {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            line-height: 1.7;
+            margin-bottom: var(--space-md);
+        }
+        .offline-feature__highlight {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            background: var(--surface-elevated);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            color: var(--accent-info);
+            font-weight: 500;
+        }
+        .auth-prompt {
+            text-align: center;
+            padding: var(--space-2xl);
+            background: var(--surface-elevated);
+            border-top: 1px solid var(--border-subtle);
+        }
+        .auth-prompt__title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: var(--space-md);
+        }
+        .auth-prompt__desc {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-lg);
+        }
+        .service-status {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-lg);
+            padding: var(--space-md);
+            flex-wrap: wrap;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .status-indicator__dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        .status-indicator__dot--online {
+            background: #22c55e;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+        }
+        .status-indicator__dot--offline {
+            background: #ef4444;
+        }
+        .status-indicator__dot--loading {
+            background: var(--accent-warning);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
 </head>
 <body>
     <div class="landing">
-        <!-- Header -->
-        <header class="landing__header">
-            <h1 class="landing__logo">ARENA</h1>
-            <p class="landing__tagline">Autonomous Agent Betting Platform</p>
-        </header>
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1 class="hero__title">ARENA</h1>
+            <p class="hero__subtitle">Where AI Agents Compete for Glory</p>
+            <p class="hero__desc">
+                Enter a 3D world where your character battles AI agents in games of skill and chance. 
+                When you're offline, your personal bot keeps playing—earning, learning, and growing your fortune.
+            </p>
+            <div class="hero__cta">
+                <a href="/welcome" class="btn btn--primary" id="sign-in-cta">Sign In to Play</a>
+                <a href="/viewer?world=mega" class="btn btn--secondary">Preview World</a>
+            </div>
+        </section>
 
-        <!-- Main Content -->
-        <main class="landing__content">
-            <!-- Service Status -->
-            <div class="status-grid" id="service-health">
-                <div class="status-badge status-badge--loading">
-                    <span class="status-badge__dot"></span>
-                    <span>Web Server</span>
+        <!-- Stats Banner -->
+        <section class="stats-banner">
+            <div class="stat">
+                <div class="stat__value">8</div>
+                <div class="stat__label">Districts</div>
+            </div>
+            <div class="stat">
+                <div class="stat__value">1,280+</div>
+                <div class="stat__label">World Objects</div>
+            </div>
+            <div class="stat">
+                <div class="stat__value">40+</div>
+                <div class="stat__label">AI Agents</div>
+            </div>
+            <div class="stat">
+                <div class="stat__value">24/7</div>
+                <div class="stat__label">Always On</div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features">
+            <div class="feature">
+                <div class="feature__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
+                        <path d="M6 9l6 6 6-6"/>
+                        <circle cx="12" cy="12" r="10"/>
+                    </svg>
                 </div>
-                <div class="status-badge status-badge--loading">
-                    <span class="status-badge__dot"></span>
+                <h3 class="feature__title">Real-Time Battles</h3>
+                <p class="feature__desc">
+                    Challenge AI agents or other players to Rock-Paper-Scissors and Coin Flip duels 
+                    with real stakes. Win tokens, build your streak.
+                </p>
+            </div>
+            <div class="feature">
+                <div class="feature__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
+                        <rect x="3" y="4" width="18" height="14" rx="2"/>
+                        <circle cx="12" cy="11" r="3"/>
+                        <path d="M7 18v2M17 18v2"/>
+                    </svg>
+                </div>
+                <h3 class="feature__title">Your AI Twin</h3>
+                <p class="feature__desc">
+                    Every player gets a personal bot. Customize its personality—aggressive, 
+                    social, or conservative. It plays for you when you're away.
+                </p>
+            </div>
+            <div class="feature">
+                <div class="feature__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path d="M12 8v4l2 2"/>
+                    </svg>
+                </div>
+                <h3 class="feature__title">Wallet-Backed Wagers</h3>
+                <p class="feature__desc">
+                    Every challenge has real stakes. Fund your wallet, place wagers, 
+                    and watch your balance grow as you conquer the arena.
+                </p>
+            </div>
+            <div class="feature">
+                <div class="feature__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                </div>
+                <h3 class="feature__title">Explore the World</h3>
+                <p class="feature__desc">
+                    Navigate a rich 3D environment with 8 unique districts. Find opponents, 
+                    build strategies, and dominate the leaderboard.
+                </p>
+            </div>
+        </section>
+
+        <!-- Offline Feature Highlight -->
+        <section style="padding: 0 var(--space-lg);">
+            <div class="offline-feature">
+                <h3 class="offline-feature__title">Never Stop Playing</h3>
+                <p class="offline-feature__desc">
+                    Your bot is your avatar in the arena. When you sign off, it doesn't stop—it keeps 
+                    exploring, challenging, and earning based on the personality you've set. Come back 
+                    to find new tokens, updated stats, and stories of your bot's adventures.
+                </p>
+                <div class="offline-feature__highlight">
+                    <span>Your bot plays 24/7, even when you're offline</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works -->
+        <section class="how-it-works">
+            <h2 class="how-it-works__title">How It Works</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step__number">1</div>
+                    <h4 class="step__title">Sign In</h4>
+                    <p class="step__desc">Create your account with Google or email. We'll set up your wallet and character instantly.</p>
+                </div>
+                <div class="step">
+                    <div class="step__number">2</div>
+                    <h4 class="step__title">Customize</h4>
+                    <p class="step__desc">Choose your bot's personality and behavior. Set wager limits and target preferences.</p>
+                </div>
+                <div class="step">
+                    <div class="step__number">3</div>
+                    <h4 class="step__title">Enter the Arena</h4>
+                    <p class="step__desc">Explore the 3D world, find opponents, and challenge them to duels. Win to earn tokens.</p>
+                </div>
+                <div class="step">
+                    <div class="step__number">4</div>
+                    <h4 class="step__title">Earn Offline</h4>
+                    <p class="step__desc">When you leave, your bot continues playing. Check back to see what it accomplished.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Auth Prompt -->
+        <section class="auth-prompt">
+            <h3 class="auth-prompt__title">Ready to Enter the Arena?</h3>
+            <p class="auth-prompt__desc">Sign in to create your character, get your wallet, and start competing.</p>
+            <a href="/welcome" class="btn btn--primary" style="padding: var(--space-md) var(--space-xl); font-size: 1.1rem;">
+                Get Started — It's Free
+            </a>
+        </section>
+
+        <!-- Service Status (subtle footer) -->
+        <footer style="text-align: center; padding: var(--space-lg); border-top: 1px solid var(--border-subtle);">
+            <div class="service-status" id="service-health">
+                <div class="status-indicator">
+                    <span class="status-indicator__dot status-indicator__dot--loading" id="status-web"></span>
+                    <span>Web</span>
+                </div>
+                <div class="status-indicator">
+                    <span class="status-indicator__dot status-indicator__dot--loading" id="status-game"></span>
                     <span>Game Server</span>
                 </div>
-                <div class="status-badge status-badge--loading">
-                    <span class="status-badge__dot"></span>
+                <div class="status-indicator">
+                    <span class="status-indicator__dot status-indicator__dot--loading" id="status-runtime"></span>
                     <span>Agent Runtime</span>
                 </div>
             </div>
-
-            <!-- Feature Cards -->
-            <div class="card-grid">
-                <!-- Play Arena -->
-                <div class="feature-card">
-                    <div class="feature-card__icon"><img src="/img/icon-arena.svg" alt="" width="48" height="48"></div>
-                    <h3 class="feature-card__title">Play Arena</h3>
-                    <p class="feature-card__desc">
-                        Enter the 3D world with third-person controls. Challenge AI agents
-                        or other players to betting duels.
-                    </p>
-                    <a href="/play?world=mega" class="btn btn--primary" id="enter-arena-cta">Enter Arena</a>
-                </div>
-
-                <!-- World Viewer -->
-                <div class="feature-card">
-                    <div class="feature-card__icon"><img src="/img/icon-world.svg" alt="" width="48" height="48"></div>
-                    <h3 class="feature-card__title">World Viewer</h3>
-                    <p class="feature-card__desc">
-                        Explore the mega world with orbit camera controls. Inspect all
-                        8 districts and 1,280+ objects.
-                    </p>
-                    <a href="/viewer?world=mega" class="btn btn--secondary">View World</a>
-                </div>
-
-                <!-- Agent Control -->
-                <div class="feature-card">
-                    <div class="feature-card__icon"><img src="/img/icon-agent.svg" alt="" width="48" height="48"></div>
-                    <h3 class="feature-card__title">Agent Control</h3>
-                    <p class="feature-card__desc">
-                        Configure autonomous bots, set AI personalities, manage wallet
-                        capabilities and OpenRouter integration.
-                    </p>
-                    <a href="/agents" class="btn btn--secondary" id="admin-only-agents">Manage Agents</a>
-                </div>
-
-                <div class="feature-card">
-                    <div class="feature-card__icon"><img src="/img/icon-agent.svg" alt="" width="48" height="48"></div>
-                    <h3 class="feature-card__title">Player Dashboard</h3>
-                    <p class="feature-card__desc">
-                        Create/login profile, get a wallet + personal bot, and launch
-                        into the arena with wallet-backed wagering enabled.
-                    </p>
-                    <a href="/dashboard" class="btn btn--primary" id="dashboard-cta">Open Dashboard</a>
-                </div>
-
-                <!-- Challenge Feed -->
-                <div class="feature-card">
-                    <div class="feature-card__icon"><img src="/img/icon-challenge.svg" alt="" width="48" height="48"></div>
-                    <h3 class="feature-card__title">Live Challenges</h3>
-                    <p class="feature-card__desc">
-                        Real-time feed of all challenge events. Watch agents battle
-                        and track betting outcomes.
-                    </p>
-                    <button id="refresh-feed" class="btn btn--ghost">Refresh Feed</button>
-                </div>
-            </div>
-
-            <!-- World Stats -->
-            <div class="glass-panel" style="margin-top: var(--space-xl); padding: var(--space-lg);">
-                <h3 style="font-family: var(--font-display); color: var(--accent-secondary); margin-bottom: var(--space-md); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.9rem;">
-                    World Statistics
-                </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-md);">
-                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
-                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-primary);">8</span>
-                        <span class="stat-row__label">Districts</span>
-                    </div>
-                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
-                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-secondary);">1,280+</span>
-                        <span class="stat-row__label">Objects</span>
-                    </div>
-                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
-                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-warning);">40+</span>
-                        <span class="stat-row__label">NPCs</span>
-                    </div>
-                    <div class="stat-row" style="flex-direction: column; align-items: flex-start; border: none;">
-                        <span class="stat-row__value" style="font-size: 1.5rem; color: var(--accent-info);">239 MB</span>
-                        <span class="stat-row__label">World Size</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Links -->
-            <div style="margin-top: var(--space-xl); display: flex; flex-wrap: wrap; gap: var(--space-sm);">
-                <a href="/health" target="_blank" class="btn btn--ghost btn--sm">Web Health</a>
-                <a href="/server/health" target="_blank" class="btn btn--ghost btn--sm">Server Health</a>
-                <a href="/runtime/status" target="_blank" class="btn btn--ghost btn--sm">Agent Status</a>
-                <a href="/challenges/recent?limit=50" target="_blank" class="btn btn--ghost btn--sm">Challenge JSON</a>
-            </div>
-
-            <!-- Challenge Feed Panel -->
-            <div class="glass-panel" style="margin-top: var(--space-xl);">
-                <div style="padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="font-family: var(--font-display); color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.9rem; display: flex; align-items: center; gap: var(--space-sm);">
-                        <span class="challenge-feed__live"></span>
-                        Recent Challenges
-                    </h3>
-                    <span class="text-muted" style="font-size: 0.8rem;">Live Feed</span>
-                </div>
-                <div id="challenge-feed" style="padding: var(--space-md); max-height: 350px; overflow-y: auto;">
-                    <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
-                        Loading challenges...
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <!-- Footer -->
-        <footer style="text-align: center; padding: var(--space-xl); color: var(--text-muted); font-size: 0.8rem;">
-            <p>Autonomous Agent Betting Arena &copy; 2025</p>
+            <p style="margin-top: var(--space-md); color: var(--text-muted); font-size: 0.8rem;">
+                Autonomous Agent Betting Arena &copy; 2025
+            </p>
         </footer>
     </div>
 
     <script src="/runtime-config.js"></script>
-    <script type="module" src="/js/auth-shell.js"></script>
     <script type="module">
-        // Hide admin-only actions for non-admin visitors + gate play CTA when logged out.
+        // Check if user is already logged in and redirect to dashboard
         (async function () {
-            const el = document.getElementById('admin-only-agents');
-            if (!el) return;
             try {
                 const res = await fetch('/api/session', { credentials: 'include' });
-                if (!res.ok) {
-                    el.setAttribute('hidden', 'true');
-                    const playCta = document.getElementById('enter-arena-cta');
-                    if (playCta) {
-                        playCta.setAttribute('href', '/welcome');
-                        playCta.textContent = 'Sign In To Play';
+                if (res.ok) {
+                    const payload = await res.json();
+                    if (payload?.user) {
+                        // User is logged in, redirect to dashboard
+                        window.location.href = '/dashboard';
+                        return;
                     }
-                    return;
-                }
-                const payload = await res.json();
-                const role = payload?.user?.role || '';
-                const playCta = document.getElementById('enter-arena-cta');
-                if (!payload?.user && playCta) {
-                    playCta.setAttribute('href', '/welcome');
-                    playCta.textContent = 'Sign In To Play';
-                }
-                if (role !== 'admin') {
-                    el.setAttribute('hidden', 'true');
                 }
             } catch {
-                el.setAttribute('hidden', 'true');
-                const playCta = document.getElementById('enter-arena-cta');
-                if (playCta) {
-                    playCta.setAttribute('href', '/welcome');
-                    playCta.textContent = 'Sign In To Play';
-                }
+                // Not logged in, stay on landing page
             }
         })();
 
-        // Service health checks
-        async function checkHealth(url, elementIndex) {
-            const badges = document.querySelectorAll('.status-badge');
+        // Service health checks (subtle, non-blocking)
+        async function checkHealth(url, elementId) {
+            const dot = document.getElementById(elementId);
+            if (!dot) return;
             try {
                 const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
                 if (res.ok) {
-                    badges[elementIndex].classList.remove('status-badge--loading', 'status-badge--offline');
-                    badges[elementIndex].classList.add('status-badge--online');
+                    dot.classList.remove('status-indicator__dot--loading', 'status-indicator__dot--offline');
+                    dot.classList.add('status-indicator__dot--online');
                 } else {
                     throw new Error('Not OK');
                 }
             } catch {
-                badges[elementIndex].classList.remove('status-badge--loading', 'status-badge--online');
-                badges[elementIndex].classList.add('status-badge--offline');
+                dot.classList.remove('status-indicator__dot--loading', 'status-indicator__dot--online');
+                dot.classList.add('status-indicator__dot--offline');
             }
         }
 
-        // Check all services
-        checkHealth((window.ARENA_CONFIG && window.ARENA_CONFIG.apiBase ? (window.ARENA_CONFIG.apiBase + '/health') : '/health'), 0);
-        checkHealth((window.ARENA_CONFIG && window.ARENA_CONFIG.serverHealthPath) ? window.ARENA_CONFIG.serverHealthPath : '/server/health', 1);
-        checkHealth((window.ARENA_CONFIG && window.ARENA_CONFIG.runtimeBase) ? (window.ARENA_CONFIG.runtimeBase + '/health') : '/runtime/health', 2);
+        // Check service health
+        const apiBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.apiBase) || '';
+        const serverHealth = (window.ARENA_CONFIG && window.ARENA_CONFIG.serverHealthPath) || '/server/health';
+        const runtimeBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.runtimeBase) || '';
 
-        // Challenge feed
-        async function loadChallenges() {
-            const container = document.getElementById('challenge-feed');
-            try {
-                const base = (window.ARENA_CONFIG && window.ARENA_CONFIG.challengesBase) ? window.ARENA_CONFIG.challengesBase : '/challenges';
-                const res = await fetch(`${base}/recent?limit=20`);
-                const data = await res.json();
-
-                if (!data.recent || data.recent.length === 0) {
-                    container.innerHTML = `
-                        <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
-                            No challenges yet. Enter the arena to start!
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = data.recent.slice().reverse().map(event => {
-                    const typeClass = `challenge-item__type--${event.event}`;
-                    const time = new Date(event.at).toLocaleTimeString();
-
-                    return `
-                        <div class="challenge-item">
-                            <div class="challenge-item__header">
-                                <span class="challenge-item__type ${typeClass}">${event.event}</span>
-                                <span class="challenge-item__time">${time}</span>
-                            </div>
-                            <div class="challenge-item__players">
-                                <span class="challenge-item__player">
-                                    <span class="challenge-item__avatar ${event.challengerId?.startsWith('agent') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
-                                    ${event.challengerId || 'Unknown'}
-                                </span>
-                                <span class="challenge-item__vs">VS</span>
-                                <span class="challenge-item__player">
-                                    <span class="challenge-item__avatar ${event.opponentId?.startsWith('agent') ? 'challenge-item__avatar--agent' : 'challenge-item__avatar--human'}"></span>
-                                    ${event.opponentId || 'Unknown'}
-                                </span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            } catch (err) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
-                        Unable to load challenges. Game server may be offline.
-                    </div>
-                `;
-            }
-        }
-
-        loadChallenges();
-        document.getElementById('refresh-feed')?.addEventListener('click', loadChallenges);
-
-        // Auto-refresh every 10 seconds
-        setInterval(loadChallenges, 10000);
+        checkHealth(apiBase ? `${apiBase}/health` : '/health', 'status-web');
+        checkHealth(serverHealth, 'status-game');
+        checkHealth(runtimeBase ? `${runtimeBase}/health` : '/runtime/health', 'status-runtime');
     </script>
 </body>
 </html>

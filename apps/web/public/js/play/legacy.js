@@ -167,9 +167,12 @@ async function loadArenaConfig() {
       const cfg = await cfgRes.json();
       if (cfg && typeof cfg === 'object') {
         window.__ARENA_CONFIG = cfg;
-        if (!window.ARENA_CONFIG) {
-          window.ARENA_CONFIG = cfg;
-        }
+        // Merge into runtime-config.js (Netlify env driven) so we get
+        // `worldAssetBaseUrl` + `gameWsUrl` without losing origin settings.
+        window.ARENA_CONFIG = {
+          ...(window.ARENA_CONFIG || {}),
+          ...cfg
+        };
       }
       return cfg;
     } catch {
@@ -188,6 +191,18 @@ async function resolveWsBaseUrl() {
   const wsPath = (window.ARENA_CONFIG && window.ARENA_CONFIG.gameWsPath)
     ? String(window.ARENA_CONFIG.gameWsPath)
     : '/ws';
+
+  const serverOrigin = window.ARENA_CONFIG?.serverOrigin || '';
+  if (serverOrigin) {
+    const origin = String(serverOrigin);
+    const wsOrigin = origin.startsWith('https://')
+      ? `wss://${origin.slice('https://'.length)}`
+      : origin.startsWith('http://')
+        ? `ws://${origin.slice('http://'.length)}`
+        : origin;
+    return `${wsOrigin}${wsPath.startsWith('/') ? wsPath : `/${wsPath}`}`;
+  }
+
   const sameOrigin = window.location.protocol === 'https:'
     ? `wss://${window.location.host}${wsPath}`
     : `ws://${window.location.host}${wsPath}`;
@@ -442,6 +457,13 @@ void connectSocket();
 
 
 async function loadWorldWithFallback() {
+  // Ensure `/api/config` has been loaded so `worldAssetBaseUrl` is available.
+  // Without this, we can race and fall back to `/assets/world/*.glb` (404 on Netlify).
+  try {
+    await loadArenaConfig();
+  } catch {
+    // ignore; loader will fall back, but we prefer a best-effort config load.
+  }
   if (worldLoading) {
     worldLoading.classList.add('open');
     worldLoading.setAttribute('aria-hidden', 'false');

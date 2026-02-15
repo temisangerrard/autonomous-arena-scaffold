@@ -23,7 +23,7 @@ async function loadWorldManifest() {
 async function resolveWorldUrl(alias) {
   const loaderAlias = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
   const params = new URL(window.location.href).searchParams;
-  const configuredBase = window.__ARENA_CONFIG?.worldAssetBaseUrl || '';
+  const configuredBase = window.__ARENA_CONFIG?.worldAssetBaseUrl || window.ARENA_CONFIG?.worldAssetBaseUrl || '';
   const worldBaseUrl = params.get('worldBase') || configuredBase || '';
   const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
   const gcsMode = normalizedBase.includes('storage.googleapis.com') || normalizedBase.startsWith('gs://');

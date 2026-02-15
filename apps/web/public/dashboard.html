@@ -523,6 +523,123 @@
       word-break: break-all;
     }
 
+    /* Wallet Hero Styles */
+    .wallet-hero {
+      background: linear-gradient(135deg, #fff 0%, #fdf8f0 100%);
+    }
+
+    .wallet-hero__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 16px;
+    }
+
+    .gas-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 10px;
+      border: 1px solid #2a2a4a;
+    }
+
+    .gas-indicator__icon {
+      font-size: 24px;
+    }
+
+    .gas-indicator__label {
+      color: #888;
+      font: 700 10px/1 'Crimson Text', serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .gas-indicator__value {
+      color: #4ade80;
+      font: 700 16px/1 'Cormorant Garamond', serif;
+    }
+
+    .wallet-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 10px;
+      border: 1px solid #e4d8bb;
+    }
+
+    .wallet-action-group {
+      display: grid;
+      gap: 6px;
+    }
+
+    .wallet-ids {
+      padding-top: 12px;
+      border-top: 1px solid #e4d8bb;
+    }
+
+    /* Transaction History Styles */
+    .tx-history {
+      max-height: 320px;
+      overflow: auto;
+    }
+
+    .tx-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #e4d8bb;
+    }
+
+    .tx-item:last-child {
+      border-bottom: none;
+    }
+
+    .tx-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .tx-icon.in { background: rgba(34, 197, 94, 0.15); }
+    .tx-icon.out { background: rgba(239, 68, 68, 0.15); }
+    .tx-icon.challenge { background: rgba(168, 85, 247, 0.15); }
+    .tx-icon.refund { background: rgba(59, 130, 246, 0.15); }
+
+    .tx-details {
+      min-width: 0;
+    }
+
+    .tx-type {
+      font: 700 13px/1.2 'Crimson Text', serif;
+      color: #2a2114;
+    }
+
+    .tx-time {
+      font: 600 11px/1.2 'Crimson Text', serif;
+      color: #8d8577;
+      margin-top: 2px;
+    }
+
+    .tx-amount {
+      font: 700 14px/1 'Cormorant Garamond', serif;
+      text-align: right;
+    }
+
+    .tx-amount.positive { color: #16a34a; }
+    .tx-amount.negative { color: #dc2626; }
+
     @media (max-width: 1024px) {
       .dashboard-app { grid-template-columns: 60px minmax(0, 1fr); }
       .dashboard-sidebar { padding: 10px 8px; }
@@ -654,34 +771,55 @@
 
         <section id="view-wallet" class="dash-view">
           <div class="card-grid" style="margin-bottom:14px;">
-            <article class="panel">
-              <h2>Wallet</h2>
-              <div class="balance-label">Balance</div>
-              <p class="balance-value">◆ <span id="wallet-balance">0.00</span></p>
-              <p id="wallet-balance-note" class="muted" style="margin:-6px 0 10px;">Runtime wallet balance (scaffold mode).</p>
-
-              <div class="input-row" style="margin-bottom:8px;">
+            <article class="panel wallet-hero">
+              <div class="wallet-hero__head">
                 <div>
-                  <label class="label" for="wallet-fund-amount">Fund Amount</label>
-                  <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10">
+                  <h2>Wallet</h2>
+                  <div class="balance-label">Available Balance</div>
+                  <p class="balance-value">◆ <span id="wallet-balance">0.00</span></p>
+                  <p id="wallet-balance-note" class="muted" style="margin:-6px 0 0;">Runtime wallet balance (scaffold mode).</p>
                 </div>
-                <div style="display:flex;align-items:end;gap:8px;">
-                  <button id="wallet-fund" class="btn-green" type="button">Fund</button>
-                  <button id="wallet-withdraw" class="btn-ghost" type="button">Withdraw</button>
+                <div class="gas-indicator" id="gas-indicator" style="display:none;">
+                  <div class="gas-indicator__icon">⛽</div>
+                  <div>
+                    <div class="gas-indicator__label">Gas (ETH)</div>
+                    <div class="gas-indicator__value" id="gas-balance">0.00000</div>
+                  </div>
                 </div>
               </div>
 
-              <div style="display:none;">
-                <input id="wallet-withdraw-amount" type="number" min="1" step="1" value="5">
+              <div class="wallet-actions">
+                <div class="wallet-action-group">
+                  <label class="label" for="wallet-fund-amount">Add Funds</label>
+                  <div class="input-row-3">
+                    <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10" placeholder="Amount">
+                    <button id="wallet-fund" class="btn-green" type="button">+ Fund</button>
+                  </div>
+                </div>
+                <div class="wallet-action-group">
+                  <label class="label" for="wallet-withdraw-amount">Withdraw</label>
+                  <div class="input-row-3">
+                    <input id="wallet-withdraw-amount" class="field" type="number" min="1" step="1" value="5" placeholder="Amount">
+                    <button id="wallet-withdraw" class="btn-ghost" type="button">− Withdraw</button>
+                  </div>
+                </div>
               </div>
 
-              <div class="wallet-id-row">
-                <div class="field mono" id="me-wallet">-</div>
-                <button id="copy-wallet" class="btn-ghost" type="button">Copy</button>
-              </div>
-              <div class="wallet-id-row" style="margin-top:8px;">
-                <div class="field mono" id="me-wallet-address">-</div>
-                <button id="copy-wallet-address" class="btn-ghost" type="button">Copy</button>
+              <div class="wallet-ids">
+                <div class="wallet-id-row">
+                  <div>
+                    <span class="muted" style="font-size:11px;">Wallet ID</span>
+                    <div class="field mono" id="me-wallet" style="margin-top:4px;">-</div>
+                  </div>
+                  <button id="copy-wallet" class="btn-ghost" type="button">Copy</button>
+                </div>
+                <div class="wallet-id-row" style="margin-top:8px;">
+                  <div>
+                    <span class="muted" style="font-size:11px;">Address</span>
+                    <div class="field mono" id="me-wallet-address" style="margin-top:4px;">-</div>
+                  </div>
+                  <button id="copy-wallet-address" class="btn-ghost" type="button">Copy</button>
+                </div>
               </div>
             </article>
 

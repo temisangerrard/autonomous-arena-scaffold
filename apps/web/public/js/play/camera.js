@@ -73,8 +73,9 @@ export function createCameraController({ THREE, camera, state }) {
     } else {
       forwardFlat.copy(tmpDir).normalize();
     }
-    // Right-hand basis on ground plane.
-    rightFlat.crossVectors(forwardFlat, up).multiplyScalar(-1).normalize();
+    // Right-hand basis on ground plane (+X should be "camera right").
+    // NOTE: If this sign is wrong, A/D will feel inverted even when W/S are correct.
+    rightFlat.crossVectors(forwardFlat, up).normalize();
     return { forwardFlat, rightFlat };
   }
 
@@ -84,4 +85,3 @@ export function createCameraController({ THREE, camera, state }) {
     getMoveBasis
   };
 }
-
