@@ -4,7 +4,7 @@
 
 # NOTE: Netlify WS proxy is unreliable for this setup. Client bootstraps with `?ws=wss://.../ws`.
 # Keep this mapping as best-effort only.
-/ws           wss://arena-server-mfpf3lbsba-uc.a.run.app/ws                  200
+/ws           https://arena-server-mfpf3lbsba-uc.a.run.app/ws                200
 /presence*    https://arena-server-mfpf3lbsba-uc.a.run.app/presence:splat    200
 /challenges/* https://arena-server-mfpf3lbsba-uc.a.run.app/challenges/:splat 200
 /assets/world/* https://arena-web-api-mfpf3lbsba-uc.a.run.app/assets/world/:splat 200
