@@ -295,15 +295,82 @@ function createNameTag(initialText) {
 
 function createAvatar(color, initialName) {
   const avatar = new THREE.Group();
+  
+  // Torso (main body)
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.52, 4, 8), new THREE.MeshStandardMaterial({ color, roughness: 0.75 }));
   torso.position.y = 0.55;
 
+  // Head - slightly flattened sphere for more human-like appearance
+  const headGeometry = new THREE.SphereGeometry(0.22, 12, 10);
+  headGeometry.scale(1, 1.1, 1);
   const head = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.24, 0),
+    headGeometry,
     new THREE.MeshStandardMaterial({ color: 0xffd7b3, roughness: 0.95 })
   );
   head.position.y = 1.16;
 
+  // Face group - all face elements positioned relative to head
+  const faceGroup = new THREE.Group();
+  faceGroup.position.set(0, 1.16, 0);
+  
+  // Eyes - white spheres with black pupils
+  const eyeWhiteMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+  const eyePupilMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.2 });
+  
+  // Left eye
+  const leftEyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), eyeWhiteMaterial);
+  leftEyeWhite.position.set(-0.07, 0.03, 0.18);
+  const leftEyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 4), eyePupilMaterial);
+  leftEyePupil.position.set(-0.07, 0.03, 0.22);
+  
+  // Right eye
+  const rightEyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), eyeWhiteMaterial);
+  rightEyeWhite.position.set(0.07, 0.03, 0.18);
+  const rightEyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 4), eyePupilMaterial);
+  rightEyePupil.position.set(0.07, 0.03, 0.22);
+  
+  // Nose - small protrusion
+  const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xf0c8a8, roughness: 0.9 });
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), noseMaterial);
+  nose.position.set(0, -0.02, 0.22);
+  nose.scale.set(0.8, 1, 0.6);
+  
+  faceGroup.add(leftEyeWhite, leftEyePupil, rightEyeWhite, rightEyePupil, nose);
+
+  // Shoulder pads - clear orientation indicators
+  const shoulderMaterial = new THREE.MeshStandardMaterial({ 
+    color: new THREE.Color(color).multiplyScalar(0.7).getHex(), 
+    roughness: 0.6 
+  });
+  
+  // Left shoulder pad
+  const leftShoulder = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 8, 6),
+    shoulderMaterial
+  );
+  leftShoulder.position.set(-0.32, 0.85, 0);
+  leftShoulder.scale.set(1.2, 0.8, 1);
+  
+  // Right shoulder pad
+  const rightShoulder = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 8, 6),
+    shoulderMaterial
+  );
+  rightShoulder.position.set(0.32, 0.85, 0);
+  rightShoulder.scale.set(1.2, 0.8, 1);
+
+  // Chest emblem - front-facing indicator (triangle pointing forward)
+  const emblemMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0xffd700, // Gold color
+    roughness: 0.4,
+    metalness: 0.3
+  });
+  const emblemGeometry = new THREE.ConeGeometry(0.06, 0.12, 3);
+  const chestEmblem = new THREE.Mesh(emblemGeometry, emblemMaterial);
+  chestEmblem.position.set(0, 0.65, 0.28);
+  chestEmblem.rotation.x = Math.PI / 2; // Point forward
+
+  // Legs
   const legMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3d4a, roughness: 0.9 });
   const leftLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.48, 4, 8), legMaterial);
   const rightLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.48, 4, 8), legMaterial);
@@ -312,10 +379,13 @@ function createAvatar(color, initialName) {
 
   const nameTag = createNameTag(initialName);
 
-  avatar.add(torso, head, leftLeg, rightLeg, nameTag.sprite);
+  avatar.add(torso, head, faceGroup, leftShoulder, rightShoulder, chestEmblem, leftLeg, rightLeg, nameTag.sprite);
   return {
     avatar,
     head,
+    faceGroup,
+    leftShoulder,
+    rightShoulder,
     leftLeg,
     rightLeg,
     setName: nameTag.setText
@@ -1057,11 +1127,14 @@ let lastPointerX = 0;
 let lastPointerY = 0;
 
 canvas.addEventListener('pointerdown', (event) => {
-  // Orbit only on touch-drag or (Shift + right-mouse drag) (avoid accidental "world spinning"
-  // while keyboard-moving + micro mouse movement).
+  // Allow camera orbit via:
+  // - Touch drag (mobile)
+  // - Right-mouse drag (desktop) - no Shift required
+  // - Left-mouse drag with Shift (desktop) - alternative
   const isTouch = event.pointerType === 'touch';
   const isRightMouse = event.pointerType === 'mouse' && (event.button === 2 || (event.buttons & 2) === 2);
-  const allowMouseOrbit = isRightMouse && event.shiftKey;
+  const isLeftMouseWithShift = event.pointerType === 'mouse' && event.button === 0 && event.shiftKey;
+  const allowMouseOrbit = isRightMouse || isLeftMouseWithShift;
   // If the mobile joystick is actively being used, do not interpret other touch
   // interactions as camera orbit (prevents accidental camera drift while moving).
   if (isTouch && state.touch?.stickActive) {
@@ -1102,13 +1175,9 @@ canvas.addEventListener('pointermove', (event) => {
     return;
   }
 
-  // Keep movement intent stable: don't allow camera orbit to change "forward"
-  // while the player is actively moving.
-  const movingKeyboard = Boolean(state.input.forward || state.input.backward || state.input.left || state.input.right);
-  const movingTouch = Math.hypot(Number(state.touch?.moveX ?? 0), Number(state.touch?.moveZ ?? 0)) > 0.08;
-  if (movingKeyboard || movingTouch) {
-    return;
-  }
+  // Allow camera orbit even while moving - this is essential for exploration.
+  // The camera yaw is independent of player yaw, so orbiting while moving
+  // simply changes your view direction without affecting movement direction.
 
   const dx = event.clientX - lastPointerX;
   const dy = event.clientY - lastPointerY;
@@ -1124,6 +1193,17 @@ canvas.addEventListener('pointermove', (event) => {
   }
   state.cameraPitch = Math.min(0.85, Math.max(0.1, state.cameraPitch - dy * 0.004));
 });
+
+// Scroll-wheel zoom for camera distance adjustment
+let cameraDistance = 5;
+const MIN_CAMERA_DISTANCE = 2;
+const MAX_CAMERA_DISTANCE = 15;
+
+canvas.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  const delta = event.deltaY > 0 ? 0.5 : -0.5;
+  cameraDistance = Math.max(MIN_CAMERA_DISTANCE, Math.min(MAX_CAMERA_DISTANCE, cameraDistance + delta));
+}, { passive: false });
 
 function setStickKnob(dx, dy) {
   if (!mobileStickKnob) {
@@ -1383,7 +1463,8 @@ function updateLocalAvatar() {
   const forwardX = Math.sin(yaw);
   const forwardZ = Math.cos(yaw);
 
-  const followDistance = 5;
+  // Use the zoom-adjustable camera distance
+  const followDistance = cameraDistance;
   const followHeight = 1.8 + state.cameraPitch * 2.6;
 
   const desired = new THREE.Vector3(

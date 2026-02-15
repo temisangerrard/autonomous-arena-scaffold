@@ -64,19 +64,32 @@ function nearest(self: AgentPlayerState, others: AgentPlayerState[]): { target: 
   return best;
 }
 
+// Roam points moved to central, asset-rich areas (near train, castle, trees)
+// instead of world edges where there are no assets.
 const ROAM_POINTS: Array<{ x: number; z: number }> = [
-  { x: -96, z: -96 },
-  { x: -96, z: -28 },
-  { x: -96, z: 32 },
-  { x: -96, z: 96 },
-  { x: -28, z: -96 },
-  { x: -28, z: 96 },
-  { x: 32, z: -96 },
-  { x: 32, z: 96 },
-  { x: 96, z: -96 },
-  { x: 96, z: -28 },
-  { x: 96, z: 32 },
-  { x: 96, z: 96 }
+  // Near the train (center area)
+  { x: 0, z: 0 },
+  { x: -15, z: 5 },
+  { x: 15, z: -5 },
+  // Near the castle (north-west)
+  { x: -20, z: -45 },
+  { x: -10, z: -35 },
+  { x: -30, z: -40 },
+  // Near the giant tree (north-east)
+  { x: 75, z: -35 },
+  { x: 85, z: -25 },
+  { x: 65, z: -45 },
+  // Near the logs (south-east)
+  { x: 85, z: 55 },
+  { x: 95, z: 65 },
+  { x: 75, z: 60 },
+  // Near the stump (north-west corner)
+  { x: -85, z: -55 },
+  { x: -95, z: -50 },
+  // Central plaza areas
+  { x: 25, z: 25 },
+  { x: -25, z: -25 },
+  { x: 30, z: -30 }
 ];
 
 function crowdAvoidance(self: AgentPlayerState, others: AgentPlayerState[], radius = 9): { x: number; z: number } {
@@ -116,15 +129,25 @@ function roamDirection(self: AgentPlayerState, memory: PolicyMemory, nowMs: numb
   return normalize(towardPoint.x * 0.72 + wander.x * 0.28, towardPoint.z * 0.72 + wander.z * 0.28);
 }
 
+// Section centers moved closer to central assets instead of world edges.
+// These are used for patrol-section behavior when bots are assigned to specific areas.
 const SECTION_CENTERS: Array<{ x: number; z: number }> = [
-  { x: -90, z: -70 },
-  { x: -30, z: -70 },
-  { x: 30, z: -70 },
-  { x: 90, z: -70 },
-  { x: -90, z: 70 },
-  { x: -30, z: 70 },
-  { x: 30, z: 70 },
-  { x: 90, z: 70 }
+  // North-west (near castle/stump)
+  { x: -35, z: -40 },
+  // North-central (near train front)
+  { x: 0, z: -25 },
+  // North-east (near giant tree)
+  { x: 70, z: -35 },
+  // Central-east
+  { x: 45, z: 0 },
+  // South-west
+  { x: -35, z: 35 },
+  // South-central (near train back)
+  { x: 0, z: 25 },
+  // South-east (near logs)
+  { x: 80, z: 55 },
+  // Central-west
+  { x: -50, z: 0 }
 ];
 
 function sectionRoamDirection(

@@ -338,3 +338,57 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - typecheck: all packages ✅
     - tests: all packages ✅
     - build: all packages ✅
+
+- 2026-02-15: Movement/Camera/Avatar UX Fix Pass (by Cline):
+  - Branch: main (direct commits, no worktree)
+  - Problem: User reported "movement and camera controls are impossible to use for exploration"
+  - Root causes identified:
+    1. Camera orbit blocked while moving (had to stop to adjust camera)
+    2. Camera orbit required Shift+Right-click (unusual combination)
+    3. Avatar had no front/back indication (no face, eyes, or orientation markers)
+    4. Bots programmed to roam world edges where no assets exist
+  - Phase 1 - Camera Controls (apps/web/public/js/play.js):
+    - [x] Enabled right-click drag without Shift requirement
+    - [x] Removed movement-blocking condition from camera orbit
+    - [x] Added scroll-wheel zoom (2-15 unit range)
+    - [x] Connected zoom distance to camera follow logic
+  - Phase 2 - Avatar Design (apps/web/public/js/play.js):
+    - [x] Added face with eyes (white spheres + black pupils) for front indication
+    - [x] Added shoulder pads (darker spheres on left/right) for body orientation
+    - [x] Added chest emblem (gold triangle pointing forward) as front marker
+    - [x] Improved head shape (slightly flattened sphere for human-like appearance)
+  - Phase 3 - Bot Roaming (apps/agent-runtime/src/PolicyEngine.ts):
+    - [x] Moved ROAM_POINTS from world edges (±96) to central asset-rich areas:
+      - Near train (center): (0,0), (-15,5), (15,-5)
+      - Near castle (north-west): (-20,-45), (-10,-35), (-30,-40)
+      - Near giant tree (north-east): (75,-35), (85,-25), (65,-45)
+      - Near logs (south-east): (85,55), (95,65), (75,60)
+      - Central plaza: (25,25), (-25,-25), (30,-30)
+    - [x] Adjusted SECTION_CENTERS from world edges to central areas
+  - Controls summary after fix:
+    - Right-click + drag: Orbit camera
+    - Scroll wheel: Zoom in/out
+    - R key: Reset camera behind player
+    - WASD: Movement (relative to camera direction)
+  - Files modified:
+    - apps/web/public/js/play.js
+    - apps/agent-runtime/src/PolicyEngine.ts
+
+- 2026-02-15: Auth + Product Loop Hardening (Codex):
+  - Enforced authenticated gameplay entry points:
+    - `/profile` legacy route removed (redirects to `/dashboard` / `/welcome`), Netlify redirect updated
+    - Landing CTAs now route logged-out users to `/welcome` before play
+    - `/dashboard` client now bounces to `/welcome` on `401/403`
+  - One player == one character bot:
+    - Additional bot creation disabled for players (owner bot is provisioned at profile creation)
+  - Super Agent separation:
+    - Ops Super Agent is admin-only (`/api/super-agent/chat` gated)
+    - Added player-scoped "Chief of Staff" endpoint for wallet + bot tuning (`/api/player/chief/chat`)
+  - WebSocket auth:
+    - Added signed `wsAuth` tokens and server verification to prevent direct unauthenticated `/ws` connections
+    - Added production startup checks requiring `GAME_WS_AUTH_SECRET`
+  - House economy:
+    - Introduced `system_house` wallet (house bank) and NPC wallet floors funded by the house (no magic refills)
+    - Ops UI now includes house controls (floors, topups, manual transfers/refills)
+  - Online/offline handoff:
+    - Play client sends presence heartbeats; owner bot is parked while the player is online and restored when offline/TTL expires
