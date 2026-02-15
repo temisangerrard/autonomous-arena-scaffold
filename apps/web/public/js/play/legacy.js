@@ -8,6 +8,8 @@ import { AVATAR_GROUND_OFFSET, animateAvatar, createAvatarSystem } from './avata
 import { createInputSystem } from './input.js';
 import { initMenu } from './menu.js';
 import { createPresence } from './ws.js';
+import { createCameraController } from './camera.js';
+import { createMovementSystem } from './movement.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
@@ -128,6 +130,8 @@ initMenu(dom, { queryParams });
 
 const presence = createPresence({ queryParams });
 presence.installOfflineBeacon();
+
+const cameraController = createCameraController({ THREE, camera, state });
 
 if (deskToggle && challengePanel) {
   deskToggle.addEventListener('click', () => {
@@ -522,15 +526,12 @@ void loadWorldWithFallback();
 function resetCameraBehindPlayer() {
   const me = state.playerId ? state.players.get(state.playerId) : null;
   if (!me) return;
-  state.cameraYaw = me.displayYaw;
-  state.cameraYawInitialized = true;
+  cameraController.resetBehindPlayer(me);
 }
 
 const inputSystem = createInputSystem({
-  THREE,
   state,
   dom,
-  socketRef,
   actions: {
     resetCameraBehindPlayer,
     sendChallenge,
@@ -541,6 +542,14 @@ const inputSystem = createInputSystem({
     sendCounterOffer,
     sendGameMove
   }
+});
+
+const movementSystem = createMovementSystem({
+  THREE,
+  state,
+  socketRef,
+  inputSystem,
+  cameraController
 });
 
 sendChallengeBtn?.addEventListener('click', () => sendChallenge());
@@ -626,14 +635,6 @@ function updateLocalAvatar() {
 
   animateAvatar(localAvatarParts, local.speed, performance.now() * 0.004);
 
-  // Initialize the camera yaw from the player's current yaw exactly once so
-  // the initial spawn camera "looks correct" without making camera orbit depend
-  // on ongoing server-authoritative yaw updates.
-  if (!state.cameraYawInitialized) {
-    state.cameraYaw = local.displayYaw;
-    state.cameraYawInitialized = true;
-  }
-
   const active = state.activeChallenge;
   const inMatch = active && active.status === 'active' && (active.challengerId === state.playerId || active.opponentId === state.playerId);
   const opponentId =
@@ -642,51 +643,11 @@ function updateLocalAvatar() {
       : null;
   const opponent = opponentId ? state.players.get(opponentId) : null;
 
-  if (inMatch && opponent) {
-    const cx = (local.displayX + opponent.displayX) * 0.5;
-    const cz = (local.displayZ + opponent.displayZ) * 0.5;
-    const dx = opponent.displayX - local.displayX;
-    const dz = opponent.displayZ - local.displayZ;
-    const len = Math.max(0.001, Math.hypot(dx, dz));
-    const nx = dx / len;
-    const nz = dz / len;
-    const sideX = -nz;
-    const sideZ = nx;
-    const desired = new THREE.Vector3(
-      cx + sideX * 4.2 - nx * 1.1,
-      Math.max(local.displayY, opponent.displayY) + AVATAR_GROUND_OFFSET + 3.3,
-      cz + sideZ * 4.2 - nz * 1.1
-    );
-    camera.position.lerp(desired, 0.12);
-    camera.lookAt(cx, local.displayY + AVATAR_GROUND_OFFSET + 1.0, cz);
-
-    // IMPORTANT: Sync cameraYaw to match camera's actual facing direction during match
-    // This ensures movement input (computed from cameraYaw) matches the visual camera direction
-    const camDx = cx - camera.position.x;
-    const camDz = cz - camera.position.z;
-    const matchYaw = Math.atan2(camDx, camDz);
-    state.cameraYaw = matchYaw;
-
-    return;
-  }
-
-  // Camera orbit is controlled by the player, not by the character yaw.
-  const yaw = state.cameraYaw;
-  const forwardX = Math.sin(yaw);
-  const forwardZ = Math.cos(yaw);
-
-  // Use the zoom-adjustable camera distance
-  const followDistance = state.cameraDistance;
-  const followHeight = 1.8 + state.cameraPitch * 2.6;
-
-  const desired = new THREE.Vector3(
-    local.displayX - forwardX * followDistance,
-    local.displayY + AVATAR_GROUND_OFFSET + followHeight,
-    local.displayZ - forwardZ * followDistance
-  );
-
-  camera.position.lerp(desired, 0.14);
-  camera.lookAt(local.displayX, local.displayY + AVATAR_GROUND_OFFSET + 1.15, local.displayZ);
+  cameraController.update({
+    local,
+    opponent,
+    inMatch: Boolean(inMatch && opponent)
+  });
 }
 
 function renderMatchSpotlight() {
@@ -790,8 +751,8 @@ function renderMobileControls() {
 }
 
 function update(nowMs) {
-  inputSystem.sendInput(nowMs);
   updateLocalAvatar();
+  movementSystem.send(nowMs);
   syncRemoteAvatars(state, state.playerId);
   refreshNearbyDistances();
   renderMatchSpotlight();
@@ -1689,7 +1650,7 @@ window.advanceTime = (ms) => {
 
 window.render_game_to_text = () => {
   const local = state.playerId ? state.players.get(state.playerId) : null;
-  const desired = inputSystem.computeInputVector();
+  const desired = movementSystem.computeDesiredMove();
   return JSON.stringify({
     mode: 'play',
     wsConnected: state.wsConnected,
@@ -1699,6 +1660,7 @@ window.render_game_to_text = () => {
     tick: state.tick,
     coords: 'origin at world center, +X right, +Z forward, +Y up',
     cameraYaw: state.cameraYaw,
+    cameraDistance: state.cameraDistance,
     desiredMove: desired,
     player: local
       ? {

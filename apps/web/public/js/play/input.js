@@ -1,9 +1,7 @@
 export function createInputSystem({
-  THREE,
   state,
   dom,
-  actions,
-  socketRef
+  actions
 }) {
   const { canvas } = dom;
   if (!(canvas instanceof HTMLCanvasElement)) {
@@ -285,12 +283,7 @@ export function createInputSystem({
 
   initMobileControls();
 
-  // Camera-relative movement vector computation
-  const cameraForwardFlat = new THREE.Vector3(0, 0, 1);
-  const cameraRightFlat = new THREE.Vector3(1, 0, 0);
-  const moveVector = new THREE.Vector3();
-
-  function computeInputVector() {
+  function getAxes() {
     const keyboardRight = (state.input.right ? 1 : 0) - (state.input.left ? 1 : 0);
     const keyboardForward = (state.input.forward ? 1 : 0) - (state.input.backward ? 1 : 0);
     const touchRight = Number(state.touch?.moveX ?? 0);
@@ -299,39 +292,11 @@ export function createInputSystem({
     const inputForward = Math.max(-1, Math.min(1, keyboardForward + touchForward));
     const length = Math.hypot(inputRight, inputForward);
 
-    if (length < 0.001) return { moveX: 0, moveZ: 0 };
-
-    const yaw = state.cameraYaw;
-    cameraForwardFlat.set(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
-    cameraRightFlat.set(cameraForwardFlat.z, 0, -cameraForwardFlat.x).normalize();
-    moveVector
-      .set(0, 0, 0)
-      .addScaledVector(cameraRightFlat, inputRight / length)
-      .addScaledVector(cameraForwardFlat, inputForward / length);
-
-    if (moveVector.lengthSq() < 0.0001) return { moveX: 0, moveZ: 0 };
-
-    moveVector.normalize();
     return {
-      moveX: moveVector.x,
-      moveZ: moveVector.z
+      x: length < 0.001 ? 0 : inputRight / length,
+      z: length < 0.001 ? 0 : inputForward / length,
+      active: length >= 0.001
     };
-  }
-
-  // Input send with de-dupe
-  let lastInputSignature = '';
-  let lastInputSentAt = 0;
-  function sendInput(nowMs) {
-    const socket = socketRef?.current || null;
-    if (!state.wsConnected || !socket || socket.readyState !== WebSocket.OPEN) return;
-
-    const input = computeInputVector();
-    const signature = `${input.moveX.toFixed(2)}:${input.moveZ.toFixed(2)}`;
-    if (signature === lastInputSignature && nowMs - lastInputSentAt < 100) return;
-
-    socket.send(JSON.stringify({ type: 'input', ...input }));
-    lastInputSignature = signature;
-    lastInputSentAt = nowMs;
   }
 
   function dispose() {
@@ -345,5 +310,5 @@ export function createInputSystem({
     canvas.removeEventListener('wheel', onWheel);
   }
 
-  return { computeInputVector, sendInput, dispose };
+  return { getAxes, dispose };
 }
