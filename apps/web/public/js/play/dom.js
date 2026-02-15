@@ -56,7 +56,6 @@ export function getDom() {
     worldLoadingText: document.getElementById('world-loading-text'),
     onboardingOverlay: document.getElementById('onboarding-overlay'),
     onboardingProgress: document.getElementById('onboarding-progress'),
-    onboardingContent: document.getElementById('onboarding-content'),
     srAnnouncer: document.getElementById('sr-announcer'),
     toastContainer: document.getElementById('toast-container'),
     mobileControls: document.getElementById('mobile-controls'),
@@ -75,4 +74,3 @@ export function getDom() {
     mobileMoveT: document.getElementById('mobile-move-t')
   };
 }
-

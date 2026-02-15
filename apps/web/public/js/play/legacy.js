@@ -26,11 +26,6 @@ const {
   topbarName,
   topbarWallet,
   topbarStreak,
-  topbarMenu,
-  topbarMenuPop,
-  menuDashboard,
-  menuViewer,
-  menuLogout,
   targetSelect,
   gameSelect,
   wagerInput,
@@ -76,8 +71,6 @@ const {
   worldLoadingBar,
   worldLoadingText,
   mobileControls,
-  mobileStick,
-  mobileStickKnob,
   mobileInteract,
   mobileSend,
   mobileAccept,
@@ -537,7 +530,6 @@ const inputSystem = createInputSystem({
   THREE,
   state,
   dom,
-  queryParams,
   socketRef,
   actions: {
     resetCameraBehindPlayer,
@@ -667,6 +659,14 @@ function updateLocalAvatar() {
     );
     camera.position.lerp(desired, 0.12);
     camera.lookAt(cx, local.displayY + AVATAR_GROUND_OFFSET + 1.0, cz);
+
+    // IMPORTANT: Sync cameraYaw to match camera's actual facing direction during match
+    // This ensures movement input (computed from cameraYaw) matches the visual camera direction
+    const camDx = cx - camera.position.x;
+    const camDz = cz - camera.position.z;
+    const matchYaw = Math.atan2(camDx, camDz);
+    state.cameraYaw = matchYaw;
+
     return;
   }
 

@@ -2,7 +2,6 @@ export function createInputSystem({
   THREE,
   state,
   dom,
-  queryParams,
   actions,
   socketRef
 }) {
@@ -348,4 +347,3 @@ export function createInputSystem({
 
   return { computeInputVector, sendInput, dispose };
 }
-
