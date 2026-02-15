@@ -1,0 +1,6 @@
+steps:
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - '--dockerfile=Dockerfile.web'
+      - '--context=dir://.'
+      - '--destination=gcr.io/$PROJECT_ID/arena-web:${_TAG}'

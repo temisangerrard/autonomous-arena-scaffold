@@ -1,0 +1,5 @@
+[build]
+  # Netlify hosts the static frontend; APIs/WebSocket are proxied to Cloud Run via `apps/web/public/_redirects`.
+  publish = "apps/web/public"
+  command = "echo \"no build\""
+

@@ -51,6 +51,7 @@ loadEnvFromFile();
 
 const port = Number(process.env.PORT ?? 3000);
 const googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
+const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
@@ -368,6 +369,14 @@ async function runtimeProfiles(): Promise<PlayerProfile[]> {
   return payload.profiles ?? [];
 }
 
+async function serverGet<T>(pathname: string): Promise<T> {
+  const response = await fetch(`${serverBase}${pathname}`);
+  if (!response.ok) {
+    throw new Error(`server_get_${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
 async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
   if (identity.role !== 'player') {
     return;
@@ -457,10 +466,24 @@ function htmlRouteToFile(pathname: string, req: import('node:http').IncomingMess
   }
 
   if (pathname === '/home' || pathname === '/landing') {
+    if (identity) {
+      redirect(res, '/dashboard');
+      return null;
+    }
     return path.join(publicDir, 'index.html');
   }
 
-  if (pathname === '/dashboard' || pathname === '/profile') {
+  if (pathname === '/profile') {
+    // Legacy alias: keep canonical path at /dashboard.
+    if (!identity) {
+      redirect(res, '/welcome');
+      return null;
+    }
+    redirect(res, '/dashboard');
+    return null;
+  }
+
+  if (pathname === '/dashboard') {
     if (!identity) {
       redirect(res, '/welcome');
       return null;
@@ -1175,6 +1198,82 @@ const server = createServer(async (req, res) => {
     }
 
     reply('I did not recognize that. Say "help" for supported commands.');
+    return;
+  }
+
+  // Admin-only proxy routes to keep runtime ops out of the browser.
+  if (pathname.startsWith('/api/admin/runtime')) {
+    const auth = requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+
+    const subpath = pathname.slice('/api/admin/runtime'.length) || '/';
+    const allowGet = new Set(['/status', '/super-agent/status', '/super-agent/ethskills']);
+    const allowPostExact = new Set([
+      '/super-agent/config',
+      '/capabilities/wallet',
+      '/secrets/openrouter',
+      '/super-agent/delegate/apply',
+      '/super-agent/ethskills/sync',
+      '/profiles/create',
+      '/agents/reconcile',
+      '/super-agent/chat'
+    ]);
+    const allowPostRegex = [
+      /^\/wallets\/[^/]+\/(fund|withdraw|export-key|transfer)$/i,
+      /^\/agents\/[^/]+\/config$/i,
+      /^\/profiles\/[^/]+\/bots\/create$/i
+    ];
+
+    if (req.method === 'GET') {
+      if (!allowGet.has(subpath)) {
+        sendJson(res, { ok: false, reason: 'admin_proxy_not_allowed' }, 404);
+        return;
+      }
+      try {
+        const payload = await runtimeGet(subpath);
+        sendJson(res, payload);
+      } catch {
+        sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 400);
+      }
+      return;
+    }
+
+    if (req.method === 'POST') {
+      const allowed = allowPostExact.has(subpath) || allowPostRegex.some((re) => re.test(subpath));
+      if (!allowed) {
+        sendJson(res, { ok: false, reason: 'admin_proxy_not_allowed' }, 404);
+        return;
+      }
+      const body = await readJsonBody<unknown>(req);
+      try {
+        const payload = await runtimePost(subpath, body ?? {});
+        sendJson(res, payload);
+      } catch {
+        sendJson(res, { ok: false, reason: 'runtime_request_failed' }, 400);
+      }
+      return;
+    }
+
+    sendJson(res, { ok: false, reason: 'method_not_allowed' }, 405);
+    return;
+  }
+
+  if (pathname === '/api/admin/challenges/recent') {
+    const auth = requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const limit = Math.max(1, Math.min(300, Number(requestUrl.searchParams.get('limit') ?? 60)));
+    try {
+      const payload = await serverGet(`/challenges/recent?limit=${limit}`);
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'server_unavailable' }, 400);
+    }
     return;
   }
 

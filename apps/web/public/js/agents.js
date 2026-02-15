@@ -1,5 +1,6 @@
-const runtimeBase = 'http://localhost:4100';
-const serverBase = 'http://localhost:4000';
+// Admin ops must be routed through the web server (session + role checks).
+const runtimeBase = '/api/admin/runtime';
+const serverBase = '/api/admin';
 
 const statusSummary = document.getElementById('status-summary');
 const challengeLogEl = document.getElementById('challenge-log');
@@ -38,7 +39,11 @@ const superChatLog = document.getElementById('super-chat-log');
 let latestStatus = null;
 
 async function getJson(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, { credentials: 'include' });
+  if (response.status === 401 || response.status === 403) {
+    window.location.href = '/welcome';
+    throw new Error('unauthorized');
+  }
   if (!response.ok) {
     throw new Error(`GET ${url} failed (${response.status})`);
   }
@@ -49,10 +54,15 @@ async function postJson(url, payload) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    credentials: 'include'
   });
 
   const data = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) {
+    window.location.href = '/welcome';
+    throw new Error('unauthorized');
+  }
   if (!response.ok) {
     const reason = data?.reason || data?.error || `status_${response.status}`;
     throw new Error(String(reason));
@@ -98,7 +108,6 @@ function renderProfiles(status) {
           <button data-action="fund" data-wallet-id="${profile.wallet?.id}" data-amount="10">+10</button>
           <button data-action="withdraw" data-wallet-id="${profile.wallet?.id}" data-amount="5">-5</button>
           <button data-action="export" data-wallet-id="${profile.wallet?.id}" data-profile-id="${profile.id}">Export key</button>
-          <button data-action="new-bot" data-profile-id="${profile.id}">+ bot</button>
         </div>
       </td>
     `;
@@ -334,15 +343,6 @@ profilesBody.addEventListener('click', async (event) => {
     const result = await postJson(`${runtimeBase}/wallets/${walletId}/export-key`, { profileId });
     window.alert(`Wallet ${walletId}\nAddress: ${result.address}\nPrivate key: ${result.privateKey}`);
     return;
-  }
-
-  if (action === 'new-bot' && profileId) {
-    await postJson(`${runtimeBase}/profiles/${profileId}/bots/create`, {
-      managedBySuperAgent: true,
-      personality: 'social',
-      targetPreference: 'human_only'
-    });
-    await load();
   }
 });
 

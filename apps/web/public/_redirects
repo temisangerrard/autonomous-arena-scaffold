@@ -1,0 +1,19 @@
+# API + realtime proxy (frontend hosted on Netlify; backend on Cloud Run)
+/api/*        https://arena-web-api-mfpf3lbsba-uc.a.run.app/api/:splat       200
+/health       https://arena-web-api-mfpf3lbsba-uc.a.run.app/health           200
+
+# NOTE: Netlify WS proxy is unreliable for this setup. Client bootstraps with `?ws=wss://.../ws`.
+# Keep this mapping as best-effort only.
+/ws           wss://arena-server-mfpf3lbsba-uc.a.run.app/ws                  200
+/presence*    https://arena-server-mfpf3lbsba-uc.a.run.app/presence:splat    200
+/challenges/* https://arena-server-mfpf3lbsba-uc.a.run.app/challenges/:splat 200
+/assets/world/* https://arena-web-api-mfpf3lbsba-uc.a.run.app/assets/world/:splat 200
+
+# Pretty routes -> static HTML
+/welcome   /welcome.html   200
+/dashboard /dashboard.html 200
+/play      /play.html      200
+/viewer    /viewer.html    200
+/profile   /dashboard      302
+/agents    /agents.html    200
+/admin     /agents.html    200

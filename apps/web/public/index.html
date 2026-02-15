@@ -45,7 +45,7 @@
                         Enter the 3D world with third-person controls. Challenge AI agents
                         or other players to betting duels.
                     </p>
-                    <a href="/play?world=mega" class="btn btn--primary">Enter Arena</a>
+                    <a href="/play?world=mega" class="btn btn--primary" id="enter-arena-cta">Enter Arena</a>
                 </div>
 
                 <!-- World Viewer -->
@@ -72,12 +72,12 @@
 
                 <div class="feature-card">
                     <div class="feature-card__icon"><img src="/img/icon-agent.svg" alt="" width="48" height="48"></div>
-                    <h3 class="feature-card__title">Player Profile</h3>
+                    <h3 class="feature-card__title">Player Dashboard</h3>
                     <p class="feature-card__desc">
                         Create/login profile, get a wallet + personal bot, and launch
                         into the arena with wallet-backed wagering enabled.
                     </p>
-                    <a href="/profile" class="btn btn--primary">Open Profile</a>
+                    <a href="/dashboard" class="btn btn--primary" id="dashboard-cta">Open Dashboard</a>
                 </div>
 
                 <!-- Challenge Feed -->
@@ -150,7 +150,7 @@
 
     <script type="module" src="/js/auth-shell.js"></script>
     <script type="module">
-        // Hide admin-only actions for non-admin visitors.
+        // Hide admin-only actions for non-admin visitors + gate play CTA when logged out.
         (async function () {
             const el = document.getElementById('admin-only-agents');
             if (!el) return;
@@ -158,15 +158,30 @@
                 const res = await fetch('/api/session', { credentials: 'include' });
                 if (!res.ok) {
                     el.setAttribute('hidden', 'true');
+                    const playCta = document.getElementById('enter-arena-cta');
+                    if (playCta) {
+                        playCta.setAttribute('href', '/welcome');
+                        playCta.textContent = 'Sign In To Play';
+                    }
                     return;
                 }
                 const payload = await res.json();
                 const role = payload?.user?.role || '';
+                const playCta = document.getElementById('enter-arena-cta');
+                if (!payload?.user && playCta) {
+                    playCta.setAttribute('href', '/welcome');
+                    playCta.textContent = 'Sign In To Play';
+                }
                 if (role !== 'admin') {
                     el.setAttribute('hidden', 'true');
                 }
             } catch {
                 el.setAttribute('hidden', 'true');
+                const playCta = document.getElementById('enter-arena-cta');
+                if (playCta) {
+                    playCta.setAttribute('href', '/welcome');
+                    playCta.textContent = 'Sign In To Play';
+                }
             }
         })();
 

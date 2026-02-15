@@ -108,7 +108,7 @@ function markActiveLink(user) {
     const key = link.dataset.link;
     if (
       (key === 'welcome' && path === '/welcome') ||
-      (key === 'dashboard' && (path === '/dashboard' || path === '/profile')) ||
+      (key === 'dashboard' && path === '/dashboard') ||
       (key === 'play' && path === '/play') ||
       (key === 'viewer' && path === '/viewer') ||
       (key === 'admin' && (path === '/admin' || path === '/agents'))

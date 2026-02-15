@@ -101,6 +101,15 @@ async function api(path, init = {}) {
     ...init
   });
   const payload = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) {
+    try {
+      localStorage.removeItem('arena_ws_auth');
+    } catch {
+      // ignore
+    }
+    window.location.href = '/welcome';
+    throw new Error('unauthorized');
+  }
   if (!response.ok) {
     throw new Error(payload?.reason || `status_${response.status}`);
   }
