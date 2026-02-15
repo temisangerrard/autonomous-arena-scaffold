@@ -62,7 +62,8 @@ describe('WorldSim', () => {
     expect(player).toBeDefined();
     expect(Math.abs(player?.x ?? 0)).toBeLessThan(100);
     expect(Math.abs(player?.z ?? 0)).toBeLessThan(100);
-    const insideTrainBlock = (player?.x ?? 0) > -38 && (player?.x ?? 0) < 38 && (player?.z ?? 0) > -18 && (player?.z ?? 0) < 16;
+    // Train core obstacle in WorldSim.ts: x [-20,20], z [-8,8]
+    const insideTrainBlock = (player?.x ?? 0) > -20 && (player?.x ?? 0) < 20 && (player?.z ?? 0) > -8 && (player?.z ?? 0) < 8;
     expect(insideTrainBlock).toBe(false);
   });
 
@@ -84,14 +85,16 @@ describe('WorldSim', () => {
     expect(p1).toBeDefined();
     expect(p2).toBeDefined();
     const distance = Math.hypot((p2?.x ?? 0) - (p1?.x ?? 0), (p2?.z ?? 0) - (p1?.z ?? 0));
-    expect(distance).toBeGreaterThan(1.9);
+    // With smaller PLAYER_RADIUS (0.75) and a gentler separation push,
+    // we only require they are pushed apart beyond radius overlap.
+    expect(distance).toBeGreaterThan(1.4);
   });
 
   it('blocks movement into static obstacle zones', () => {
     const sim = new WorldSim();
     sim.joinPlayer('p1');
 
-    // Approach train body obstacle (minX -38) from the west.
+    // Approach train body obstacle (minX -20) from the west.
     sim.setPlayerPositionForTest('p1', -52, 0);
     for (let i = 0; i < 220; i += 1) {
       sim.setInput('p1', { moveX: 1, moveZ: 0 });
@@ -102,6 +105,6 @@ describe('WorldSim', () => {
     const player = snapshot.players.find((entry) => entry.id === 'p1');
     expect(player).toBeDefined();
     // Collision radius keeps x just outside obstacle wall.
-    expect((player?.x ?? 0)).toBeLessThan(-38.8);
+    expect((player?.x ?? 0)).toBeLessThan(-20.6);
   });
 });

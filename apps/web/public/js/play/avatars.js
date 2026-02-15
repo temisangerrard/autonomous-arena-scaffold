@@ -1,9 +1,46 @@
+/**
+ * Avatar System - Redesigned for better visual appeal
+ * Features:
+ * - Smoother proportions with rounded shapes
+ * - Better color schemes for human vs agent
+ * - Improved walking animation
+ * - Subtle idle animations
+ */
+
 export const AVATAR_GROUND_OFFSET = -0.7;
+
+// Color palettes
+const COLORS = {
+  human: {
+    primary: 0x4a90d9,      // Soft blue
+    secondary: 0x3a7bc8,    // Darker blue
+    accent: 0xffd700,       // Gold
+    skin: 0xf5d0b5,         // Warm skin tone
+    hair: 0x4a3728,         // Brown hair
+    pants: 0x2c3e50         // Dark slate
+  },
+  agent: {
+    primary: 0xd4a574,      // Warm bronze
+    secondary: 0xc49464,    // Darker bronze
+    accent: 0x50c878,       // Emerald green
+    skin: 0xe8c9a8,         // Lighter skin
+    hair: 0x2c2c2c,         // Dark hair
+    pants: 0x34495e         // Charcoal
+  },
+  local: {
+    primary: 0x5dade2,      // Bright cyan-blue
+    secondary: 0x3498db,    // Deeper blue
+    accent: 0xf39c12,       // Orange-gold
+    skin: 0xfad7a0,         // Peachy skin
+    hair: 0x5d4e37,         // Medium brown
+    pants: 0x2c3e50         // Dark slate
+  }
+};
 
 function createNameTag(THREE, initialText) {
   const canvas = document.createElement('canvas');
-  canvas.width = 96;
-  canvas.height = 18;
+  canvas.width = 128;
+  canvas.height = 24;
   const ctx = canvas.getContext('2d');
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -11,17 +48,24 @@ function createNameTag(THREE, initialText) {
   function draw(text) {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(255, 251, 241, 0.94)';
-    ctx.fillRect(0, 2, canvas.width, 14);
-    ctx.strokeStyle = 'rgba(183, 136, 24, 0.9)';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(0, 2, canvas.width, 14);
-    ctx.fillStyle = '#4a3812';
-    ctx.font = '700 8px "IBM Plex Sans", sans-serif';
+    
+    // Rounded rectangle background
+    const radius = 6;
+    ctx.beginPath();
+    ctx.roundRect(2, 2, canvas.width - 4, canvas.height - 4, radius);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // Text with shadow
+    ctx.fillStyle = '#333';
+    ctx.font = '600 11px "Inter", "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const trimmed = String(text).slice(0, 14);
-    ctx.fillText(trimmed, canvas.width / 2, 9);
+    const trimmed = String(text).slice(0, 16);
+    ctx.fillText(trimmed, canvas.width / 2, canvas.height / 2);
     texture.needsUpdate = true;
   }
 
@@ -35,8 +79,8 @@ function createNameTag(THREE, initialText) {
       depthWrite: false
     })
   );
-  sprite.scale.set(0.62, 0.12, 1);
-  sprite.position.set(0, 1.62, 0);
+  sprite.scale.set(0.8, 0.15, 1);
+  sprite.position.set(0, 1.75, 0);
 
   return {
     sprite,
@@ -44,100 +88,275 @@ function createNameTag(THREE, initialText) {
   };
 }
 
-function createAvatar(THREE, color, initialName) {
+function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
+  const colors = colorScheme;
   const avatar = new THREE.Group();
 
-  const torso = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.28, 0.52, 4, 8),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.75 })
-  );
-  torso.position.y = 0.55;
+  // Body - smooth capsule shape
+  const bodyGeometry = new THREE.CapsuleGeometry(0.22, 0.45, 8, 16);
+  const bodyMaterial = new THREE.MeshStandardMaterial({ 
+    color: colors.primary, 
+    roughness: 0.6,
+    metalness: 0.1
+  });
+  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  body.position.y = 0.52;
+  body.castShadow = true;
 
-  const headGeometry = new THREE.SphereGeometry(0.22, 12, 10);
-  headGeometry.scale(1, 1.1, 1);
-  const head = new THREE.Mesh(
-    headGeometry,
-    new THREE.MeshStandardMaterial({ color: 0xffd7b3, roughness: 0.95 })
-  );
-  head.position.y = 1.16;
+  // Head - slightly oval sphere
+  const headGeometry = new THREE.SphereGeometry(0.18, 24, 20);
+  headGeometry.scale(1, 1.08, 0.95);
+  const headMaterial = new THREE.MeshStandardMaterial({ 
+    color: colors.skin, 
+    roughness: 0.85,
+    metalness: 0
+  });
+  const head = new THREE.Mesh(headGeometry, headMaterial);
+  head.position.y = 1.08;
+  head.castShadow = true;
 
+  // Hair - simple cap on top
+  const hairGeometry = new THREE.SphereGeometry(0.19, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  const hairMaterial = new THREE.MeshStandardMaterial({ 
+    color: colors.hair, 
+    roughness: 0.9 
+  });
+  const hair = new THREE.Mesh(hairGeometry, hairMaterial);
+  hair.position.y = 1.12;
+  hair.rotation.x = -0.1;
+
+  // Face group
   const faceGroup = new THREE.Group();
-  faceGroup.position.set(0, 1.16, 0);
+  faceGroup.position.set(0, 1.08, 0);
 
-  const eyeWhiteMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-  const eyePupilMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.2 });
-
-  const leftEyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), eyeWhiteMaterial);
-  leftEyeWhite.position.set(-0.07, 0.03, 0.18);
-  const leftEyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 4), eyePupilMaterial);
-  leftEyePupil.position.set(-0.07, 0.03, 0.22);
-
-  const rightEyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), eyeWhiteMaterial);
-  rightEyeWhite.position.set(0.07, 0.03, 0.18);
-  const rightEyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 4), eyePupilMaterial);
-  rightEyePupil.position.set(0.07, 0.03, 0.22);
-
-  const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xf0c8a8, roughness: 0.9 });
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), noseMaterial);
-  nose.position.set(0, -0.02, 0.22);
-  nose.scale.set(0.8, 1, 0.6);
-
-  faceGroup.add(leftEyeWhite, leftEyePupil, rightEyeWhite, rightEyePupil, nose);
-
-  const shoulderMaterial = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(color).multiplyScalar(0.7).getHex(),
-    roughness: 0.6
+  // Eyes - larger, more expressive
+  const eyeWhiteMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0xffffff, 
+    roughness: 0.2 
+  });
+  const eyePupilMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0x1a1a1a, 
+    roughness: 0.1,
+    metalness: 0.2
+  });
+  const eyeIrisMaterial = new THREE.MeshStandardMaterial({ 
+    color: isLocal ? 0x4a90d9 : 0x6b8e23, 
+    roughness: 0.3 
   });
 
-  const leftShoulder = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), shoulderMaterial);
-  leftShoulder.position.set(-0.32, 0.85, 0);
-  leftShoulder.scale.set(1.2, 0.8, 1);
+  // Left eye
+  const leftEyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), eyeWhiteMaterial);
+  leftEyeWhite.position.set(-0.06, 0.02, 0.15);
+  leftEyeWhite.scale.set(1, 0.8, 0.5);
+  
+  const leftEyeIris = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 8), eyeIrisMaterial);
+  leftEyeIris.position.set(-0.06, 0.02, 0.17);
+  
+  const leftEyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), eyePupilMaterial);
+  leftEyePupil.position.set(-0.06, 0.02, 0.18);
 
-  const rightShoulder = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), shoulderMaterial);
-  rightShoulder.position.set(0.32, 0.85, 0);
-  rightShoulder.scale.set(1.2, 0.8, 1);
+  // Right eye
+  const rightEyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), eyeWhiteMaterial);
+  rightEyeWhite.position.set(0.06, 0.02, 0.15);
+  rightEyeWhite.scale.set(1, 0.8, 0.5);
+  
+  const rightEyeIris = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 8), eyeIrisMaterial);
+  rightEyeIris.position.set(0.06, 0.02, 0.17);
+  
+  const rightEyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), eyePupilMaterial);
+  rightEyePupil.position.set(0.06, 0.02, 0.18);
 
-  const emblemMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffd700,
-    roughness: 0.4,
-    metalness: 0.3
+  // Eyebrows - simple curved lines
+  const eyebrowMaterial = new THREE.MeshStandardMaterial({ color: colors.hair, roughness: 0.9 });
+  const leftEyebrow = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.008, 0.01),
+    eyebrowMaterial
+  );
+  leftEyebrow.position.set(-0.06, 0.06, 0.16);
+  leftEyebrow.rotation.z = 0.1;
+  
+  const rightEyebrow = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.008, 0.01),
+    eyebrowMaterial
+  );
+  rightEyebrow.position.set(0.06, 0.06, 0.16);
+  rightEyebrow.rotation.z = -0.1;
+
+  // Mouth - subtle smile
+  const mouthGeometry = new THREE.TorusGeometry(0.025, 0.004, 8, 12, Math.PI);
+  const mouthMaterial = new THREE.MeshStandardMaterial({ color: 0xcc8877, roughness: 0.8 });
+  const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+  mouth.position.set(0, -0.04, 0.16);
+  mouth.rotation.x = Math.PI;
+  mouth.rotation.z = Math.PI;
+
+  faceGroup.add(
+    leftEyeWhite, leftEyeIris, leftEyePupil,
+    rightEyeWhite, rightEyeIris, rightEyePupil,
+    leftEyebrow, rightEyebrow, mouth
+  );
+
+  // Arms - rounded capsules
+  const armMaterial = new THREE.MeshStandardMaterial({ 
+    color: colors.secondary, 
+    roughness: 0.65 
   });
-  const emblemGeometry = new THREE.ConeGeometry(0.06, 0.12, 3);
-  const chestEmblem = new THREE.Mesh(emblemGeometry, emblemMaterial);
-  chestEmblem.position.set(0, 0.65, 0.28);
-  chestEmblem.rotation.x = Math.PI / 2;
+  
+  const leftArm = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.055, 0.28, 6, 10),
+    armMaterial
+  );
+  leftArm.position.set(-0.28, 0.55, 0);
+  leftArm.rotation.z = 0.15;
+  leftArm.castShadow = true;
 
-  const legMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3d4a, roughness: 0.9 });
-  const leftLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.48, 4, 8), legMaterial);
-  const rightLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.48, 4, 8), legMaterial);
-  leftLeg.position.set(-0.14, -0.02, 0);
-  rightLeg.position.set(0.14, -0.02, 0);
+  const rightArm = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.055, 0.28, 6, 10),
+    armMaterial
+  );
+  rightArm.position.set(0.28, 0.55, 0);
+  rightArm.rotation.z = -0.15;
+  rightArm.castShadow = true;
 
+  // Hands - small spheres
+  const handMaterial = new THREE.MeshStandardMaterial({ 
+    color: colors.skin, 
+    roughness: 0.85 
+  });
+  
+  const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), handMaterial);
+  leftHand.position.set(-0.32, 0.35, 0);
+  
+  const rightHand = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), handMaterial);
+  rightHand.position.set(0.32, 0.35, 0);
+
+  // Legs - darker pants
+  const legMaterial = new THREE.MeshStandardMaterial({ 
+    color: colors.pants, 
+    roughness: 0.85 
+  });
+  
+  const leftLeg = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.075, 0.38, 6, 10),
+    legMaterial
+  );
+  leftLeg.position.set(-0.1, 0.02, 0);
+  leftLeg.castShadow = true;
+
+  const rightLeg = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.075, 0.38, 6, 10),
+    legMaterial
+  );
+  rightLeg.position.set(0.1, 0.02, 0);
+  rightLeg.castShadow = true;
+
+  // Feet - small rounded boxes
+  const footMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0x2c2c2c, 
+    roughness: 0.9 
+  });
+  
+  const leftFoot = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.04, 0.12),
+    footMaterial
+  );
+  leftFoot.position.set(-0.1, -0.18, 0.02);
+  
+  const rightFoot = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.04, 0.12),
+    footMaterial
+  );
+  rightFoot.position.set(0.1, -0.18, 0.02);
+
+  // Accent badge (for local player)
+  if (isLocal) {
+    const badgeGeometry = new THREE.CircleGeometry(0.05, 16);
+    const badgeMaterial = new THREE.MeshStandardMaterial({ 
+      color: colors.accent, 
+      roughness: 0.3,
+      metalness: 0.5,
+      emissive: colors.accent,
+      emissiveIntensity: 0.3
+    });
+    const badge = new THREE.Mesh(badgeGeometry, badgeMaterial);
+    badge.position.set(0, 0.7, 0.23);
+    avatar.add(badge);
+  }
+
+  // Name tag
   const nameTag = createNameTag(THREE, initialName);
 
-  avatar.add(torso, head, faceGroup, leftShoulder, rightShoulder, chestEmblem, leftLeg, rightLeg, nameTag.sprite);
+  // Assemble avatar
+  avatar.add(
+    body, head, hair, faceGroup,
+    leftArm, rightArm, leftHand, rightHand,
+    leftLeg, rightLeg, leftFoot, rightFoot,
+    nameTag.sprite
+  );
+
   return {
     avatar,
     head,
     faceGroup,
-    leftShoulder,
-    rightShoulder,
+    body,
+    leftArm,
+    rightArm,
+    leftHand,
+    rightHand,
     leftLeg,
     rightLeg,
+    leftFoot,
+    rightFoot,
     setName: nameTag.setText
   };
 }
 
 export function animateAvatar(parts, speed, t, phaseOffset = 0) {
-  const gait = Math.min(1, speed / 5);
-  const gaitPhase = t * 8 + phaseOffset;
-  parts.head.position.y = 1.16 + Math.sin(gaitPhase * 0.5) * 0.05 * gait;
-  parts.leftLeg.rotation.x = Math.sin(gaitPhase) * 0.55 * gait;
-  parts.rightLeg.rotation.x = Math.sin(gaitPhase + Math.PI) * 0.55 * gait;
+  const gait = Math.min(1, speed / 4.5);
+  const phase = t * 7 + phaseOffset;
+  
+  // Idle breathing animation
+  const breathe = Math.sin(t * 1.5) * 0.01;
+  parts.body.scale.y = 1 + breathe;
+  parts.body.position.y = 0.52 + breathe * 0.5;
+  
+  // Head bob while walking
+  parts.head.position.y = 1.08 + Math.sin(phase * 0.5) * 0.03 * gait + breathe;
+  
+  // Arm swing
+  const armSwing = Math.sin(phase) * 0.4 * gait;
+  parts.leftArm.rotation.x = armSwing;
+  parts.rightArm.rotation.x = -armSwing;
+  
+  // Hand follows arm
+  if (parts.leftHand) {
+    parts.leftHand.position.y = 0.35 - Math.sin(phase) * 0.08 * gait;
+  }
+  if (parts.rightHand) {
+    parts.rightHand.position.y = 0.35 + Math.sin(phase) * 0.08 * gait;
+  }
+  
+  // Leg swing
+  const legSwing = Math.sin(phase) * 0.5 * gait;
+  parts.leftLeg.rotation.x = legSwing;
+  parts.rightLeg.rotation.x = -legSwing;
+  
+  // Foot follows leg
+  if (parts.leftFoot) {
+    parts.leftFoot.position.z = 0.02 + Math.sin(phase) * 0.04 * gait;
+    parts.leftFoot.rotation.x = Math.sin(phase) * 0.2 * gait;
+  }
+  if (parts.rightFoot) {
+    parts.rightFoot.position.z = 0.02 - Math.sin(phase) * 0.04 * gait;
+    parts.rightFoot.rotation.x = -Math.sin(phase) * 0.2 * gait;
+  }
+  
+  // Subtle body tilt while walking
+  parts.body.rotation.z = Math.sin(phase * 0.5) * 0.03 * gait;
 }
 
 export function createAvatarSystem({ THREE, scene }) {
-  const localAvatarParts = createAvatar(THREE, 0x3a7bff, 'You');
+  const localAvatarParts = createAvatar(THREE, COLORS.local, 'You', true);
   scene.add(localAvatarParts.avatar);
   const remoteAvatars = new Map();
 
@@ -147,8 +366,8 @@ export function createAvatarSystem({ THREE, scene }) {
 
       let remote = remoteAvatars.get(player.id);
       if (!remote) {
-        const color = player.role === 'agent' ? 0xc8813f : 0x6f8f72;
-        remote = createAvatar(THREE, color, player.displayName);
+        const colorScheme = player.role === 'agent' ? COLORS.agent : COLORS.human;
+        remote = createAvatar(THREE, colorScheme, player.displayName, false);
         remote.avatar.position.y = 1.2;
         remoteAvatars.set(player.id, remote);
         scene.add(remote.avatar);
@@ -156,12 +375,18 @@ export function createAvatarSystem({ THREE, scene }) {
 
       remote.setName(player.displayName);
 
-      player.displayX += (player.x - player.displayX) * 0.28;
-      player.displayY += (player.y - player.displayY) * 0.28;
-      player.displayZ += (player.z - player.displayZ) * 0.28;
-      player.displayYaw += (player.yaw - player.displayYaw) * 0.25;
+      // Smooth interpolation
+      const lerpFactor = 0.22;
+      player.displayX += (player.x - player.displayX) * lerpFactor;
+      player.displayY += (player.y - player.displayY) * lerpFactor;
+      player.displayZ += (player.z - player.displayZ) * lerpFactor;
+      player.displayYaw += (player.yaw - player.displayYaw) * 0.2;
 
-      remote.avatar.position.set(player.displayX, player.displayY + AVATAR_GROUND_OFFSET, player.displayZ);
+      remote.avatar.position.set(
+        player.displayX, 
+        player.displayY + AVATAR_GROUND_OFFSET, 
+        player.displayZ
+      );
       remote.avatar.rotation.y = player.displayYaw;
 
       animateAvatar(remote, player.speed, performance.now() * 0.004, player.id.length * 0.61);
@@ -170,4 +395,3 @@ export function createAvatarSystem({ THREE, scene }) {
 
   return { localAvatarParts, remoteAvatars, syncRemoteAvatars };
 }
-

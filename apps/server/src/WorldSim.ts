@@ -37,10 +37,12 @@ const WORLD_BOUND = 120;
 const ACCEL = 14;
 const DRAG = 8;
 const MAX_SPEED = 5;
-const PLAYER_RADIUS = 1.05;
-const AVOIDANCE_RADIUS = 3.3;
-const AVOIDANCE_ACCEL = 12;
-const OBSTACLE_BUFFER = 2.6;
+// Keep the capsule-style avatars from feeling like they hit "invisible walls".
+// A smaller radius also reduces how often players get snagged on corners.
+const PLAYER_RADIUS = 0.75;
+const AVOIDANCE_RADIUS = 2.2;
+const AVOIDANCE_ACCEL = 6;
+const OBSTACLE_BUFFER = 0.6;
 const SECTION_SPAWNS: Array<{ x: number; z: number }> = [
   { x: -90, z: -70 },
   { x: -30, z: -70 },
@@ -61,19 +63,17 @@ const HUMAN_SPAWNS: Array<{ x: number; z: number }> = [
   { x: 48, z: 0 },
   { x: -8, z: 48 }
 ];
+// Reduced obstacles to allow more exploration of the world.
+// These represent only the core solid structures that should block movement.
 const STATIC_OBSTACLES: AabbObstacle[] = [
-  // Rail corridor and train body near center.
-  { minX: -38, maxX: 38, minZ: -18, maxZ: 16 },
-  // Left passenger carriage.
-  { minX: -94, maxX: -44, minZ: -20, maxZ: 20 },
-  // Castle/building block in north-west area.
-  { minX: -38, maxX: 32, minZ: -74, maxZ: -28 },
-  // Giant tree / props cluster in north-east.
-  { minX: 60, maxX: 112, minZ: -62, maxZ: -12 },
-  // North-west stump/props pocket.
-  { minX: -112, maxX: -72, minZ: -72, maxZ: -40 },
-  // South-east logs/props pocket.
-  { minX: 72, maxX: 112, minZ: 40, maxZ: 84 }
+  // Train body core (smaller than before).
+  { minX: -20, maxX: 20, minZ: -8, maxZ: 8 },
+  // Left carriage core.
+  { minX: -80, maxX: -50, minZ: -10, maxZ: 10 },
+  // Small building in north-west.
+  { minX: -20, maxX: 10, minZ: -60, maxZ: -40 },
+  // Tree trunk in north-east (small).
+  { minX: 80, maxX: 95, minZ: -40, maxZ: -25 }
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -279,8 +279,9 @@ export class WorldSim {
         }
         const dist = Math.sqrt(distSq);
         const weight = (range - dist) / range;
-        avoidX += (dx / dist) * weight * 1.35;
-        avoidZ += (dz / dist) * weight * 1.35;
+        // Keep this gentle. Hard avoidance feels like a forcefield.
+        avoidX += (dx / dist) * weight * 0.75;
+        avoidZ += (dz / dist) * weight * 0.75;
       }
       const avoidMag = Math.hypot(avoidX, avoidZ);
       if (avoidMag > 0.0001) {
@@ -341,7 +342,7 @@ export class WorldSim {
         const overlap = minDist - dist;
         const nx = dx / dist;
         const nz = dz / dist;
-        const push = overlap * 0.5;
+        const push = overlap * 0.35;
 
         const nextAX = clamp(a.x - nx * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
         const nextAZ = clamp(a.z - nz * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
