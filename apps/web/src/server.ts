@@ -84,6 +84,16 @@ if (isProduction && localAuthEnabled && localAdminPassword && localAdminPassword
   log.fatal('ADMIN_PASSWORD is too short for production (min 8 characters). Refusing to start.');
   process.exit(1);
 }
+
+if (isProduction && !wsAuthSecret) {
+  log.fatal('GAME_WS_AUTH_SECRET must be set in production to prevent unauthenticated /ws access. Refusing to start.');
+  process.exit(1);
+}
+
+if (isProduction && !internalToken) {
+  log.fatal('INTERNAL_SERVICE_TOKEN must be set in production for runtime admin proxy + presence APIs. Refusing to start.');
+  process.exit(1);
+}
 const webStateFile = process.env.WEB_STATE_FILE
   ? path.resolve(process.cwd(), process.env.WEB_STATE_FILE)
   : path.resolve(process.cwd(), 'output', 'web-auth-state.json');
@@ -1241,13 +1251,16 @@ const server = createServer(async (req, res) => {
     }
 
     const subpath = pathname.slice('/api/admin/runtime'.length) || '/';
-    const allowGet = new Set(['/status', '/super-agent/status', '/super-agent/ethskills']);
+    const allowGet = new Set(['/status', '/super-agent/status', '/super-agent/ethskills', '/house/status']);
     const allowPostExact = new Set([
       '/super-agent/config',
       '/capabilities/wallet',
       '/secrets/openrouter',
       '/super-agent/delegate/apply',
       '/super-agent/ethskills/sync',
+      '/house/config',
+      '/house/transfer',
+      '/house/refill',
       '/profiles/create',
       '/agents/reconcile',
       '/super-agent/chat'

@@ -36,6 +36,19 @@ const superChatSendBtn = document.getElementById('super-chat-send');
 const superChatStatusBtn = document.getElementById('super-chat-status');
 const superChatLog = document.getElementById('super-chat-log');
 
+const houseWalletId = document.getElementById('house-wallet-id');
+const houseBalance = document.getElementById('house-balance');
+const houseNpcFloor = document.getElementById('house-npc-floor');
+const houseNpcTopup = document.getElementById('house-npc-topup');
+const houseSuperFloor = document.getElementById('house-super-floor');
+const houseApply = document.getElementById('house-apply');
+const houseRefillAmount = document.getElementById('house-refill-amount');
+const houseRefill = document.getElementById('house-refill');
+const houseTransferWallet = document.getElementById('house-transfer-wallet');
+const houseTransferAmount = document.getElementById('house-transfer-amount');
+const houseTransfer = document.getElementById('house-transfer');
+const houseLedger = document.getElementById('house-ledger');
+
 let latestStatus = null;
 
 async function getJson(url) {
@@ -178,6 +191,25 @@ function populateControlValues(status) {
     ? status.superAgent.walletPolicy.allowedSkills.join(',')
     : '';
   bgCountInput.value = String(status.backgroundBotCount || 0);
+
+  const house = status.house || null;
+  if (house) {
+    if (houseWalletId) houseWalletId.value = house.wallet?.id || '-';
+    if (houseBalance) houseBalance.value = String(Number(house.wallet?.balance || 0).toFixed(2));
+    if (houseNpcFloor) houseNpcFloor.value = String(Number(house.npcWalletFloor ?? 0));
+    if (houseNpcTopup) houseNpcTopup.value = String(Number(house.npcWalletTopupAmount ?? 0));
+    if (houseSuperFloor) houseSuperFloor.value = String(Number(house.superAgentWalletFloor ?? 0));
+    if (houseLedger) {
+      const lines = (house.recentTransfers || []).slice().reverse().map((entry) => {
+        const at = entry?.at ? new Date(Number(entry.at)).toLocaleTimeString() : '--:--:--';
+        const to = String(entry?.toWalletId || '-');
+        const amt = Number(entry?.amount || 0).toFixed(2);
+        const reason = String(entry?.reason || '');
+        return `${at} ${amt} -> ${to} ${reason}`;
+      });
+      houseLedger.textContent = lines.join('\n') || 'No house transfers yet.';
+    }
+  }
 }
 
 function appendSuperChat(line) {
@@ -391,3 +423,32 @@ load().catch((err) => {
 setInterval(() => {
   load().catch(() => undefined);
 }, 6000);
+
+houseApply?.addEventListener('click', async () => {
+  await postJson(`${runtimeBase}/house/config`, {
+    npcWalletFloor: Number(houseNpcFloor?.value || 0),
+    npcWalletTopupAmount: Number(houseNpcTopup?.value || 0),
+    superAgentWalletFloor: Number(houseSuperFloor?.value || 0)
+  });
+  await load();
+});
+
+houseRefill?.addEventListener('click', async () => {
+  await postJson(`${runtimeBase}/house/refill`, {
+    amount: Number(houseRefillAmount?.value || 0),
+    reason: 'ops_ui'
+  });
+  await load();
+});
+
+houseTransfer?.addEventListener('click', async () => {
+  await postJson(`${runtimeBase}/house/transfer`, {
+    toWalletId: String(houseTransferWallet?.value || '').trim(),
+    amount: Number(houseTransferAmount?.value || 0),
+    reason: 'ops_ui'
+  });
+  if (houseTransferWallet) {
+    houseTransferWallet.value = '';
+  }
+  await load();
+});

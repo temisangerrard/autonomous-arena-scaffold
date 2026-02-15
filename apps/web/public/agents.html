@@ -203,6 +203,62 @@
         </div>
         <pre id="status-summary">Loading...</pre>
       </section>
+
+      <section class="panel">
+        <h2>House Bank</h2>
+        <div class="row">
+          <div>
+            <label>House wallet</label>
+            <input id="house-wallet-id" type="text" readonly value="-">
+          </div>
+          <div>
+            <label>House balance</label>
+            <input id="house-balance" type="text" readonly value="-">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="house-npc-floor">NPC wallet floor</label>
+            <input id="house-npc-floor" type="number" min="0" step="1" value="40">
+          </div>
+          <div>
+            <label for="house-npc-topup">NPC topup amount</label>
+            <input id="house-npc-topup" type="number" min="0" step="1" value="20">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="house-super-floor">Super agent floor</label>
+            <input id="house-super-floor" type="number" min="0" step="1" value="120">
+          </div>
+          <div style="align-self:end">
+            <button id="house-apply" class="secondary">Apply House Policy</button>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="house-refill-amount">Refill house amount</label>
+            <input id="house-refill-amount" type="number" min="1" step="1" value="200">
+          </div>
+          <div style="align-self:end">
+            <button id="house-refill" class="primary">Refill</button>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="house-transfer-wallet">Transfer to walletId</label>
+            <input id="house-transfer-wallet" type="text" placeholder="wallet_123">
+          </div>
+          <div>
+            <label for="house-transfer-amount">Amount</label>
+            <input id="house-transfer-amount" type="number" min="1" step="1" value="20">
+          </div>
+        </div>
+        <div class="actions">
+          <button id="house-transfer" class="primary">Transfer</button>
+        </div>
+        <pre id="house-ledger">Loading house ledger...</pre>
+      </section>
     </div>
 
     <section class="panel" style="margin-bottom: 12px;">
@@ -266,6 +322,26 @@
     </section>
   </main>
   <script type="module" src="/js/auth-shell.js"></script>
+  <script type="module">
+    // Static hosting can serve this page without server-side auth checks.
+    // Hard-gate the UI client-side: only admins may stay on this page.
+    (async function () {
+      try {
+        const res = await fetch('/api/session', { credentials: 'include' });
+        if (!res.ok) {
+          window.location.href = '/welcome';
+          return;
+        }
+        const payload = await res.json().catch(() => ({}));
+        const role = payload?.user?.role || '';
+        if (role !== 'admin') {
+          window.location.href = '/dashboard';
+        }
+      } catch {
+        window.location.href = '/welcome';
+      }
+    })();
+  </script>
   <script src="/js/agents.js" defer></script>
 </body>
 </html>

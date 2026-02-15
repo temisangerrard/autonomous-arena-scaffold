@@ -41,10 +41,10 @@ if (process.env.WALLET_SKILLS_ENABLED === 'false') {
 const systemSeedBalance = Math.max(0, Number(process.env.SYSTEM_BOT_START_BALANCE ?? 120));
 const userSeedBalance = Math.max(0, Number(process.env.USER_BOT_START_BALANCE ?? 20));
 const houseBankStartBalance = Math.max(0, Number(process.env.HOUSE_BANK_START_BALANCE ?? 2000));
-const npcWalletFloor = Math.max(0, Number(process.env.NPC_WALLET_FLOOR ?? 40));
-const npcWalletTopupAmount = Math.max(0, Number(process.env.NPC_WALLET_TOPUP_AMOUNT ?? 20));
+let npcWalletFloor = Math.max(0, Number(process.env.NPC_WALLET_FLOOR ?? 40));
+let npcWalletTopupAmount = Math.max(0, Number(process.env.NPC_WALLET_TOPUP_AMOUNT ?? 20));
 const npcBudgetTickMs = Math.max(1000, Number(process.env.NPC_BUDGET_TICK_MS ?? 10000));
-const superAgentWalletFloor = Math.max(npcWalletFloor, Number(process.env.SUPER_AGENT_WALLET_FLOOR ?? 120));
+let superAgentWalletFloor = Math.max(npcWalletFloor, Number(process.env.SUPER_AGENT_WALLET_FLOOR ?? 120));
 
 const runtimeSecrets = {
   openRouterApiKey: process.env.OPENROUTER_API_KEY ?? ''
@@ -57,6 +57,10 @@ const encryptionKey = createHash('sha256')
   .update(process.env.WALLET_ENCRYPTION_KEY ?? 'arena-dev-wallet-key')
   .digest();
 const internalToken = resolveInternalServiceToken();
+if (process.env.NODE_ENV === 'production' && !internalToken) {
+  console.error('INTERNAL_SERVICE_TOKEN is required in production. Refusing to start.');
+  process.exit(1);
+}
 const onchainRpcUrl = process.env.CHAIN_RPC_URL ?? '';
 const onchainTokenAddress = process.env.ESCROW_TOKEN_ADDRESS ?? '';
 const onchainEscrowAddress = process.env.ESCROW_CONTRACT_ADDRESS ?? '';
@@ -1242,6 +1246,19 @@ function transferFromHouse(toWalletId: string, amount: number, reason: string): 
   return { ok: true, amount: value };
 }
 
+function refillHouse(amount: number, reason: string): { ok: true; amount: number } | { ok: false; reason: string } {
+  const house = houseBankWallet();
+  const value = Math.max(0, Number(amount || 0));
+  if (value <= 0) {
+    return { ok: false, reason: 'invalid_amount' };
+  }
+  house.balance += value;
+  house.lastTxAt = Date.now();
+  recordHouseTransfer(house.id, value, `refill:${reason}`);
+  schedulePersistState();
+  return { ok: true, amount: value };
+}
+
 function applyOwnerPresence(profileId: string): void {
   const record = ownerPresence.get(profileId);
   if (!record) {
@@ -1666,6 +1683,81 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/status') {
     sendJson(res, runtimeStatus());
+    return;
+  }
+
+  if (url.pathname === '/house/status') {
+    sendJson(res, { ok: true, house: runtimeStatus().house });
+    return;
+  }
+
+  if (url.pathname === '/house/config' && req.method === 'POST') {
+    if (!isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const body = await readJsonBody<{ npcWalletFloor?: number; npcWalletTopupAmount?: number; superAgentWalletFloor?: number }>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
+      return;
+    }
+    if (typeof body.npcWalletFloor === 'number' && Number.isFinite(body.npcWalletFloor)) {
+      npcWalletFloor = Math.max(0, Math.min(10_000, body.npcWalletFloor));
+      // Keep super agent floor at least npc floor.
+      superAgentWalletFloor = Math.max(npcWalletFloor, superAgentWalletFloor);
+    }
+    if (typeof body.npcWalletTopupAmount === 'number' && Number.isFinite(body.npcWalletTopupAmount)) {
+      npcWalletTopupAmount = Math.max(0, Math.min(10_000, body.npcWalletTopupAmount));
+    }
+    if (typeof body.superAgentWalletFloor === 'number' && Number.isFinite(body.superAgentWalletFloor)) {
+      superAgentWalletFloor = Math.max(npcWalletFloor, Math.min(10_000, body.superAgentWalletFloor));
+    }
+    ensureSeedBalances();
+    schedulePersistState();
+    sendJson(res, { ok: true, house: runtimeStatus().house });
+    return;
+  }
+
+  if (url.pathname === '/house/transfer' && req.method === 'POST') {
+    if (!isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const body = await readJsonBody<{ toWalletId?: string; amount?: number; reason?: string }>(req);
+    const toWalletId = String(body?.toWalletId ?? '').trim();
+    const amount = Math.max(0, Number(body?.amount ?? 0));
+    const reason = String(body?.reason ?? 'admin_transfer').trim() || 'admin_transfer';
+    if (!toWalletId || amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_transfer_payload' }, 400);
+      return;
+    }
+    const result = transferFromHouse(toWalletId, amount, reason);
+    if (!result.ok) {
+      sendJson(res, result, 400);
+      return;
+    }
+    sendJson(res, { ok: true, transferred: result.amount, house: runtimeStatus().house });
+    return;
+  }
+
+  if (url.pathname === '/house/refill' && req.method === 'POST') {
+    if (!isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const body = await readJsonBody<{ amount?: number; reason?: string }>(req);
+    const amount = Math.max(0, Number(body?.amount ?? 0));
+    const reason = String(body?.reason ?? 'admin_refill').trim() || 'admin_refill';
+    if (amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
+      return;
+    }
+    const result = refillHouse(amount, reason);
+    if (!result.ok) {
+      sendJson(res, result, 400);
+      return;
+    }
+    sendJson(res, { ok: true, refilled: result.amount, house: runtimeStatus().house });
     return;
   }
 
