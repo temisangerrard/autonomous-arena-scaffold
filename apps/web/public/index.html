@@ -148,6 +148,7 @@
         </footer>
     </div>
 
+    <script src="/runtime-config.js"></script>
     <script type="module" src="/js/auth-shell.js"></script>
     <script type="module">
         // Hide admin-only actions for non-admin visitors + gate play CTA when logged out.
@@ -203,15 +204,16 @@
         }
 
         // Check all services
-        checkHealth('/health', 0);
-        checkHealth('/server/health', 1);
-        checkHealth('/runtime/health', 2);
+        checkHealth((window.ARENA_CONFIG && window.ARENA_CONFIG.apiBase ? (window.ARENA_CONFIG.apiBase + '/health') : '/health'), 0);
+        checkHealth((window.ARENA_CONFIG && window.ARENA_CONFIG.serverHealthPath) ? window.ARENA_CONFIG.serverHealthPath : '/server/health', 1);
+        checkHealth((window.ARENA_CONFIG && window.ARENA_CONFIG.runtimeBase) ? (window.ARENA_CONFIG.runtimeBase + '/health') : '/runtime/health', 2);
 
         // Challenge feed
         async function loadChallenges() {
             const container = document.getElementById('challenge-feed');
             try {
-                const res = await fetch('/challenges/recent?limit=20');
+                const base = (window.ARENA_CONFIG && window.ARENA_CONFIG.challengesBase) ? window.ARENA_CONFIG.challengesBase : '/challenges';
+                const res = await fetch(`${base}/recent?limit=20`);
                 const data = await res.json();
 
                 if (!data.recent || data.recent.length === 0) {

@@ -3,9 +3,9 @@ const feedEl = document.getElementById('challenge-feed');
 const refreshFeedButton = document.getElementById('refresh-feed');
 
 const services = [
-  { name: 'web', url: '/health' },
-  { name: 'server', url: '/server/health' },
-  { name: 'agent-runtime', url: '/runtime/health' }
+  { name: 'web', url: (window.ARENA_CONFIG?.apiBase ? `${window.ARENA_CONFIG.apiBase}/health` : '/health') },
+  { name: 'server', url: (window.ARENA_CONFIG?.serverHealthPath ?? '/server/health') },
+  { name: 'agent-runtime', url: (window.ARENA_CONFIG?.runtimeBase ? `${window.ARENA_CONFIG.runtimeBase}/health` : '/runtime/health') }
 ];
 
 function badge(name, ok, extra = '') {
@@ -35,7 +35,8 @@ async function loadHealth() {
 
 async function loadChallengeFeed() {
   try {
-    const response = await fetch('/challenges/recent?limit=25');
+    const base = window.ARENA_CONFIG?.challengesBase ?? '/challenges';
+    const response = await fetch(`${base}/recent?limit=25`);
     const payload = await response.json();
     const lines = (payload.recent || [])
       .slice()
