@@ -1,9 +1,10 @@
 import { createServer } from 'node:http';
+import { createHash, randomBytes } from 'node:crypto';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { ChallengeService, type ChallengeEvent } from './ChallengeService.js';
 import { config, resolveInternalServiceToken } from './config.js';
 import { Database } from './Database.js';
-import { DistributedBus, type ChallengeCommand } from './DistributedBus.js';
+import { DistributedBus, type AdminCommand, type ChallengeCommand } from './DistributedBus.js';
 import { DistributedChallengeStore } from './DistributedChallengeStore.js';
 import { EscrowAdapter } from './EscrowAdapter.js';
 import { log } from './logger.js';
@@ -11,6 +12,7 @@ import { PresenceStore } from './PresenceStore.js';
 import { WORLD_SECTION_SPAWNS, WorldSim } from './WorldSim.js';
 import { createRouter } from './routes/index.js';
 import { parseClientMessage } from './websocket/messages.js';
+import type { SnapshotStation, StationActionId } from '@arena/shared';
 import {
   validateSession,
   verifyWsAuth,
@@ -52,12 +54,75 @@ const escrowAdapter = new EscrowAdapter(
   }
 );
 
+const stationProximityThreshold = Math.max(3, Math.min(25, Number(process.env.STATION_PROXIMITY_THRESHOLD ?? 8)));
+
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function newSeedHex(bytes = 18): string {
+  return randomBytes(Math.max(8, Math.min(64, bytes))).toString('hex');
+}
+
+function computeCoinflipFromSeeds(houseSeed: string, playerSeed: string, challengeId: string): 'heads' | 'tails' {
+  const digest = sha256Hex(`${houseSeed}|${playerSeed}|${challengeId}`);
+  const firstByte = Number.parseInt(digest.slice(0, 2), 16);
+  return (firstByte & 1) === 1 ? 'heads' : 'tails';
+}
+
+const STATIONS: SnapshotStation[] = [
+  {
+    id: 'station_dealer_coinflip',
+    kind: 'dealer_coinflip',
+    displayName: 'Coinflip Dealer',
+    x: (WORLD_SECTION_SPAWNS[1]?.x ?? -25) + 0,
+    z: (WORLD_SECTION_SPAWNS[1]?.z ?? -30) + 6,
+    yaw: 0,
+    actions: ['coinflip_house', 'coinflip_pvp'] satisfies StationActionId[]
+  },
+  {
+    id: 'station_cashier_bank',
+    kind: 'cashier_bank',
+    displayName: 'Cashier',
+    x: (WORLD_SECTION_SPAWNS[2]?.x ?? 25) + 0,
+    z: (WORLD_SECTION_SPAWNS[2]?.z ?? -30) + 6,
+    yaw: 0,
+    actions: ['balance', 'fund', 'withdraw', 'transfer'] satisfies StationActionId[]
+  }
+];
+
+const stationById = new Map<string, SnapshotStation>(STATIONS.map((s) => [s.id, s]));
+
+let houseWalletId: string | null = null;
+async function refreshHouseWalletId(): Promise<void> {
+  try {
+    const response = await fetch(`${config.agentRuntimeUrl}/house/status`);
+    if (!response.ok) {
+      return;
+    }
+    const payload = (await response.json().catch(() => null)) as { house?: { wallet?: { id?: unknown } } } | null;
+    const id = String(payload?.house?.wallet?.id ?? '').trim();
+    if (id) {
+      houseWalletId = id;
+    }
+  } catch {
+    // ignore transient failures
+  }
+}
+void refreshHouseWalletId();
+setInterval(() => void refreshHouseWalletId(), 60_000);
+
+const lastPlayerPos = new Map<string, { x: number; z: number }>();
+
 // HTTP server using extracted router
 const server = createServer(createRouter({
   serverInstanceId,
   presenceStore,
   distributedChallengeStore,
-  challengeService
+  challengeService,
+  internalToken: internalServiceToken,
+  publishAdminCommand: (targetServerId, command) => distributedBus.publishAdminCommand(targetServerId, command),
+  teleportLocal: (playerId, x, z) => worldSim.teleportPlayer(playerId, x, z)
 }));
 
 const wss = new WebSocketServer({ noServer: true });
@@ -111,6 +176,9 @@ const distributedBus = new DistributedBus(
   },
   (command) => {
     void handleDistributedCommand(command);
+  },
+  (command) => {
+    void handleAdminCommand(command);
   }
 );
 
@@ -141,6 +209,9 @@ function displayNameFor(playerId: string): string {
 }
 
 function walletIdFor(playerId: string): string | null {
+  if (playerId === 'system_house') {
+    return houseWalletId;
+  }
   return metaByPlayer.get(playerId)?.walletId ?? presenceByPlayerId.get(playerId)?.walletId ?? null;
 }
 
@@ -345,7 +416,10 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
     }
 
     if (event.event === 'resolved' || event.event === 'declined' || event.event === 'expired') {
-      await distributedChallengeStore.releasePlayers(challenge.id, [challenge.challengerId, challenge.opponentId]);
+      await distributedChallengeStore.releasePlayers(
+        challenge.id,
+        [challenge.challengerId, challenge.opponentId].filter((id) => id !== 'system_house')
+      );
       await distributedChallengeStore.clear(challenge.id);
     }
   }
@@ -357,9 +431,10 @@ async function registerCreatedChallenge(event: ChallengeEvent, actorId: string):
   if (!(event.event === 'created' && event.challenge)) {
     return true;
   }
+  const lockParticipants = [event.challenge.challengerId, event.challenge.opponentId].filter((id) => id !== 'system_house');
   const lockResult = await distributedChallengeStore.tryLockPlayers(
     event.challenge.id,
-    [event.challenge.challengerId, event.challenge.opponentId],
+    lockParticipants,
     Math.max(6_000, challengePendingTimeoutMs)
   );
   if (!lockResult.ok) {
@@ -556,6 +631,102 @@ wss.on('connection', (ws, request) => {
       return;
     }
 
+    if (payload.type === 'station_interact') {
+      const stationId = payload.stationId.trim();
+      const station = stationById.get(stationId);
+      if (!station) {
+        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'station_not_found' } });
+        return;
+      }
+      const pos = lastPlayerPos.get(playerId);
+      if (!pos) {
+        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'position_unknown' } });
+        return;
+      }
+      const dist = Math.hypot(pos.x - station.x, pos.z - station.z);
+      if (dist > stationProximityThreshold) {
+        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'not_near_station' } });
+        return;
+      }
+      if (station.kind !== 'dealer_coinflip' || payload.action !== 'coinflip_house') {
+        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'invalid_station_action' } });
+        return;
+      }
+
+      const wager = Math.max(0, Math.min(10_000, Number(payload.wager || 0)));
+      const playerPick = payload.pick;
+      const opponentPick = playerPick === 'heads' ? 'tails' : 'heads';
+      const playerSeed = payload.playerSeed.trim().slice(0, 96) || newSeedHex(12);
+
+      const houseSeed = newSeedHex(24);
+      const commitHash = sha256Hex(houseSeed);
+      const method = 'sha256(houseSeed|playerSeed|challengeId), LSB(firstByte)=1 -> heads';
+
+      const created = challengeService.createChallenge(playerId, 'system_house', 'coinflip', wager);
+      if (created.event !== 'created' || !created.challenge) {
+        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: created.reason || 'challenge_create_failed' } });
+        return;
+      }
+
+      created.challenge.provablyFair = {
+        commitHash,
+        playerSeed,
+        method
+      };
+
+      // House challenges are solo activities; avoid publishing to a non-existent opponent socket.
+      created.to = [playerId];
+      if (!(await registerCreatedChallenge(created, playerId))) {
+        return;
+      }
+
+      sendToDistributed(playerId, {
+        type: 'provably_fair',
+        phase: 'commit',
+        challengeId: created.challenge.id,
+        commitHash,
+        playerSeed,
+        method
+      });
+
+      await dispatchChallengeEventWithEscrow(withActorRecipient(created, playerId));
+
+      const accepted = challengeService.respond(created.challenge.id, 'system_house', true);
+      accepted.to = [playerId];
+      await dispatchChallengeEventWithEscrow(withActorRecipient(accepted, playerId));
+
+      const locked = wager <= 0 ? true : escrowLockedChallenges.has(created.challenge.id);
+      if (!locked) {
+        // Escrow lock failures are already broadcast; do not proceed.
+        return;
+      }
+
+      if (created.challenge.provablyFair) {
+        created.challenge.provablyFair.revealSeed = houseSeed;
+      }
+      sendToDistributed(playerId, {
+        type: 'provably_fair',
+        phase: 'reveal',
+        challengeId: created.challenge.id,
+        commitHash,
+        playerSeed,
+        houseSeed,
+        method
+      });
+
+      const result = computeCoinflipFromSeeds(houseSeed, playerSeed, created.challenge.id);
+      challengeService.setCoinflipResultOverride(created.challenge.id, result);
+
+      const submitted1 = challengeService.submitMove(created.challenge.id, playerId, playerPick);
+      submitted1.to = [playerId];
+      await dispatchChallengeEventWithEscrow(withActorRecipient(submitted1, playerId));
+
+      const submitted2 = challengeService.submitMove(created.challenge.id, 'system_house', opponentPick);
+      submitted2.to = [playerId];
+      await dispatchChallengeEventWithEscrow(withActorRecipient(submitted2, playerId));
+      return;
+    }
+
     if (payload.type === 'challenge_send') {
       const targetLocal = sockets.has(payload.targetId);
       const targetPresence = targetLocal ? null : await presenceStore.get(payload.targetId);
@@ -700,6 +871,7 @@ wss.on('connection', (ws, request) => {
     sockets.delete(playerId);
     metaByPlayer.delete(playerId);
     worldSim.removePlayer(playerId);
+    lastPlayerPos.delete(playerId);
     void presenceStore.remove(playerId);
 
     clearPlayerProximityPairs(activeProximityPairs, playerId);
@@ -750,6 +922,10 @@ setInterval(() => {
     ...remotePlayers
   ];
 
+  for (const player of snapshot.players) {
+    lastPlayerPos.set(player.id, { x: player.x, z: player.z });
+  }
+
   emitProximityEvents(
     mergedPlayers.map((player) => ({ id: player.id, x: player.x, z: player.z })),
     activeProximityPairs,
@@ -787,7 +963,8 @@ setInterval(() => {
   const message = JSON.stringify({
     type: 'snapshot',
     tick: snapshot.tick,
-    players: mergedPlayers
+    players: mergedPlayers,
+    stations: STATIONS
   });
 
   for (const ws of sockets.values()) {
@@ -842,6 +1019,13 @@ async function handleDistributedCommand(command: ChallengeCommand): Promise<void
   await dispatchChallengeEventWithEscrow(withActorRecipient(event, command.actorId));
 }
 
+async function handleAdminCommand(command: AdminCommand): Promise<void> {
+  if (command.type !== 'admin_teleport') {
+    return;
+  }
+  worldSim.teleportPlayer(command.playerId, command.x, command.z);
+}
+
 setInterval(() => {
   void presenceStore.heartbeatServer();
 }, 2_000);
@@ -874,7 +1058,10 @@ async function expireOrphanedChallenges(): Promise<void> {
 
     const challenge = safeParseChallenge(meta.challengeJson);
     if (!challenge) {
-      await distributedChallengeStore.releasePlayers(meta.challengeId, [meta.challengerId, meta.opponentId]);
+      await distributedChallengeStore.releasePlayers(
+        meta.challengeId,
+        [meta.challengerId, meta.opponentId].filter((id) => id !== 'system_house')
+      );
       await distributedChallengeStore.clear(meta.challengeId);
       continue;
     }
@@ -892,18 +1079,23 @@ async function expireOrphanedChallenges(): Promise<void> {
       reason: 'owner_failover_expired',
       challenge: expiredChallenge
     });
-    sendToDistributed(meta.opponentId, {
-      type: 'challenge',
-      event: 'expired',
-      reason: 'owner_failover_expired',
-      challenge: expiredChallenge
-    });
+    if (meta.opponentId !== 'system_house') {
+      sendToDistributed(meta.opponentId, {
+        type: 'challenge',
+        event: 'expired',
+        reason: 'owner_failover_expired',
+        challenge: expiredChallenge
+      });
+    }
     await distributedChallengeStore.appendHistory({
       event: 'expired',
       reason: 'owner_failover_expired',
       challenge: expiredChallenge
     });
-    await distributedChallengeStore.releasePlayers(meta.challengeId, [meta.challengerId, meta.opponentId]);
+    await distributedChallengeStore.releasePlayers(
+      meta.challengeId,
+      [meta.challengerId, meta.opponentId].filter((id) => id !== 'system_house')
+    );
     await distributedChallengeStore.clear(meta.challengeId);
   }
 }
@@ -954,6 +1146,16 @@ function safeParseChallenge(raw: string): {
 }
 
 void (async () => {
+  if (process.env.NODE_ENV === 'production') {
+    if (!config.redisUrl) {
+      log.fatal('REDIS_URL must be set in production for global presence/multiplayer. Refusing to start.');
+      process.exit(1);
+    }
+    if (!internalServiceToken) {
+      log.fatal('INTERNAL_SERVICE_TOKEN must be set in production for admin ops. Refusing to start.');
+      process.exit(1);
+    }
+  }
   await database.connect(config.databaseUrl);
   await presenceStore.connect(config.redisUrl);
   await distributedChallengeStore.connect(config.redisUrl);

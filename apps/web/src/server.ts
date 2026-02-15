@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
@@ -8,7 +8,8 @@ import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias } from './worldAssets.js';
 import { signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
-import { clearSessionCookie, parseCookies, readJsonBody, redirect, sendFile, sendJson, setSessionCookie } from './lib/http.js';
+import { clearSessionCookie, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setSessionCookieWithOptions } from './lib/http.js';
+import { cookieSessionId, createSessionStore, type IdentityRecord, type Role, type SessionRecord } from './sessionStore.js';
 
 loadEnvFromFile();
 
@@ -20,6 +21,7 @@ const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
 const internalToken = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
+const redisUrl = process.env.REDIS_URL?.trim() || '';
 const adminEmails = new Set(
   (process.env.ADMIN_EMAILS ?? process.env.SUPER_ADMIN_EMAIL ?? '')
     .split(',')
@@ -57,6 +59,10 @@ if (isProduction && !internalToken) {
   log.fatal('INTERNAL_SERVICE_TOKEN must be set in production for runtime admin proxy + presence APIs. Refusing to start.');
   process.exit(1);
 }
+if (isProduction && !redisUrl) {
+  log.fatal('REDIS_URL must be set in production for auth session persistence. Refusing to start.');
+  process.exit(1);
+}
 const webStateFile = process.env.WEB_STATE_FILE
   ? path.resolve(process.cwd(), process.env.WEB_STATE_FILE)
   : path.resolve(process.cwd(), 'output', 'web-auth-state.json');
@@ -68,33 +74,12 @@ const publicDirCandidates = [
 ];
 const publicDir = publicDirCandidates.find((candidate) => existsSync(candidate)) ?? path.resolve(__dirname, '../public');
 
-type Role = 'player' | 'admin';
-
-type IdentityRecord = {
-  sub: string;
-  email: string;
-  name: string;
-  picture: string;
-  role: Role;
-  profileId: string | null;
-  walletId: string | null;
-  username: string | null;
-  displayName: string | null;
-  createdAt: number;
-  lastLoginAt: number;
-};
-
-type SessionRecord = {
-  id: string;
-  sub: string;
-  expiresAt: number;
-};
-
-type PlayerProfile = {
-  id: string;
-  username: string;
-  displayName: string;
-  walletId: string;
+	
+	type PlayerProfile = {
+	  id: string;
+	  username: string;
+	  displayName: string;
+	  walletId: string;
   ownedBotIds: string[];
   wallet?: {
     id: string;
@@ -142,109 +127,37 @@ type RuntimeStatusPayload = {
   }>;
 };
 
-const identities = new Map<string, IdentityRecord>();
-const sessions = new Map<string, SessionRecord>();
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COOKIE_NAME = 'arena_sid';
-let persistTimer: NodeJS.Timeout | null = null;
+const IDENTITY_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 
-type PersistedWebState = {
-  version: 1;
-  savedAt: number;
-  identities: IdentityRecord[];
-  sessions: SessionRecord[];
-};
+const sessionStore = await createSessionStore({
+  redisUrl,
+  isProduction,
+  webStateFile
+});
 
-function pruneExpiredSessions(): void {
-  const now = Date.now();
-  for (const [sessionId, session] of sessions.entries()) {
-    if (session.expiresAt <= now) {
-      sessions.delete(sessionId);
-    }
-  }
-}
-
-function persistWebState(): void {
-  try {
-    pruneExpiredSessions();
-    const payload: PersistedWebState = {
-      version: 1,
-      savedAt: Date.now(),
-      identities: [...identities.values()],
-      sessions: [...sessions.values()]
-    };
-    mkdirSync(path.dirname(webStateFile), { recursive: true });
-    writeFileSync(webStateFile, JSON.stringify(payload, null, 2), 'utf8');
-  } catch {
-    // ignore persistence failures in scaffold mode
-  }
-}
-
-function schedulePersistWebState(): void {
-  if (persistTimer) {
-    return;
-  }
-  persistTimer = setTimeout(() => {
-    persistTimer = null;
-    persistWebState();
-  }, 250);
-}
-
-function loadWebState(): void {
-  if (!existsSync(webStateFile)) {
-    return;
-  }
-  try {
-    const raw = readFileSync(webStateFile, 'utf8');
-    const parsed = JSON.parse(raw) as PersistedWebState;
-    if (!parsed || parsed.version !== 1) {
-      return;
-    }
-    for (const identity of parsed.identities ?? []) {
-      if (identity?.sub) {
-        identities.set(identity.sub, identity);
-      }
-    }
-    for (const session of parsed.sessions ?? []) {
-      if (session?.id && session?.sub && typeof session.expiresAt === 'number') {
-        sessions.set(session.id, session);
-      }
-    }
-    pruneExpiredSessions();
-  } catch {
-    // ignore invalid state files
-  }
-}
-
-loadWebState();
-
-function extractSession(req: import('node:http').IncomingMessage): SessionRecord | null {
-  const sid = parseCookies(req)[COOKIE_NAME];
+async function extractSession(req: import('node:http').IncomingMessage): Promise<SessionRecord | null> {
+  const sid = cookieSessionId(req);
   if (!sid) {
     return null;
   }
-  const session = sessions.get(sid);
+  return sessionStore.getSession(sid);
+}
+
+async function getIdentityFromReq(req: import('node:http').IncomingMessage): Promise<IdentityRecord | null> {
+  const session = await extractSession(req);
   if (!session) {
     return null;
   }
-  if (session.expiresAt < Date.now()) {
-    sessions.delete(sid);
-    schedulePersistWebState();
-    return null;
-  }
-  return session;
+  return sessionStore.getIdentity(session.sub);
 }
 
-function getIdentityFromReq(req: import('node:http').IncomingMessage): IdentityRecord | null {
-  const session = extractSession(req);
-  if (!session) {
-    return null;
-  }
-  return identities.get(session.sub) ?? null;
-}
-
-function requireRole(req: import('node:http').IncomingMessage, roles: Role[]): { ok: true; identity: IdentityRecord } | { ok: false } {
-  const identity = getIdentityFromReq(req);
+async function requireRole(
+  req: import('node:http').IncomingMessage,
+  roles: Role[]
+): Promise<{ ok: true; identity: IdentityRecord } | { ok: false }> {
+  const identity = await getIdentityFromReq(req);
   if (!identity) {
     return { ok: false };
   }
@@ -252,6 +165,15 @@ function requireRole(req: import('node:http').IncomingMessage, roles: Role[]): {
     return { ok: false };
   }
   return { ok: true, identity };
+}
+
+function isSecureRequest(req: import('node:http').IncomingMessage): boolean {
+  const forwarded = req.headers['x-forwarded-proto'];
+  const proto = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  if (typeof proto === 'string' && proto.split(',')[0]?.trim().toLowerCase() === 'https') {
+    return true;
+  }
+  return Boolean((req.socket as unknown as { encrypted?: boolean }).encrypted);
 }
 
 async function runtimeGet<T>(pathname: string): Promise<T> {
@@ -291,6 +213,22 @@ async function serverGet<T>(pathname: string): Promise<T> {
     throw new Error(`server_get_${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+async function serverPost<T>(pathname: string, body: unknown): Promise<T> {
+  const response = await fetch(`${serverBase}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(internalToken ? { 'x-internal-token': internalToken } : {})
+    },
+    body: JSON.stringify(body ?? {})
+  });
+  const payload = await response.json().catch(() => null) as T | null;
+  if (!response.ok || !payload) {
+    throw new Error(`server_post_${response.status}`);
+  }
+  return payload;
 }
 
 async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
@@ -365,8 +303,7 @@ function wsAuthForIdentity(identity: IdentityRecord): string | null {
   });
 }
 
-function htmlRouteToFile(pathname: string, req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): string | null {
-  const identity = getIdentityFromReq(req);
+function htmlRouteToFile(pathname: string, identity: IdentityRecord | null, res: import('node:http').ServerResponse): string | null {
 
   if (pathname === '/welcome') {
     if (identity) {
@@ -420,6 +357,18 @@ function htmlRouteToFile(pathname: string, req: import('node:http').IncomingMess
     return path.join(publicDir, 'agents.html');
   }
 
+  if (pathname === '/users') {
+    if (!identity) {
+      redirect(res, '/welcome');
+      return null;
+    }
+    if (identity.role !== 'admin') {
+      redirect(res, '/dashboard');
+      return null;
+    }
+    return path.join(publicDir, 'users.html');
+  }
+
   if (pathname === '/play') {
     if (!identity) {
       redirect(res, '/welcome');
@@ -440,7 +389,22 @@ const server = createServer(async (req, res) => {
   const pathname = requestUrl.pathname;
 
   if (pathname === '/health') {
-    sendJson(res, createHealthStatus());
+    const base = createHealthStatus();
+    const [redisOk, runtimeOk, serverOk] = await Promise.all([
+      sessionStore.ping().catch(() => false),
+      fetch(`${runtimeBase}/status`, { headers: internalToken ? { 'x-internal-token': internalToken } : undefined })
+        .then((r) => r.ok)
+        .catch(() => false),
+      fetch(`${serverBase}/health`).then((r) => r.ok).catch(() => false)
+    ]);
+    sendJson(res, {
+      ...base,
+      deps: {
+        redis: redisOk,
+        runtime: runtimeOk,
+        server: serverOk
+      }
+    });
     return;
   }
 
@@ -486,7 +450,7 @@ const server = createServer(async (req, res) => {
 
     const now = Date.now();
     const sub = `local:${localAdminUsername}`;
-    const existing = identities.get(sub);
+    const existing = await sessionStore.getIdentity(sub);
     const identity: IdentityRecord = existing ?? {
       sub,
       email: `${localAdminUsername}@local.admin`,
@@ -502,19 +466,27 @@ const server = createServer(async (req, res) => {
     };
     identity.role = 'admin';
     identity.lastLoginAt = now;
-    identities.set(sub, identity);
+    await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
 
     const sid = randomBytes(24).toString('hex');
-    sessions.set(sid, {
+    const session: SessionRecord = {
       id: sid,
       sub: identity.sub,
       expiresAt: now + SESSION_TTL_MS
-    });
-    schedulePersistWebState();
-    setSessionCookie(res, COOKIE_NAME, sid, SESSION_TTL_MS);
+    };
+    await sessionStore.setSession(session, SESSION_TTL_MS);
+    await sessionStore.addSessionForSub(identity.sub, sid, SESSION_TTL_MS);
+    if (identity.profileId) {
+      await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+    }
+    setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
 
     // Allow local admins to play too (same as Google users).
     await ensurePlayerProvisioned(identity);
+    await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+    if (identity.profileId) {
+      await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+    }
 
     sendJson(res, {
       ok: true,
@@ -545,7 +517,7 @@ const server = createServer(async (req, res) => {
 
       const now = Date.now();
       const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
-      const existing = identities.get(token.sub);
+      const existing = await sessionStore.getIdentity(token.sub);
       const identity: IdentityRecord = existing ?? {
         sub: token.sub,
         email: token.email,
@@ -569,16 +541,20 @@ const server = createServer(async (req, res) => {
       // Admins should still be able to play; provision a player profile/wallet/bot for any Google user.
       await ensurePlayerProvisioned(identity);
 
-      identities.set(identity.sub, identity);
+      await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+      if (identity.profileId) {
+        await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+      }
 
       const sid = randomBytes(24).toString('hex');
-      sessions.set(sid, {
+      const session: SessionRecord = {
         id: sid,
         sub: identity.sub,
         expiresAt: now + SESSION_TTL_MS
-      });
-      schedulePersistWebState();
-      setSessionCookie(res, COOKIE_NAME, sid, SESSION_TTL_MS);
+      };
+      await sessionStore.setSession(session, SESSION_TTL_MS);
+      await sessionStore.addSessionForSub(identity.sub, sid, SESSION_TTL_MS);
+      setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
 
       sendJson(res, {
         ok: true,
@@ -594,10 +570,13 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/logout' && req.method === 'POST') {
-    const sid = parseCookies(req)[COOKIE_NAME];
+    const sid = cookieSessionId(req);
     if (sid) {
-      sessions.delete(sid);
-      schedulePersistWebState();
+      const session = await sessionStore.getSession(sid);
+      await sessionStore.deleteSession(sid);
+      if (session?.sub) {
+        await sessionStore.removeSessionForSub(session.sub, sid);
+      }
     }
     clearSessionCookie(res, COOKIE_NAME);
     sendJson(res, { ok: true });
@@ -605,7 +584,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/session') {
-    const identity = getIdentityFromReq(req);
+    const identity = await getIdentityFromReq(req);
     if (!identity) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -615,7 +594,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/me') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -637,7 +616,10 @@ const server = createServer(async (req, res) => {
     identity.walletId = profile.wallet?.id ?? profile.walletId;
     identity.displayName = profile.displayName;
     identity.username = profile.username;
-    schedulePersistWebState();
+    await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+    if (identity.profileId) {
+      await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+    }
 
     const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [], wallets: [] }));
     const ownerWalletId = profile.wallet?.id ?? profile.walletId;
@@ -663,7 +645,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/directory') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -686,7 +668,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/bootstrap') {
-    const auth = requireRole(req, ['player']);
+    const auth = await requireRole(req, ['player']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -709,7 +691,10 @@ const server = createServer(async (req, res) => {
     identity.walletId = walletId;
     identity.username = profile.username;
     identity.displayName = profile.displayName;
-    schedulePersistWebState();
+    await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+    if (identity.profileId) {
+      await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+    }
     const world = requestUrl.searchParams.get('world') || 'mega';
     const playParams = new URLSearchParams({
       world,
@@ -740,7 +725,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/wallet/fund' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.walletId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -756,13 +741,13 @@ const server = createServer(async (req, res) => {
       const payload = await runtimePost(`/wallets/${auth.identity.walletId}/fund`, { amount });
       sendJson(res, payload);
     } catch {
-      sendJson(res, { ok: false, reason: 'wallet_fund_failed' }, 400);
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
     }
     return;
   }
 
   if (pathname === '/api/player/wallet/withdraw' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.walletId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -778,13 +763,13 @@ const server = createServer(async (req, res) => {
       const payload = await runtimePost(`/wallets/${auth.identity.walletId}/withdraw`, { amount });
       sendJson(res, payload);
     } catch {
-      sendJson(res, { ok: false, reason: 'wallet_withdraw_failed' }, 400);
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
     }
     return;
   }
 
   if (pathname === '/api/player/wallet/transfer' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.walletId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -805,13 +790,13 @@ const server = createServer(async (req, res) => {
       const payload = await runtimePost(`/wallets/${auth.identity.walletId}/transfer`, { toWalletId, amount });
       sendJson(res, payload);
     } catch {
-      sendJson(res, { ok: false, reason: 'wallet_transfer_failed' }, 400);
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
     }
     return;
   }
 
   if (pathname === '/api/player/wallet/escrow-history') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.walletId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -836,7 +821,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/wallet/summary') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.walletId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -851,7 +836,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/wallet/export-key' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.walletId || !auth.identity.profileId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -863,13 +848,13 @@ const server = createServer(async (req, res) => {
       });
       sendJson(res, payload);
     } catch {
-      sendJson(res, { ok: false, reason: 'wallet_export_failed' }, 400);
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
     }
     return;
   }
 
   if (pathname === '/api/player/profile' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.profileId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -888,7 +873,10 @@ const server = createServer(async (req, res) => {
       if (typeof body.username === 'string' && body.username.trim()) {
         auth.identity.username = body.username.trim();
       }
-      schedulePersistWebState();
+      await sessionStore.setIdentity(auth.identity, IDENTITY_TTL_MS);
+      if (auth.identity.profileId) {
+        await sessionStore.addSubForProfile(auth.identity.profileId, auth.identity.sub, IDENTITY_TTL_MS);
+      }
       sendJson(res, payload);
     } catch {
       sendJson(res, { ok: false, reason: 'profile_update_failed' }, 400);
@@ -897,7 +885,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/bot/config' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.profileId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -934,7 +922,7 @@ const server = createServer(async (req, res) => {
 
   const playerBotConfigMatch = pathname.match(/^\/api\/player\/bots\/([^/]+)\/config$/);
   if (playerBotConfigMatch && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok || !auth.identity.profileId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -970,7 +958,7 @@ const server = createServer(async (req, res) => {
 
   // Ops super-agent is admin-only. Players use the scoped chief-of-staff endpoint below.
   if (pathname === '/api/super-agent/chat' && req.method === 'POST') {
-    const auth = requireRole(req, ['admin']);
+    const auth = await requireRole(req, ['admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'forbidden' }, 403);
       return;
@@ -994,8 +982,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === '/api/player/chief/chat' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+  const isPlayerHouseChat =
+    (pathname === '/api/player/house/chat' || pathname === '/api/player/chief/chat') &&
+    req.method === 'POST';
+  if (isPlayerHouseChat) {
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -1009,8 +1000,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // Structured, player-scoped "chief of staff" actions. This intentionally does not allow
-    // global ops actions like changing bot count / wallet policy / delegation.
+    // Player-facing House chat: structured actions first, then OpenRouter-backed "House" reply.
     const normalized = message.toLowerCase().trim();
 
     const actions: string[] = [];
@@ -1109,12 +1099,26 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    reply('I did not recognize that. Say "help" for supported commands.');
+    try {
+      const payload = await runtimePost<{ ok: boolean; reply?: string }>('/house/chat', {
+        message,
+        player: {
+          profileId: identity.profileId ?? null,
+          displayName: identity.displayName ?? null,
+          walletId: identity.walletId ?? null
+        }
+      });
+      reply(String(payload?.reply || ''));
+      return;
+    } catch {
+      reply('I did not recognize that. Say "help" for supported commands.');
+      return;
+    }
     return;
   }
 
   if (pathname === '/api/player/presence' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
@@ -1140,7 +1144,7 @@ const server = createServer(async (req, res) => {
 
   // Admin-only proxy routes to keep runtime ops out of the browser.
   if (pathname.startsWith('/api/admin/runtime')) {
-    const auth = requireRole(req, ['admin']);
+    const auth = await requireRole(req, ['admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'forbidden' }, 403);
       return;
@@ -1201,8 +1205,158 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/admin/users') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    try {
+      const [profiles, presencePayload] = await Promise.all([
+        runtimeProfiles().catch(() => []),
+        serverGet<{ ok?: boolean; players?: Array<{ playerId: string; serverId: string; x: number; z: number; updatedAt: number }> }>('/presence')
+          .catch(() => ({ players: [] }))
+      ]);
+
+      const presenceByPlayerId = new Map<string, { serverId: string; x: number; z: number; updatedAt: number }>();
+      for (const entry of presencePayload.players ?? []) {
+        if (entry?.playerId) {
+          presenceByPlayerId.set(entry.playerId, {
+            serverId: String(entry.serverId || ''),
+            x: Number(entry.x || 0),
+            z: Number(entry.z || 0),
+            updatedAt: Number(entry.updatedAt || 0)
+          });
+        }
+      }
+
+      const users = profiles.map((profile) => {
+        const playerId = `u_${profile.id}`;
+        const presence = presenceByPlayerId.get(playerId) ?? null;
+        return {
+          profileId: profile.id,
+          playerId,
+          username: profile.username,
+          displayName: profile.displayName,
+          walletId: profile.wallet?.id ?? profile.walletId,
+          walletAddress: profile.wallet?.address ?? null,
+          walletBalance: Number(profile.wallet?.balance ?? 0),
+          online: Boolean(presence),
+          serverId: presence?.serverId ?? null,
+          x: presence?.x ?? null,
+          z: presence?.z ?? null,
+          lastSeen: presence?.updatedAt ?? null
+        };
+      });
+
+      sendJson(res, { ok: true, users });
+    } catch {
+      sendJson(res, { ok: false, reason: 'admin_users_failed' }, 503);
+    }
+    return;
+  }
+
+  const adminTeleportMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/teleport$/);
+  if (adminTeleportMatch && req.method === 'POST') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const profileId = String(adminTeleportMatch[1] ?? '').trim();
+    if (!profileId) {
+      sendJson(res, { ok: false, reason: 'profile_required' }, 400);
+      return;
+    }
+    const body = await readJsonBody<{ x?: number; z?: number; section?: number }>(req);
+    const payload = {
+      playerId: `u_${profileId}`,
+      x: body?.x,
+      z: body?.z,
+      section: body?.section
+    };
+    try {
+      const response = await serverPost('/admin/teleport', payload);
+      sendJson(res, response);
+    } catch {
+      sendJson(res, { ok: false, reason: 'server_unavailable' }, 503);
+    }
+    return;
+  }
+
+  const adminWalletAdjustMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/wallet\/adjust$/);
+  if (adminWalletAdjustMatch && req.method === 'POST') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const profileId = String(adminWalletAdjustMatch[1] ?? '').trim();
+    const body = await readJsonBody<{ amount?: number; direction?: 'credit' | 'debit'; reason?: string }>(req);
+    const amount = Math.max(0, Number(body?.amount ?? 0));
+    const direction = body?.direction === 'debit' ? 'debit' : 'credit';
+    const reason = String(body?.reason ?? 'admin_adjust').trim() || 'admin_adjust';
+    if (!profileId || amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_adjust_payload' }, 400);
+      return;
+    }
+
+    try {
+      const profiles = await runtimeProfiles();
+      const profile = profiles.find((entry) => entry.id === profileId);
+      if (!profile) {
+        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        return;
+      }
+      const walletId = profile.wallet?.id ?? profile.walletId;
+      if (!walletId) {
+        sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
+        return;
+      }
+
+      if (direction === 'credit') {
+        const payload = await runtimePost('/house/transfer', { toWalletId: walletId, amount, reason });
+        sendJson(res, { ok: true, direction, amount, walletId, runtime: payload });
+        return;
+      }
+
+      const houseStatus = await runtimeGet<{ ok?: boolean; house?: { wallet?: { id?: string } } }>('/house/status');
+      const houseWalletId = String(houseStatus?.house?.wallet?.id ?? '').trim();
+      if (!houseWalletId) {
+        sendJson(res, { ok: false, reason: 'house_wallet_missing' }, 500);
+        return;
+      }
+      const payload = await runtimePost(`/wallets/${walletId}/transfer`, { toWalletId: houseWalletId, amount });
+      sendJson(res, { ok: true, direction, amount, walletId, runtime: payload });
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+    }
+    return;
+  }
+
+  const adminLogoutMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/logout$/);
+  if (adminLogoutMatch && req.method === 'POST') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const profileId = String(adminLogoutMatch[1] ?? '').trim();
+    if (!profileId) {
+      sendJson(res, { ok: false, reason: 'profile_required' }, 400);
+      return;
+    }
+    try {
+      const deleted = await sessionStore.purgeSessionsForProfile(profileId);
+      sendJson(res, { ok: true, profileId, sessionsDeleted: deleted });
+    } catch {
+      sendJson(res, { ok: false, reason: 'logout_failed' }, 500);
+    }
+    return;
+  }
+
   if (pathname === '/api/admin/challenges/recent') {
-    const auth = requireRole(req, ['admin']);
+    const auth = await requireRole(req, ['admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'forbidden' }, 403);
       return;
@@ -1231,7 +1385,9 @@ const server = createServer(async (req, res) => {
       res.end('Unknown world alias');
       return;
     }
-    await sendFile(res, worldPath, 'model/gltf-binary');
+    await sendFileCached(req, res, worldPath, 'model/gltf-binary', {
+      cacheControl: 'public, max-age=86400'
+    });
     return;
   }
 
@@ -1254,7 +1410,8 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  const htmlFile = htmlRouteToFile(pathname, req, res);
+  const identity = await getIdentityFromReq(req);
+  const htmlFile = htmlRouteToFile(pathname, identity, res);
   if (htmlFile) {
     await sendFile(res, htmlFile, 'text/html; charset=utf-8');
     return;
@@ -1267,17 +1424,17 @@ const server = createServer(async (req, res) => {
 });
 
 const webAutosave = setInterval(() => {
-  persistWebState();
+  sessionStore.persistIfSupported();
 }, 10000);
 webAutosave.unref();
 
 process.on('SIGINT', () => {
-  persistWebState();
+  sessionStore.persistIfSupported();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  persistWebState();
+  sessionStore.persistIfSupported();
   process.exit(0);
 });
 

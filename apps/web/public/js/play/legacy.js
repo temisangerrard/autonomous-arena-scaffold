@@ -5,6 +5,7 @@ import { createToaster } from './ui/toast.js';
 import { createAnnouncer } from './ui/sr.js';
 import { initOnboarding } from './ui/onboarding.js';
 import { AVATAR_GROUND_OFFSET, animateAvatar, createAvatarSystem } from './avatars.js';
+import { createStationSystem } from './stations.js';
 import { createInputSystem } from './input.js';
 import { initMenu } from './menu.js';
 import { createPresence } from './ws.js';
@@ -66,6 +67,7 @@ const {
   interactionWager,
   interactionSend,
   interactionOpenDesk,
+  stationUi,
   quickstartPanel,
   quickstartList,
   quickstartClose,
@@ -85,6 +87,7 @@ const {
   mobileMoveH,
   mobileMoveT
 } = dom;
+
 
 const renderer = makeRenderer(canvas);
 const scene = makeScene();
@@ -124,6 +127,7 @@ targetSpotlight.visible = false;
 scene.add(targetSpotlight);
 
 const { localAvatarParts, remoteAvatars, syncRemoteAvatars } = createAvatarSystem({ THREE, scene });
+const { syncStations } = createStationSystem({ THREE, scene });
 
 const state = createInitialState();
 initMenu(dom, { queryParams });
@@ -212,6 +216,40 @@ async function resolveWsBaseUrl() {
 let socket = null;
 const socketRef = { current: null };
 let presenceTimer = null;
+let connectRetryTimer = null;
+let connectFailureCount = 0;
+
+function formatWagerLabel(wager) {
+  const value = Number(wager || 0);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 'Free';
+  }
+  return `Wager ${value}`;
+}
+
+function formatWagerInline(wager) {
+  const value = Number(wager || 0);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 'free';
+  }
+  return `wager ${value}`;
+}
+
+function scheduleConnectRetry(message) {
+  if (connectRetryTimer) {
+    return;
+  }
+  connectFailureCount += 1;
+  const delayMs = Math.min(15_000, 600 + Math.pow(2, Math.min(5, connectFailureCount)) * 250);
+  state.challengeStatus = 'none';
+  state.challengeMessage = message
+    ? `${message} Retrying in ${(delayMs / 1000).toFixed(1)}s...`
+    : `Retrying in ${(delayMs / 1000).toFixed(1)}s...`;
+  connectRetryTimer = window.setTimeout(() => {
+    connectRetryTimer = null;
+    void connectSocket();
+  }, delayMs);
+}
 
 async function connectSocket() {
   const wsUrlObj = new URL(await resolveWsBaseUrl());
@@ -237,26 +275,28 @@ async function connectSocket() {
         window.location.href = '/welcome';
         return;
       }
-      if (meResponse.ok) {
-        const mePayload = await meResponse.json();
-        const profile = mePayload?.profile;
-        if (profile?.displayName) {
-          sessionName = String(profile.displayName);
-        }
-        if (profile?.wallet?.id || profile?.walletId) {
-          sessionWalletId = String(profile.wallet?.id || profile.walletId);
-        }
-        if (profile?.id) {
-          sessionClientId = String(profile.id);
-        }
-        if (mePayload?.wsAuth) {
-          sessionWsAuth = String(mePayload.wsAuth);
-        }
-        state.walletBalance = Number(profile?.wallet?.balance ?? 0);
+      if (!meResponse.ok) {
+        scheduleConnectRetry(`Auth backend returned ${meResponse.status}.`);
+        return;
       }
+      const mePayload = await meResponse.json();
+      const profile = mePayload?.profile;
+      if (profile?.displayName) {
+        sessionName = String(profile.displayName);
+      }
+      if (profile?.wallet?.id || profile?.walletId) {
+        sessionWalletId = String(profile.wallet?.id || profile.walletId);
+      }
+      if (profile?.id) {
+        sessionClientId = String(profile.id);
+      }
+      if (mePayload?.wsAuth) {
+        sessionWsAuth = String(mePayload.wsAuth);
+      }
+      state.walletBalance = Number(profile?.wallet?.balance ?? 0);
     } catch {
-      // If auth is flaky, fail closed: no unauthenticated play.
-      window.location.href = '/welcome';
+      // If auth is flaky, do not sign the user out; retry.
+      scheduleConnectRetry('Auth backend unavailable.');
       return;
     }
   } else {
@@ -286,6 +326,7 @@ async function connectSocket() {
 
   socket.addEventListener('open', () => {
     state.wsConnected = true;
+    connectFailureCount = 0;
     addFeedEvent('system', 'Connected to game server.');
     void presence.setPresence('online');
     if (presenceTimer) {
@@ -350,6 +391,28 @@ async function connectSocket() {
       }
     }
 
+    const stationSeen = new Set();
+    if (Array.isArray(payload.stations)) {
+      for (const station of payload.stations) {
+        if (!station || typeof station.id !== 'string') continue;
+        stationSeen.add(station.id);
+        state.stations.set(station.id, {
+          id: station.id,
+          kind: String(station.kind || ''),
+          displayName: String(station.displayName || station.id),
+          x: Number(station.x || 0),
+          z: Number(station.z || 0),
+          yaw: Number(station.yaw || 0),
+          actions: Array.isArray(station.actions) ? station.actions.map((a) => String(a)) : []
+        });
+      }
+    }
+    for (const id of [...state.stations.keys()]) {
+      if (!stationSeen.has(id)) {
+        state.stations.delete(id);
+      }
+    }
+
     for (const id of [...state.players.keys()]) {
       if (!seen.has(id)) {
         state.players.delete(id);
@@ -385,6 +448,29 @@ async function connectSocket() {
       addFeedEvent('proximity', `${payload.otherName || payload.otherId} left range.`);
     }
     refreshNearbyTargetOptions();
+    return;
+  }
+
+  if (payload.type === 'station_ui' && typeof payload.stationId === 'string') {
+    const ok = Boolean(payload.view?.ok);
+    const reason = String(payload.view?.reason || '');
+    if (!ok) {
+      addFeedEvent('system', `Station ${labelFor(payload.stationId)}: ${reason || 'request_failed'}`);
+      showToast(`Station error: ${reason || 'request_failed'}`);
+    }
+    return;
+  }
+
+  if (payload.type === 'provably_fair' && typeof payload.challengeId === 'string') {
+    const phase = String(payload.phase || '');
+    if (phase === 'commit') {
+      addFeedEvent('system', `Provably fair commit for ${payload.challengeId}: ${String(payload.commitHash || '').slice(0, 10)}...`);
+      return;
+    }
+    if (phase === 'reveal') {
+      addFeedEvent('system', `Provably fair reveal for ${payload.challengeId}: seed=${String(payload.houseSeed || '').slice(0, 10)}...`);
+      return;
+    }
     return;
   }
 
@@ -704,13 +790,14 @@ function renderTargetSpotlight() {
     return;
   }
   const target = state.players.get(targetId);
-  if (!target) {
+  const station = target ? null : state.stations.get(targetId);
+  if (!target && !station) {
     targetSpotlight.visible = false;
     return;
   }
   targetSpotlight.visible = true;
-  targetSpotlight.position.x = target.displayX;
-  targetSpotlight.position.z = target.displayZ;
+  targetSpotlight.position.x = target ? target.displayX : Number(station?.x || 0);
+  targetSpotlight.position.z = target ? target.displayZ : Number(station?.z || 0);
   targetSpotlight.rotation.z += 0.015;
 }
 
@@ -730,6 +817,172 @@ function renderInteractionCard() {
     setInteractOpen(false);
     return;
   }
+  const station = isStation(targetId) ? state.stations.get(targetId) : null;
+
+  const challengeRows = interactionCard.querySelectorAll('.interaction-row, .interaction-actions, #wager-hint');
+  const showStation = Boolean(station);
+  for (const row of challengeRows) {
+    row.style.display = showStation ? 'none' : '';
+  }
+  if (stationUi) {
+    stationUi.hidden = !showStation;
+  }
+
+  if (station) {
+    interactionTitle.textContent = station.displayName || 'Station';
+    if (stationUi) {
+      if (station.kind === 'dealer_coinflip') {
+        stationUi.innerHTML = `
+          <div class="station-ui__title">Dealer: Coinflip</div>
+          <div class="station-ui__row">
+            <label for="station-wager">Wager (each)</label>
+            <input id="station-wager" type="number" min="0" max="10000" step="1" value="${Math.max(0, Math.min(10000, Number(interactionWager?.value || 1)))}" />
+          </div>
+          <div class="station-ui__actions">
+            <button id="station-house-heads" class="btn-gold" type="button">Heads vs House</button>
+            <button id="station-house-tails" class="btn-gold" type="button">Tails vs House</button>
+          </div>
+          <div class="station-ui__meta">PvP: use the Desk for now to challenge a nearby player to Coinflip.</div>
+        `;
+
+        const wagerEl = document.getElementById('station-wager');
+        const headsBtn = document.getElementById('station-house-heads');
+        const tailsBtn = document.getElementById('station-house-tails');
+
+        function playerSeed() {
+          try {
+            const buf = new Uint8Array(16);
+            crypto.getRandomValues(buf);
+            return Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
+          } catch {
+            return String(Math.random()).slice(2) + String(Date.now());
+          }
+        }
+
+        function sendHouse(pick) {
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            showToast('Not connected to server.');
+            return;
+          }
+          const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
+          socket.send(JSON.stringify({
+            type: 'station_interact',
+            stationId: station.id,
+            action: 'coinflip_house',
+            wager,
+            pick,
+            playerSeed: playerSeed()
+          }));
+          showToast(`Coinflip vs House: ${pick} (${wager})`);
+          setInteractOpen(false);
+        }
+
+        headsBtn?.addEventListener('click', () => sendHouse('heads'), { once: true });
+        tailsBtn?.addEventListener('click', () => sendHouse('tails'), { once: true });
+      } else if (station.kind === 'cashier_bank') {
+        stationUi.innerHTML = `
+          <div class="station-ui__title">Cashier</div>
+          <div class="station-ui__meta" id="station-balance">Loading balance...</div>
+          <div class="station-ui__row">
+            <label for="station-amount">Amount</label>
+            <input id="station-amount" type="number" min="0" max="10000" step="1" value="10" />
+          </div>
+          <div class="station-ui__actions">
+            <button id="station-refresh" class="btn-ghost" type="button">Refresh</button>
+            <button id="station-fund" class="btn-gold" type="button">Fund</button>
+            <button id="station-withdraw" class="btn-gold" type="button">Withdraw</button>
+          </div>
+          <div class="station-ui__row">
+            <label for="station-to-wallet">To Wallet</label>
+            <input id="station-to-wallet" type="text" placeholder="wallet_..." />
+          </div>
+          <div class="station-ui__actions">
+            <button id="station-transfer" class="btn-ghost" type="button">Transfer</button>
+          </div>
+        `;
+
+        const balanceEl = document.getElementById('station-balance');
+        const amountEl = document.getElementById('station-amount');
+        const toWalletEl = document.getElementById('station-to-wallet');
+        const refreshBtn = document.getElementById('station-refresh');
+        const fundBtn = document.getElementById('station-fund');
+        const withdrawBtn = document.getElementById('station-withdraw');
+        const transferBtn = document.getElementById('station-transfer');
+
+        async function api(path, init) {
+          const res = await fetch(path, { credentials: 'include', ...init });
+          const json = await res.json().catch(() => null);
+          if (!res.ok) {
+            const reason = String(json?.reason || `http_${res.status}`);
+            throw new Error(reason);
+          }
+          return json;
+        }
+
+        async function refresh() {
+          try {
+            const summary = await api('/api/player/wallet/summary');
+            const bal = Number(summary?.wallet?.balance ?? summary?.balance ?? 0);
+            balanceEl.textContent = `Balance: ${bal.toFixed(2)}`;
+          } catch (err) {
+            balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
+          }
+        }
+
+        async function fund() {
+          const amount = Math.max(0, Number(amountEl?.value || 0));
+          await api('/api/player/wallet/fund', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ amount })
+          });
+          await refresh();
+          showToast(`Funded ${amount}.`);
+        }
+
+        async function withdraw() {
+          const amount = Math.max(0, Number(amountEl?.value || 0));
+          await api('/api/player/wallet/withdraw', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ amount })
+          });
+          await refresh();
+          showToast(`Withdrew ${amount}.`);
+        }
+
+        async function transfer() {
+          const amount = Math.max(0, Number(amountEl?.value || 0));
+          const toWalletId = String(toWalletEl?.value || '').trim();
+          if (!toWalletId) {
+            showToast('Enter a target wallet id.');
+            return;
+          }
+          await api('/api/player/wallet/transfer', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ toWalletId, amount })
+          });
+          await refresh();
+          showToast(`Transferred ${amount} to ${toWalletId}.`);
+        }
+
+        refreshBtn?.addEventListener('click', () => void refresh(), { once: true });
+        fundBtn?.addEventListener('click', () => void fund().catch((e) => showToast(String(e.message || e))), { once: true });
+        withdrawBtn?.addEventListener('click', () => void withdraw().catch((e) => showToast(String(e.message || e))), { once: true });
+        transferBtn?.addEventListener('click', () => void transfer().catch((e) => showToast(String(e.message || e))), { once: true });
+        void refresh();
+      } else {
+        stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
+      }
+    }
+    if (interactionSend) interactionSend.style.display = 'none';
+    if (interactionOpenDesk) interactionOpenDesk.style.display = '';
+    return;
+  }
+
+  if (interactionSend) interactionSend.style.display = '';
+  if (interactionOpenDesk) interactionOpenDesk.style.display = '';
   const isNpc = isStaticNpc(targetId);
   interactionTitle.textContent = isNpc ? `Request a game: ${labelFor(targetId)}` : `Challenge: ${labelFor(targetId)}`;
   if (interactionSend) {
@@ -780,6 +1033,8 @@ function update(nowMs) {
   updateLocalAvatar();
   movementSystem.send(nowMs);
   syncRemoteAvatars(state, state.playerId);
+  syncStations(state);
+  syncNearbyStations();
   refreshNearbyDistances();
   renderMatchSpotlight();
   renderTargetSpotlight();
@@ -841,11 +1096,19 @@ function labelFor(id) {
     return 'Unknown';
   }
   const player = state.players.get(id);
+  const station = state.stations.get(id);
+  if (station?.displayName) {
+    return station.displayName;
+  }
   return player?.displayName || state.nearbyNames.get(id) || id;
 }
 
 function isStaticNpc(id) {
   return typeof id === 'string' && id.startsWith('agent_bg_');
+}
+
+function isStation(id) {
+  return typeof id === 'string' && id.startsWith('station_');
 }
 
 function refreshNearbyTargetOptions() {
@@ -884,24 +1147,24 @@ function refreshNearbyTargetOptions() {
 }
 
 function closestNearbyTargetId() {
-  if (state.nearbyIds.size === 0) {
+  if (state.nearbyIds.size === 0 && state.nearbyStationIds.size === 0) {
     return '';
   }
   let bestId = '';
   let bestDist = Number.POSITIVE_INFINITY;
-  for (const id of state.nearbyIds) {
+  for (const id of [...state.nearbyIds, ...state.nearbyStationIds]) {
     const distance = Number(state.nearbyDistances.get(id) ?? Number.POSITIVE_INFINITY);
     if (distance < bestDist) {
       bestDist = distance;
       bestId = id;
     }
   }
-  return bestId || [...state.nearbyIds][0] || '';
+  return bestId || [...state.nearbyIds][0] || [...state.nearbyStationIds][0] || '';
 }
 
 function getUiTargetId() {
   const preferred = state.ui?.targetId || '';
-  if (preferred && state.nearbyIds.has(preferred)) {
+  if (preferred && (state.nearbyIds.has(preferred) || state.nearbyStationIds.has(preferred))) {
     return preferred;
   }
   const closest = closestNearbyTargetId();
@@ -912,7 +1175,7 @@ function getUiTargetId() {
 }
 
 function cycleNearbyTarget(next = true) {
-  const ids = [...state.nearbyIds];
+  const ids = [...state.nearbyIds, ...state.nearbyStationIds];
   if (ids.length === 0) {
     state.ui.targetId = '';
     return;
@@ -941,7 +1204,10 @@ function setInteractOpen(nextOpen) {
       // ignore
     }
     if (interactionWager) {
-      interactionWager.value = String(Math.max(1, Math.min(10000, Number(interactionWager.value || 1))));
+      const targetId = getUiTargetId();
+      const isNpc = isStaticNpc(targetId);
+      const suggested = isNpc ? (state.walletBalance >= 1 ? 1 : 0) : Number(interactionWager.value ?? 1);
+      interactionWager.value = String(Math.max(0, Math.min(10000, Number.isFinite(suggested) ? suggested : 0)));
       interactionWager.focus?.();
       interactionWager.select?.();
     }
@@ -966,6 +1232,30 @@ function refreshNearbyDistances() {
   }
 }
 
+function syncNearbyStations() {
+  const selfId = state.playerId;
+  if (!selfId) return;
+  const self = state.players.get(selfId);
+  if (!self) return;
+
+  const threshold = 8;
+  const next = new Set();
+  for (const station of state.stations.values()) {
+    const distance = Math.hypot(station.x - self.x, station.z - self.z);
+    if (distance <= threshold) {
+      next.add(station.id);
+      state.nearbyDistances.set(station.id, distance);
+    }
+  }
+
+  for (const id of state.nearbyStationIds) {
+    if (!next.has(id)) {
+      state.nearbyDistances.delete(id);
+    }
+  }
+  state.nearbyStationIds = next;
+}
+
 function sendChallenge() {
   if (!state.wsConnected || !socket || socket.readyState !== WebSocket.OPEN) {
     state.challengeMessage = 'Not connected to game server.';
@@ -985,7 +1275,7 @@ function sendChallenge() {
   const gameTypeSource = (interactionGame && state.ui.interactOpen) ? interactionGame : gameSelect;
   const wagerSource = (interactionWager && state.ui.interactOpen) ? interactionWager : wagerInput;
   const gameType = gameTypeSource?.value === 'coinflip' ? 'coinflip' : 'rps';
-  const wager = Math.max(1, Math.min(10000, Number(wagerSource?.value || 1)));
+  const wager = Math.max(0, Math.min(10000, Number(wagerSource?.value ?? 1)));
 
   socket.send(
     JSON.stringify({
@@ -997,7 +1287,7 @@ function sendChallenge() {
   );
 
   state.challengeStatus = 'sent';
-  state.challengeMessage = `Challenge sent (${gameType}, wager ${wager}) to ${labelFor(targetId)}`;
+  state.challengeMessage = `Challenge sent (${gameType}, ${formatWagerInline(wager)}) to ${labelFor(targetId)}`;
   state.quickstart.challengeSent = true;
   setInteractOpen(false);
 }
@@ -1040,10 +1330,10 @@ function sendCounterOffer() {
   if (state.respondingIncoming) {
     return;
   }
-  const wager = Math.max(1, Math.min(10000, Number(counterWagerInput?.value || challenge.wager || 1)));
+  const wager = Math.max(0, Math.min(10000, Number(counterWagerInput?.value ?? challenge.wager ?? 1)));
   state.respondingIncoming = true;
   state.challengeStatus = 'responding';
-  state.challengeMessage = `Countering with wager ${wager}...`;
+  state.challengeMessage = `Countering with ${formatWagerInline(wager)}...`;
 
   socket.send(
     JSON.stringify({
@@ -1223,7 +1513,7 @@ function showGameModal(challenge, statusText, detailText = '') {
   }
 
   gameTitle.textContent = challenge.gameType === 'rps' ? 'Rock Paper Scissors' : 'Coin Flip';
-  gamePlayers.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | Wager ${challenge.wager}`;
+  gamePlayers.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | ${formatWagerLabel(challenge.wager)}`;
   gameStatus.textContent = statusText;
   gameDetail.textContent = detailText;
   const showAlways = statusText.toLowerCase().includes('incoming') || statusText.toLowerCase().includes('resolved');
@@ -1271,7 +1561,7 @@ function handleChallenge(payload) {
     if (challenge.opponentId === state.playerId) {
       state.incomingChallengeId = challenge.id;
       state.challengeStatus = 'incoming';
-      state.challengeMessage = `Incoming ${challenge.gameType} challenge from ${labelFor(challenge.challengerId)} (wager ${challenge.wager}).`;
+      state.challengeMessage = `Incoming ${challenge.gameType} challenge from ${labelFor(challenge.challengerId)} (${formatWagerInline(challenge.wager)}).`;
       state.incomingChallengeExpiresAt = Number(challenge.expiresAt || (Date.now() + 15000));
       if (challengeTimerWrap) {
         challengeTimerWrap.style.display = 'block';
@@ -1282,7 +1572,7 @@ function handleChallenge(payload) {
       showGameModal(
         challenge,
         'Incoming challenge',
-        `${labelFor(challenge.challengerId)} challenges you to ${challenge.gameType.toUpperCase()} for ${challenge.wager}. Accept as-is, or counter with your own wager (O).`
+        `${labelFor(challenge.challengerId)} challenges you to ${challenge.gameType.toUpperCase()} (${formatWagerInline(challenge.wager)}). Accept as-is, or counter-offer (O).`
       );
     }
 
@@ -1384,13 +1674,13 @@ function challengeReasonLabel(reason) {
     case 'player_busy':
       return 'Target is already in a match.';
     case 'wallet_required':
-      return 'Both players need funded wallets to start wagered matches.';
+      return 'Wagered matches require wallets. Tip: set wager to 0 (Free) to play instantly.';
     case 'challenger_wallet_policy_disabled':
     case 'opponent_wallet_policy_disabled':
-      return 'Wallet policy disabled. Enable wallet skills in Agents page.';
+      return 'Wallet policy disabled. Tip: set wager to 0 (Free), or enable wallet skills in Agents page.';
     case 'challenger_insufficient_balance':
     case 'opponent_insufficient_balance':
-      return 'One player has insufficient balance for this wager.';
+      return 'Insufficient balance for this wager. Tip: set wager to 0 (Free).';
     case 'challenger_max_bet_percent_exceeded':
     case 'opponent_max_bet_percent_exceeded':
       return 'Wager exceeds one player spend-limit policy.';
@@ -1517,14 +1807,14 @@ function renderMatchControls() {
 
   if (isIncoming && challenge) {
     matchControlsTitle.textContent = 'Incoming Challenge';
-    matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} challenged you (${challenge.gameType}, wager ${challenge.wager}).`;
+    matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} challenged you (${challenge.gameType}, ${formatWagerInline(challenge.wager)}).`;
     matchControlsActions.className = 'match-controls__actions two';
     matchControlsActions.innerHTML = `
       <button type="button" data-action="accept" ${state.respondingIncoming ? 'disabled' : ''}>Accept (Y)</button>
       <button type="button" data-action="decline" ${state.respondingIncoming ? 'disabled' : ''}>Decline (N)</button>
     `;
     if (counterWagerInput) {
-      counterWagerInput.value = String(Math.max(1, Number(challenge.wager || 1)));
+      counterWagerInput.value = String(Math.max(0, Number(challenge.wager ?? 1)));
       counterWagerInput.disabled = state.respondingIncoming;
     }
     if (counterSendBtn) {
@@ -1540,7 +1830,7 @@ function renderMatchControls() {
   matchCounterOffer?.classList.remove('visible');
 
   matchControlsTitle.textContent = challenge.gameType === 'rps' ? 'RPS Match' : 'Coinflip Match';
-  matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | Wager ${challenge.wager}`;
+  matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | ${formatWagerLabel(challenge.wager)}`;
 
   const iAmChallenger = challenge.challengerId === state.playerId;
   const myMove = iAmChallenger ? challenge.challengerMove : challenge.opponentMove;
@@ -1657,6 +1947,19 @@ function renderWorldMap() {
     ctx.beginPath();
     ctx.arc(x, y, isSelf ? 4.8 : 3.2, 0, Math.PI * 2);
     ctx.fillStyle = isSelf ? '#2f6dff' : role === 'agent' ? '#b4792a' : '#4f8a63';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  for (const station of state.stations.values()) {
+    const x = ((station.x + WORLD_BOUND) / (WORLD_BOUND * 2)) * width;
+    const y = ((station.z + WORLD_BOUND) / (WORLD_BOUND * 2)) * height;
+    ctx.beginPath();
+    const size = 6;
+    ctx.rect(x - size / 2, y - size / 2, size, size);
+    ctx.fillStyle = station.kind === 'cashier_bank' ? 'rgba(47, 109, 255, 0.92)' : 'rgba(243, 156, 18, 0.92)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
     ctx.lineWidth = 1;

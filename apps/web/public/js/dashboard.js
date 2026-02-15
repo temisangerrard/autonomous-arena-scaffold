@@ -402,7 +402,12 @@ walletFund?.addEventListener('click', async () => {
     await refreshContext();
     setStatus(`Wallet funded +${amount}.`);
   } catch (error) {
-    setStatus(`Wallet fund failed: ${String(error.message || error)}`);
+    const msg = String(error.message || error);
+    if (msg.includes('runtime_unavailable')) {
+      setStatus('Wallet service is currently unavailable. You can still play free matches (set wager to 0).');
+    } else {
+      setStatus(`Wallet fund failed: ${msg}`);
+    }
   }
 });
 
@@ -422,7 +427,12 @@ walletWithdraw?.addEventListener('click', async () => {
     await refreshContext();
     setStatus(`Wallet withdrew -${amount}.`);
   } catch (error) {
-    setStatus(`Wallet withdraw failed: ${String(error.message || error)}`);
+    const msg = String(error.message || error);
+    if (msg.includes('runtime_unavailable')) {
+      setStatus('Wallet service is currently unavailable. You can still play free matches (set wager to 0).');
+    } else {
+      setStatus(`Wallet withdraw failed: ${msg}`);
+    }
   }
 });
 
@@ -452,7 +462,12 @@ walletTransfer?.addEventListener('click', async () => {
     await refreshContext();
     setStatus(`Transferred ${amount} to ${toWalletId}.`);
   } catch (error) {
-    setStatus(`Wallet transfer failed: ${String(error.message || error)}`);
+    const msg = String(error.message || error);
+    if (msg.includes('runtime_unavailable')) {
+      setStatus('Wallet service is currently unavailable. You can still play free matches (set wager to 0).');
+    } else {
+      setStatus(`Wallet transfer failed: ${msg}`);
+    }
   }
 });
 
@@ -521,7 +536,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 async function sendSuperAgent(message) {
-  const result = await api('/api/player/chief/chat', {
+  const result = await api('/api/player/house/chat', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ message, includeStatus: false })

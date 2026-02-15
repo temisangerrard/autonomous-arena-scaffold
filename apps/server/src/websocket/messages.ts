@@ -11,6 +11,15 @@ export type InputMessage = {
   moveZ: number;
 };
 
+export type StationInteractMessage = {
+  type: 'station_interact';
+  stationId: string;
+  action: 'coinflip_house';
+  wager: number;
+  pick: 'heads' | 'tails';
+  playerSeed: string;
+};
+
 export type ChallengeSendMessage = {
   type: 'challenge_send';
   targetId: string;
@@ -38,6 +47,7 @@ export type ChallengeMoveMessage = {
 
 export type ClientMessage =
   | InputMessage
+  | StationInteractMessage
   | ChallengeSendMessage
   | ChallengeResponseMessage
   | ChallengeCounterMessage
@@ -78,6 +88,24 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
         type: 'input',
         moveX: payload.moveX,
         moveZ: payload.moveZ
+      };
+    }
+
+    if (
+      payload.type === 'station_interact' &&
+      typeof payload.stationId === 'string' &&
+      payload.action === 'coinflip_house' &&
+      typeof payload.pick === 'string' &&
+      (payload.pick === 'heads' || payload.pick === 'tails') &&
+      typeof payload.playerSeed === 'string'
+    ) {
+      return {
+        type: 'station_interact',
+        stationId: payload.stationId,
+        action: 'coinflip_house',
+        wager: typeof payload.wager === 'number' ? payload.wager : 1,
+        pick: payload.pick,
+        playerSeed: payload.playerSeed
       };
     }
 

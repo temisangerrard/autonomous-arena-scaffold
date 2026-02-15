@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@arena/shared": "0.1.0",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "redis": "^4.7.0"
   },
   "devDependencies": {
     "pino-pretty": "^13.0.0",

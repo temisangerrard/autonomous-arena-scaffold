@@ -3,6 +3,7 @@ import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
 export function registerHouseRoutes(router: SimpleRouter, deps: {
   isInternalAuthorized: (req: import('node:http').IncomingMessage) => boolean;
   runtimeStatus: () => { house: unknown };
+  askOpenRouterHouse: (params: { message: string; player?: { profileId?: string | null; displayName?: string | null; walletId?: string | null } }) => Promise<string | null>;
   ensureSeedBalances: () => void;
   schedulePersistState: () => void;
   transferFromHouse: (toWalletId: string, amount: number, reason: string) => { ok: true; amount: number } | { ok: false; reason: string };
@@ -74,6 +75,28 @@ export function registerHouseRoutes(router: SimpleRouter, deps: {
     sendJson(res, { ok: true, refilled: result.amount, house: deps.runtimeStatus().house });
   });
 
+  router.post('/house/chat', async (req, res) => {
+    if (!deps.isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const body = await readJsonBody<{ message?: string; player?: { profileId?: string; displayName?: string; walletId?: string } }>(req);
+    const message = String(body?.message ?? '').trim();
+    if (!message) {
+      sendJson(res, { ok: false, reason: 'message_required' }, 400);
+      return;
+    }
+    const reply = await deps.askOpenRouterHouse({
+      message,
+      player: body?.player ? {
+        profileId: body.player.profileId ?? null,
+        displayName: body.player.displayName ?? null,
+        walletId: body.player.walletId ?? null
+      } : undefined
+    });
+    sendJson(res, { ok: true, reply: reply ?? '' });
+  });
+
   router.post('/owners/:profileId/presence', async (req, res, params) => {
     if (!deps.isInternalAuthorized(req)) {
       sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
@@ -97,4 +120,3 @@ export function registerHouseRoutes(router: SimpleRouter, deps: {
     sendJson(res, { ok: true, state: 'offline' });
   });
 }
-

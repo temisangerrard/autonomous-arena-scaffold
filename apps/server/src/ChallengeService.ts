@@ -26,6 +26,7 @@ export class ChallengeService {
   private readonly activeByPlayer = new Map<string, string>();
   private readonly recentLogs: ChallengeLog[] = [];
   private challengeCounter = 1;
+  private readonly coinflipResultOverride = new Map<string, CoinflipMove>();
 
   constructor(
     private readonly now: () => number,
@@ -33,6 +34,10 @@ export class ChallengeService {
     private readonly pendingTimeoutMs = 15_000,
     private readonly activeResolveMs = 45_000
   ) {}
+
+  private isHouse(playerId: string): boolean {
+    return playerId === 'system_house';
+  }
 
   createChallenge(
     challengerId: string,
@@ -44,7 +49,9 @@ export class ChallengeService {
       return this.withLog({ type: 'challenge', event: 'invalid', reason: 'self_challenge' });
     }
 
-    if (this.activeByPlayer.has(challengerId) || this.activeByPlayer.has(opponentId)) {
+    const challengerBusy = this.activeByPlayer.has(challengerId);
+    const opponentBusy = this.isHouse(opponentId) ? false : this.activeByPlayer.has(opponentId);
+    if (challengerBusy || opponentBusy) {
       return this.withLog({
         type: 'challenge',
         event: 'busy',
@@ -74,7 +81,9 @@ export class ChallengeService {
 
     this.challenges.set(challenge.id, challenge);
     this.activeByPlayer.set(challengerId, challenge.id);
-    this.activeByPlayer.set(opponentId, challenge.id);
+    if (!this.isHouse(opponentId)) {
+      this.activeByPlayer.set(opponentId, challenge.id);
+    }
 
     return this.withLog({
       type: 'challenge',
@@ -87,6 +96,16 @@ export class ChallengeService {
 
   getChallenge(challengeId: string): Challenge | null {
     return this.challenges.get(challengeId) ?? null;
+  }
+
+  setCoinflipResultOverride(challengeId: string, result: CoinflipMove): void {
+    if (!challengeId) {
+      return;
+    }
+    if (result !== 'heads' && result !== 'tails') {
+      return;
+    }
+    this.coinflipResultOverride.set(challengeId, result);
   }
 
   respond(challengeId: string, responderId: string, accept: boolean): ChallengeEvent {
@@ -239,7 +258,13 @@ export class ChallengeService {
 
           challenge.status = 'resolved';
           challenge.resolvedAt = now;
-          challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
+          const override = this.coinflipResultOverride.get(challenge.id);
+          if (override) {
+            challenge.coinflipResult = override;
+            this.coinflipResultOverride.delete(challenge.id);
+          } else {
+            challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
+          }
           this.clearPlayerLocks(challenge);
           events.push(
             this.withLog({
@@ -299,7 +324,13 @@ export class ChallengeService {
 
     challenge.status = 'resolved';
     challenge.resolvedAt = this.now();
-    challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
+    const override = this.coinflipResultOverride.get(challenge.id);
+    if (override) {
+      challenge.coinflipResult = override;
+      this.coinflipResultOverride.delete(challenge.id);
+    } else {
+      challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
+    }
 
     if (challenge.challengerMove === challenge.opponentMove) {
       challenge.winnerId = null;
@@ -366,7 +397,9 @@ export class ChallengeService {
 
   private clearPlayerLocks(challenge: Challenge): void {
     this.activeByPlayer.delete(challenge.challengerId);
-    this.activeByPlayer.delete(challenge.opponentId);
+    if (!this.isHouse(challenge.opponentId)) {
+      this.activeByPlayer.delete(challenge.opponentId);
+    }
   }
 
   private isRpsMove(move: GameMove | null): move is RpsMove {

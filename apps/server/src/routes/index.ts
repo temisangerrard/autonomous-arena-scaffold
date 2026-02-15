@@ -6,12 +6,17 @@ import { createHealthStatus } from '../health.js';
 import type { PresenceStore } from '../PresenceStore.js';
 import type { DistributedChallengeStore } from '../DistributedChallengeStore.js';
 import type { ChallengeService } from '../ChallengeService.js';
+import { WORLD_SECTION_SPAWNS } from '../WorldSim.js';
+import type { AdminCommand } from '../DistributedBus.js';
 
 export type RouteContext = {
   serverInstanceId: string;
   presenceStore: PresenceStore;
   distributedChallengeStore: DistributedChallengeStore;
   challengeService: ChallengeService;
+  internalToken: string;
+  publishAdminCommand: (serverId: string, command: AdminCommand) => Promise<void>;
+  teleportLocal: (playerId: string, x: number, z: number) => boolean;
 };
 
 /**
@@ -20,7 +25,31 @@ export type RouteContext = {
 export function setCorsHeaders(res: ServerResponse): void {
   res.setHeader('access-control-allow-origin', '*');
   res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
-  res.setHeader('access-control-allow-headers', 'content-type');
+  res.setHeader('access-control-allow-headers', 'content-type,x-internal-token');
+}
+
+async function readJsonBody<T>(req: IncomingMessage): Promise<T | null> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  if (chunks.length === 0) {
+    return null;
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
+  } catch {
+    return null;
+  }
+}
+
+function isInternalAuthorized(req: IncomingMessage, token: string): boolean {
+  if (!token) {
+    return true;
+  }
+  const header = req.headers['x-internal-token'];
+  const got = Array.isArray(header) ? header[0] : header;
+  return got === token;
 }
 
 /**
@@ -104,6 +133,78 @@ export function handleNotFound(req: IncomingMessage, res: ServerResponse): void 
   res.end('Not Found');
 }
 
+export async function handleAdminTeleport(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: RouteContext
+): Promise<void> {
+  if (req.method !== 'POST') {
+    res.statusCode = 405;
+    res.end('Method Not Allowed');
+    return;
+  }
+  if (!isInternalAuthorized(req, ctx.internalToken)) {
+    res.statusCode = 401;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'unauthorized_internal' }));
+    return;
+  }
+
+  const body = await readJsonBody<{
+    playerId?: string;
+    x?: number;
+    z?: number;
+    section?: number;
+  }>(req);
+  const playerId = String(body?.playerId ?? '').trim();
+  if (!playerId) {
+    res.statusCode = 400;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'player_required' }));
+    return;
+  }
+
+  let x: number | null = null;
+  let z: number | null = null;
+  if (Number.isFinite(Number(body?.section))) {
+    const idx = Math.max(0, Math.min(7, Math.floor(Number(body?.section))));
+    const spawn = WORLD_SECTION_SPAWNS[idx];
+    if (spawn) {
+      x = spawn.x;
+      z = spawn.z;
+    }
+  } else if (Number.isFinite(Number(body?.x)) && Number.isFinite(Number(body?.z))) {
+    x = Number(body?.x);
+    z = Number(body?.z);
+  }
+
+  if (x == null || z == null) {
+    res.statusCode = 400;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'coords_required' }));
+    return;
+  }
+
+  const presence = await ctx.presenceStore.get(playerId);
+  if (!presence) {
+    res.statusCode = 404;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'player_not_found' }));
+    return;
+  }
+
+  if (presence.serverId && presence.serverId !== ctx.serverInstanceId) {
+    await ctx.publishAdminCommand(presence.serverId, { type: 'admin_teleport', playerId, x, z });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: true, forwarded: true, serverId: presence.serverId, playerId, x, z }));
+    return;
+  }
+
+  const ok = ctx.teleportLocal(playerId, x, z);
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ ok, forwarded: false, serverId: ctx.serverInstanceId, playerId, x, z }));
+}
+
 /**
  * Main HTTP request router
  */
@@ -129,6 +230,11 @@ export function createRouter(ctx: RouteContext) {
 
     if (req.url?.startsWith('/challenges/recent')) {
       await handleChallengesRecent(req, res, ctx);
+      return;
+    }
+
+    if (req.url?.startsWith('/admin/teleport')) {
+      await handleAdminTeleport(req, res, ctx);
       return;
     }
 

@@ -690,6 +690,48 @@
       gap: 12px;
     }
 
+    .station-ui {
+      border: 1px solid rgba(198, 152, 49, 0.25);
+      background: rgba(255, 255, 255, 0.72);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .station-ui__title {
+      font: 800 12px/1 var(--font-mono);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #5a3f16;
+    }
+
+    .station-ui__row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .station-ui__row label {
+      font: 700 11px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6a5835;
+    }
+
+    .station-ui__actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .station-ui__meta {
+      font: 600 12px/1.35 'IBM Plex Sans', sans-serif;
+      color: rgba(44, 33, 18, 0.9);
+    }
+
     .interaction-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1541,6 +1583,7 @@
       <button id="interaction-close" class="interaction-card__close" type="button" aria-label="Close">×</button>
     </div>
     <div class="interaction-card__body">
+      <div id="station-ui" class="station-ui" aria-live="polite" hidden></div>
       <div class="interaction-row">
         <label for="interaction-game">Game</label>
         <select id="interaction-game">
@@ -1550,13 +1593,14 @@
       </div>
       <div class="interaction-row">
         <label for="interaction-wager">Wager (each)</label>
-        <input id="interaction-wager" type="number" min="1" max="10000" step="1" value="1" aria-describedby="wager-hint" />
+        <input id="interaction-wager" type="number" min="0" max="10000" step="1" value="1" aria-describedby="wager-hint" />
       </div>
       <div class="interaction-actions">
         <button id="interaction-send" class="btn-gold" type="button">Send Challenge</button>
         <button id="interaction-open-desk" class="btn-ghost" type="button">Desk</button>
       </div>
       <p id="wager-hint" class="interaction-hint">
+        <span class="interaction-prompt__key">0</span> free ·
         <span class="interaction-prompt__key">E</span> close ·
         <span class="interaction-prompt__key">Tab</span> switch ·
         <span class="interaction-prompt__key">Y/N</span> respond
@@ -1592,7 +1636,7 @@
         </div>
         <div>
           <label for="challenge-wager">Wager</label>
-          <input id="challenge-wager" type="number" min="1" max="10000" step="1" value="1">
+          <input id="challenge-wager" type="number" min="0" max="10000" step="1" value="1">
         </div>
       </div>
       <div class="challenge-actions">
@@ -1680,7 +1724,7 @@
     <div class="match-controls__status" id="match-controls-status">No active match.</div>
     <div class="match-controls__actions" id="match-controls-actions"></div>
     <div id="match-counter-offer" class="match-controls__counter">
-      <input id="counter-wager" type="number" min="1" max="10000" step="1" value="1" aria-label="Counter wager amount" />
+      <input id="counter-wager" type="number" min="0" max="10000" step="1" value="1" aria-label="Counter wager amount" />
       <button id="counter-send" type="button">Counter</button>
     </div>
   </section>

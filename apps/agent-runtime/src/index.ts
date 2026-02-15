@@ -829,6 +829,58 @@ ${message}`;
   return content.length > 0 ? content : null;
 }
 
+async function askOpenRouterHouse(params: {
+  message: string;
+  player?: { profileId?: string | null; displayName?: string | null; walletId?: string | null };
+}): Promise<string | null> {
+  const message = String(params.message || '').trim();
+  if (!superAgentConfig.llmPolicy.enabled || !runtimeSecrets.openRouterApiKey || !message) {
+    return null;
+  }
+
+  const house = houseBankWallet();
+  const playerWalletId = String(params.player?.walletId ?? '').trim();
+  const playerWallet = playerWalletId ? wallets.get(playerWalletId) ?? null : null;
+
+  const prompt = `You are "The House" for an open-world gambling game. You are helpful, calm, and fun.
+
+Rules:
+- Do NOT ask for private keys, seed phrases, or sensitive info.
+- Do NOT claim you executed onchain transactions yourself; describe what the system does.
+- Keep replies short and actionable.
+
+Context:
+- House wallet id=${house.id} balance=${house.balance.toFixed(2)}
+- Player=${String(params.player?.displayName ?? 'Player').slice(0, 40)} walletId=${playerWalletId || '-'} balance=${playerWallet ? playerWallet.balance.toFixed(2) : 'unknown'}
+
+Player message:
+${message}`;
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${runtimeSecrets.openRouterApiKey}`
+    },
+    body: JSON.stringify({
+      model: superAgentConfig.llmPolicy.model,
+      messages: [
+        { role: 'system', content: 'You are The House. Reply in 3-8 sentences. Be concrete.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 220
+    })
+  });
+  if (!response.ok) {
+    rememberSuperAgent('system', `openrouter house error ${response.status}`);
+    return null;
+  }
+  const payload = await response.json().catch(() => null) as { choices?: Array<{ message?: { content?: string } }> } | null;
+  const content = payload?.choices?.[0]?.message?.content?.trim() ?? '';
+  return content.length > 0 ? content : null;
+}
+
 function dayStamp(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1645,6 +1697,7 @@ registerRuntimeRoutes(router, {
   house: {
     isInternalAuthorized,
     runtimeStatus,
+    askOpenRouterHouse,
     ensureSeedBalances,
     schedulePersistState,
     transferFromHouse,

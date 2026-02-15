@@ -170,6 +170,7 @@ export interface Challenge {
   challengerMove: GameMove | null;
   opponentMove: GameMove | null;
   coinflipResult: CoinflipMove | null;
+  provablyFair?: ProvablyFairReceipt;
 }
 
 /**
@@ -216,6 +217,31 @@ export interface SnapshotPlayer {
   wallet?: string;
 }
 
+export type StationActionId =
+  | 'coinflip_house'
+  | 'coinflip_pvp'
+  | 'balance'
+  | 'fund'
+  | 'withdraw'
+  | 'transfer';
+
+export interface SnapshotStation {
+  id: string;
+  kind: 'dealer_coinflip' | 'cashier_bank';
+  displayName: string;
+  x: number;
+  z: number;
+  yaw: number;
+  actions: StationActionId[];
+}
+
+export interface ProvablyFairReceipt {
+  commitHash: string;
+  playerSeed: string;
+  revealSeed?: string;
+  method: string;
+}
+
 /**
  * Input state from clients
  */
@@ -236,6 +262,7 @@ export type ClientMessageType =
   | 'challenge_send' 
   | 'challenge_response' 
   | 'challenge_counter'
+  | 'station_interact'
   | 'move_submit'
   | 'leave';
 

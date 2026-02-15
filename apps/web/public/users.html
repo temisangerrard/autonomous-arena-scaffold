@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/runtime-config.js"></script>
+  <style>
+    body { margin: 0; }
+    .users {
+      min-height: 100vh;
+      padding: 16px;
+      background: radial-gradient(circle at 100% 0, rgba(201, 162, 39, 0.18), transparent 45%), var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-primary);
+    }
+    .users h1 {
+      font: 700 28px/1 var(--font-display);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 0 0 12px;
+      color: var(--accent-primary);
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .toolbar button {
+      border-radius: 10px;
+      border: 1px solid var(--border-gold);
+      background: linear-gradient(120deg, var(--gold-primary), var(--gold-dark));
+      color: #fff;
+      padding: 10px 12px;
+      font: 600 12px/1 var(--font-display);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .toolbar .status {
+      font: 12px/1.4 var(--font-mono);
+      color: var(--text-secondary);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 14px;
+      box-shadow: var(--shadow-sm);
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--border-medium);
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      font: 11px/1.2 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+      background: rgba(0,0,0,0.03);
+    }
+    .mono { font-family: var(--font-mono); font-size: 12px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,0.12);
+      font: 11px/1.2 var(--font-mono);
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.65);
+      white-space: nowrap;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #999;
+    }
+    .dot.online { background: #1aa35f; }
+    .dot.offline { background: #b8483c; }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      min-width: 260px;
+    }
+    .actions input, .actions select, .actions button {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border-medium);
+      padding: 8px;
+      font: 13px/1.2 var(--font-primary);
+      background: var(--bg-card);
+    }
+    .actions button {
+      cursor: pointer;
+      background: #111;
+      color: #fff;
+      border-color: #111;
+      font: 600 12px/1 var(--font-display);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .actions button.secondary {
+      background: rgba(0,0,0,0.06);
+      color: var(--text-primary);
+      border-color: rgba(0,0,0,0.18);
+    }
+  </style>
+</head>
+<body>
+  <main class="users">
+    <h1>Users</h1>
+    <div class="toolbar">
+      <button id="refresh-users" type="button">Refresh</button>
+      <div class="status" id="users-status">Loading…</div>
+    </div>
+    <table aria-label="User directory">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Wallet</th>
+          <th>Presence</th>
+          <th>Ops</th>
+        </tr>
+      </thead>
+      <tbody id="users-body"></tbody>
+    </table>
+  </main>
+  <script src="/js/auth-shell.js"></script>
+  <script type="module" src="/js/users.js"></script>
+</body>
+</html>
+
