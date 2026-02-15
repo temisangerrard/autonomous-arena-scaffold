@@ -593,14 +593,14 @@ function setPresenceBestEffort(state) {
 
 async function connectSocket() {
   const wsUrlObj = new URL(await resolveWsBaseUrl());
-  let sessionName = queryParams.get('name') || localStorage.getItem('arena_last_name') || '';
-  let sessionWalletId = queryParams.get('walletId') || localStorage.getItem('arena_wallet_id') || '';
-  let sessionClientId = queryParams.get('clientId') || localStorage.getItem('arena_client_id') || '';
-  let sessionWsAuth = queryParams.get('wsAuth') || localStorage.getItem('arena_ws_auth') || '';
+  let sessionName = '';
+  let sessionWalletId = '';
+  let sessionClientId = '';
+  let sessionWsAuth = '';
 
   // Do not block boot on auth endpoints during test harness runs.
   const skipProfileFetch = queryParams.get('test') === '1';
-  if (!skipProfileFetch && (!sessionName || !sessionWalletId || !sessionClientId || !sessionWsAuth)) {
+  if (!skipProfileFetch) {
     try {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 3500);
@@ -611,32 +611,37 @@ async function connectSocket() {
       window.clearTimeout(timeout);
       if (meResponse.status === 401 || meResponse.status === 403) {
         // Hard gate: no unauthenticated play access (even if static hosting bypasses /play routing).
-        localStorage.removeItem('arena_wallet_id');
-        localStorage.removeItem('arena_client_id');
-        localStorage.removeItem('arena_ws_auth');
+        localStorage.removeItem('arena_last_name');
         window.location.href = '/welcome';
         return;
       }
       if (meResponse.ok) {
         const mePayload = await meResponse.json();
         const profile = mePayload?.profile;
-        if (!sessionName && profile?.displayName) {
+        if (profile?.displayName) {
           sessionName = String(profile.displayName);
         }
-        if (!sessionWalletId && (profile?.wallet?.id || profile?.walletId)) {
+        if (profile?.wallet?.id || profile?.walletId) {
           sessionWalletId = String(profile.wallet?.id || profile.walletId);
         }
-        if (!sessionClientId && profile?.id) {
+        if (profile?.id) {
           sessionClientId = String(profile.id);
         }
-        if (!sessionWsAuth && mePayload?.wsAuth) {
+        if (mePayload?.wsAuth) {
           sessionWsAuth = String(mePayload.wsAuth);
         }
         state.walletBalance = Number(profile?.wallet?.balance ?? 0);
       }
     } catch {
-      // ignore; query/localStorage fallback remains in use
+      // If auth is flaky, fail closed: no unauthenticated play.
+      window.location.href = '/welcome';
+      return;
     }
+  } else {
+    sessionName = queryParams.get('name') || localStorage.getItem('arena_last_name') || '';
+    sessionWalletId = queryParams.get('walletId') || localStorage.getItem('arena_wallet_id') || '';
+    sessionClientId = queryParams.get('clientId') || localStorage.getItem('arena_client_id') || '';
+    sessionWsAuth = queryParams.get('wsAuth') || '';
   }
 
   if (sessionName) {
@@ -645,15 +650,12 @@ async function connectSocket() {
   }
   if (sessionWalletId) {
     wsUrlObj.searchParams.set('walletId', sessionWalletId);
-    localStorage.setItem('arena_wallet_id', sessionWalletId);
   }
   if (sessionClientId) {
     wsUrlObj.searchParams.set('clientId', sessionClientId);
-    localStorage.setItem('arena_client_id', sessionClientId);
   }
   if (sessionWsAuth) {
     wsUrlObj.searchParams.set('wsAuth', sessionWsAuth);
-    localStorage.setItem('arena_ws_auth', sessionWsAuth);
   }
 
   const wsUrl = wsUrlObj.toString();
@@ -677,14 +679,6 @@ async function connectSocket() {
     if (presenceTimer) {
       window.clearInterval(presenceTimer);
       presenceTimer = null;
-    }
-    // If ws auth is enabled server-side, users who are logged out should get bounced.
-    if (queryParams.get('test') !== '1') {
-      try {
-        localStorage.removeItem('arena_ws_auth');
-      } catch {
-        // ignore
-      }
     }
   });
 

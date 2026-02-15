@@ -460,7 +460,8 @@ function wsAuthForIdentity(identity: IdentityRecord): string | null {
     role: 'human',
     clientId: identity.profileId,
     walletId: identity.walletId,
-    exp: Date.now() + 1000 * 60 * 5
+    // Short-lived capability: clients must be logged-in to fetch a fresh token.
+    exp: Date.now() + 1000 * 60
   });
 }
 
@@ -816,10 +817,6 @@ const server = createServer(async (req, res) => {
       walletId,
       clientId: profile.id
     });
-    const wsAuth = wsAuthForIdentity(identity);
-    if (wsAuth) {
-      playParams.set('wsAuth', wsAuth);
-    }
     if (publicGameWsUrl) {
       playParams.set('ws', publicGameWsUrl);
     }
@@ -835,10 +832,9 @@ const server = createServer(async (req, res) => {
         admin: '/admin'
       },
       invite: {
-        note: 'Share the play URL with a friend after they sign in.',
-        playUrl: `/play?${playParams.toString()}`
-      },
-      wsAuth
+        note: 'Invite requires sign-in. Share the arena link; they must authenticate first.',
+        playUrl: '/welcome'
+      }
     });
     return;
   }
