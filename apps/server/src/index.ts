@@ -75,6 +75,9 @@ let lastPresenceRefreshAt = 0;
 const challengePendingTimeoutMs = config.challengePendingTimeoutMs;
 const challengeOrphanGraceMs = config.challengeOrphanGraceMs;
 const wsAuthSecret = config.wsAuthSecret;
+// Product choice: keep in-world movement reserved for human players.
+// Agents (NPCs / offline bots) can still participate in challenges, but do not roam unless explicitly enabled.
+const agentLocomotionEnabled = String(process.env.AGENT_LOCOMOTION_ENABLED ?? '').trim().toLowerCase() === 'true';
 const presenceByPlayerId = new Map<string, {
   playerId: string;
   role: PlayerRole;
@@ -541,6 +544,11 @@ wss.on('connection', (ws, request) => {
     }
 
     if (payload.type === 'input') {
+      const role = metaByPlayer.get(playerId)?.role ?? 'human';
+      if (role === 'agent' && !agentLocomotionEnabled) {
+        worldSim.setInput(playerId, { moveX: 0, moveZ: 0 });
+        return;
+      }
       worldSim.setInput(playerId, {
         moveX: payload.moveX,
         moveZ: payload.moveZ
