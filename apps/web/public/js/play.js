@@ -1,4 +1,4 @@
-import { THREE, installResizeHandler, loadWorld, makeCamera, makeRenderer, makeScene, pickWorldAlias } from './world-common.js';
+import { THREE, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene, pickWorldAlias } from './world-common.js';
 
 const canvas = document.getElementById('scene');
 const hud = document.getElementById('hud');
@@ -37,11 +37,39 @@ const matchControls = document.getElementById('match-controls');
 const matchControlsTitle = document.getElementById('match-controls-title');
 const matchControlsStatus = document.getElementById('match-controls-status');
 const matchControlsActions = document.getElementById('match-controls-actions');
+const matchCounterOffer = document.getElementById('match-counter-offer');
+const counterWagerInput = document.getElementById('counter-wager');
+const counterSendBtn = document.getElementById('counter-send');
 const interactionPrompt = document.getElementById('interaction-prompt');
+const interactionCard = document.getElementById('interaction-card');
+const interactionTitle = document.getElementById('interaction-title');
+const interactionClose = document.getElementById('interaction-close');
+const interactionGame = document.getElementById('interaction-game');
+const interactionWager = document.getElementById('interaction-wager');
+const interactionSend = document.getElementById('interaction-send');
+const interactionOpenDesk = document.getElementById('interaction-open-desk');
 const quickstartPanel = document.getElementById('quickstart-panel');
 const quickstartList = document.getElementById('quickstart-list');
 const quickstartClose = document.getElementById('quickstart-close');
 const queryParams = new URL(window.location.href).searchParams;
+const worldLoading = document.getElementById('world-loading');
+const worldLoadingBar = document.getElementById('world-loading-bar');
+const worldLoadingText = document.getElementById('world-loading-text');
+
+const mobileControls = document.getElementById('mobile-controls');
+const mobileStick = document.getElementById('mobile-stick');
+const mobileStickKnob = document.getElementById('mobile-stick-knob');
+const mobileInteract = document.getElementById('mobile-interact');
+const mobileSend = document.getElementById('mobile-send');
+const mobileAccept = document.getElementById('mobile-accept');
+const mobileDecline = document.getElementById('mobile-decline');
+const mobileCounter = document.getElementById('mobile-counter');
+const mobileMoves = document.getElementById('mobile-moves');
+const mobileMove1 = document.getElementById('mobile-move-1');
+const mobileMove2 = document.getElementById('mobile-move-2');
+const mobileMove3 = document.getElementById('mobile-move-3');
+const mobileMoveH = document.getElementById('mobile-move-h');
+const mobileMoveT = document.getElementById('mobile-move-t');
 
 const renderer = makeRenderer(canvas);
 const scene = makeScene();
@@ -64,10 +92,26 @@ matchSpotlight.position.y = 0.04;
 matchSpotlight.visible = false;
 scene.add(matchSpotlight);
 
+const targetSpotlight = new THREE.Mesh(
+  new THREE.RingGeometry(1.6, 2.2, 34),
+  new THREE.MeshStandardMaterial({
+    color: 0xf2d27a,
+    transparent: true,
+    opacity: 0.62,
+    side: THREE.DoubleSide,
+    emissive: 0x6a4a10,
+    emissiveIntensity: 0.55
+  })
+);
+targetSpotlight.rotation.x = -Math.PI / 2;
+targetSpotlight.position.y = 0.03;
+targetSpotlight.visible = false;
+scene.add(targetSpotlight);
+
 function createNameTag(initialText) {
   const canvas = document.createElement('canvas');
-  canvas.width = 112;
-  canvas.height = 20;
+  canvas.width = 96;
+  canvas.height = 18;
   const ctx = canvas.getContext('2d');
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -78,16 +122,16 @@ function createNameTag(initialText) {
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'rgba(255, 251, 241, 0.94)';
-    ctx.fillRect(0, 2, canvas.width, 16);
+    ctx.fillRect(0, 2, canvas.width, 14);
     ctx.strokeStyle = 'rgba(183, 136, 24, 0.9)';
     ctx.lineWidth = 1.2;
-    ctx.strokeRect(0, 2, canvas.width, 16);
+    ctx.strokeRect(0, 2, canvas.width, 14);
     ctx.fillStyle = '#4a3812';
-    ctx.font = '600 9px "IBM Plex Sans", sans-serif';
+    ctx.font = '700 8px "IBM Plex Sans", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const trimmed = String(text).slice(0, 14);
-    ctx.fillText(trimmed, canvas.width / 2, 10);
+    ctx.fillText(trimmed, canvas.width / 2, 9);
     texture.needsUpdate = true;
   }
 
@@ -101,8 +145,8 @@ function createNameTag(initialText) {
       depthWrite: false
     })
   );
-  sprite.scale.set(0.74, 0.14, 1);
-  sprite.position.set(0, 1.72, 0);
+  sprite.scale.set(0.62, 0.12, 1);
+  sprite.position.set(0, 1.62, 0);
 
   return {
     sprite,
@@ -163,9 +207,14 @@ const state = {
   outgoingChallengeId: null,
   activeChallenge: null,
   challengeStatus: 'none',
+  respondingIncoming: false,
   challengeMessage: '',
   challengeFeed: [],
-  cameraYawOffset: 0,
+  // Absolute camera yaw in world-space radians. This must NOT be derived from the
+  // player's yaw, otherwise player rotation feeds back into camera orbit and
+  // feels like "the world spins" when you press WASD.
+  cameraYaw: 0,
+  cameraYawInitialized: false,
   cameraPitch: 0.27,
   deskCollapsed: false,
   deskAutoCollapsedByMatch: false,
@@ -178,6 +227,18 @@ const state = {
     moveSubmitted: false,
     matchResolved: false,
     dismissed: false
+  },
+  ui: {
+    targetId: '',
+    interactOpen: false
+  },
+  touch: {
+    stickActive: false,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    moveX: 0,
+    moveZ: 0
   }
 };
 const WORLD_BOUND = 120;
@@ -249,57 +310,137 @@ quickstartClose?.addEventListener('click', () => {
   }
 });
 
-const wsUrlObj = new URL(queryParams.get('ws') ?? `ws://${window.location.hostname}:4000/ws`);
-let sessionName = queryParams.get('name') || localStorage.getItem('arena_last_name') || '';
-let sessionWalletId = queryParams.get('walletId') || localStorage.getItem('arena_wallet_id') || '';
-let sessionClientId = queryParams.get('clientId') || localStorage.getItem('arena_client_id') || '';
-if (!sessionName || !sessionWalletId || !sessionClientId) {
-  try {
-    const meResponse = await fetch('/api/player/me', { credentials: 'include' });
-    if (meResponse.ok) {
-      const mePayload = await meResponse.json();
-      const profile = mePayload?.profile;
-      if (!sessionName && profile?.displayName) {
-        sessionName = String(profile.displayName);
+// Netlify cannot reliably proxy WebSockets and doesn't ship large GLBs.
+// Pull infra settings from `/api/config` (proxied to the web-api on Cloud Run).
+let arenaConfigPromise = null;
+async function loadArenaConfig() {
+  if (arenaConfigPromise) return arenaConfigPromise;
+  arenaConfigPromise = (async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 3500);
+      const cfgRes = await fetch('/api/config', {
+        credentials: 'include',
+        signal: controller.signal
+      });
+      window.clearTimeout(timeout);
+      if (!cfgRes.ok) return null;
+      const cfg = await cfgRes.json();
+      if (cfg && typeof cfg === 'object') {
+        window.__ARENA_CONFIG = cfg;
       }
-      if (!sessionWalletId && (profile?.wallet?.id || profile?.walletId)) {
-        sessionWalletId = String(profile.wallet?.id || profile.walletId);
-      }
-      if (!sessionClientId && profile?.id) {
-        sessionClientId = String(profile.id);
-      }
-      state.walletBalance = Number(profile?.wallet?.balance ?? 0);
+      return cfg;
+    } catch {
+      return null;
     }
-  } catch {
-    // ignore; query/localStorage fallback remains in use
+  })();
+  return arenaConfigPromise;
+}
+
+async function resolveWsBaseUrl() {
+  const explicit = queryParams.get('ws');
+  if (explicit) return explicit;
+  const cfg = await loadArenaConfig();
+  if (cfg?.gameWsUrl) return String(cfg.gameWsUrl);
+  const sameOrigin = window.location.protocol === 'https:'
+    ? `wss://${window.location.host}/ws`
+    : `ws://${window.location.host}/ws`;
+  // Hard fallback for the current deployed scaffold.
+  if (window.location.hostname.endsWith('netlify.app')) {
+    return 'wss://arena-server-mfpf3lbsba-uc.a.run.app/ws';
   }
+  return sameOrigin;
 }
-if (sessionName) {
-  wsUrlObj.searchParams.set('name', sessionName);
-  localStorage.setItem('arena_last_name', sessionName);
-}
-if (sessionWalletId) {
-  wsUrlObj.searchParams.set('walletId', sessionWalletId);
-  localStorage.setItem('arena_wallet_id', sessionWalletId);
-}
-if (sessionClientId) {
-  wsUrlObj.searchParams.set('clientId', sessionClientId);
-  localStorage.setItem('arena_client_id', sessionClientId);
-}
-const wsUrl = wsUrlObj.toString();
-const socket = new WebSocket(wsUrl);
 
-socket.addEventListener('open', () => {
-  state.wsConnected = true;
-  addFeedEvent('system', 'Connected to game server.');
-});
+let socket = null;
 
-socket.addEventListener('close', () => {
-  state.wsConnected = false;
-  addFeedEvent('system', 'Disconnected from game server.');
-});
+async function connectSocket() {
+  const wsUrlObj = new URL(await resolveWsBaseUrl());
+  let sessionName = queryParams.get('name') || localStorage.getItem('arena_last_name') || '';
+  let sessionWalletId = queryParams.get('walletId') || localStorage.getItem('arena_wallet_id') || '';
+  let sessionClientId = queryParams.get('clientId') || localStorage.getItem('arena_client_id') || '';
+  let sessionWsAuth = queryParams.get('wsAuth') || localStorage.getItem('arena_ws_auth') || '';
 
-socket.addEventListener('message', (event) => {
+  // Do not block boot on auth endpoints during test harness runs.
+  const skipProfileFetch = queryParams.get('test') === '1';
+  if (!skipProfileFetch && (!sessionName || !sessionWalletId || !sessionClientId || !sessionWsAuth)) {
+    try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 3500);
+      const meResponse = await fetch('/api/player/me', {
+        credentials: 'include',
+        signal: controller.signal
+      });
+      window.clearTimeout(timeout);
+      if (meResponse.status === 401 || meResponse.status === 403) {
+        // Hard gate: no unauthenticated play access (even if static hosting bypasses /play routing).
+        localStorage.removeItem('arena_wallet_id');
+        localStorage.removeItem('arena_client_id');
+        localStorage.removeItem('arena_ws_auth');
+        window.location.href = '/welcome';
+        return;
+      }
+      if (meResponse.ok) {
+        const mePayload = await meResponse.json();
+        const profile = mePayload?.profile;
+        if (!sessionName && profile?.displayName) {
+          sessionName = String(profile.displayName);
+        }
+        if (!sessionWalletId && (profile?.wallet?.id || profile?.walletId)) {
+          sessionWalletId = String(profile.wallet?.id || profile.walletId);
+        }
+        if (!sessionClientId && profile?.id) {
+          sessionClientId = String(profile.id);
+        }
+        if (!sessionWsAuth && mePayload?.wsAuth) {
+          sessionWsAuth = String(mePayload.wsAuth);
+        }
+        state.walletBalance = Number(profile?.wallet?.balance ?? 0);
+      }
+    } catch {
+      // ignore; query/localStorage fallback remains in use
+    }
+  }
+
+  if (sessionName) {
+    wsUrlObj.searchParams.set('name', sessionName);
+    localStorage.setItem('arena_last_name', sessionName);
+  }
+  if (sessionWalletId) {
+    wsUrlObj.searchParams.set('walletId', sessionWalletId);
+    localStorage.setItem('arena_wallet_id', sessionWalletId);
+  }
+  if (sessionClientId) {
+    wsUrlObj.searchParams.set('clientId', sessionClientId);
+    localStorage.setItem('arena_client_id', sessionClientId);
+  }
+  if (sessionWsAuth) {
+    wsUrlObj.searchParams.set('wsAuth', sessionWsAuth);
+    localStorage.setItem('arena_ws_auth', sessionWsAuth);
+  }
+
+  const wsUrl = wsUrlObj.toString();
+  socket = new WebSocket(wsUrl);
+
+  socket.addEventListener('open', () => {
+    state.wsConnected = true;
+    addFeedEvent('system', 'Connected to game server.');
+  });
+
+  socket.addEventListener('close', () => {
+    state.wsConnected = false;
+    addFeedEvent('system', 'Disconnected from game server.');
+    // If ws auth is enabled server-side, users who are logged out should get bounced.
+    if (queryParams.get('test') !== '1') {
+      try {
+        localStorage.removeItem('arena_ws_auth');
+      } catch {
+        // ignore
+      }
+    }
+  });
+
+  socket.addEventListener('message', (event) => {
   const payload = JSON.parse(event.data);
 
   if (payload.type === 'welcome') {
@@ -383,6 +524,19 @@ socket.addEventListener('message', (event) => {
   }
 
   if (payload.type === 'challenge') {
+    const challenge = payload.challenge || null;
+    if (challenge && state.playerId) {
+      const involvesMe =
+        challenge.challengerId === state.playerId || challenge.opponentId === state.playerId;
+      const activeId = state.activeChallenge?.id || '';
+      const incomingId = state.incomingChallengeId || '';
+      const outgoingId = state.outgoingChallengeId || '';
+      const isKnown =
+        challenge.id === activeId || challenge.id === incomingId || challenge.id === outgoingId;
+      if (!involvesMe && !isKnown) {
+        return;
+      }
+    }
     handleChallenge(payload);
     return;
   }
@@ -431,17 +585,93 @@ socket.addEventListener('message', (event) => {
       state.challengeMessage = `Escrow lock failed${reason}.`;
     }
   }
-});
+  });
+}
 
-loadWorld(scene, state.worldAlias)
-  .then(() => {
+void connectSocket();
+
+async function loadWorldWithFallback() {
+  if (worldLoading) {
+    worldLoading.classList.add('open');
+    worldLoading.setAttribute('aria-hidden', 'false');
+  }
+  if (worldLoadingBar) {
+    worldLoadingBar.style.width = '0%';
+  }
+  if (worldLoadingText) {
+    worldLoadingText.textContent = 'Starting download…';
+  }
+  try {
+    await loadWorldWithProgress(scene, state.worldAlias, (evt) => {
+      const loaded = Number(evt?.loaded || 0);
+      const total = Number(evt?.total || 0);
+      if (worldLoadingBar && total > 0) {
+        const ratio = Math.max(0, Math.min(1, loaded / total));
+        worldLoadingBar.style.width = `${(ratio * 100).toFixed(1)}%`;
+      }
+      if (worldLoadingText) {
+        if (total > 0) {
+          const mb = (loaded / (1024 * 1024)).toFixed(0);
+          const totalMb = (total / (1024 * 1024)).toFixed(0);
+          worldLoadingText.textContent = `Downloading ${mb}/${totalMb} MB…`;
+        } else if (loaded > 0) {
+          const mb = (loaded / (1024 * 1024)).toFixed(0);
+          worldLoadingText.textContent = `Downloading ${mb} MB…`;
+        } else {
+          worldLoadingText.textContent = 'Downloading…';
+        }
+      }
+    });
     state.worldLoaded = true;
     addFeedEvent('system', `World loaded: ${state.worldAlias}`);
-  })
-  .catch((err) => {
+    if (worldLoading) {
+      worldLoading.classList.remove('open');
+      worldLoading.setAttribute('aria-hidden', 'true');
+    }
+    return;
+  } catch (err) {
     console.error('Failed to load world', err);
-    addFeedEvent('system', 'Failed to load world asset.');
-  });
+  }
+
+  // The mega world is very large and may fail to load behind some CDNs/proxies during scaffold.
+  if (state.worldAlias === 'mega' || state.worldAlias === 'train_world' || state.worldAlias === 'train-world') {
+    try {
+      const fallbackAlias = 'base';
+      if (worldLoadingText) {
+        worldLoadingText.textContent = 'Retrying with fallback world…';
+      }
+      if (worldLoadingBar) {
+        worldLoadingBar.style.width = '0%';
+      }
+      await loadWorldWithProgress(scene, fallbackAlias, (evt) => {
+        const loaded = Number(evt?.loaded || 0);
+        const total = Number(evt?.total || 0);
+        if (worldLoadingBar && total > 0) {
+          const ratio = Math.max(0, Math.min(1, loaded / total));
+          worldLoadingBar.style.width = `${(ratio * 100).toFixed(1)}%`;
+        }
+      });
+      state.worldAlias = fallbackAlias;
+      state.worldLoaded = true;
+      addFeedEvent('system', `World loaded: ${fallbackAlias} (fallback)`);
+      if (worldLoading) {
+        worldLoading.classList.remove('open');
+        worldLoading.setAttribute('aria-hidden', 'true');
+      }
+      return;
+    } catch (err) {
+      console.error('Failed to load fallback world', err);
+    }
+  }
+
+  addFeedEvent('system', 'Failed to load world asset.');
+  if (worldLoadingText) {
+    worldLoadingText.textContent = 'World failed to load. Check your network and try refresh.';
+  }
+}
+
+void loadWorldWithFallback();
+initMobileControls();
 
 const keyMap = {
   KeyW: 'forward',
@@ -459,9 +689,20 @@ window.addEventListener('keydown', (event) => {
   const editing =
     target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement
-    || target instanceof HTMLSelectElement
     || (target instanceof HTMLElement && target.isContentEditable);
-  if (editing) {
+  const allowDuringEditing =
+    event.code === 'KeyY'
+    || event.code === 'KeyN'
+    || event.code === 'KeyO'
+    || event.code === 'Digit1'
+    || event.code === 'Digit2'
+    || event.code === 'Digit3'
+    || event.code === 'KeyH'
+    || event.code === 'KeyT'
+    || event.code === 'Escape'
+    || event.code === 'KeyE'
+    || event.code === 'Tab';
+  if (editing && !allowDuringEditing) {
     return;
   }
   const action = keyMap[event.code];
@@ -478,8 +719,38 @@ window.addEventListener('keydown', (event) => {
     }
   }
 
+  // Reset camera behind the avatar (useful if camera orbit gets disoriented).
+  if (event.code === 'KeyR') {
+    const me = state.playerId ? state.players.get(state.playerId) : null;
+    if (me) {
+      state.cameraYaw = me.displayYaw;
+      state.cameraYawInitialized = true;
+    }
+  }
+
   if (event.code === 'KeyC') {
-    sendChallenge();
+    if (state.ui?.interactOpen) {
+      sendChallenge();
+    } else {
+      setInteractOpen(true);
+    }
+  }
+
+  if (event.code === 'KeyE') {
+    if (!getUiTargetId()) {
+      return;
+    }
+    event.preventDefault();
+    setInteractOpen(!state.ui.interactOpen);
+  }
+
+  if (event.code === 'Tab') {
+    event.preventDefault();
+    cycleNearbyTarget(!event.shiftKey);
+  }
+
+  if (event.code === 'Escape') {
+    setInteractOpen(false);
   }
 
   if (event.code === 'KeyY') {
@@ -488,6 +759,9 @@ window.addEventListener('keydown', (event) => {
 
   if (event.code === 'KeyN') {
     respondToIncoming(false);
+  }
+  if (event.code === 'KeyO') {
+    sendCounterOffer();
   }
 
   if (event.code === 'Digit1') {
@@ -517,7 +791,6 @@ window.addEventListener('keyup', (event) => {
   const editing =
     target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement
-    || target instanceof HTMLSelectElement
     || (target instanceof HTMLElement && target.isContentEditable);
   if (editing) {
     return;
@@ -530,6 +803,12 @@ window.addEventListener('keyup', (event) => {
 });
 
 sendChallengeBtn?.addEventListener('click', () => sendChallenge());
+targetSelect?.addEventListener('change', () => {
+  const value = String(targetSelect?.value || '');
+  if (value && state.nearbyIds.has(value)) {
+    state.ui.targetId = value;
+  }
+});
 clearChallengeBtn?.addEventListener('click', () => {
   state.challengeMessage = '';
   state.challengeStatus = 'none';
@@ -537,6 +816,31 @@ clearChallengeBtn?.addEventListener('click', () => {
 });
 acceptBtn?.addEventListener('click', () => respondToIncoming(true));
 declineBtn?.addEventListener('click', () => respondToIncoming(false));
+interactionPrompt?.addEventListener('click', () => {
+  if (!getUiTargetId()) {
+    return;
+  }
+  setInteractOpen(true);
+});
+interactionClose?.addEventListener('click', () => setInteractOpen(false));
+interactionSend?.addEventListener('click', () => {
+  if (!state.ui.interactOpen) {
+    setInteractOpen(true);
+  }
+  sendChallenge();
+});
+interactionOpenDesk?.addEventListener('click', () => {
+  if (!challengePanel) {
+    return;
+  }
+  state.deskCollapsed = false;
+  state.deskAutoCollapsedByMatch = false;
+  challengePanel.classList.remove('compact');
+  if (deskToggle) {
+    deskToggle.textContent = 'Collapse';
+  }
+  setInteractOpen(false);
+});
 gameClose?.addEventListener('click', () => hideGameModal());
 rpsButtons?.addEventListener('click', (event) => {
   const target = event.target;
@@ -562,25 +866,61 @@ coinButtons?.addEventListener('click', (event) => {
 });
 
 let dragging = false;
+let dragPointerId = null;
 let lastPointerX = 0;
 let lastPointerY = 0;
 
 canvas.addEventListener('pointerdown', (event) => {
+  // Orbit only on touch-drag or (Shift + right-mouse drag) (avoid accidental "world spinning"
+  // while keyboard-moving + micro mouse movement).
+  const isTouch = event.pointerType === 'touch';
+  const isRightMouse = event.pointerType === 'mouse' && (event.button === 2 || (event.buttons & 2) === 2);
+  const allowMouseOrbit = isRightMouse && event.shiftKey;
+  // If the mobile joystick is actively being used, do not interpret other touch
+  // interactions as camera orbit (prevents accidental camera drift while moving).
+  if (isTouch && state.touch?.stickActive) {
+    return;
+  }
+  if (!isTouch && !allowMouseOrbit) {
+    return;
+  }
   dragging = true;
+  dragPointerId = event.pointerId;
   lastPointerX = event.clientX;
   lastPointerY = event.clientY;
+  canvas.setPointerCapture?.(event.pointerId);
 });
 
-canvas.addEventListener('pointerup', () => {
+canvas.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
+});
+
+canvas.addEventListener('pointerup', (event) => {
+  if (dragPointerId !== null && event.pointerId !== dragPointerId) {
+    return;
+  }
   dragging = false;
+  dragPointerId = null;
 });
 
 canvas.addEventListener('pointerleave', () => {
   dragging = false;
+  dragPointerId = null;
 });
 
 canvas.addEventListener('pointermove', (event) => {
   if (!dragging) {
+    return;
+  }
+  if (dragPointerId !== null && event.pointerId !== dragPointerId) {
+    return;
+  }
+
+  // Keep movement intent stable: don't allow camera orbit to change "forward"
+  // while the player is actively moving.
+  const movingKeyboard = Boolean(state.input.forward || state.input.backward || state.input.left || state.input.right);
+  const movingTouch = Math.hypot(Number(state.touch?.moveX ?? 0), Number(state.touch?.moveZ ?? 0)) > 0.08;
+  if (movingKeyboard || movingTouch) {
     return;
   }
 
@@ -589,9 +929,117 @@ canvas.addEventListener('pointermove', (event) => {
   lastPointerX = event.clientX;
   lastPointerY = event.clientY;
 
-  state.cameraYawOffset -= dx * 0.006;
+  // Drag right => yaw increases (camera orbits right). This matches player expectation.
+  state.cameraYaw += dx * 0.006;
+  // Keep the yaw bounded to avoid floating point drift over long sessions.
+  if (Number.isFinite(state.cameraYaw)) {
+    const twoPi = Math.PI * 2;
+    state.cameraYaw = ((state.cameraYaw % twoPi) + twoPi) % twoPi;
+  }
   state.cameraPitch = Math.min(0.85, Math.max(0.1, state.cameraPitch - dy * 0.004));
 });
+
+function setStickKnob(dx, dy) {
+  if (!mobileStickKnob) {
+    return;
+  }
+  mobileStickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+
+function resetMobileStick() {
+  state.touch.stickActive = false;
+  state.touch.pointerId = null;
+  state.touch.moveX = 0;
+  state.touch.moveZ = 0;
+  setStickKnob(0, 0);
+}
+
+function initMobileControls() {
+  if (!mobileControls || !mobileStick) {
+    return;
+  }
+  const isCoarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  if (!isCoarse) {
+    mobileControls.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  mobileControls.setAttribute('aria-hidden', 'false');
+
+  mobileStick.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = mobileStick.getBoundingClientRect();
+    state.touch.stickActive = true;
+    state.touch.pointerId = event.pointerId;
+    state.touch.startX = event.clientX - rect.left - rect.width / 2;
+    state.touch.startY = event.clientY - rect.top - rect.height / 2;
+    mobileStick.setPointerCapture?.(event.pointerId);
+  });
+
+  mobileStick.addEventListener('pointermove', (event) => {
+    if (!state.touch.stickActive || state.touch.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = mobileStick.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = event.clientX - cx;
+    const dy = event.clientY - cy;
+
+    const radius = 44;
+    const len = Math.max(0.0001, Math.hypot(dx, dy));
+    const clampedLen = Math.min(radius, len);
+    const nx = (dx / len) * clampedLen;
+    const ny = (dy / len) * clampedLen;
+    setStickKnob(nx, ny);
+
+    // Right = +X, forward = -Y (screen coords).
+    const moveX = nx / radius;
+    const moveZ = -ny / radius;
+    state.touch.moveX = Math.max(-1, Math.min(1, moveX));
+    state.touch.moveZ = Math.max(-1, Math.min(1, moveZ));
+  });
+
+  const end = (event) => {
+    if (!state.touch.stickActive) {
+      return;
+    }
+    if (state.touch.pointerId !== null && event.pointerId !== state.touch.pointerId) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    resetMobileStick();
+  };
+
+  mobileStick.addEventListener('pointerup', end);
+  mobileStick.addEventListener('pointercancel', end);
+  window.addEventListener('blur', () => resetMobileStick());
+
+  mobileInteract?.addEventListener('click', () => {
+    if (!getUiTargetId()) {
+      return;
+    }
+    setInteractOpen(true);
+  });
+  mobileSend?.addEventListener('click', () => {
+    if (!state.ui.interactOpen) {
+      setInteractOpen(true);
+    }
+    sendChallenge();
+  });
+  mobileAccept?.addEventListener('click', () => respondToIncoming(true));
+  mobileDecline?.addEventListener('click', () => respondToIncoming(false));
+  mobileCounter?.addEventListener('click', () => sendCounterOffer());
+
+  mobileMove1?.addEventListener('click', () => sendGameMove('rock'));
+  mobileMove2?.addEventListener('click', () => sendGameMove('paper'));
+  mobileMove3?.addEventListener('click', () => sendGameMove('scissors'));
+  mobileMoveH?.addEventListener('click', () => sendGameMove('heads'));
+  mobileMoveT?.addEventListener('click', () => sendGameMove('tails'));
+}
 
 let lastInputSignature = '';
 let lastInputSentAt = 0;
@@ -599,24 +1047,25 @@ const AVATAR_GROUND_OFFSET = -0.7;
 const cameraForwardFlat = new THREE.Vector3(0, 0, 1);
 const cameraRightFlat = new THREE.Vector3(1, 0, 0);
 const moveVector = new THREE.Vector3();
+const upVector = new THREE.Vector3(0, 1, 0);
 
 function computeInputVector() {
-  const inputRight = (state.input.right ? 1 : 0) - (state.input.left ? 1 : 0);
-  const inputForward = (state.input.forward ? 1 : 0) - (state.input.backward ? 1 : 0);
+  const keyboardRight = (state.input.right ? 1 : 0) - (state.input.left ? 1 : 0);
+  const keyboardForward = (state.input.forward ? 1 : 0) - (state.input.backward ? 1 : 0);
+  const touchRight = Number(state.touch?.moveX ?? 0);
+  const touchForward = Number(state.touch?.moveZ ?? 0);
+  const inputRight = Math.max(-1, Math.min(1, keyboardRight + touchRight));
+  const inputForward = Math.max(-1, Math.min(1, keyboardForward + touchForward));
   const length = Math.hypot(inputRight, inputForward);
 
   if (length < 0.001) {
     return { moveX: 0, moveZ: 0 };
   }
 
-  camera.getWorldDirection(cameraForwardFlat);
-  cameraForwardFlat.y = 0;
-  if (cameraForwardFlat.lengthSq() < 0.0001) {
-    cameraForwardFlat.set(0, 0, 1);
-  } else {
-    cameraForwardFlat.normalize();
-  }
-
+  // Use the explicit orbit yaw instead of the camera quaternion to avoid feedback loops
+  // where movement changes player yaw, which changes camera yaw, which changes movement.
+  const yaw = state.cameraYaw;
+  cameraForwardFlat.set(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
   cameraRightFlat.set(cameraForwardFlat.z, 0, -cameraForwardFlat.x).normalize();
   moveVector
     .set(0, 0, 0)
@@ -635,7 +1084,7 @@ function computeInputVector() {
 }
 
 function sendInput(nowMs) {
-  if (!state.wsConnected || socket.readyState !== WebSocket.OPEN) {
+  if (!state.wsConnected || !socket || socket.readyState !== WebSocket.OPEN) {
     return;
   }
 
@@ -707,6 +1156,14 @@ function updateLocalAvatar() {
 
   animateAvatar(localAvatarParts, local.speed, performance.now() * 0.004);
 
+  // Initialize the camera yaw from the player's current yaw exactly once so
+  // the initial spawn camera "looks correct" without making camera orbit depend
+  // on ongoing server-authoritative yaw updates.
+  if (!state.cameraYawInitialized) {
+    state.cameraYaw = local.displayYaw;
+    state.cameraYawInitialized = true;
+  }
+
   const active = state.activeChallenge;
   const inMatch = active && active.status === 'active' && (active.challengerId === state.playerId || active.opponentId === state.playerId);
   const opponentId =
@@ -735,7 +1192,8 @@ function updateLocalAvatar() {
     return;
   }
 
-  const yaw = local.displayYaw + state.cameraYawOffset;
+  // Camera orbit is controlled by the player, not by the character yaw.
+  const yaw = state.cameraYaw;
   const forwardX = Math.sin(yaw);
   const forwardZ = Math.cos(yaw);
 
@@ -772,12 +1230,93 @@ function renderMatchSpotlight() {
   matchSpotlight.rotation.z += 0.01;
 }
 
+function renderTargetSpotlight() {
+  const active = state.activeChallenge;
+  if (active && active.status === 'active') {
+    targetSpotlight.visible = false;
+    return;
+  }
+  const targetId = getUiTargetId();
+  if (!targetId) {
+    targetSpotlight.visible = false;
+    return;
+  }
+  const target = state.players.get(targetId);
+  if (!target) {
+    targetSpotlight.visible = false;
+    return;
+  }
+  targetSpotlight.visible = true;
+  targetSpotlight.position.x = target.displayX;
+  targetSpotlight.position.z = target.displayZ;
+  targetSpotlight.rotation.z += 0.015;
+}
+
+function renderInteractionCard() {
+  if (!interactionCard || !interactionTitle) {
+    return;
+  }
+  const active = state.activeChallenge;
+  const inMatch = Boolean(active && active.status === 'active');
+  const incoming = Boolean(state.incomingChallengeId);
+  if (inMatch || incoming) {
+    setInteractOpen(false);
+    return;
+  }
+  const targetId = getUiTargetId();
+  if (!targetId) {
+    setInteractOpen(false);
+    return;
+  }
+  interactionTitle.textContent = `Challenge: ${labelFor(targetId)}`;
+}
+
+function renderMobileControls() {
+  if (!mobileControls) {
+    return;
+  }
+  const isCoarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  if (!isCoarse) {
+    mobileControls.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  mobileControls.setAttribute('aria-hidden', 'false');
+
+  const hasTarget = Boolean(getUiTargetId());
+  const active = state.activeChallenge;
+  const inMatch = Boolean(active && active.status === 'active');
+  const incoming = Boolean(state.incomingChallengeId && state.challengeStatus === 'incoming');
+  const canSend = Boolean(hasTarget && !incoming && !inMatch);
+
+  if (mobileInteract) mobileInteract.style.display = canSend ? 'inline-flex' : 'none';
+  if (mobileSend) mobileSend.style.display = (canSend && state.ui.interactOpen) ? 'inline-flex' : 'none';
+
+  if (mobileAccept) mobileAccept.style.display = incoming ? 'inline-flex' : 'none';
+  if (mobileDecline) mobileDecline.style.display = incoming ? 'inline-flex' : 'none';
+  if (mobileCounter) mobileCounter.style.display = incoming ? 'inline-flex' : 'none';
+
+  if (mobileMoves) {
+    const showMoves = Boolean(inMatch && active && (active.challengerId === state.playerId || active.opponentId === state.playerId));
+    mobileMoves.style.display = showMoves ? 'grid' : 'none';
+  }
+
+  const gameType = active?.gameType || '';
+  const showRps = inMatch && gameType === 'rps';
+  const showCoin = inMatch && gameType === 'coinflip';
+  if (mobileMove1) mobileMove1.style.display = showRps ? 'inline-flex' : 'none';
+  if (mobileMove2) mobileMove2.style.display = showRps ? 'inline-flex' : 'none';
+  if (mobileMove3) mobileMove3.style.display = showRps ? 'inline-flex' : 'none';
+  if (mobileMoveH) mobileMoveH.style.display = showCoin ? 'inline-flex' : 'none';
+  if (mobileMoveT) mobileMoveT.style.display = showCoin ? 'inline-flex' : 'none';
+}
+
 function update(nowMs) {
   sendInput(nowMs);
   updateLocalAvatar();
   syncRemoteAvatars(state.playerId);
   refreshNearbyDistances();
   renderMatchSpotlight();
+  renderTargetSpotlight();
 
   if (hud && topbarName && topbarWallet && topbarStreak) {
     const me = state.playerId ? state.players.get(state.playerId) : null;
@@ -797,7 +1336,9 @@ function update(nowMs) {
   renderWorldMap();
   renderContextPanel();
   renderInteractionPrompt();
+  renderInteractionCard();
   renderMatchControls();
+  renderMobileControls();
   renderQuickstart();
 }
 
@@ -806,6 +1347,7 @@ function render() {
 }
 
 function frame(nowMs) {
+  const isTest = queryParams.get('test') === '1';
   if (state.incomingChallengeExpiresAt && challengeTimerBar) {
     const remaining = Math.max(0, state.incomingChallengeExpiresAt - Date.now());
     const ratio = Math.max(0, Math.min(1, remaining / 15000));
@@ -818,8 +1360,14 @@ function frame(nowMs) {
     }
   }
   update(nowMs);
-  render();
-  requestAnimationFrame(frame);
+  // Headless smoke tests don't need WebGL draws and can hang on `renderer.render`
+  // under SwiftShader. Skip render in `test=1` mode; state still advances.
+  if (!isTest) {
+    render();
+  }
+  if (!isTest) {
+    requestAnimationFrame(frame);
+  }
 }
 
 function labelFor(id) {
@@ -859,6 +1407,9 @@ function refreshNearbyTargetOptions() {
 
   if (options.includes(previous)) {
     targetSelect.value = previous;
+    state.ui.targetId = previous;
+  } else if (state.ui?.targetId && options.includes(state.ui.targetId)) {
+    targetSelect.value = state.ui.targetId;
   }
 }
 
@@ -876,6 +1427,55 @@ function closestNearbyTargetId() {
     }
   }
   return bestId || [...state.nearbyIds][0] || '';
+}
+
+function getUiTargetId() {
+  const preferred = state.ui?.targetId || '';
+  if (preferred && state.nearbyIds.has(preferred)) {
+    return preferred;
+  }
+  const closest = closestNearbyTargetId();
+  if (closest) {
+    state.ui.targetId = closest;
+  }
+  return closest;
+}
+
+function cycleNearbyTarget(next = true) {
+  const ids = [...state.nearbyIds];
+  if (ids.length === 0) {
+    state.ui.targetId = '';
+    return;
+  }
+  ids.sort((a, b) => Number(state.nearbyDistances.get(a) ?? 9999) - Number(state.nearbyDistances.get(b) ?? 9999));
+  const current = state.ui.targetId && state.nearbyIds.has(state.ui.targetId) ? state.ui.targetId : ids[0];
+  const idx = Math.max(0, ids.indexOf(current));
+  const nextIdx = (idx + (next ? 1 : -1) + ids.length) % ids.length;
+  state.ui.targetId = ids[nextIdx] || ids[0];
+  if (targetSelect) {
+    targetSelect.value = state.ui.targetId;
+  }
+}
+
+function setInteractOpen(nextOpen) {
+  state.ui.interactOpen = Boolean(nextOpen);
+  if (!interactionCard) {
+    return;
+  }
+  interactionCard.classList.toggle('open', state.ui.interactOpen);
+  interactionCard.setAttribute('aria-hidden', state.ui.interactOpen ? 'false' : 'true');
+  if (state.ui.interactOpen) {
+    try {
+      document.activeElement?.blur?.();
+    } catch {
+      // ignore
+    }
+    if (interactionWager) {
+      interactionWager.value = String(Math.max(1, Math.min(10000, Number(interactionWager.value || 1))));
+      interactionWager.focus?.();
+      interactionWager.select?.();
+    }
+  }
 }
 
 function refreshNearbyDistances() {
@@ -897,7 +1497,7 @@ function refreshNearbyDistances() {
 }
 
 function sendChallenge() {
-  if (!state.wsConnected || socket.readyState !== WebSocket.OPEN) {
+  if (!state.wsConnected || !socket || socket.readyState !== WebSocket.OPEN) {
     state.challengeMessage = 'Not connected to game server.';
     return;
   }
@@ -905,14 +1505,17 @@ function sendChallenge() {
   const selectedTarget = targetSelect?.value || '';
   const targetId =
     (selectedTarget && state.nearbyIds.has(selectedTarget) ? selectedTarget : '') ||
+    (state.ui?.targetId && state.nearbyIds.has(state.ui.targetId) ? state.ui.targetId : '') ||
     closestNearbyTargetId();
   if (!targetId) {
     state.challengeMessage = 'No nearby target selected.';
     return;
   }
 
-  const gameType = gameSelect?.value === 'coinflip' ? 'coinflip' : 'rps';
-  const wager = Math.max(1, Math.min(10000, Number(wagerInput?.value || 1)));
+  const gameTypeSource = (interactionGame && state.ui.interactOpen) ? interactionGame : gameSelect;
+  const wagerSource = (interactionWager && state.ui.interactOpen) ? interactionWager : wagerInput;
+  const gameType = gameTypeSource?.value === 'coinflip' ? 'coinflip' : 'rps';
+  const wager = Math.max(1, Math.min(10000, Number(wagerSource?.value || 1)));
 
   socket.send(
     JSON.stringify({
@@ -926,13 +1529,21 @@ function sendChallenge() {
   state.challengeStatus = 'sent';
   state.challengeMessage = `Challenge sent (${gameType}, wager ${wager}) to ${labelFor(targetId)}`;
   state.quickstart.challengeSent = true;
+  setInteractOpen(false);
 }
 
 function respondToIncoming(accept) {
-  if (!state.incomingChallengeId || socket.readyState !== WebSocket.OPEN) {
+  if (!state.incomingChallengeId || !socket || socket.readyState !== WebSocket.OPEN) {
     state.challengeMessage = 'No incoming challenge to respond to.';
     return;
   }
+
+  if (state.respondingIncoming) {
+    return;
+  }
+  state.respondingIncoming = true;
+  state.challengeStatus = 'responding';
+  state.challengeMessage = accept ? 'Accepting challenge...' : 'Declining challenge...';
 
   socket.send(
     JSON.stringify({
@@ -946,9 +1557,37 @@ function respondToIncoming(accept) {
   }
 }
 
+function sendCounterOffer() {
+  const challenge = state.activeChallenge;
+  if (!challenge || challenge.status !== 'pending' || challenge.opponentId !== state.playerId) {
+    state.challengeMessage = 'No incoming challenge to counter.';
+    return;
+  }
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    state.challengeMessage = 'Not connected to game server.';
+    return;
+  }
+  if (state.respondingIncoming) {
+    return;
+  }
+  const wager = Math.max(1, Math.min(10000, Number(counterWagerInput?.value || challenge.wager || 1)));
+  state.respondingIncoming = true;
+  state.challengeStatus = 'responding';
+  state.challengeMessage = `Countering with wager ${wager}...`;
+
+  socket.send(
+    JSON.stringify({
+      type: 'challenge_counter',
+      challengeId: challenge.id,
+      wager
+    })
+  );
+  state.quickstart.challengeSent = true;
+}
+
 function sendGameMove(move) {
   const challenge = state.activeChallenge;
-  if (!challenge || socket.readyState !== WebSocket.OPEN) {
+  if (!challenge || !socket || socket.readyState !== WebSocket.OPEN) {
     state.challengeMessage = 'No active match right now.';
     return;
   }
@@ -1158,6 +1797,7 @@ function handleChallenge(payload) {
   }
 
   if (payload.event === 'created' && challenge) {
+    state.respondingIncoming = false;
     if (challenge.opponentId === state.playerId) {
       state.incomingChallengeId = challenge.id;
       state.challengeStatus = 'incoming';
@@ -1172,7 +1812,7 @@ function handleChallenge(payload) {
       showGameModal(
         challenge,
         'Incoming challenge',
-        `${labelFor(challenge.challengerId)} challenges you to ${challenge.gameType.toUpperCase()} for ${challenge.wager}.`
+        `${labelFor(challenge.challengerId)} challenges you to ${challenge.gameType.toUpperCase()} for ${challenge.wager}. Accept as-is, or counter with your own wager (O).`
       );
     }
 
@@ -1185,6 +1825,7 @@ function handleChallenge(payload) {
   }
 
   if (payload.event === 'accepted' && challenge) {
+    state.respondingIncoming = false;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
     state.challengeStatus = 'active';
@@ -1203,6 +1844,7 @@ function handleChallenge(payload) {
   }
 
   if (payload.event === 'declined' && challenge) {
+    state.respondingIncoming = false;
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
@@ -1217,6 +1859,7 @@ function handleChallenge(payload) {
   }
 
   if (payload.event === 'expired' && challenge) {
+    state.respondingIncoming = false;
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
@@ -1231,6 +1874,7 @@ function handleChallenge(payload) {
   }
 
   if (payload.event === 'resolved' && challenge) {
+    state.respondingIncoming = false;
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
@@ -1253,6 +1897,7 @@ function handleChallenge(payload) {
   }
 
   if (payload.event === 'invalid' || payload.event === 'busy') {
+    state.respondingIncoming = false;
     state.challengeMessage = challengeReasonLabel(payload.reason);
   }
 
@@ -1316,13 +1961,14 @@ function renderInteractionPrompt() {
     interactionPrompt.classList.remove('visible');
     return;
   }
-  const targetId = closestNearbyTargetId();
+  const targetId = getUiTargetId();
   if (!targetId) {
     interactionPrompt.classList.remove('visible');
+    setInteractOpen(false);
     return;
   }
   const distance = state.nearbyDistances.get(targetId);
-  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. C challenge · V profile`;
+  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · Tab switch · V profile`;
   interactionPrompt.classList.add('visible');
 }
 
@@ -1384,6 +2030,7 @@ function renderMatchControls() {
     }
     matchControls.classList.remove('visible');
     matchControlsActions.innerHTML = '';
+    matchCounterOffer?.classList.remove('visible');
     return;
   }
 
@@ -1402,15 +2049,24 @@ function renderMatchControls() {
     matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} challenged you (${challenge.gameType}, wager ${challenge.wager}).`;
     matchControlsActions.className = 'match-controls__actions two';
     matchControlsActions.innerHTML = `
-      <button type="button" data-action="accept">Accept (Y)</button>
-      <button type="button" data-action="decline">Decline (N)</button>
+      <button type="button" data-action="accept" ${state.respondingIncoming ? 'disabled' : ''}>Accept (Y)</button>
+      <button type="button" data-action="decline" ${state.respondingIncoming ? 'disabled' : ''}>Decline (N)</button>
     `;
+    if (counterWagerInput) {
+      counterWagerInput.value = String(Math.max(1, Number(challenge.wager || 1)));
+      counterWagerInput.disabled = state.respondingIncoming;
+    }
+    if (counterSendBtn) {
+      counterSendBtn.disabled = state.respondingIncoming;
+    }
+    matchCounterOffer?.classList.add('visible');
     return;
   }
 
   if (!challenge) {
     return;
   }
+  matchCounterOffer?.classList.remove('visible');
 
   matchControlsTitle.textContent = challenge.gameType === 'rps' ? 'RPS Match' : 'Coinflip Match';
   matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | Wager ${challenge.wager}`;
@@ -1456,6 +2112,10 @@ matchControlsActions?.addEventListener('click', (event) => {
   if (move) {
     sendGameMove(move);
   }
+});
+
+counterSendBtn?.addEventListener('click', () => {
+  sendCounterOffer();
 });
 
 function renderWorldMap() {
@@ -1550,6 +2210,7 @@ window.advanceTime = (ms) => {
 
 window.render_game_to_text = () => {
   const local = state.playerId ? state.players.get(state.playerId) : null;
+  const desired = computeInputVector();
   return JSON.stringify({
     mode: 'play',
     wsConnected: state.wsConnected,
@@ -1558,12 +2219,18 @@ window.render_game_to_text = () => {
     worldLoaded: state.worldLoaded,
     tick: state.tick,
     coords: 'origin at world center, +X right, +Z forward, +Y up',
+    cameraYaw: state.cameraYaw,
+    desiredMove: desired,
     player: local
       ? {
           x: local.x,
           y: local.y,
           z: local.z,
           yaw: local.yaw,
+          displayX: local.displayX,
+          displayY: local.displayY,
+          displayZ: local.displayZ,
+          displayYaw: local.displayYaw,
           displayName: local.displayName
         }
       : null,
@@ -1583,4 +2250,17 @@ window.render_game_to_text = () => {
   });
 };
 
-requestAnimationFrame(frame);
+if (queryParams.get('test') === '1') {
+  // Deterministic stepping hook for automated tests (avoid relying on rAF timing).
+  let testNow = performance.now();
+  window.advanceTime = async (ms) => {
+    const stepMs = 1000 / 60;
+    const steps = Math.max(1, Math.round(ms / stepMs));
+    for (let i = 0; i < steps; i += 1) {
+      testNow += stepMs;
+      frame(testNow);
+    }
+  };
+} else {
+  requestAnimationFrame(frame);
+}

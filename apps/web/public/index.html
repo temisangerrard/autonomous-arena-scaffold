@@ -67,7 +67,7 @@
                         Configure autonomous bots, set AI personalities, manage wallet
                         capabilities and OpenRouter integration.
                     </p>
-                    <a href="/agents" class="btn btn--secondary">Manage Agents</a>
+                    <a href="/agents" class="btn btn--secondary" id="admin-only-agents">Manage Agents</a>
                 </div>
 
                 <div class="feature-card">
@@ -150,6 +150,26 @@
 
     <script type="module" src="/js/auth-shell.js"></script>
     <script type="module">
+        // Hide admin-only actions for non-admin visitors.
+        (async function () {
+            const el = document.getElementById('admin-only-agents');
+            if (!el) return;
+            try {
+                const res = await fetch('/api/session', { credentials: 'include' });
+                if (!res.ok) {
+                    el.setAttribute('hidden', 'true');
+                    return;
+                }
+                const payload = await res.json();
+                const role = payload?.user?.role || '';
+                if (role !== 'admin') {
+                    el.setAttribute('hidden', 'true');
+                }
+            } catch {
+                el.setAttribute('hidden', 'true');
+            }
+        })();
+
         // Service health checks
         async function checkHealth(url, elementIndex) {
             const badges = document.querySelectorAll('.status-badge');

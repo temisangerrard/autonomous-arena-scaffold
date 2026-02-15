@@ -39,13 +39,8 @@ const botBaseWager = document.getElementById('bot-base-wager');
 const botMaxWager = document.getElementById('bot-max-wager');
 const botSave = document.getElementById('bot-save');
 const botList = document.getElementById('bot-list');
-const newBotName = document.getElementById('new-bot-name');
-const newBotPersonality = document.getElementById('new-bot-personality');
-const newBotTarget = document.getElementById('new-bot-target');
-const newBotMode = document.getElementById('new-bot-mode');
-const newBotBaseWager = document.getElementById('new-bot-base-wager');
-const newBotMaxWager = document.getElementById('new-bot-max-wager');
-const createBot = document.getElementById('create-bot');
+// Bot creation is intentionally disabled: one player == one character bot.
+const createBot = null;
 
 const superAgentMessage = document.getElementById('super-agent-message');
 const superAgentSend = document.getElementById('super-agent-send');
@@ -118,15 +113,14 @@ function parseAmount(el, fallback = 1) {
 }
 
 function bindPlayLink() {
-  if (!playLink || !playerCtx?.profile) {
+  if (!playLink) {
     return;
   }
-  const params = new URLSearchParams({
-    world: 'mega',
-    name: playerCtx.profile.displayName,
-    walletId: playerCtx.profile.wallet?.id || playerCtx.profile.walletId
-  });
-  playLink.href = `/play?${params.toString()}`;
+  if (bootstrapCtx?.links?.play) {
+    playLink.href = bootstrapCtx.links.play;
+    return;
+  }
+  playLink.href = '/play?world=mega';
 }
 
 function getBotById(botId) {
@@ -270,8 +264,8 @@ function renderContext() {
       [hasUser, 'Signed in'],
       [hasProfile, 'Player profile provisioned'],
       [hasFunds, 'Wallet funded'],
-      [hasBot, 'At least one bot created'],
-      [hasActiveBot, 'At least one bot in active mode'],
+      [hasBot, 'Character bot provisioned'],
+      [hasActiveBot, 'Bot in active mode'],
       [hasPlayLink, 'Play link ready to share']
     ];
     onboardingList.innerHTML = rows
@@ -474,31 +468,7 @@ botSave?.addEventListener('click', async () => {
   }
 });
 
-createBot?.addEventListener('click', async () => {
-  try {
-    setStatus('Creating bot...');
-    await api('/api/player/bots/create', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        displayName: String(newBotName?.value || '').trim() || undefined,
-        personality: newBotPersonality?.value || 'social',
-        targetPreference: newBotTarget?.value || 'human_first',
-        mode: newBotMode?.value || 'active',
-        baseWager: Math.max(1, Number(newBotBaseWager?.value || 1)),
-        maxWager: Math.max(1, Number(newBotMaxWager?.value || 3)),
-        managedBySuperAgent: true
-      })
-    });
-    if (newBotName) {
-      newBotName.value = '';
-    }
-    await refreshContext();
-    setStatus('Bot created.');
-  } catch (error) {
-    setStatus(`Bot create failed: ${String(error.message || error)}`);
-  }
-});
+// Bot creation intentionally disabled.
 
 botList?.addEventListener('click', (event) => {
   const target = event.target;
@@ -530,7 +500,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 async function sendSuperAgent(message) {
-  const result = await api('/api/super-agent/chat', {
+  const result = await api('/api/player/chief/chat', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ message, includeStatus: false })

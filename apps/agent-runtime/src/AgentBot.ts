@@ -1,5 +1,6 @@
-import { WebSocket } from 'ws';
+import { WebSocket, type RawData } from 'ws';
 import { PolicyEngine, type AgentPlayerState, type Personality } from './PolicyEngine.js';
+import { signWsAuthToken } from '@arena/shared';
 
 type SnapshotPlayer = AgentPlayerState & { role?: 'human' | 'agent' };
 
@@ -153,6 +154,15 @@ export class AgentBot {
     if (this.config.walletId) {
       wsUrl.searchParams.set('walletId', this.config.walletId);
     }
+    const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
+    if (wsAuthSecret) {
+      wsUrl.searchParams.set('wsAuth', signWsAuthToken(wsAuthSecret, {
+        role: 'agent',
+        agentId: this.config.id,
+        walletId: this.config.walletId ?? null,
+        exp: Date.now() + 1000 * 60 * 5
+      }));
+    }
 
     const ws = new WebSocket(wsUrl.toString());
     this.ws = ws;
@@ -162,7 +172,7 @@ export class AgentBot {
       this.startDecisionLoop();
     });
 
-    ws.on('message', (raw) => {
+    ws.on('message', (raw: RawData) => {
       this.onMessage(raw.toString());
     });
 
@@ -288,25 +298,22 @@ export class AgentBot {
     const allOthers = [...this.playersById.values()].filter((entry) => entry.id !== this.playerId);
     const scopedOthers = allOthers.filter((entry) => this.isInSameOrAdjacentSection(self, entry));
     const worldOthers = scopedOthers.length > 0 ? scopedOthers : allOthers;
+    const agentOthers = worldOthers.filter((entry) => entry.role === 'agent');
     const humanOthers = worldOthers.filter((entry) => entry.role !== 'agent');
 
-    const nearestHumanDistance = humanOthers.reduce((best, player) => {
-      const distance = Math.hypot(player.x - self.x, player.z - self.z);
-      return Math.min(best, distance);
-    }, Number.POSITIVE_INFINITY);
-
-    const others =
-      this.config.behavior.targetPreference === 'human_only'
-        ? humanOthers
-        : this.config.behavior.targetPreference === 'human_first'
-          ? (nearestHumanDistance < 14 ? humanOthers : worldOthers)
-          : worldOthers;
+    // Movement should not hard-swarm humans from far away. Humans only become
+    // "interesting" for locomotion when already close enough to plausibly interact.
+    const HUMAN_INTEREST_RADIUS = 9.5;
+    const movementHumans = humanOthers.filter(
+      (entry) => Math.hypot(entry.x - self.x, entry.z - self.z) <= HUMAN_INTEREST_RADIUS
+    );
+    const movementOthers = agentOthers.concat(movementHumans);
 
     let decision = this.policyEngine.decide(
       this.config.behavior.personality,
       {
         self,
-        others,
+        others: movementOthers,
         nearbyIds: [...this.nearbyIds],
         nowMs: Date.now(),
         patrolSection: this.config.behavior.patrolSection,

@@ -5,7 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { createHealthStatus } from './health.js';
-import { availableWorldAliases, resolveWorldAssetPath } from './worldAssets.js';
+import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias } from './worldAssets.js';
+import { signWsAuthToken } from '@arena/shared';
 
 function loadEnvFromFile(): void {
   const candidates = [
@@ -50,15 +51,20 @@ loadEnvFromFile();
 const port = Number(process.env.PORT ?? 3000);
 const googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
+const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
+const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
+const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
 const adminEmails = new Set(
   (process.env.ADMIN_EMAILS ?? process.env.SUPER_ADMIN_EMAIL ?? '')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
 );
-const localAdminUsername = process.env.ADMIN_USERNAME ?? 'admin';
-const localAdminPassword = process.env.ADMIN_PASSWORD ?? '12345';
-const localAuthEnabled = (process.env.LOCAL_AUTH_ENABLED ?? 'true') !== 'false';
+// Local scaffold login is a dev-only escape hatch. Keep it disabled by default and
+// never ship hardcoded credentials.
+const localAdminUsername = process.env.ADMIN_USERNAME ?? '';
+const localAdminPassword = process.env.ADMIN_PASSWORD ?? '';
+const localAuthEnabled = (process.env.LOCAL_AUTH_ENABLED ?? 'false') === 'true';
 const webStateFile = process.env.WEB_STATE_FILE
   ? path.resolve(process.cwd(), process.env.WEB_STATE_FILE)
   : path.resolve(process.cwd(), 'output', 'web-auth-state.json');
@@ -401,12 +407,28 @@ function sanitizeUser(identity: IdentityRecord): Record<string, unknown> {
   };
 }
 
+function wsAuthForIdentity(identity: IdentityRecord): string | null {
+  if (!wsAuthSecret) {
+    return null;
+  }
+  if (!identity.profileId || !identity.walletId) {
+    return null;
+  }
+  return signWsAuthToken(wsAuthSecret, {
+    role: 'human',
+    clientId: identity.profileId,
+    walletId: identity.walletId,
+    exp: Date.now() + 1000 * 60 * 5
+  });
+}
+
 function htmlRouteToFile(pathname: string, req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): string | null {
   const identity = getIdentityFromReq(req);
 
   if (pathname === '/welcome') {
     if (identity) {
-      redirect(res, identity.role === 'admin' ? '/admin' : '/dashboard');
+      // Always land on the player dashboard; admin tools are accessible from there.
+      redirect(res, '/dashboard');
       return null;
     }
     return path.join(publicDir, 'welcome.html');
@@ -466,7 +488,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/worlds') {
-    sendJson(res, { aliases: availableWorldAliases() });
+    sendJson(res, { aliases: availableWorldAliases(), filenameByAlias: worldFilenameByAlias() });
     return;
   }
 
@@ -474,7 +496,10 @@ const server = createServer(async (req, res) => {
     sendJson(res, {
       googleClientId,
       authEnabled: googleClientId.length > 0,
-      localAuthEnabled
+      localAuthEnabled,
+      // Used by the static Netlify client to connect to Cloud Run infra.
+      gameWsUrl: publicGameWsUrl,
+      worldAssetBaseUrl: publicWorldAssetBaseUrl
     });
     return;
   }
@@ -482,6 +507,10 @@ const server = createServer(async (req, res) => {
   if (pathname === '/api/auth/local' && req.method === 'POST') {
     if (!localAuthEnabled) {
       sendJson(res, { ok: false, reason: 'local_auth_disabled' }, 403);
+      return;
+    }
+    if (!localAdminUsername || !localAdminPassword) {
+      sendJson(res, { ok: false, reason: 'local_auth_misconfigured' }, 500);
       return;
     }
 
@@ -527,10 +556,13 @@ const server = createServer(async (req, res) => {
     schedulePersistWebState();
     setSessionCookie(res, sid);
 
+    // Allow local admins to play too (same as Google users).
+    await ensurePlayerProvisioned(identity);
+
     sendJson(res, {
       ok: true,
       user: sanitizeUser(identity),
-      redirectTo: '/admin'
+      redirectTo: '/dashboard'
     });
     return;
   }
@@ -577,9 +609,8 @@ const server = createServer(async (req, res) => {
       identity.role = role;
       identity.lastLoginAt = now;
 
-      if (identity.role === 'player') {
-        await ensurePlayerProvisioned(identity);
-      }
+      // Admins should still be able to play; provision a player profile/wallet/bot for any Google user.
+      await ensurePlayerProvisioned(identity);
 
       identities.set(identity.sub, identity);
 
@@ -595,7 +626,8 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         user: sanitizeUser(identity),
-        redirectTo: identity.role === 'admin' ? '/admin' : '/dashboard'
+        // Always go to the dashboard first; admin entry points live there.
+        redirectTo: '/dashboard'
       });
       return;
     } catch (error) {
@@ -667,7 +699,8 @@ const server = createServer(async (req, res) => {
       ok: true,
       user: sanitizeUser(identity),
       profile,
-      bots
+      bots,
+      wsAuth: wsAuthForIdentity(identity)
     });
     return;
   }
@@ -716,6 +749,10 @@ const server = createServer(async (req, res) => {
     }
 
     const walletId = profile.wallet?.id ?? profile.walletId;
+    identity.walletId = walletId;
+    identity.username = profile.username;
+    identity.displayName = profile.displayName;
+    schedulePersistWebState();
     const world = requestUrl.searchParams.get('world') || 'mega';
     const playParams = new URLSearchParams({
       world,
@@ -723,6 +760,13 @@ const server = createServer(async (req, res) => {
       walletId,
       clientId: profile.id
     });
+    const wsAuth = wsAuthForIdentity(identity);
+    if (wsAuth) {
+      playParams.set('wsAuth', wsAuth);
+    }
+    if (publicGameWsUrl) {
+      playParams.set('ws', publicGameWsUrl);
+    }
 
     sendJson(res, {
       ok: true,
@@ -737,7 +781,8 @@ const server = createServer(async (req, res) => {
       invite: {
         note: 'Share the play URL with a friend after they sign in.',
         playUrl: `/play?${playParams.toString()}`
-      }
+      },
+      wsAuth
     });
     return;
   }
@@ -928,39 +973,10 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // Intentionally no "create more bots" API for players:
+  // one character + one offline bot per player. Extra NPCs are system-managed.
   if (pathname === '/api/player/bots/create' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
-    if (!auth.ok || !auth.identity.profileId) {
-      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
-      return;
-    }
-
-    const body = await readJsonBody<{
-      displayName?: string;
-      personality?: 'aggressive' | 'conservative' | 'social';
-      targetPreference?: 'human_only' | 'human_first' | 'any';
-      mode?: 'active' | 'passive';
-      baseWager?: number;
-      maxWager?: number;
-      managedBySuperAgent?: boolean;
-    }>(req);
-
-    try {
-      const baseWager = Math.max(1, Number(body?.baseWager ?? 1));
-      const maxWager = Math.max(baseWager, Number(body?.maxWager ?? baseWager));
-      const payload = await runtimePost(`/profiles/${auth.identity.profileId}/bots/create`, {
-        displayName: body?.displayName,
-        personality: body?.personality ?? 'social',
-        targetPreference: body?.targetPreference ?? 'human_first',
-        mode: body?.mode ?? 'active',
-        baseWager,
-        maxWager,
-        managedBySuperAgent: body?.managedBySuperAgent ?? true
-      });
-      sendJson(res, payload);
-    } catch {
-      sendJson(res, { ok: false, reason: 'bot_create_failed' }, 400);
-    }
+    sendJson(res, { ok: false, reason: 'bot_creation_disabled' }, 409);
     return;
   }
 
@@ -1000,10 +1016,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // Ops super-agent is admin-only. Players use the scoped chief-of-staff endpoint below.
   if (pathname === '/api/super-agent/chat' && req.method === 'POST') {
-    const auth = requireRole(req, ['player', 'admin']);
+    const auth = requireRole(req, ['admin']);
     if (!auth.ok) {
-      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
       return;
     }
 
@@ -1022,6 +1039,125 @@ const server = createServer(async (req, res) => {
     } catch {
       sendJson(res, { ok: false, reason: 'super_agent_chat_failed' }, 400);
     }
+    return;
+  }
+
+  if (pathname === '/api/player/chief/chat' && req.method === 'POST') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    const identity = auth.identity;
+
+    const body = await readJsonBody<{ message?: string; includeStatus?: boolean }>(req);
+    const message = String(body?.message ?? '').trim();
+    if (!message) {
+      sendJson(res, { ok: false, reason: 'message_required' }, 400);
+      return;
+    }
+
+    // Structured, player-scoped "chief of staff" actions. This intentionally does not allow
+    // global ops actions like changing bot count / wallet policy / delegation.
+    const normalized = message.toLowerCase().trim();
+
+    const actions: string[] = [];
+    function reply(text: string) {
+      sendJson(res, { ok: true, reply: text, actions });
+    }
+
+    if (/\b(help|what can you do)\b/.test(normalized)) {
+      reply(
+        [
+          'I can help with:',
+          '- status',
+          '- fund <amount>',
+          '- withdraw <amount>',
+          '- set personality <social|aggressive|conservative>',
+          '- set target <human_first|human_only|any>',
+          '- set mode <active|passive>',
+          '- set cooldown <ms>',
+          '- set wager base <n> max <n>'
+        ].join('\n')
+      );
+      return;
+    }
+
+    if (/\bstatus\b/.test(normalized) || body?.includeStatus) {
+      const ctx = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [], wallets: [] }));
+      const ownerBot = (ctx.bots ?? []).find((entry) => entry.meta?.ownerProfileId === identity.profileId);
+      const wallet = (ctx.wallets ?? []).find((entry) => entry.id === identity.walletId);
+      reply(
+        [
+          `profileId=${identity.profileId || '-'}`,
+          `walletId=${identity.walletId || '-'} balance=${Number(wallet?.balance || 0).toFixed(2)}`,
+          ownerBot
+            ? `bot=${ownerBot.id} personality=${ownerBot.behavior?.personality || '-'} target=${ownerBot.behavior?.targetPreference || '-'} mode=${ownerBot.behavior?.mode || '-'}`
+            : 'bot=missing'
+        ].join('\n')
+      );
+      return;
+    }
+
+    const fundMatch = normalized.match(/\bfund\s+(\d+(\.\d+)?)\b/);
+    if (fundMatch?.[1]) {
+      const amount = Math.max(0, Number(fundMatch[1]));
+      if (!identity.walletId) {
+        sendJson(res, { ok: false, reason: 'wallet_missing' }, 400);
+        return;
+      }
+      await runtimePost(`/wallets/${identity.walletId}/fund`, { amount }).catch(() => null);
+      actions.push(`fund:${amount}`);
+      reply(`Funded wallet by ${amount}.`);
+      return;
+    }
+
+    const withdrawMatch = normalized.match(/\b(withdraw|cash out)\s+(\d+(\.\d+)?)\b/);
+    if (withdrawMatch?.[2]) {
+      const amount = Math.max(0, Number(withdrawMatch[2]));
+      if (!identity.walletId) {
+        sendJson(res, { ok: false, reason: 'wallet_missing' }, 400);
+        return;
+      }
+      await runtimePost(`/wallets/${identity.walletId}/withdraw`, { amount }).catch(() => null);
+      actions.push(`withdraw:${amount}`);
+      reply(`Withdrew ${amount} from wallet.`);
+      return;
+    }
+
+    const personalityMatch = normalized.match(/\b(personality|persona)\s+(social|aggressive|conservative)\b/);
+    const targetMatch = normalized.match(/\btarget\s+(human_first|human_only|any)\b/);
+    const modeMatch = normalized.match(/\bmode\s+(active|passive)\b/);
+    const cooldownMatch = normalized.match(/\bcooldown\s+(\d{3,6})\b/);
+    const wagerMatch = normalized.match(/\bwager\s+base\s+(\d+)\s+max\s+(\d+)\b/);
+
+    if (personalityMatch || targetMatch || modeMatch || cooldownMatch || wagerMatch) {
+      const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [] }));
+      const bot = (runtimeStatus.bots ?? []).find((entry) => entry.meta?.ownerProfileId === identity.profileId);
+      if (!bot?.id) {
+        sendJson(res, { ok: false, reason: 'bot_not_found' }, 404);
+        return;
+      }
+
+      const patch: Record<string, unknown> = {};
+      if (personalityMatch?.[2]) patch.personality = personalityMatch[2];
+      if (targetMatch?.[1]) patch.targetPreference = targetMatch[1];
+      if (modeMatch?.[1]) patch.mode = modeMatch[1];
+      if (cooldownMatch?.[1]) patch.challengeCooldownMs = Number(cooldownMatch[1]);
+      if (wagerMatch?.[1] && wagerMatch?.[2]) {
+        const base = Math.max(1, Number(wagerMatch[1]));
+        const max = Math.max(base, Number(wagerMatch[2]));
+        patch.baseWager = base;
+        patch.maxWager = max;
+      }
+
+      await runtimePost(`/agents/${bot.id}/config`, patch);
+      actions.push(`bot_config:${bot.id}`);
+      reply(`Updated ${bot.id}.`);
+      return;
+    }
+
+    reply('I did not recognize that. Say "help" for supported commands.');
     return;
   }
 

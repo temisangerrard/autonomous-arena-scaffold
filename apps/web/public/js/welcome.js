@@ -57,7 +57,8 @@ async function logout() {
 }
 
 function continueTarget(user) {
-  return user.role === 'admin' ? '/admin' : '/dashboard';
+  // Always go to dashboard; admin tools can be opened from there.
+  return '/dashboard';
 }
 
 function renderSignedIn(user) {
@@ -184,7 +185,7 @@ adminLoginBtn?.addEventListener('click', async () => {
       body: JSON.stringify({ username, password })
     });
     setStoredUser(result.user || null);
-    window.location.href = result.redirectTo || '/admin';
+    window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
     if (adminStatus) {
       adminStatus.textContent = `Login failed: ${String(error.message || error)}`;

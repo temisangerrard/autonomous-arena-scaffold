@@ -568,6 +568,38 @@
       cursor: not-allowed;
       filter: grayscale(0.2);
     }
+    .match-controls__counter {
+      margin-top: 8px;
+      display: none;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+    .match-controls__counter.visible { display: grid; }
+    .match-controls__counter input {
+      min-height: 38px;
+      border-radius: 8px;
+      border: 1px solid rgba(180, 143, 39, 0.6);
+      background: rgba(255, 251, 242, 0.95);
+      padding: 0 10px;
+      font: 700 13px/1.1 var(--font-display);
+      color: #3a2f1a;
+    }
+    .match-controls__counter button {
+      min-height: 38px;
+      border-radius: 8px;
+      border: 1px solid #b48f27;
+      background: #f5d266;
+      color: #2b2213;
+      padding: 0 12px;
+      font: 700 12px/1.1 var(--font-display);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .match-controls__counter button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
 
     .interaction-prompt {
       position: fixed;
@@ -629,6 +661,303 @@
     .quickstart-list li.done {
       color: #2f6a43;
     }
+
+    .interaction-card {
+      position: fixed;
+      left: 50%;
+      bottom: 108px;
+      transform: translateX(-50%);
+      width: min(360px, calc(100vw - 32px));
+      background: rgba(253, 248, 237, 0.96);
+      border: 1px solid rgba(198, 152, 49, 0.42);
+      border-radius: 14px;
+      box-shadow: 0 18px 44px rgba(25, 20, 10, 0.22);
+      z-index: 55;
+      display: none;
+      backdrop-filter: blur(10px);
+    }
+
+    .interaction-card.open {
+      display: block;
+    }
+
+    .interaction-card__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px 6px;
+    }
+
+    .interaction-card__title {
+      font: 700 13px/1.1 'Cormorant Garamond', serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #3b2b12;
+    }
+
+    .interaction-card__close {
+      border: 1px solid rgba(198, 152, 49, 0.35);
+      background: rgba(255, 255, 255, 0.7);
+      width: 26px;
+      height: 26px;
+      border-radius: 9px;
+      cursor: pointer;
+      color: #5a3f16;
+      font: 700 16px/1 'IBM Plex Sans', system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+
+    .interaction-card__body {
+      padding: 10px 12px 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .interaction-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .interaction-row label {
+      font: 700 11px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6a5835;
+    }
+
+    .interaction-row select,
+    .interaction-row input {
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid rgba(163, 128, 40, 0.35);
+      background: rgba(255, 255, 255, 0.75);
+      padding: 0 10px;
+      font: 600 13px/1 'IBM Plex Sans', system-ui, -apple-system, Segoe UI, sans-serif;
+      color: #2c2112;
+    }
+
+    .interaction-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-gold {
+      height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(153, 113, 18, 0.5);
+      background: linear-gradient(180deg, #e2c46c, #cfa12a);
+      color: #241a07;
+      font: 800 12px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    .btn-ghost {
+      height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(163, 128, 40, 0.35);
+      background: rgba(255, 255, 255, 0.55);
+      color: #5a3f16;
+      font: 800 12px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      padding: 0 12px;
+    }
+
+    .interaction-hint {
+      font: 11px/1.25 'Crimson Text', serif;
+      color: rgba(60, 44, 18, 0.72);
+    }
+
+    .mobile-controls {
+      display: none;
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      z-index: 60;
+      pointer-events: none;
+    }
+
+    @media (pointer: coarse) {
+      .mobile-controls {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+      }
+    }
+
+    .mobile-stick {
+      width: 140px;
+      pointer-events: auto;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+    }
+
+    .mobile-stick__base {
+      width: 124px;
+      height: 124px;
+      border-radius: 999px;
+      background: rgba(30, 30, 30, 0.45);
+      border: 1px solid rgba(255, 210, 122, 0.25);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+      position: relative;
+      backdrop-filter: blur(12px);
+    }
+
+    .mobile-stick__knob {
+      width: 54px;
+      height: 54px;
+      border-radius: 999px;
+      background: rgba(253, 248, 237, 0.92);
+      border: 1px solid rgba(198, 152, 49, 0.5);
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 10px 18px rgba(0, 0, 0, 0.18);
+    }
+
+    .mobile-stick__label {
+      font: 800 11px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(253, 248, 237, 0.9);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .mobile-actions {
+      flex: 1;
+      max-width: 310px;
+      display: grid;
+      gap: 8px;
+      align-content: end;
+      justify-items: end;
+      pointer-events: none;
+    }
+
+    .mobile-actions > * {
+      pointer-events: auto;
+    }
+
+    .mobile-btn {
+      height: 38px;
+      min-width: 96px;
+      padding: 0 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(163, 128, 40, 0.45);
+      background: rgba(253, 248, 237, 0.9);
+      color: #2c2112;
+      font: 800 12px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(8px);
+    }
+
+    .mobile-btn--gold {
+      border-color: rgba(153, 113, 18, 0.55);
+      background: linear-gradient(180deg, #e2c46c, #cfa12a);
+      color: #241a07;
+    }
+
+    .mobile-moves {
+      display: none;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      width: min(300px, 100%);
+      justify-items: stretch;
+    }
+
+    .mobile-moves .mobile-btn {
+      min-width: 0;
+    }
+
+    .world-loading {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 70;
+      background: radial-gradient(circle at 20% 10%, rgba(253, 248, 237, 0.65), rgba(30, 30, 30, 0.2));
+      backdrop-filter: blur(6px);
+    }
+    .world-loading.open { display: flex; }
+    .world-loading__card {
+      width: min(420px, calc(100vw - 36px));
+      background: rgba(253, 248, 237, 0.96);
+      border: 1px solid rgba(198, 152, 49, 0.42);
+      border-radius: 16px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 18px 44px rgba(25, 20, 10, 0.22);
+    }
+    .world-loading__title {
+      font: 700 18px/1.1 'Cormorant Garamond', serif;
+      color: #2c2112;
+      margin-bottom: 10px;
+    }
+    .world-loading__bar {
+      height: 10px;
+      background: rgba(30, 30, 30, 0.12);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(163, 128, 40, 0.25);
+    }
+    .world-loading__fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #e2c46c, #cfa12a);
+      transition: width 0.12s linear;
+    }
+    .world-loading__text {
+      margin-top: 10px;
+      font: 14px/1.25 'Crimson Text', serif;
+      color: rgba(60, 44, 18, 0.72);
+    }
+
+    @media (pointer: coarse), (max-width: 720px) {
+      #hud {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        height: 40px;
+      }
+      .topbar-left {
+        gap: 8px;
+      }
+      #topbar-wallet,
+      #topbar-streak {
+        display: none;
+      }
+      .world-map-panel {
+        right: 10px;
+        bottom: 86px;
+        transform: scale(0.78);
+        transform-origin: bottom right;
+      }
+      .world-map-panel:hover {
+        width: 130px;
+        opacity: 0.85;
+      }
+      .live-feed {
+        display: none;
+      }
+      .interaction-prompt {
+        bottom: 182px;
+        font-size: 12px;
+        padding: 8px 12px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -654,7 +983,38 @@
     </div>
     <ul id="quickstart-list" class="quickstart-list"></ul>
   </aside>
+  <div id="world-loading" class="world-loading" aria-hidden="true">
+    <div class="world-loading__card">
+      <div class="world-loading__title">Loading world…</div>
+      <div class="world-loading__bar"><div id="world-loading-bar" class="world-loading__fill"></div></div>
+      <div id="world-loading-text" class="world-loading__text">Preparing assets</div>
+    </div>
+  </div>
   <div id="interaction-prompt" class="interaction-prompt"></div>
+  <section id="interaction-card" class="interaction-card" aria-hidden="true">
+    <div class="interaction-card__head">
+      <div class="interaction-card__title" id="interaction-title">Interact</div>
+      <button id="interaction-close" class="interaction-card__close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="interaction-card__body">
+      <div class="interaction-row">
+        <label for="interaction-game">Game</label>
+        <select id="interaction-game">
+          <option value="rps">Rock Paper Scissors</option>
+          <option value="coinflip">Coin Flip</option>
+        </select>
+      </div>
+      <div class="interaction-row">
+        <label for="interaction-wager">Wager (each)</label>
+        <input id="interaction-wager" type="number" min="1" max="10000" step="1" value="1" />
+      </div>
+      <div class="interaction-actions">
+        <button id="interaction-send" class="btn-gold" type="button">Send Challenge</button>
+        <button id="interaction-open-desk" class="btn-ghost" type="button">Desk</button>
+      </div>
+      <div class="interaction-hint">`E` open/close · `Tab` switch target · `Y/N` respond · `1/2/3` or `H/T` play · `R` reset cam · `Shift` + right-drag orbit</div>
+    </div>
+  </section>
 
   <aside class="challenge-panel" id="context-panel">
     <div class="challenge-panel__head">
@@ -668,6 +1028,8 @@
         <span class="pill">`Y/N` respond</span>
         <span class="pill">`1/2/3` RPS</span>
         <span class="pill">`H/T` coinflip</span>
+        <span class="pill">`R` reset cam</span>
+        <span class="pill">`Shift` + right-drag orbit</span>
       </div>
       <div id="challenge-status-line" class="status-line">Find a nearby target and start a challenge.</div>
       <div class="row">
@@ -738,6 +1100,33 @@
     <div class="match-controls__title" id="match-controls-title">Match Controls</div>
     <div class="match-controls__status" id="match-controls-status">No active match.</div>
     <div class="match-controls__actions" id="match-controls-actions"></div>
+    <div id="match-counter-offer" class="match-controls__counter">
+      <input id="counter-wager" type="number" min="1" max="10000" step="1" value="1" />
+      <button id="counter-send" type="button">Counter</button>
+    </div>
+  </section>
+
+  <section id="mobile-controls" class="mobile-controls" aria-hidden="true">
+    <div id="mobile-stick" class="mobile-stick" role="application" aria-label="Movement joystick">
+      <div class="mobile-stick__base">
+        <div id="mobile-stick-knob" class="mobile-stick__knob"></div>
+      </div>
+      <div class="mobile-stick__label">Move</div>
+    </div>
+    <div class="mobile-actions" aria-label="Action buttons">
+      <button id="mobile-interact" type="button" class="mobile-btn mobile-btn--gold">Interact</button>
+      <button id="mobile-send" type="button" class="mobile-btn mobile-btn--gold">Send</button>
+      <button id="mobile-accept" type="button" class="mobile-btn">Accept</button>
+      <button id="mobile-decline" type="button" class="mobile-btn">Decline</button>
+      <button id="mobile-counter" type="button" class="mobile-btn">Counter</button>
+      <div id="mobile-moves" class="mobile-moves">
+        <button id="mobile-move-1" type="button" class="mobile-btn">Rock</button>
+        <button id="mobile-move-2" type="button" class="mobile-btn">Paper</button>
+        <button id="mobile-move-3" type="button" class="mobile-btn">Scissors</button>
+        <button id="mobile-move-h" type="button" class="mobile-btn">Heads</button>
+        <button id="mobile-move-t" type="button" class="mobile-btn">Tails</button>
+      </div>
+    </div>
   </section>
 
   <script type="importmap">
@@ -748,7 +1137,6 @@
       }
     }
   </script>
-  <script type="module" src="/js/auth-shell.js"></script>
   <script type="module" src="/js/play.js"></script>
 </body>
 </html>

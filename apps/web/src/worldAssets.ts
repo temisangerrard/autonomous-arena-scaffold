@@ -17,6 +17,11 @@ const WORLD_FILE_BY_ALIAS: Record<string, string> = {
   world: 'train_station_world.glb'
 };
 
+export function worldFilenameByAlias(): Record<string, string> {
+  // Public mapping (safe to expose to clients).
+  return { ...WORLD_FILE_BY_ALIAS };
+}
+
 export function resolveWorldAssetPath(alias: string): string | null {
   const normalized = alias.toLowerCase().replace(/\.glb$/i, '');
   const filename = WORLD_FILE_BY_ALIAS[normalized];

@@ -14,7 +14,7 @@ describe('ChallengeService', () => {
   });
 
   it('accepts and resolves coinflip when both players choose sides', () => {
-    let now = 1000;
+    const now = 1000;
     const service = new ChallengeService(() => now, () => 0.1, 10000, 6000);
 
     const created = service.createChallenge('a', 'b', 'coinflip', 3);

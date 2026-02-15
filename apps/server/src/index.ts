@@ -8,6 +8,7 @@ import { EscrowAdapter } from './EscrowAdapter.js';
 import { createHealthStatus } from './health.js';
 import { PresenceStore } from './PresenceStore.js';
 import { WorldSim } from './WorldSim.js';
+import { verifyWsAuthToken } from '@arena/shared';
 
 type InputMessage = {
   type: 'input';
@@ -28,6 +29,12 @@ type ChallengeResponseMessage = {
   accept: boolean;
 };
 
+type ChallengeCounterMessage = {
+  type: 'challenge_counter';
+  challengeId: string;
+  wager: number;
+};
+
 type ChallengeMoveMessage = {
   type: 'challenge_move';
   challengeId: string;
@@ -38,6 +45,7 @@ type ClientMessage =
   | InputMessage
   | ChallengeSendMessage
   | ChallengeResponseMessage
+  | ChallengeCounterMessage
   | ChallengeMoveMessage;
 
 type PlayerRole = 'human' | 'agent';
@@ -145,6 +153,7 @@ let lastPresenceSyncAt = 0;
 let lastPresenceRefreshAt = 0;
 const challengePendingTimeoutMs = Math.max(5_000, Number(process.env.CHALLENGE_PENDING_TIMEOUT_MS ?? 15_000));
 const challengeOrphanGraceMs = Math.max(challengePendingTimeoutMs * 2, Number(process.env.CHALLENGE_ORPHAN_GRACE_MS ?? 30_000));
+const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
 const presenceByPlayerId = new Map<string, {
   playerId: string;
   role: PlayerRole;
@@ -253,6 +262,17 @@ function parseClientMessage(raw: RawData): ClientMessage | null {
         type: 'challenge_response',
         challengeId: payload.challengeId,
         accept: payload.accept
+      };
+    }
+
+    if (
+      payload.type === 'challenge_counter' &&
+      typeof payload.challengeId === 'string'
+    ) {
+      return {
+        type: 'challenge_counter',
+        challengeId: payload.challengeId,
+        wager: typeof payload.wager === 'number' ? payload.wager : 1
       };
     }
 
@@ -486,6 +506,30 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
   dispatchChallengeEvent(event);
 }
 
+async function registerCreatedChallenge(event: ChallengeEvent, actorId: string): Promise<boolean> {
+  if (!(event.event === 'created' && event.challenge)) {
+    return true;
+  }
+  const lockResult = await distributedChallengeStore.tryLockPlayers(
+    event.challenge.id,
+    [event.challenge.challengerId, event.challenge.opponentId],
+    Math.max(6_000, Number(process.env.CHALLENGE_PENDING_TIMEOUT_MS ?? 15_000))
+  );
+  if (!lockResult.ok) {
+    const aborted = challengeService.abortChallenge(event.challenge.id, 'declined', lockResult.reason ?? 'player_busy');
+    await dispatchChallengeEventWithEscrow(withActorRecipient(aborted, actorId));
+    return false;
+  }
+  await distributedChallengeStore.registerChallenge({
+    challengeId: event.challenge.id,
+    challengerId: event.challenge.challengerId,
+    opponentId: event.challenge.opponentId,
+    status: event.event,
+    challengeJson: JSON.stringify(event.challenge)
+  });
+  return true;
+}
+
 function emitProximityEvents(players: Array<{ id: string; x: number; z: number }>): void {
   const nowNear = new Set<string>();
 
@@ -547,9 +591,81 @@ wss.on('connection', (ws, request) => {
   const walletId = parsed.searchParams.get('walletId')?.trim() || null;
   const requestedClientId = parsed.searchParams.get('clientId')?.trim();
   const normalizedClientId = requestedClientId?.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  const requestedAgentId = parsed.searchParams.get('agentId')?.trim();
+
+  // If a shared secret is configured, require signed ws auth to prevent unauthenticated entry points
+  // (including bypassing the web server and connecting directly to /ws).
+  if (wsAuthSecret) {
+    const token = parsed.searchParams.get('wsAuth')?.trim() || '';
+    const verified = verifyWsAuthToken(wsAuthSecret, token);
+    if (!verified.ok) {
+      try {
+        ws.close(4401, verified.reason);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    const claims = verified.claims;
+    if (claims.role !== role) {
+      try {
+        ws.close(4403, 'ws_auth_role_mismatch');
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    if (role === 'human') {
+      const claimClientId = String(claims.clientId || '').trim();
+      const claimWalletId = claims.walletId ? String(claims.walletId).trim() : '';
+      if (!claimClientId || !claimWalletId) {
+        try {
+          ws.close(4403, 'ws_auth_missing_claims');
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      if (normalizedClientId && normalizedClientId !== claimClientId) {
+        try {
+          ws.close(4403, 'ws_auth_client_mismatch');
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      if (walletId && walletId !== claimWalletId) {
+        try {
+          ws.close(4403, 'ws_auth_wallet_mismatch');
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    } else {
+      const claimAgentId = String(claims.agentId || '').trim();
+      if (!claimAgentId || (requestedAgentId && requestedAgentId !== claimAgentId)) {
+        try {
+          ws.close(4403, 'ws_auth_agent_mismatch');
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      if (claims.walletId && walletId && String(claims.walletId) !== walletId) {
+        try {
+          ws.close(4403, 'ws_auth_wallet_mismatch');
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    }
+  }
+
   const preferredId =
     role === 'agent'
-      ? parsed.searchParams.get('agentId')?.trim()
+      ? requestedAgentId
       : normalizedClientId
         ? `u_${normalizedClientId}`
         : undefined;
@@ -653,24 +769,8 @@ wss.on('connection', (ws, request) => {
         payload.gameType,
         payload.wager
       );
-      if (event.event === 'created' && event.challenge) {
-        const lockResult = await distributedChallengeStore.tryLockPlayers(
-          event.challenge.id,
-          [event.challenge.challengerId, event.challenge.opponentId],
-          Math.max(6_000, Number(process.env.CHALLENGE_PENDING_TIMEOUT_MS ?? 15_000))
-        );
-        if (!lockResult.ok) {
-          const aborted = challengeService.abortChallenge(event.challenge.id, 'declined', lockResult.reason ?? 'player_busy');
-          await dispatchChallengeEventWithEscrow(withActorRecipient(aborted, playerId));
-          return;
-        }
-        await distributedChallengeStore.registerChallenge({
-          challengeId: event.challenge.id,
-          challengerId: event.challenge.challengerId,
-          opponentId: event.challenge.opponentId,
-          status: event.event,
-          challengeJson: JSON.stringify(event.challenge)
-        });
+      if (!(await registerCreatedChallenge(event, playerId))) {
+        return;
       }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
       return;
@@ -691,6 +791,53 @@ wss.on('connection', (ws, request) => {
         }
       }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
+      return;
+    }
+
+    if (payload.type === 'challenge_counter') {
+      const existing = challengeService.getChallenge(payload.challengeId);
+      if (!existing || existing.status !== 'pending') {
+        const owner = await distributedChallengeStore.getOwnerServerId(payload.challengeId);
+        if (owner && owner !== serverInstanceId) {
+          await distributedBus.publishCommand(owner, {
+            type: 'challenge_counter',
+            challengeId: payload.challengeId,
+            actorId: playerId,
+            wager: payload.wager
+          });
+          return;
+        }
+        await dispatchChallengeEventWithEscrow(withActorRecipient({
+          type: 'challenge',
+          event: 'invalid',
+          reason: 'challenge_not_pending'
+        }, playerId));
+        return;
+      }
+
+      if (existing.opponentId !== playerId) {
+        await dispatchChallengeEventWithEscrow(withActorRecipient({
+          type: 'challenge',
+          event: 'invalid',
+          reason: 'not_opponent'
+        }, playerId));
+        return;
+      }
+
+      const safeWager = Math.max(1, Math.min(10_000, Number(payload.wager || 1)));
+      const declined = challengeService.respond(payload.challengeId, playerId, false);
+      await dispatchChallengeEventWithEscrow(withActorRecipient(declined, playerId));
+
+      const counterEvent = challengeService.createChallenge(
+        playerId,
+        existing.challengerId,
+        existing.gameType,
+        safeWager
+      );
+      if (!(await registerCreatedChallenge(counterEvent, playerId))) {
+        return;
+      }
+      await dispatchChallengeEventWithEscrow(withActorRecipient(counterEvent, playerId));
       return;
     }
 
@@ -818,6 +965,41 @@ async function handleDistributedCommand(command: ChallengeCommand): Promise<void
   if (command.type === 'challenge_response') {
     const event = challengeService.respond(command.challengeId, command.actorId, command.accept);
     await dispatchChallengeEventWithEscrow(withActorRecipient(event, command.actorId));
+    return;
+  }
+  if (command.type === 'challenge_counter') {
+    const existing = challengeService.getChallenge(command.challengeId);
+    if (!existing || existing.status !== 'pending') {
+      const event = withActorRecipient({
+        type: 'challenge',
+        event: 'invalid',
+        reason: 'challenge_not_pending'
+      }, command.actorId);
+      await dispatchChallengeEventWithEscrow(event);
+      return;
+    }
+    if (existing.opponentId !== command.actorId) {
+      const event = withActorRecipient({
+        type: 'challenge',
+        event: 'invalid',
+        reason: 'not_opponent'
+      }, command.actorId);
+      await dispatchChallengeEventWithEscrow(event);
+      return;
+    }
+    const safeWager = Math.max(1, Math.min(10_000, Number(command.wager || 1)));
+    const declined = challengeService.respond(command.challengeId, command.actorId, false);
+    await dispatchChallengeEventWithEscrow(withActorRecipient(declined, command.actorId));
+    const counterEvent = challengeService.createChallenge(
+      command.actorId,
+      existing.challengerId,
+      existing.gameType,
+      safeWager
+    );
+    if (!(await registerCreatedChallenge(counterEvent, command.actorId))) {
+      return;
+    }
+    await dispatchChallengeEventWithEscrow(withActorRecipient(counterEvent, command.actorId));
     return;
   }
   const event = challengeService.submitMove(command.challengeId, command.actorId, command.move);

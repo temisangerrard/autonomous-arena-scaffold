@@ -48,11 +48,13 @@ Copy `.env.example` to `.env` and fill values as needed.
 Google sign-in scaffold expects:
 - `GOOGLE_CLIENT_ID` in web env (OAuth Web Client ID)
 
-Local scaffold admin auth is enabled by default:
-- username: `admin`
-- password: `12345`
-- set `LOCAL_AUTH_ENABLED=false` to disable it
+Local scaffold admin auth (dev-only escape hatch):
+- set `LOCAL_AUTH_ENABLED=true` only in local dev
+- set `ADMIN_USERNAME` + `ADMIN_PASSWORD` (do not ship defaults)
 - set `ADMIN_EMAILS` to promote Google accounts to admin
+
+WebSocket auth:
+- set `GAME_WS_AUTH_SECRET` on web + server + agent-runtime to require signed `/ws` connections
 
 Web auth/session persistence:
 - file-backed state at `WEB_STATE_FILE` (default `output/web-auth-state.json`, resolved from web process cwd)

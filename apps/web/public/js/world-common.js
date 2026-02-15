@@ -1,7 +1,44 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 export { THREE };
+
+let worldManifestPromise = null;
+async function loadWorldManifest() {
+  if (worldManifestPromise) return worldManifestPromise;
+  worldManifestPromise = (async () => {
+    try {
+      const res = await fetch('/api/worlds', { credentials: 'include' });
+      if (!res.ok) return null;
+      const payload = await res.json();
+      return payload?.filenameByAlias || null;
+    } catch {
+      return null;
+    }
+  })();
+  return worldManifestPromise;
+}
+
+async function resolveWorldUrl(alias) {
+  const loaderAlias = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+  const params = new URL(window.location.href).searchParams;
+  const configuredBase = window.__ARENA_CONFIG?.worldAssetBaseUrl || '';
+  const worldBaseUrl = params.get('worldBase') || configuredBase || '';
+  const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
+  const gcsMode = normalizedBase.includes('storage.googleapis.com') || normalizedBase.startsWith('gs://');
+
+  const filenameByAlias = await loadWorldManifest();
+  const filename = filenameByAlias?.[loaderAlias] || `${loaderAlias}.glb`;
+
+  if (!normalizedBase) {
+    return `/assets/world/${loaderAlias}.glb`;
+  }
+  if (gcsMode) {
+    return `${normalizedBase}/world/${filename}`;
+  }
+  return `${normalizedBase}/assets/world/${loaderAlias}.glb`;
+}
 
 export function pickWorldAlias() {
   const alias = new URL(window.location.href).searchParams.get('world');
@@ -38,9 +75,40 @@ export function makeCamera() {
 
 export async function loadWorld(scene, alias) {
   const loader = new GLTFLoader();
-  const url = `/assets/world/${alias}.glb`;
+  loader.setMeshoptDecoder?.(MeshoptDecoder);
+  const url = await resolveWorldUrl(alias);
 
   const gltf = await loader.loadAsync(url);
+  gltf.scene.traverse((node) => {
+    if (node.isMesh) {
+      node.castShadow = false;
+      node.receiveShadow = true;
+    }
+  });
+  scene.add(gltf.scene);
+  return gltf.scene;
+}
+
+export async function loadWorldWithProgress(scene, alias, onProgress) {
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder?.(MeshoptDecoder);
+  const url = await resolveWorldUrl(alias);
+
+  const gltf = await new Promise((resolve, reject) => {
+    loader.load(
+      url,
+      (loaded) => resolve(loaded),
+      (evt) => {
+        try {
+          onProgress?.(evt);
+        } catch {
+          // ignore progress handler failures
+        }
+      },
+      (err) => reject(err)
+    );
+  });
+
   gltf.scene.traverse((node) => {
     if (node.isMesh) {
       node.castShadow = false;

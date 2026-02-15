@@ -597,7 +597,7 @@
         <button type="button" data-view="bots" class="active"><span>My Bots</span></button>
         <button type="button" data-view="wallet"><span>Wallet</span></button>
         <button type="button" data-view="settings"><span>Settings</span></button>
-        <button type="button" data-view="super"><span>Super Agent</span></button>
+        <button type="button" data-view="super"><span>Chief Of Staff</span></button>
       </nav>
 
       <div class="sidebar-actions">
@@ -616,44 +616,10 @@
         <section id="view-bots" class="dash-view active">
           <div class="card-grid" style="margin-bottom:14px;">
             <article class="panel">
-              <h2>New Bot</h2>
-              <div class="input-row" style="margin-bottom:8px;">
-                <div>
-                  <label class="label" for="new-bot-name">Display Name</label>
-                  <input id="new-bot-name" class="field" type="text" maxlength="32" placeholder="Optional bot name">
-                </div>
-                <div>
-                  <label class="label" for="new-bot-personality">Personality</label>
-                  <select id="new-bot-personality" class="field">
-                    <option value="social">Social</option>
-                    <option value="aggressive">Aggressive</option>
-                    <option value="conservative">Conservative</option>
-                  </select>
-                </div>
-              </div>
-              <div class="input-row" style="margin-bottom:8px;">
-                <div>
-                  <label class="label" for="new-bot-target">Target Preference</label>
-                  <select id="new-bot-target" class="field">
-                    <option value="human_first">Human first</option>
-                    <option value="human_only">Human only</option>
-                    <option value="any">Any</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="label" for="new-bot-mode">Mode</label>
-                  <select id="new-bot-mode" class="field">
-                    <option value="active">Active</option>
-                    <option value="passive">Passive</option>
-                  </select>
-                </div>
-              </div>
-              <div class="input-row-3" style="margin-bottom:8px;">
-                <input id="new-bot-base-wager" class="field" type="number" min="1" step="1" value="1" placeholder="Base wager">
-                <input id="new-bot-max-wager" class="field" type="number" min="1" step="1" value="3" placeholder="Max wager">
-                <button id="create-bot" class="btn-gold" type="button">Create</button>
-              </div>
-              <p class="muted" style="margin:0;">Every new profile gets a managed bot and wallet from Super Agent. Add extra bots here.</p>
+              <h2>Your Character Bot</h2>
+              <p class="muted" style="margin:0;">
+                One player, one character, one offline bot. Tune its personality and it will keep playing while you are offline.
+              </p>
             </article>
 
             <article class="panel">
@@ -670,21 +636,16 @@
             <div id="bot-list" class="bot-grid"></div>
           </article>
 
-          <article class="super-bar">
+          <article class="super-bar" id="chief-inline">
             <div class="super-head">
-              <h2 class="super-title">Super Agent</h2>
+              <h2 class="super-title">Chief Of Staff</h2>
               <span class="ready">Ready</span>
             </div>
-            <p class="muted" style="margin:0 0 8px;color:#cfb985;">Use policy commands and diagnostics across your bot fleet.</p>
-            <div class="quick-pills">
-              <button type="button" data-quick-cmd="mode hunter">mode hunter</button>
-              <button type="button" data-quick-cmd="bot count 12">bot count 12</button>
-              <button type="button" data-quick-cmd="status">status</button>
-            </div>
-            <textarea id="super-agent-message" class="field" rows="3" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="status and next priorities for production"></textarea>
+            <p class="muted" style="margin:0 0 8px;color:#cfb985;">Player-scoped assistant for your wallet + bot tuning (no admin powers).</p>
+            <textarea id="super-agent-message" class="field" rows="3" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="Try: status, fund 10, withdraw 5, set personality social"></textarea>
             <div class="actions" style="margin-top:8px;">
               <button id="super-agent-send" class="btn-gold" type="button">Send</button>
-              <button id="super-agent-quick-status" class="btn-dark" type="button">Quick Status</button>
+              <button id="super-agent-quick-status" class="btn-dark" type="button">Status</button>
             </div>
             <pre id="super-agent-response" class="super-response">Super Agent ready.</pre>
           </article>
@@ -799,19 +760,18 @@
         <section id="view-super" class="dash-view">
           <article class="super-bar">
             <div class="super-head">
-              <h2 class="super-title">Super Agent Desk</h2>
+              <h2 class="super-title">Chief Of Staff Desk</h2>
               <span class="ready">Ready</span>
             </div>
-            <p class="muted" style="margin:0 0 8px;color:#cfb985;">Central policy brain for auth, wallets, bot lifecycle, and product operations.</p>
+            <p class="muted" style="margin:0 0 8px;color:#cfb985;">This is your in-game chief of staff: wallets, gas, and tuning your bot while you are offline.</p>
             <div class="quick-pills">
               <button type="button" data-quick-cmd="status">status</button>
-              <button type="button" data-quick-cmd="mode hunter">mode hunter</button>
-              <button type="button" data-quick-cmd="bot count 12">bot count 12</button>
+              <button type="button" data-quick-cmd="help">help</button>
             </div>
-            <textarea id="super-agent-message-alt" class="field" rows="4" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="Ask Super Agent what to do next for production readiness"></textarea>
+            <textarea id="super-agent-message-alt" class="field" rows="4" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="Try: fund 10, set personality aggressive, set target any"></textarea>
             <div class="actions" style="margin-top:8px;">
               <button id="super-agent-send-alt" class="btn-gold" type="button">Send</button>
-              <button id="super-agent-quick-status-alt" class="btn-dark" type="button">Quick Status</button>
+              <button id="super-agent-quick-status-alt" class="btn-dark" type="button">Status</button>
             </div>
             <pre id="super-agent-response-alt" class="super-response">Super Agent ready.</pre>
           </article>

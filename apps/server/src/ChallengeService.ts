@@ -113,6 +113,10 @@ export class ChallengeService {
     });
   }
 
+  getChallenge(challengeId: string): Challenge | null {
+    return this.challenges.get(challengeId) ?? null;
+  }
+
   respond(challengeId: string, responderId: string, accept: boolean): ChallengeEvent {
     const challenge = this.challenges.get(challengeId);
     if (!challenge || challenge.status !== 'pending') {

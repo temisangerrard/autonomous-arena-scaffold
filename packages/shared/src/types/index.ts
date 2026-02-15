@@ -1,0 +1,256 @@
+/**
+ * Shared types for the arena application
+ * Used across agent-runtime, server, and web packages
+ */
+
+/**
+ * Player profile representing a user in the system
+ */
+export interface Profile {
+  id: string;
+  username: string;
+  displayName: string;
+  createdAt: number;
+  walletId: string;
+  ownedBotIds: string[];
+}
+
+/**
+ * Wallet record for managing user funds
+ */
+export interface WalletRecord {
+  id: string;
+  ownerProfileId: string;
+  address: string;
+  encryptedPrivateKey: string;
+  balance: number;
+  dailyTxCount: number;
+  txDayStamp: string;
+  createdAt: number;
+  lastTxAt: number | null;
+}
+
+/**
+ * Bot record for agent configuration
+ */
+export interface BotRecord {
+  id: string;
+  ownerProfileId: string | null;
+  displayName: string;
+  createdAt: number;
+  managedBySuperAgent: boolean;
+  duty: 'super' | 'duelist' | 'scout' | 'sparrer' | 'sentinel' | 'owner';
+  patrolSection: number | null;
+  walletId: string | null;
+}
+
+/**
+ * Escrow lock record for challenge stakes
+ */
+export interface EscrowLockRecord {
+  challengeId: string;
+  challengerWalletId: string;
+  opponentWalletId: string;
+  amount: number;
+  createdAt: number;
+  lockTxHash: string;
+}
+
+/**
+ * Escrow settlement record for completed challenges
+ */
+export interface EscrowSettlementRecord {
+  challengeId: string;
+  outcome: 'resolved' | 'refunded';
+  challengerWalletId: string;
+  opponentWalletId: string;
+  winnerWalletId: string | null;
+  amount: number;
+  fee: number;
+  payout: number;
+  txHash: string;
+  at: number;
+}
+
+/**
+ * Wallet denial reason
+ */
+export interface WalletDenied {
+  ok: false;
+  reason: string;
+}
+
+/**
+ * ETHSkills digest for cached knowledge
+ */
+export interface EthSkillDigest {
+  url: string;
+  title: string;
+  summary: string;
+  fetchedAt: number;
+}
+
+/**
+ * Super Agent memory entry
+ */
+export interface SuperAgentMemoryEntry {
+  at: number;
+  type: 'command' | 'decision' | 'system';
+  message: string;
+}
+
+/**
+ * Super Agent LLM usage tracking
+ */
+export interface SuperAgentLlmUsage {
+  hourStamp: string;
+  requestsThisHour: number;
+  dayStamp: string;
+  tokensToday: number;
+}
+
+/**
+ * Challenge game types
+ */
+export type GameType = 'rps' | 'coinflip';
+
+/**
+ * RPS move options
+ */
+export type RpsMove = 'rock' | 'paper' | 'scissors';
+
+/**
+ * Coinflip move options
+ */
+export type CoinflipMove = 'heads' | 'tails';
+
+/**
+ * Game move union type
+ */
+export type GameMove = RpsMove | CoinflipMove;
+
+/**
+ * Challenge status
+ */
+export type ChallengeStatus = 
+  | 'pending' 
+  | 'accepted' 
+  | 'declined' 
+  | 'expired' 
+  | 'resolved' 
+  | 'refunded';
+
+/**
+ * Challenge record
+ */
+export interface Challenge {
+  id: string;
+  challengerId: string;
+  responderId: string;
+  gameType: GameType;
+  wager: number;
+  status: ChallengeStatus;
+  createdAt: number;
+  acceptedAt?: number;
+  resolvedAt?: number;
+  challengerMove?: GameMove;
+  responderMove?: GameMove;
+  winnerId?: string;
+  escrowLockId?: string;
+}
+
+/**
+ * World snapshot for multiplayer state
+ */
+export interface WorldSnapshot {
+  tick: number;
+  timestamp: number;
+  players: SnapshotPlayer[];
+}
+
+export interface SnapshotPlayer {
+  id: string;
+  displayName: string;
+  x: number;
+  z: number;
+  yaw: number;
+  wallet?: string;
+}
+
+/**
+ * Input state from clients
+ */
+export interface InputState {
+  forward: boolean;
+  backward: boolean;
+  left: boolean;
+  right: boolean;
+  timestamp: number;
+}
+
+/**
+ * WebSocket client message types
+ */
+export type ClientMessageType = 
+  | 'join' 
+  | 'input' 
+  | 'challenge_send' 
+  | 'challenge_response' 
+  | 'challenge_counter'
+  | 'move_submit'
+  | 'leave';
+
+export interface ClientMessage {
+  type: ClientMessageType;
+  [key: string]: unknown;
+}
+
+/**
+ * Server message types
+ */
+export type ServerMessageType = 
+  | 'welcome' 
+  | 'snapshot' 
+  | 'challenge' 
+  | 'challenge_escrow'
+  | 'error';
+
+export interface ServerMessage {
+  type: ServerMessageType;
+  [key: string]: unknown;
+}
+
+/**
+ * Presence entry for player tracking
+ */
+export interface PresenceEntry {
+  id: string;
+  displayName: string;
+  x: number;
+  z: number;
+  yaw: number;
+  updatedAt: number;
+  serverId: string;
+}
+
+/**
+ * API response helpers
+ */
+export interface ApiResponse<T = unknown> {
+  ok: boolean;
+  reason?: string;
+  data?: T;
+}
+
+export interface ApiError {
+  ok: false;
+  reason: string;
+}
+
+export function createApiSuccess<T>(data: T): ApiResponse<T> & { ok: true } {
+  return { ok: true, data };
+}
+
+export function createApiError(reason: string): ApiError {
+  return { ok: false, reason };
+}

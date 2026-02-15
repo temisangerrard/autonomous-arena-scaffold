@@ -2,6 +2,15 @@ const AUTH_KEY = 'arena_auth_user';
 const CLIENT_KEY = 'arena_google_client_id';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
 
+// Test harness can load pages without going through auth.
+// Skip auth-shell behavior (including Google scripts) to avoid noisy console errors.
+const __authParams = new URL(window.location.href).searchParams;
+const __skipAuthShell = __authParams.get('test') === '1';
+if (__skipAuthShell) {
+  // Ensure we don't leave a stale nav visible from previous pages.
+  document.getElementById('global-shell-nav')?.remove();
+}
+
 function shouldHideShell(pathname) {
   if (HIDE_SHELL_PATHS.has(pathname)) {
     return true;
@@ -255,4 +264,6 @@ async function boot() {
   });
 }
 
-void boot();
+if (!__skipAuthShell) {
+  void boot();
+}

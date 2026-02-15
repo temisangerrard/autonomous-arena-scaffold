@@ -18,6 +18,12 @@ type ChallengeCommand =
       accept: boolean;
     }
   | {
+      type: 'challenge_counter';
+      challengeId: string;
+      actorId: string;
+      wager: number;
+    }
+  | {
       type: 'challenge_move';
       challengeId: string;
       actorId: string;
@@ -96,4 +102,3 @@ export class DistributedBus {
 }
 
 export type { ChallengeCommand };
-

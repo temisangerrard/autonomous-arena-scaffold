@@ -127,14 +127,6 @@ type BotRecord = {
   walletId: string | null;
 };
 
-type WalletMutationResult = {
-  ok: true;
-  wallet: WalletRecord;
-} | {
-  ok: false;
-  reason: string;
-};
-
 type WalletDenied = {
   ok: false;
   reason: string;
@@ -1765,6 +1757,13 @@ const server = createServer(async (req, res) => {
     const profile = profileId ? profiles.get(profileId) : null;
     if (!profile) {
       sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+      return;
+    }
+
+    // Product constraint: one owner bot per player profile (the "character" + offline agent).
+    // Additional bots can exist as game-defined NPCs, but players don't mint more characters.
+    if (profile.ownedBotIds.length >= 1) {
+      sendJson(res, { ok: false, reason: 'bot_already_exists', botId: profile.ownedBotIds[0], profileId: profile.id }, 409);
       return;
     }
 

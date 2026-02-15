@@ -50,6 +50,9 @@ apps/contracts/typechain-types/
 .windsurf/
 .zencoder/
 skills/
+.claude/worktrees/
+.npm-cache/
+apps/.npm-cache/
 
 # Large local world assets (keep local, don't commit)
 *.glb
@@ -57,3 +60,6 @@ skills/
 
 # Temporary logs
 *.log
+
+# Local Netlify folder
+.netlify

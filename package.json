@@ -9,7 +9,7 @@
   "scripts": {
     "build": "npm run -ws build",
     "dev": "npm run -ws dev",
-    "lint": "npm run -ws lint",
+    "lint": "npm run -ws --if-present lint",
     "test": "npm run -ws test",
     "test:playable": "node scripts/playable-smoke.mjs",
     "test:e2e": "node scripts/run-e2e.js",

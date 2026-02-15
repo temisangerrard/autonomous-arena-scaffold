@@ -279,3 +279,29 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Wallet panel switched to onchain-first data source: added runtime `/wallets/:id/summary`, web `/api/player/wallet/summary`, dashboard now renders token/native balances and address from onchain summary when available.
 - Wallet actions (`fund`, `transfer`, `withdraw`) now execute onchain ERC20 transactions when chain config is present, with sponsored gas top-ups from Super Agent gas funder.
 - Play menu icon now opens in-game dropdown (Dashboard, Viewer, Logout) instead of redirect-only behavior.
+
+- Fixed core play challenge-state bug: client now ignores challenge events that do not involve the local player (prevents unrelated matches from overwriting local active match + controls).
+- Improved incoming challenge UX: added responding state and disabled accept/decline while response is in flight; clarified wager lock text on incoming modal.
+
+- Implemented challenge counter-offer flow: new websocket message `challenge_counter`, atomic server-side decline+reverse-challenge creation, distributed bus forwarding, and incoming match controls now include wager counter input/button.
+
+- 2026-02-15: Camera/movement control fix: decoupled camera orbit yaw from server-authoritative player yaw to stop "world spinning" during WASD; fixed mouse-drag orbit direction; initialize camera yaw from player yaw on first snapshot; added richer `render_game_to_text` output (cameraYaw + desiredMove + display coords) for automated movement verification.
+
+- 2026-02-15: Refactoring modularization pass - continued from `refactor/modularization` branch work:
+  - Extracted HTTP utilities to `apps/agent-runtime/src/lib/http.ts`
+    - Contains: `setCorsHeaders()`, `readJsonBody()`, `sendJson()`, `SimpleRouter` class
+  - Extracted crypto utilities to `apps/agent-runtime/src/lib/crypto.ts`
+    - Contains: `encryptSecret()`, `decryptSecret()`, `hashString()`, `sha256()`, `newPrivateKey()`, `addressFromPrivateKey()`, `redactSecrets()`, `pseudoTxHash()`, `createInternalTokenFromKey()`
+  - Created shared types package at `packages/shared/src/types/index.ts`
+    - Contains: `Profile`, `WalletRecord`, `BotRecord`, `EscrowLockRecord`, `EscrowSettlementRecord`, `WalletDenied`, `EthSkillDigest`, `SuperAgentMemoryEntry`, `GameMove`, `Challenge`, `WorldSnapshot`, `ClientMessage`, `ServerMessage`, `PresenceEntry`, API helpers
+  - Created route handlers in `apps/agent-runtime/src/routes/`
+    - `profiles.ts` - Profile route handlers
+    - `wallets.ts` - Wallet route handlers
+    - `bots.ts` - Bot/agent route handlers
+    - `superAgent.ts` - Super Agent route handlers
+    - `index.ts` - Route module exports
+  - Updated `packages/shared/src/index.ts` to re-export types
+  - Validation:
+    - typecheck: all packages ✅
+    - tests: all packages ✅
+    - build: all packages ✅
