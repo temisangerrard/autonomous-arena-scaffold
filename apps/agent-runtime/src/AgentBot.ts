@@ -151,6 +151,9 @@ export class AgentBot {
     wsUrl.searchParams.set('role', 'agent');
     wsUrl.searchParams.set('agentId', this.config.id);
     wsUrl.searchParams.set('name', this.config.displayName);
+    if (typeof this.config.behavior.patrolSection === 'number') {
+      wsUrl.searchParams.set('spawnSection', String(this.config.behavior.patrolSection));
+    }
     if (this.config.walletId) {
       wsUrl.searchParams.set('walletId', this.config.walletId);
     }
@@ -460,7 +463,9 @@ export class AgentBot {
 
     if (record.event === 'created' && challenge && challenge.opponentId === this.playerId) {
       this.stats.challengesReceived += 1;
-      const accept = this.shouldAcceptChallenge();
+      // `challengeEnabled` gates participation. When disabled (e.g. owner is online),
+      // decline incoming challenges so humans control their own sessions.
+      const accept = this.config.behavior.challengeEnabled ? this.shouldAcceptChallenge() : false;
       setTimeout(() => {
         if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
           return;

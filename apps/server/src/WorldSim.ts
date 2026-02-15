@@ -17,6 +17,17 @@ export type WorldSnapshot = {
   players: PlayerSnapshot[];
 };
 
+export const WORLD_SECTION_SPAWNS: Array<{ x: number; z: number }> = [
+  { x: -80, z: -45 },
+  { x: -25, z: -30 },
+  { x: 25, z: -30 },
+  { x: 80, z: -45 },
+  { x: -80, z: 45 },
+  { x: -25, z: 30 },
+  { x: 25, z: 30 },
+  { x: 80, z: 55 }
+];
+
 type PlayerState = {
   id: string;
   x: number;
@@ -43,16 +54,7 @@ const PLAYER_RADIUS = 0.75;
 const AVOIDANCE_RADIUS = 2.2;
 const AVOIDANCE_ACCEL = 6;
 const OBSTACLE_BUFFER = 0.6;
-const SECTION_SPAWNS: Array<{ x: number; z: number }> = [
-  { x: -90, z: -70 },
-  { x: -30, z: -70 },
-  { x: 30, z: -70 },
-  { x: 90, z: -70 },
-  { x: -90, z: 70 },
-  { x: -30, z: 70 },
-  { x: 30, z: 70 },
-  { x: 90, z: 70 }
-];
+const SECTION_SPAWNS = WORLD_SECTION_SPAWNS;
 const HUMAN_SPAWNS: Array<{ x: number; z: number }> = [
   { x: -24, z: -24 },
   { x: 0, z: -24 },

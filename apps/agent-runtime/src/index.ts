@@ -273,9 +273,10 @@ async function syncEthSkillsKnowledge(force = false): Promise<{ ok: boolean; ref
   return { ok: true, refreshed };
 }
 
-function dutyForIndex(index: number): BotRecord['duty'] {
-  const duties: BotRecord['duty'][] = ['duelist', 'scout', 'sparrer', 'sentinel'];
-  return duties[index % duties.length] ?? 'scout';
+function dutyForIndex(_index: number): BotRecord['duty'] {
+  void _index;
+  // Background bots are now static NPCs (one per patrol section).
+  return 'npc';
 }
 
 function makeBehaviorForDuty(duty: BotRecord['duty'], index: number, patrolSection: number | null): AgentBehaviorConfig {
@@ -285,6 +286,22 @@ function makeBehaviorForDuty(duty: BotRecord['duty'], index: number, patrolSecti
     duty === 'sparrer' ? 32 :
     duty === 'owner' ? 30 :
     34;
+
+  if (duty === 'npc') {
+    // Static world NPCs: no movement, do not initiate challenges.
+    // Players can walk up and request a game; NPCs will accept.
+    return {
+      personality: 'social',
+      mode: 'passive',
+      challengeEnabled: true,
+      challengeCooldownMs: 10_000,
+      targetPreference: 'any',
+      patrolSection: patrolSection ?? 0,
+      patrolRadius: 0,
+      baseWager: 1,
+      maxWager: 1
+    };
+  }
 
   if (duty === 'duelist') {
     return {
@@ -418,28 +435,9 @@ function registerBot(id: string, behavior: AgentBehaviorConfig, record: BotRecor
 }
 
 function ensureSuperAgentExists(): void {
-  registerBot(
-    superAgentConfig.id,
-    {
-      personality: 'aggressive',
-      mode: 'active',
-      challengeEnabled: true,
-      challengeCooldownMs: Math.max(1400, Math.floor(superAgentConfig.defaultChallengeCooldownMs * 0.5)),
-      targetPreference: 'any',
-      baseWager: 3,
-      maxWager: 8
-    },
-    {
-      id: superAgentConfig.id,
-      ownerProfileId: null,
-      displayName: 'Grand Strategist',
-      createdAt: Date.now(),
-      managedBySuperAgent: false,
-      duty: 'super',
-      patrolSection: 3,
-      walletId: getOrCreateWallet('system_super').id
-    }
-  );
+  // Super agent is a control plane construct; it doesn't need to appear as an in-world bot.
+  // Keep its wallet around for budgeting/policy systems.
+  getOrCreateWallet('system_super');
 }
 
 function applySuperAgentDelegation(): void {
@@ -447,6 +445,10 @@ function applySuperAgentDelegation(): void {
   for (const directive of directives) {
     const record = botRegistry.get(directive.botId);
     if (!record) {
+      continue;
+    }
+    if (record.duty === 'npc') {
+      // Keep section NPCs static; do not override via delegation.
       continue;
     }
     if (!record.managedBySuperAgent) {
@@ -460,15 +462,7 @@ function applySuperAgentDelegation(): void {
     });
   }
 
-  bots.get(superAgentConfig.id)?.updateBehavior({
-    personality: 'aggressive',
-    mode: 'active',
-    challengeEnabled: true,
-    challengeCooldownMs: Math.max(1400, Math.floor(superAgentConfig.defaultChallengeCooldownMs * 0.5)),
-    targetPreference: 'any',
-    baseWager: 3,
-    maxWager: 8
-  });
+  // superAgentConfig is still used for delegation/policy, but the super agent does not spawn in-world.
 
   // Owner presence override must win over delegation (player online => park owner bot).
   for (const profileId of ownerPresence.keys()) {
@@ -479,13 +473,24 @@ function applySuperAgentDelegation(): void {
 function reconcileBots(targetCount: number): void {
   const bounded = Math.max(0, Math.min(60, targetCount));
 
+  const npcTitles = [
+    'Harbor Host',
+    'Village Jogger',
+    'Carnival Barker',
+    'Park Robot',
+    'Workshop Vendor',
+    'Castle Guard',
+    'Farm Traveler',
+    'Grove Mystic'
+  ];
+
   while (backgroundBotIds.size < bounded) {
     const id = `agent_bg_${backgroundCounter++}`;
     const idx = backgroundBotIds.size;
     const duty = dutyForIndex(idx);
     const patrolSection = idx % PATROL_SECTION_COUNT;
     const behavior = makeBehaviorForDuty(duty, idx, patrolSection);
-    const dutyTitle =
+    const dutyTitle = duty === 'npc' ? 'NPC' :
       duty === 'duelist' ? 'Duelist' :
       duty === 'sparrer' ? 'Sparrer' :
       duty === 'sentinel' ? 'Sentinel' :
@@ -493,7 +498,9 @@ function reconcileBots(targetCount: number): void {
     registerBot(id, behavior, {
       id,
       ownerProfileId: null,
-      displayName: `${pickDisplayName(`Agent${idx + 1}`)} ${dutyTitle}`,
+      displayName: duty === 'npc'
+        ? `S${patrolSection + 1} ${npcTitles[patrolSection] ?? 'NPC'}`
+        : `${pickDisplayName(`Agent${idx + 1}`)} ${dutyTitle}`,
       createdAt: Date.now(),
       managedBySuperAgent: true,
       duty,
@@ -501,6 +508,23 @@ function reconcileBots(targetCount: number): void {
       walletId: getOrCreateWallet(`system_${id}`).id
     });
     backgroundBotIds.add(id);
+  }
+
+  // Enforce static NPC behavior for any pre-existing background bots loaded from disk.
+  for (const id of backgroundBotIds) {
+    const record = botRegistry.get(id);
+    const bot = bots.get(id);
+    if (!record || !bot) {
+      continue;
+    }
+    if (record.duty !== 'npc') {
+      record.duty = 'npc';
+      record.patrolSection = typeof record.patrolSection === 'number' ? record.patrolSection : (Number(String(id).split('_').pop()) % PATROL_SECTION_COUNT);
+      record.displayName = `S${(record.patrolSection ?? 0) + 1} ${npcTitles[record.patrolSection ?? 0] ?? 'NPC'}`;
+      record.managedBySuperAgent = true;
+      bot.updateDisplayName(record.displayName);
+    }
+    bot.updateBehavior(makeBehaviorForDuty('npc', 0, record.patrolSection));
   }
 
   while (backgroundBotIds.size > bounded) {

@@ -434,3 +434,15 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - Removed duplicated HTTP + crypto helpers in `index.ts` in favor of `apps/agent-runtime/src/lib/http.ts` and `apps/agent-runtime/src/lib/crypto.ts`.
   - Standardized shared runtime types to `@arena/shared` exports.
   - Validation: `npm run typecheck` ✅ (`npm run lint` ✅ for agent-runtime workspace)
+
+- 2026-02-15: Static NPC sections (Codex):
+  - Goal: remove roaming background bots; keep 8 static NPCs (S1..S8) that players can walk up to and request a game.
+  - Changes:
+    - Background bots now use new duty `npc` and are forced to `mode: passive` (no movement) but keep `challengeEnabled: true` (they accept games).
+    - Runtime agents include `spawnSection` in websocket URL so the server can place each NPC at its section anchor.
+    - Server supports `spawnSection` on `/ws` and uses shared `WORLD_SECTION_SPAWNS` anchors.
+    - Play UI labels `agent_bg_*` as `npc` and changes prompt/button text to “request game”.
+  - Validation:
+    - `npm run typecheck` ✅
+    - `npm test` ✅
+    - `SMOKE_SERVER_PORT=4010 SMOKE_RUNTIME_PORT=4110 npm run test:playable` ✅

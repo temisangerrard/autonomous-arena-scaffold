@@ -730,7 +730,11 @@ function renderInteractionCard() {
     setInteractOpen(false);
     return;
   }
-  interactionTitle.textContent = `Challenge: ${labelFor(targetId)}`;
+  const isNpc = isStaticNpc(targetId);
+  interactionTitle.textContent = isNpc ? `Request a game: ${labelFor(targetId)}` : `Challenge: ${labelFor(targetId)}`;
+  if (interactionSend) {
+    interactionSend.textContent = isNpc ? 'Request Game' : 'Send Challenge';
+  }
 }
 
 function renderMobileControls() {
@@ -840,6 +844,10 @@ function labelFor(id) {
   return player?.displayName || state.nearbyNames.get(id) || id;
 }
 
+function isStaticNpc(id) {
+  return typeof id === 'string' && id.startsWith('agent_bg_');
+}
+
 function refreshNearbyTargetOptions() {
   if (!targetSelect) {
     return;
@@ -862,7 +870,7 @@ function refreshNearbyTargetOptions() {
   for (const id of options) {
     const option = document.createElement('option');
     option.value = id;
-    const role = state.players.get(id)?.role === 'agent' ? 'agent' : 'human';
+    const role = isStaticNpc(id) ? 'npc' : (state.players.get(id)?.role === 'agent' ? 'agent' : 'human');
     option.textContent = `${labelFor(id)} (${role})`;
     targetSelect.appendChild(option);
   }
@@ -1430,7 +1438,8 @@ function renderInteractionPrompt() {
     return;
   }
   const distance = state.nearbyDistances.get(targetId);
-  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · Tab switch · V profile`;
+  const verb = isStaticNpc(targetId) ? 'request game' : 'interact';
+  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E ${verb} · Tab switch · V profile`;
   interactionPrompt.classList.add('visible');
 }
 
