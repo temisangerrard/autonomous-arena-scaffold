@@ -1289,6 +1289,92 @@
       outline: 2px solid var(--ui-gold);
       outline-offset: 2px;
     }
+
+    /* ============================================
+       CONTROL HINTS PANEL
+       ============================================ */
+    .control-hints {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 12, 8, 0.88);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(8px);
+    }
+    .control-hints[aria-hidden="false"] {
+      display: flex;
+    }
+    .control-hints__content {
+      width: min(600px, calc(100vw - 32px));
+      background: linear-gradient(145deg, rgba(253, 248, 237, 0.98), rgba(255, 252, 245, 0.95));
+      border: 2px solid rgba(201, 162, 39, 0.5);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+      padding: 28px;
+      color: #2c2416;
+    }
+    .control-hints h3 {
+      margin: 0 0 20px;
+      font: 700 24px/1.2 'Cormorant Garamond', serif;
+      text-align: center;
+      color: #2c2416;
+    }
+    .control-hints__grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+    .control-hints__col h4 {
+      margin: 0 0 12px;
+      font: 700 14px/1 'Inter', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #a68523;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.3);
+      padding-bottom: 8px;
+    }
+    .control-hints__row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font: 14px/1.4 'Crimson Text', serif;
+      color: #4a3f32;
+    }
+    .control-hints__row kbd {
+      display: inline-block;
+      min-width: 28px;
+      padding: 4px 8px;
+      background: linear-gradient(180deg, #fff 0%, #f5f0e0 100%);
+      border: 1px solid rgba(201, 162, 39, 0.5);
+      border-radius: 6px;
+      font: 700 12px/1 'IBM Plex Mono', monospace;
+      color: #3a2f1a;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .control-hints__note {
+      margin: 20px 0 0;
+      text-align: center;
+      font: 13px/1 'Crimson Text', serif;
+      color: #8c7d68;
+    }
+    .control-hints__note kbd {
+      display: inline-block;
+      padding: 2px 6px;
+      background: rgba(201, 162, 39, 0.2);
+      border-radius: 4px;
+      font: 700 11px/1 'IBM Plex Mono', monospace;
+    }
+
+    @media (max-width: 600px) {
+      .control-hints__grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1533,6 +1619,38 @@
       <span><i class="map-dot" style="background:#4f8a63" aria-hidden="true"></i>Human</span>
     </div>
   </aside>
+
+  <!-- Control Hints Panel -->
+  <div id="control-hints" class="control-hints" aria-hidden="true">
+    <div class="control-hints__content">
+      <h3>Controls</h3>
+      <div class="control-hints__grid">
+        <div class="control-hints__col">
+          <h4>Movement</h4>
+          <div class="control-hints__row"><kbd>W A S D</kbd> Move</div>
+          <div class="control-hints__row"><kbd>Shift+Drag</kbd> Orbit camera</div>
+          <div class="control-hints__row"><kbd>Scroll</kbd> Zoom</div>
+          <div class="control-hints__row"><kbd>R</kbd> Reset camera</div>
+        </div>
+        <div class="control-hints__col">
+          <h4>Interaction</h4>
+          <div class="control-hints__row"><kbd>E</kbd> Interact with nearby</div>
+          <div class="control-hints__row"><kbd>C</kbd> Send challenge</div>
+          <div class="control-hints__row"><kbd>Tab</kbd> Switch target</div>
+          <div class="control-hints__row"><kbd>V</kbd> View profile</div>
+        </div>
+        <div class="control-hints__col">
+          <h4>Match</h4>
+          <div class="control-hints__row"><kbd>Y</kbd> Accept challenge</div>
+          <div class="control-hints__row"><kbd>N</kbd> Decline challenge</div>
+          <div class="control-hints__row"><kbd>O</kbd> Counter-offer</div>
+          <div class="control-hints__row"><kbd>1 2 3</kbd> RPS moves</div>
+          <div class="control-hints__row"><kbd>H T</kbd> Coin flip</div>
+        </div>
+      </div>
+      <p class="control-hints__note">Press <kbd>?</kbd> to close</p>
+    </div>
+  </div>
 
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>

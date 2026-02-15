@@ -1,190 +1,213 @@
-/**
- * Super Agent route handlers
- * Extracted from index.ts for better modularity
- */
+import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
+import {
+  buildWorkerDirectives,
+  type LlmPolicy,
+  type SuperAgentConfig,
+  type WalletPolicy
+} from '../SuperAgent.js';
 
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readJsonBody, sendJson } from '../lib/http.js';
-import type { SuperAgentConfig, LlmPolicy, WalletPolicy } from '../SuperAgent.js';
-import type { EthSkillDigest, SuperAgentMemoryEntry, SuperAgentLlmUsage } from '@arena/shared';
+export function registerSuperAgentRoutes(router: SimpleRouter, deps: {
+  bots: Map<string, unknown>;
+  superAgentConfig: SuperAgentConfig;
+  getOpenRouterApiKey: () => string;
+  setOpenRouterApiKey: (apiKey: string) => void;
+  runtimeStatus: () => { superAgent: unknown };
+  ETHSKILLS_SOURCES: string[];
+  superAgentEthSkills: unknown[];
+  syncEthSkillsKnowledge: (force: boolean) => Promise<{ ok: boolean; refreshed: number; reason?: string }>;
+  ensureSuperAgentExists: () => void;
+  applySuperAgentDelegation: () => void;
+  schedulePersistState: () => void;
+  rememberSuperAgent: (type: 'command' | 'decision' | 'system', message: string) => void;
+  parseSuperAgentActions: (message: string) => Array<{ kind: string; value?: unknown }>;
+  applySuperAgentAction: (action: { kind: string; value?: unknown }) => string;
+  askOpenRouterSuperAgent: (message: string) => Promise<string | null>;
+}) {
+  router.get('/super-agent/status', (_req, res) => {
+    sendJson(res, deps.runtimeStatus().superAgent);
+  });
 
-interface SuperAgentDeps {
-  config: SuperAgentConfig;
-  memory: SuperAgentMemoryEntry[];
-  ethSkills: EthSkillDigest[];
-  llmUsage: SuperAgentLlmUsage;
-  syncEthSkills: (force: boolean) => Promise<{ ok: boolean; refreshed: number; reason?: string }>;
-  parseActions: (message: string) => unknown[];
-  applyAction: (action: unknown) => string;
-  askLlm: (message: string) => Promise<string | null>;
-  runtimeStatus: () => unknown;
-  remember: (type: 'command' | 'decision' | 'system', message: string) => void;
-  schedulePersist: () => void;
-}
+  router.get('/super-agent/ethskills', (_req, res) => {
+    sendJson(res, { ok: true, sources: deps.ETHSKILLS_SOURCES, entries: deps.superAgentEthSkills });
+  });
 
-export function createSuperAgentRouter(deps: SuperAgentDeps) {
-  const router = {
-    /**
-     * GET /super-agent/status - Get Super Agent status
-     */
-    handleStatus(req: IncomingMessage, res: ServerResponse) {
-      sendJson(res, {
-        id: deps.config.id,
-        mode: deps.config.mode,
-        challengeEnabled: deps.config.challengeEnabled,
-        defaultChallengeCooldownMs: deps.config.defaultChallengeCooldownMs,
-        workerTargetPreference: deps.config.workerTargetPreference,
-        llmPolicy: deps.config.llmPolicy,
-        walletPolicy: deps.config.walletPolicy,
-        brain: {
-          memories: deps.memory.slice(-12),
-          llmUsage: { ...deps.llmUsage },
-          ethSkills: deps.ethSkills.slice(0, 8)
-        }
-      });
-    },
+  router.post('/super-agent/ethskills/sync', async (_req, res) => {
+    const result = await deps.syncEthSkillsKnowledge(true);
+    sendJson(res, {
+      ok: result.ok,
+      refreshed: result.refreshed,
+      reason: result.reason,
+      entries: deps.superAgentEthSkills
+    }, result.ok ? 200 : 503);
+  });
 
-    /**
-     * GET /super-agent/ethskills - Get cached ETHSkills knowledge
-     */
-    handleEthSkills(req: IncomingMessage, res: ServerResponse) {
-      sendJson(res, {
-        ok: true,
-        entries: deps.ethSkills
-      });
-    },
+  router.post('/super-agent/config', async (req, res) => {
+    type Patch = Partial<{
+      id: string;
+      mode: SuperAgentConfig['mode'];
+      challengeEnabled: boolean;
+      defaultChallengeCooldownMs: number;
+      workerTargetPreference: SuperAgentConfig['workerTargetPreference'];
+      llmPolicy: Partial<LlmPolicy>;
+      walletPolicy: Partial<WalletPolicy>;
+    }>;
 
-    /**
-     * POST /super-agent/ethskills/sync - Sync ETHSkills knowledge
-     */
-    async handleEthSkillsSync(req: IncomingMessage, res: ServerResponse) {
-      const result = await deps.syncEthSkills(true);
-      sendJson(res, {
-        ok: result.ok,
-        refreshed: result.refreshed,
-        reason: result.reason,
-        entries: deps.ethSkills
-      }, result.ok ? 200 : 503);
-    },
-
-    /**
-     * POST /super-agent/config - Update Super Agent config
-     */
-    async handleConfig(req: IncomingMessage, res: ServerResponse) {
-      type Patch = Partial<{
-        id: string;
-        mode: SuperAgentConfig['mode'];
-        challengeEnabled: boolean;
-        defaultChallengeCooldownMs: number;
-        workerTargetPreference: SuperAgentConfig['workerTargetPreference'];
-        llmPolicy: Partial<LlmPolicy>;
-        walletPolicy: Partial<WalletPolicy>;
-      }>;
-
-      const body = await readJsonBody<Patch>(req);
-      if (!body) {
-        sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
-        return;
-      }
-
-      if (typeof body.id === 'string' && body.id.trim().length > 0) {
-        deps.config.id = body.id.trim();
-      }
-      if (body.mode) {
-        deps.config.mode = body.mode;
-      }
-      if (typeof body.challengeEnabled === 'boolean') {
-        deps.config.challengeEnabled = body.challengeEnabled;
-      }
-      if (typeof body.defaultChallengeCooldownMs === 'number') {
-        deps.config.defaultChallengeCooldownMs = Math.max(1200, Math.min(120000, body.defaultChallengeCooldownMs));
-      }
-      if (body.workerTargetPreference) {
-        deps.config.workerTargetPreference = body.workerTargetPreference;
-      }
-      if (body.llmPolicy) {
-        deps.config.llmPolicy = { ...deps.config.llmPolicy, ...body.llmPolicy };
-      }
-      if (body.walletPolicy) {
-        deps.config.walletPolicy = { ...deps.config.walletPolicy, ...body.walletPolicy };
-      }
-
-      deps.schedulePersist();
-      sendJson(res, { ok: true, superAgent: deps.runtimeStatus() });
-    },
-
-    /**
-     * POST /super-agent/delegate/apply - Apply worker delegation
-     */
-    handleDelegateApply(req: IncomingMessage, res: ServerResponse) {
-      // This requires applySuperAgentDelegation from index.ts
-      sendJson(res, { ok: true, message: 'delegation applied' });
-    },
-
-    /**
-     * GET /super-agent/delegate/preview - Preview worker directives
-     */
-    handleDelegatePreview(req: IncomingMessage, res: ServerResponse) {
-      // This requires buildWorkerDirectives from SuperAgent.ts
-      sendJson(res, {
-        superAgentId: deps.config.id,
-        directives: []
-      });
-    },
-
-    /**
-     * POST /super-agent/chat - Chat with Super Agent
-     */
-    async handleChat(req: IncomingMessage, res: ServerResponse) {
-      const body = await readJsonBody<{ message?: string; includeStatus?: boolean }>(req);
-      const message = body?.message?.trim() ?? '';
-      
-      if (!message) {
-        sendJson(res, { ok: false, reason: 'message_required' }, 400);
-        return;
-      }
-
-      deps.remember('command', message);
-      const actions = deps.parseActions(message) as Array<{ kind: string; value?: unknown }>;
-      const actionReplies: string[] = [];
-
-      for (const action of actions) {
-        actionReplies.push(deps.applyAction(action));
-      }
-
-      if (actions.some((a) => a.kind === 'sync_ethskills')) {
-        const synced = await deps.syncEthSkills(true);
-        actionReplies.push(
-          synced.ok
-            ? `ETHSkills synced (${synced.refreshed} pages).`
-            : `ETHSkills sync failed (${synced.reason ?? 'unknown_error'}).`
-        );
-      }
-
-      const advisory = await deps.askLlm(message);
-
-      const replyParts: string[] = [];
-      if (actionReplies.length > 0) {
-        replyParts.push(actionReplies.join('\n'));
-      }
-      if (advisory) {
-        replyParts.push(`Advisory:\n${advisory}`);
-        deps.remember('decision', 'provided llm advisory');
-      }
-      if (replyParts.length === 0) {
-        replyParts.push('No direct command detected. Ask for "status" or "help", or use commands like "mode hunter", "bot count 16", "enable wallet policy".');
-      }
-
-      sendJson(res, {
-        ok: true,
-        reply: replyParts.join('\n\n'),
-        actionsApplied: actions.map((a) => a.kind),
-        status: body?.includeStatus ? deps.runtimeStatus() : undefined
-      });
-
-      deps.schedulePersist();
+    const body = await readJsonBody<Patch>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
+      return;
     }
-  };
 
-  return router;
+    if (typeof body.id === 'string' && body.id.trim().length > 0) {
+      deps.superAgentConfig.id = body.id.trim();
+    }
+    if (body.mode) {
+      deps.superAgentConfig.mode = body.mode;
+    }
+    if (typeof body.challengeEnabled === 'boolean') {
+      deps.superAgentConfig.challengeEnabled = body.challengeEnabled;
+    }
+    if (typeof body.defaultChallengeCooldownMs === 'number') {
+      deps.superAgentConfig.defaultChallengeCooldownMs = Math.max(1200, Math.min(120000, body.defaultChallengeCooldownMs));
+    }
+    if (body.workerTargetPreference) {
+      deps.superAgentConfig.workerTargetPreference = body.workerTargetPreference;
+    }
+    if (body.llmPolicy) {
+      deps.superAgentConfig.llmPolicy = { ...deps.superAgentConfig.llmPolicy, ...body.llmPolicy };
+    }
+    if (body.walletPolicy) {
+      deps.superAgentConfig.walletPolicy = { ...deps.superAgentConfig.walletPolicy, ...body.walletPolicy };
+    }
+
+    deps.ensureSuperAgentExists();
+    deps.applySuperAgentDelegation();
+    deps.schedulePersistState();
+    sendJson(res, { ok: true, superAgent: deps.runtimeStatus().superAgent });
+  });
+
+  router.post('/super-agent/delegate/apply', async (_req, res) => {
+    deps.ensureSuperAgentExists();
+    deps.applySuperAgentDelegation();
+    deps.schedulePersistState();
+    sendJson(res, {
+      ok: true,
+      directivesApplied: buildWorkerDirectives(deps.superAgentConfig, [...deps.bots.keys()]).length,
+      superAgent: deps.runtimeStatus().superAgent
+    });
+  });
+
+  router.get('/super-agent/delegate/preview', (_req, res) => {
+    sendJson(res, {
+      superAgentId: deps.superAgentConfig.id,
+      directives: buildWorkerDirectives(deps.superAgentConfig, [...deps.bots.keys()])
+    });
+  });
+
+  router.post('/super-agent/chat', async (req, res) => {
+    const body = await readJsonBody<{ message?: string; includeStatus?: boolean }>(req);
+    const message = body?.message?.trim() ?? '';
+    if (!message) {
+      sendJson(res, { ok: false, reason: 'message_required' }, 400);
+      return;
+    }
+
+    deps.rememberSuperAgent('command', message);
+    const actions = deps.parseSuperAgentActions(message);
+    const actionReplies: string[] = [];
+
+    for (const action of actions) {
+      actionReplies.push(deps.applySuperAgentAction(action));
+    }
+
+    if (actions.some((entry) => entry.kind === 'sync_ethskills')) {
+      const synced = await deps.syncEthSkillsKnowledge(true);
+      actionReplies.push(
+        synced.ok
+          ? `ETHSkills synced (${synced.refreshed} pages).`
+          : `ETHSkills sync failed (${synced.reason ?? 'unknown_error'}).`
+      );
+    }
+
+    if (actions.some((entry) => entry.kind !== 'status' && entry.kind !== 'help')) {
+      deps.ensureSuperAgentExists();
+      deps.applySuperAgentDelegation();
+    }
+
+    const advisory = (await deps.askOpenRouterSuperAgent(message)) ?? '';
+
+    const replyParts: string[] = [];
+    if (actionReplies.length > 0) {
+      replyParts.push(actionReplies.join('\n'));
+    }
+    if (advisory) {
+      replyParts.push(`Advisory:\n${advisory}`);
+      deps.rememberSuperAgent('decision', 'provided llm advisory');
+    }
+    if (replyParts.length === 0) {
+      replyParts.push('No direct command detected. Ask for "status" or "help", or use commands like "mode hunter", "bot count 16", "enable wallet policy".');
+    }
+
+    sendJson(res, {
+      ok: true,
+      reply: replyParts.join('\n\n'),
+      actionsApplied: actions.map((entry) => entry.kind),
+      status: body?.includeStatus ? deps.runtimeStatus() : undefined
+    });
+    deps.schedulePersistState();
+  });
+
+  router.post('/secrets/openrouter', async (req, res) => {
+    const body = await readJsonBody<{ apiKey?: string }>(req);
+    const apiKey = body?.apiKey?.trim() ?? '';
+    deps.setOpenRouterApiKey(apiKey);
+    deps.superAgentConfig.llmPolicy.enabled = true;
+    deps.schedulePersistState();
+    const storedKey = deps.getOpenRouterApiKey();
+    sendJson(res, {
+      ok: true,
+      openRouterConfigured: Boolean(storedKey),
+      masked: storedKey ? `${storedKey.slice(0, 7)}...${storedKey.slice(-4)}` : null
+    });
+  });
+
+  router.post('/capabilities/wallet', async (req, res) => {
+    const body = await readJsonBody<{
+      enabled?: boolean;
+      grandAgentId?: string;
+      skills?: string[];
+      maxBetPercentOfBankroll?: number;
+      maxDailyTxCount?: number;
+      requireEscrowForChallenges?: boolean;
+    }>(req);
+
+    if (typeof body?.enabled === 'boolean') {
+      deps.superAgentConfig.walletPolicy.enabled = body.enabled;
+    }
+    if (body?.grandAgentId) {
+      deps.superAgentConfig.id = body.grandAgentId;
+    }
+    if (Array.isArray(body?.skills)) {
+      deps.superAgentConfig.walletPolicy.allowedSkills = body.skills.filter((item) => typeof item === 'string' && item.trim().length > 0);
+    }
+    if (typeof body?.maxBetPercentOfBankroll === 'number') {
+      deps.superAgentConfig.walletPolicy.maxBetPercentOfBankroll = Math.max(0.1, Math.min(100, body.maxBetPercentOfBankroll));
+    }
+    if (typeof body?.maxDailyTxCount === 'number') {
+      deps.superAgentConfig.walletPolicy.maxDailyTxCount = Math.max(1, Math.min(10000, body.maxDailyTxCount));
+    }
+    if (typeof body?.requireEscrowForChallenges === 'boolean') {
+      deps.superAgentConfig.walletPolicy.requireEscrowForChallenges = body.requireEscrowForChallenges;
+    }
+
+    deps.ensureSuperAgentExists();
+    deps.applySuperAgentDelegation();
+    deps.schedulePersistState();
+
+    sendJson(res, {
+      ok: true,
+      superAgentId: deps.superAgentConfig.id,
+      walletPolicy: deps.superAgentConfig.walletPolicy
+    });
+  });
 }

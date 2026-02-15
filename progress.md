@@ -392,3 +392,57 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - Ops UI now includes house controls (floors, topups, manual transfers/refills)
   - Online/offline handoff:
     - Play client sends presence heartbeats; owner bot is parked while the player is online and restored when offline/TTL expires
+
+- 2026-02-15: Comprehensive UX/Auth/Super Agent Polish Pass (by Cline):
+  - Phase 1: Authentication Hardening
+    - [x] Redesigned landing page (`index.html`) as marketing/sign-in page with hero section, features, and clear CTAs
+    - [x] Verified server-side auth checks on all sensitive routes (already in place)
+    - [x] Verified WebSocket authentication enforced with `GAME_WS_AUTH_SECRET`
+  - Phase 2: Super Agent as Chief of Staff
+    - [x] Confirmed player chief endpoint (`/api/player/chief/chat`) is properly scoped - no admin escalation
+    - [x] Added `apps/agent-runtime/src/codebaseContext.ts` with architecture docs, data flows, common issues, troubleshooting guides
+    - [x] Super Agent now has codebase awareness for better operator assistance
+    - [x] Added house bank management endpoints: `/house/status`, `/house/transfer`, `/house/refill`, `/house/config`
+  - Phase 3: Improved Landing Page
+    - [x] Complete redesign as marketing page with hero section, features grid, and sign-in CTAs
+    - [x] Removed all unauthenticated game interactions
+    - [x] Clear separation between marketing content and authenticated features
+  - Phase 4: Wallet UI/UX Improvements
+    - [x] Redesigned wallet section with better visual hierarchy and gradient background
+    - [x] Added gas indicator for onchain wallets (shows ETH balance when available)
+    - [x] Added CSS for transaction history display
+    - [x] Improved wallet action layout with fund/withdraw side by side
+  - Phase 5: Character Controls & Bot Personality
+    - [x] Verified camera and controls are well-implemented
+    - [x] Added control hints panel (press `?` to toggle) showing all keyboard shortcuts
+    - [x] Onboarding tutorial already covers movement, camera, challenges, and game moves
+  - Phase 6: Game Flow Polish
+    - [x] Verified match state indicators already implemented in `match-controls` component
+    - [x] Verified interaction prompts show nearby player name and distance
+    - [x] Verified win/loss feedback shown in game modal and toast notifications
+  - Key files modified:
+    - `apps/web/public/index.html` - Marketing landing page
+    - `apps/web/public/dashboard.html` - Wallet UI improvements, gas indicator
+    - `apps/web/public/js/dashboard.js` - Gas indicator support
+    - `apps/web/public/play.html` - Control hints panel
+    - `apps/web/public/js/play/input.js` - Keyboard handler for hints toggle
+    - `apps/agent-runtime/src/codebaseContext.ts` - New file for Super Agent context
+    - `apps/agent-runtime/src/index.ts` - Integrated codebase context into Super Agent prompts
+
+- 2026-02-15: Agent runtime index routing refactor (Codex):
+  - Replaced `apps/agent-runtime/src/index.ts` path-based `if` router with `SimpleRouter` dispatch.
+  - Removed duplicated HTTP + crypto helpers in `index.ts` in favor of `apps/agent-runtime/src/lib/http.ts` and `apps/agent-runtime/src/lib/crypto.ts`.
+  - Standardized shared runtime types to `@arena/shared` exports.
+  - Validation: `npm run typecheck` ✅ (`npm run lint` ✅ for agent-runtime workspace)
+
+- 2026-02-15: Static NPC sections (Codex):
+  - Goal: remove roaming background bots; keep 8 static NPCs (S1..S8) that players can walk up to and request a game.
+  - Changes:
+    - Background bots now use new duty `npc` and are forced to `mode: passive` (no movement) but keep `challengeEnabled: true` (they accept games).
+    - Runtime agents include `spawnSection` in websocket URL so the server can place each NPC at its section anchor.
+    - Server supports `spawnSection` on `/ws` and uses shared `WORLD_SECTION_SPAWNS` anchors.
+    - Play UI labels `agent_bg_*` as `npc` and changes prompt/button text to “request game”.
+  - Validation:
+    - `npm run typecheck` ✅
+    - `npm test` ✅
+    - `SMOKE_SERVER_PORT=4010 SMOKE_RUNTIME_PORT=4110 npm run test:playable` ✅

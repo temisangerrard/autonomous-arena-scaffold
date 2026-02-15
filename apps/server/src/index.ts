@@ -8,7 +8,7 @@ import { DistributedChallengeStore } from './DistributedChallengeStore.js';
 import { EscrowAdapter } from './EscrowAdapter.js';
 import { log } from './logger.js';
 import { PresenceStore } from './PresenceStore.js';
-import { WorldSim } from './WorldSim.js';
+import { WORLD_SECTION_SPAWNS, WorldSim } from './WorldSim.js';
 import { createRouter } from './routes/index.js';
 import { parseClientMessage } from './websocket/messages.js';
 import {
@@ -75,6 +75,9 @@ let lastPresenceRefreshAt = 0;
 const challengePendingTimeoutMs = config.challengePendingTimeoutMs;
 const challengeOrphanGraceMs = config.challengeOrphanGraceMs;
 const wsAuthSecret = config.wsAuthSecret;
+// Product choice: keep in-world movement reserved for human players.
+// Agents (NPCs / offline bots) can still participate in challenges, but do not roam unless explicitly enabled.
+const agentLocomotionEnabled = String(process.env.AGENT_LOCOMOTION_ENABLED ?? '').trim().toLowerCase() === 'true';
 const presenceByPlayerId = new Map<string, {
   playerId: string;
   role: PlayerRole;
@@ -506,14 +509,30 @@ wss.on('connection', (ws, request) => {
     displayName: preferredName && preferredName.length > 0 ? preferredName : (role === 'agent' ? playerId : `Player ${playerId}`),
     walletId
   });
+
+  // Allow runtime agents (NPCs/owner bots) to request deterministic section spawns.
+  const spawnSectionRaw = parsed.searchParams.get('spawnSection');
+  const spawnSection = spawnSectionRaw ? Number(spawnSectionRaw) : Number.NaN;
+  const preferredSpawn =
+    role === 'agent' && Number.isFinite(spawnSection)
+      ? (() => {
+          const idx = Math.max(0, Math.min(7, Math.floor(spawnSection)));
+          return WORLD_SECTION_SPAWNS[idx] ?? null;
+        })()
+      : null;
+
   void presenceStore.get(playerId).then((presence) => {
     if (presence) {
       worldSim.joinPlayer(playerId, { x: presence.x, z: presence.z });
-    } else {
-      worldSim.joinPlayer(playerId);
+      return;
     }
-  }).catch(() => {
+    if (preferredSpawn) {
+      worldSim.joinPlayer(playerId, preferredSpawn);
+      return;
+    }
     worldSim.joinPlayer(playerId);
+  }).catch(() => {
+    worldSim.joinPlayer(playerId, preferredSpawn ?? undefined);
   });
 
   ws.send(JSON.stringify({ type: 'welcome', playerId, role, displayName: displayNameFor(playerId), serverId: serverInstanceId }));
@@ -525,6 +544,11 @@ wss.on('connection', (ws, request) => {
     }
 
     if (payload.type === 'input') {
+      const role = metaByPlayer.get(playerId)?.role ?? 'human';
+      if (role === 'agent' && !agentLocomotionEnabled) {
+        worldSim.setInput(playerId, { moveX: 0, moveZ: 0 });
+        return;
+      }
       worldSim.setInput(playerId, {
         moveX: payload.moveX,
         moveZ: payload.moveZ

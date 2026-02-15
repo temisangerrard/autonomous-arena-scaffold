@@ -215,8 +215,20 @@ function renderContext() {
   if (walletBalance) walletBalance.textContent = Number(tokenBalance || 0).toFixed(4);
   if (walletBalanceNote) {
     walletBalanceNote.textContent = onchainMode
-      ? `${tokenSymbol} onchain${nativeBalance ? ` · gas ${Number(nativeBalance).toFixed(5)} ETH` : ''}`
+      ? `${tokenSymbol} onchain`
       : `Runtime wallet balance (scaffold mode) · ${tokenSymbol}`;
+  }
+
+  // Show gas indicator for onchain wallets
+  const gasIndicator = document.getElementById('gas-indicator');
+  const gasBalance = document.getElementById('gas-balance');
+  if (gasIndicator && gasBalance) {
+    if (onchainMode && nativeBalance) {
+      gasIndicator.style.display = 'flex';
+      gasBalance.textContent = Number(nativeBalance).toFixed(5);
+    } else {
+      gasIndicator.style.display = 'none';
+    }
   }
 
   if (sidebarName) sidebarName.textContent = profile?.displayName || user?.name || 'Player';

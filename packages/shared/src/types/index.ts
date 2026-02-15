@@ -39,7 +39,7 @@ export interface BotRecord {
   displayName: string;
   createdAt: number;
   managedBySuperAgent: boolean;
-  duty: 'super' | 'duelist' | 'scout' | 'sparrer' | 'sentinel' | 'owner';
+  duty: 'super' | 'npc' | 'duelist' | 'scout' | 'sparrer' | 'sentinel' | 'owner';
   patrolSection: number | null;
   walletId: string | null;
 }

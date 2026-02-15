@@ -167,9 +167,12 @@ async function loadArenaConfig() {
       const cfg = await cfgRes.json();
       if (cfg && typeof cfg === 'object') {
         window.__ARENA_CONFIG = cfg;
-        if (!window.ARENA_CONFIG) {
-          window.ARENA_CONFIG = cfg;
-        }
+        // Merge into runtime-config.js (Netlify env driven) so we get
+        // `worldAssetBaseUrl` + `gameWsUrl` without losing origin settings.
+        window.ARENA_CONFIG = {
+          ...(window.ARENA_CONFIG || {}),
+          ...cfg
+        };
       }
       return cfg;
     } catch {
@@ -188,6 +191,18 @@ async function resolveWsBaseUrl() {
   const wsPath = (window.ARENA_CONFIG && window.ARENA_CONFIG.gameWsPath)
     ? String(window.ARENA_CONFIG.gameWsPath)
     : '/ws';
+
+  const serverOrigin = window.ARENA_CONFIG?.serverOrigin || '';
+  if (serverOrigin) {
+    const origin = String(serverOrigin);
+    const wsOrigin = origin.startsWith('https://')
+      ? `wss://${origin.slice('https://'.length)}`
+      : origin.startsWith('http://')
+        ? `ws://${origin.slice('http://'.length)}`
+        : origin;
+    return `${wsOrigin}${wsPath.startsWith('/') ? wsPath : `/${wsPath}`}`;
+  }
+
   const sameOrigin = window.location.protocol === 'https:'
     ? `wss://${window.location.host}${wsPath}`
     : `ws://${window.location.host}${wsPath}`;
@@ -442,6 +457,13 @@ void connectSocket();
 
 
 async function loadWorldWithFallback() {
+  // Ensure `/api/config` has been loaded so `worldAssetBaseUrl` is available.
+  // Without this, we can race and fall back to `/assets/world/*.glb` (404 on Netlify).
+  try {
+    await loadArenaConfig();
+  } catch {
+    // ignore; loader will fall back, but we prefer a best-effort config load.
+  }
   if (worldLoading) {
     worldLoading.classList.add('open');
     worldLoading.setAttribute('aria-hidden', 'false');
@@ -708,7 +730,11 @@ function renderInteractionCard() {
     setInteractOpen(false);
     return;
   }
-  interactionTitle.textContent = `Challenge: ${labelFor(targetId)}`;
+  const isNpc = isStaticNpc(targetId);
+  interactionTitle.textContent = isNpc ? `Request a game: ${labelFor(targetId)}` : `Challenge: ${labelFor(targetId)}`;
+  if (interactionSend) {
+    interactionSend.textContent = isNpc ? 'Request Game' : 'Send Challenge';
+  }
 }
 
 function renderMobileControls() {
@@ -818,6 +844,10 @@ function labelFor(id) {
   return player?.displayName || state.nearbyNames.get(id) || id;
 }
 
+function isStaticNpc(id) {
+  return typeof id === 'string' && id.startsWith('agent_bg_');
+}
+
 function refreshNearbyTargetOptions() {
   if (!targetSelect) {
     return;
@@ -840,7 +870,7 @@ function refreshNearbyTargetOptions() {
   for (const id of options) {
     const option = document.createElement('option');
     option.value = id;
-    const role = state.players.get(id)?.role === 'agent' ? 'agent' : 'human';
+    const role = isStaticNpc(id) ? 'npc' : (state.players.get(id)?.role === 'agent' ? 'agent' : 'human');
     option.textContent = `${labelFor(id)} (${role})`;
     targetSelect.appendChild(option);
   }
@@ -1408,7 +1438,8 @@ function renderInteractionPrompt() {
     return;
   }
   const distance = state.nearbyDistances.get(targetId);
-  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · Tab switch · V profile`;
+  const verb = isStaticNpc(targetId) ? 'request game' : 'interact';
+  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E ${verb} · Tab switch · V profile`;
   interactionPrompt.classList.add('visible');
 }
 
