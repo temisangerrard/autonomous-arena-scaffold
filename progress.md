@@ -287,6 +287,39 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 
 - 2026-02-15: Camera/movement control fix: decoupled camera orbit yaw from server-authoritative player yaw to stop "world spinning" during WASD; fixed mouse-drag orbit direction; initialize camera yaw from player yaw on first snapshot; added richer `render_game_to_text` output (cameraYaw + desiredMove + display coords) for automated movement verification.
 
+- 2026-02-15: UI/UX Production Polish Pass - Step 1 (agent/ui-polish-step1 branch):
+  - Goal: Simplify play.html UI with progressive disclosure and add onboarding tutorial
+  - Based on design review: too many simultaneous UI panels overwhelming players
+  - Approach: UI-only changes (HTML/CSS in /apps/web/public/), no server changes
+  - Completed tasks:
+    - [x] Simplify HUD - hide secondary panels by default, show contextually
+    - [x] Add onboarding tutorial overlay for first-time players (5-step tutorial)
+    - [x] Add toast notification system for game events
+    - [x] Add accessibility improvements (ARIA labels, focus states, screen reader announcements)
+    - [x] Add reduced motion support for accessibility
+    - [x] Enhance mobile responsiveness
+    - [x] Add visual polish (animations, transitions, improved color tokens)
+  - Changes made:
+    - play.html: Complete UI overhaul with progressive disclosure
+      - Added onboarding tutorial overlay with 5 steps (welcome, movement, camera, challenges, games)
+      - Simplified HUD with minimal top bar (avatar, name, wallet, streak, menu)
+      - Challenge panel now hidden by default, shows contextually when nearby players
+      - Added toast notification container
+      - Added screen reader announcer element
+      - Improved world loading overlay with spinning icon
+      - Added match controls header with badge (incoming/active)
+      - Added CSS variables for success/error/info/warning colors
+      - Added prefers-reduced-motion media query
+      - Added .sr-only class for screen reader only content
+      - Improved focus-visible states for keyboard navigation
+    - play.js: Added onboarding and toast systems
+      - initOnboarding(): Shows tutorial for first-time players (checks localStorage)
+      - showOnboardingStep(): Navigates between tutorial steps
+      - completeOnboarding(): Marks tutorial as complete, shows welcome toast
+      - showToast(): Creates toast notifications with auto-dismiss
+      - announceForScreenReader(): Announces messages for screen readers
+  - Branch: agent/ui-polish-step1 from commit 71c9b56ccfa6d6d0e06a216c584e590b1296bf62
+
 - 2026-02-15: Refactoring modularization pass - continued from `refactor/modularization` branch work:
   - Extracted HTTP utilities to `apps/agent-runtime/src/lib/http.ts`
     - Contains: `setCorsHeaders()`, `readJsonBody()`, `sendJson()`, `SimpleRouter` class

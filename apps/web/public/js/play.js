@@ -1,5 +1,144 @@
 import { THREE, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene, pickWorldAlias } from './world-common.js';
 
+// ============================================
+// ONBOARDING TUTORIAL SYSTEM
+// ============================================
+const ONBOARDING_KEY = 'arena_onboarding_completed';
+const onboardingOverlay = document.getElementById('onboarding-overlay');
+const onboardingProgress = document.getElementById('onboarding-progress');
+const onboardingContent = document.getElementById('onboarding-content');
+const srAnnouncer = document.getElementById('sr-announcer');
+const toastContainer = document.getElementById('toast-container');
+
+let onboardingStep = 0;
+const ONBOARDING_STEPS = 5;
+
+function initOnboarding() {
+  const completed = localStorage.getItem(ONBOARDING_KEY) === 'true';
+  if (completed || !onboardingOverlay) {
+    return;
+  }
+  
+  // Show onboarding
+  onboardingOverlay.classList.add('visible');
+  
+  // Setup button handlers
+  document.querySelectorAll('.onboarding__btn').forEach(btn => {
+    btn.addEventListener('click', handleOnboardingAction);
+  });
+  
+  // Skip link
+  const skipLink = document.getElementById('skip-tutorial');
+  skipLink?.addEventListener('click', skipOnboarding);
+  
+  // Update progress dots
+  updateOnboardingProgress();
+}
+
+function handleOnboardingAction(event) {
+  const action = event.target.dataset.action;
+  
+  if (action === 'next') {
+    if (onboardingStep < ONBOARDING_STEPS - 1) {
+      onboardingStep++;
+      showOnboardingStep(onboardingStep);
+    }
+  } else if (action === 'prev') {
+    if (onboardingStep > 0) {
+      onboardingStep--;
+      showOnboardingStep(onboardingStep);
+    }
+  } else if (action === 'start') {
+    completeOnboarding();
+  }
+}
+
+function showOnboardingStep(step) {
+  // Hide all steps
+  document.querySelectorAll('.onboarding__step').forEach(el => {
+    el.style.display = 'none';
+  });
+  
+  // Show current step
+  const currentStep = document.querySelector(`.onboarding__step[data-step="${step}"]`);
+  if (currentStep) {
+    currentStep.style.display = 'block';
+  }
+  
+  updateOnboardingProgress();
+  
+  // Announce for screen readers
+  const title = currentStep?.querySelector('.onboarding__title')?.textContent || '';
+  announceForScreenReader(`Step ${step + 1}: ${title}`);
+}
+
+function updateOnboardingProgress() {
+  if (!onboardingProgress) return;
+  
+  document.querySelectorAll('.onboarding__dot').forEach((dot, index) => {
+    dot.classList.remove('active', 'completed');
+    if (index < onboardingStep) {
+      dot.classList.add('completed');
+    } else if (index === onboardingStep) {
+      dot.classList.add('active');
+    }
+  });
+}
+
+function skipOnboarding() {
+  completeOnboarding();
+}
+
+function completeOnboarding() {
+  localStorage.setItem(ONBOARDING_KEY, 'true');
+  if (onboardingOverlay) {
+    onboardingOverlay.classList.remove('visible');
+  }
+  showToast('Welcome to the Arena! Good luck!', 'success');
+}
+
+// ============================================
+// TOAST NOTIFICATION SYSTEM
+// ============================================
+function showToast(message, type = 'info', duration = 4000) {
+  if (!toastContainer) return;
+  
+  const toast = document.createElement('div');
+  toast.className = `toast toast--${type}`;
+  toast.textContent = message;
+  
+  toastContainer.appendChild(toast);
+  
+  // Auto-remove after duration
+  setTimeout(() => {
+    toast.classList.add('toast-exit');
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, duration);
+  
+  return toast;
+}
+
+// ============================================
+// SCREEN READER ANNOUNCEMENTS
+// ============================================
+function announceForScreenReader(message) {
+  if (!srAnnouncer) return;
+  srAnnouncer.textContent = '';
+  // Small delay to ensure the announcement is triggered
+  setTimeout(() => {
+    srAnnouncer.textContent = message;
+  }, 100);
+}
+
+// Initialize onboarding when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initOnboarding);
+} else {
+  initOnboarding();
+}
+
 const canvas = document.getElementById('scene');
 const hud = document.getElementById('hud');
 const topbarName = document.getElementById('topbar-name');
