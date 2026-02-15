@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 
 export function parseCookies(req: IncomingMessage): Record<string, string> {
   const header = req.headers.cookie ?? '';
@@ -22,6 +24,20 @@ export function setSessionCookie(res: ServerResponse, cookieName: string, sessio
   res.setHeader(
     'set-cookie',
     `${cookieName}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(ttlMs / 1000)}`
+  );
+}
+
+export function setSessionCookieWithOptions(
+  res: ServerResponse,
+  cookieName: string,
+  sessionId: string,
+  ttlMs: number,
+  options?: { secure?: boolean }
+): void {
+  const secure = options?.secure ? '; Secure' : '';
+  res.setHeader(
+    'set-cookie',
+    `${cookieName}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=${Math.floor(ttlMs / 1000)}`
   );
 }
 
@@ -67,3 +83,52 @@ export async function sendFile(res: ServerResponse, filePath: string, contentTyp
   }
 }
 
+export async function sendFileCached(
+  req: IncomingMessage,
+  res: ServerResponse,
+  filePath: string,
+  contentType: string,
+  options?: { cacheControl?: string }
+): Promise<void> {
+  try {
+    const info = await stat(filePath);
+    const etag = `"${info.size}-${Math.floor(info.mtimeMs)}"`;
+    const ifNoneMatch = String(req.headers['if-none-match'] ?? '').trim();
+    const ifModifiedSince = String(req.headers['if-modified-since'] ?? '').trim();
+
+    res.setHeader('content-type', contentType);
+    res.setHeader('etag', etag);
+    res.setHeader('last-modified', info.mtime.toUTCString());
+    if (options?.cacheControl) {
+      res.setHeader('cache-control', options.cacheControl);
+    }
+
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      res.statusCode = 304;
+      res.end();
+      return;
+    }
+
+    if (ifModifiedSince) {
+      const sinceAt = Date.parse(ifModifiedSince);
+      if (Number.isFinite(sinceAt) && sinceAt >= info.mtimeMs) {
+        res.statusCode = 304;
+        res.end();
+        return;
+      }
+    }
+
+    // Stream large assets (world GLBs) to avoid buffering in memory.
+    const stream = createReadStream(filePath);
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.statusCode = 404;
+      }
+      res.end('Not Found');
+    });
+    stream.pipe(res);
+  } catch {
+    res.statusCode = 404;
+    res.end('Not Found');
+  }
+}

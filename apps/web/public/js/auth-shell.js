@@ -82,6 +82,7 @@ function buildNav(user) {
   ];
 
   if (user?.role === 'admin') {
+    links.push({ key: 'users', href: '/users', label: 'Users' });
     links.push({ key: 'admin', href: '/admin', label: 'Admin' });
   }
 
@@ -111,6 +112,7 @@ function markActiveLink(user) {
       (key === 'dashboard' && path === '/dashboard') ||
       (key === 'play' && path === '/play') ||
       (key === 'viewer' && path === '/viewer') ||
+      (key === 'users' && path === '/users') ||
       (key === 'admin' && (path === '/admin' || path === '/agents'))
     ) {
       link.classList.add('active');

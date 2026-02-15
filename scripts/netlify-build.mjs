@@ -80,6 +80,7 @@ const redirects = [
   '/profile   /dashboard      302',
   '/agents    /agents.html    200',
   '/admin     /agents.html    200',
+  '/users     /users.html     200',
   ''
 ].join('\n');
 

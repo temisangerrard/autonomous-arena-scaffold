@@ -231,6 +231,19 @@ export class WorldSim {
     player.vz = 0;
   }
 
+  teleportPlayer(id: string, desiredX: number, desiredZ: number): boolean {
+    const player = this.players.get(id);
+    if (!player) {
+      return false;
+    }
+    const safe = this.findSafeSpawnFor(id, desiredX, desiredZ);
+    player.x = safe.x;
+    player.z = safe.z;
+    player.vx = 0;
+    player.vz = 0;
+    return true;
+  }
+
   step(dtSeconds: number): WorldSnapshot {
     this.tickCount += 1;
     const allPlayers = [...this.players.values()];

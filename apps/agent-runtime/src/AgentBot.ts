@@ -482,7 +482,7 @@ export class AgentBot {
         } else {
           this.stats.challengesDeclined += 1;
         }
-      }, 400 + (this.memory.seed % 250));
+      }, this.config.behavior.mode === 'passive' ? (150 + (this.memory.seed % 120)) : (400 + (this.memory.seed % 250)));
     }
 
     if (record.event === 'created' && challenge && challenge.challengerId === this.playerId) {
@@ -517,6 +517,10 @@ export class AgentBot {
   }
 
   private shouldAcceptChallenge(): boolean {
+    // Static NPCs are configured as passive. Always accept to keep NPC play reliable.
+    if (this.config.behavior.mode === 'passive') {
+      return true;
+    }
     if (this.config.behavior.personality === 'aggressive') {
       return true;
     }

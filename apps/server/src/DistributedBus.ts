@@ -34,11 +34,24 @@ type ChallengeCommand =
       move: 'rock' | 'paper' | 'scissors' | 'heads' | 'tails';
     };
 
+type AdminCommand =
+  | {
+      type: 'admin_teleport';
+      playerId: string;
+      x: number;
+      z: number;
+    };
+
 const PLAYER_DIRECT_CHANNEL = 'arena:bus:player:direct';
 const COMMAND_CHANNEL_PREFIX = 'arena:bus:challenge:command:';
+const ADMIN_CHANNEL_PREFIX = 'arena:bus:admin:command:';
 
 function commandChannel(serverId: string): string {
   return `${COMMAND_CHANNEL_PREFIX}${serverId}`;
+}
+
+function adminChannel(serverId: string): string {
+  return `${ADMIN_CHANNEL_PREFIX}${serverId}`;
 }
 
 export class DistributedBus {
@@ -48,7 +61,8 @@ export class DistributedBus {
   constructor(
     private readonly serverId: string,
     private readonly onPlayerMessage: (message: DirectPlayerMessage) => void,
-    private readonly onCommand: (command: ChallengeCommand) => void
+    private readonly onCommand: (command: ChallengeCommand) => void,
+    private readonly onAdminCommand: (command: AdminCommand) => void
   ) {}
 
   async connect(redisUrl: string | undefined): Promise<void> {
@@ -84,6 +98,17 @@ export class DistributedBus {
         // ignore malformed commands
       }
     });
+    await this.subscriber.subscribe(adminChannel(this.serverId), (raw) => {
+      try {
+        const payload = JSON.parse(raw) as AdminCommand;
+        if (payload?.type !== 'admin_teleport' || !payload.playerId) {
+          return;
+        }
+        this.onAdminCommand(payload);
+      } catch {
+        // ignore malformed admin commands
+      }
+    });
     log.info('connected to redis');
   }
 
@@ -103,6 +128,13 @@ export class DistributedBus {
     }
     await this.publisher.publish(commandChannel(serverId), JSON.stringify(command));
   }
+
+  async publishAdminCommand(serverId: string, command: AdminCommand): Promise<void> {
+    if (!this.publisher) {
+      return;
+    }
+    await this.publisher.publish(adminChannel(serverId), JSON.stringify(command));
+  }
 }
 
-export type { ChallengeCommand };
+export type { AdminCommand, ChallengeCommand };

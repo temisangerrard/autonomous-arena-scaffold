@@ -48,6 +48,7 @@ export function getDom() {
     interactionWager: document.getElementById('interaction-wager'),
     interactionSend: document.getElementById('interaction-send'),
     interactionOpenDesk: document.getElementById('interaction-open-desk'),
+    stationUi: document.getElementById('station-ui'),
     quickstartPanel: document.getElementById('quickstart-panel'),
     quickstartList: document.getElementById('quickstart-list'),
     quickstartClose: document.getElementById('quickstart-close'),

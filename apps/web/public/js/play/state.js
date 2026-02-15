@@ -10,6 +10,7 @@ export function createInitialState() {
     playerId: null,
     tick: 0,
     players: new Map(),
+    stations: new Map(),
     input: {
       forward: false,
       backward: false,
@@ -19,6 +20,7 @@ export function createInitialState() {
     nearbyIds: new Set(),
     nearbyNames: new Map(),
     nearbyDistances: new Map(),
+    nearbyStationIds: new Set(),
     incomingChallengeId: null,
     outgoingChallengeId: null,
     activeChallenge: null,
@@ -56,4 +58,3 @@ export function createInitialState() {
     }
   };
 }
-

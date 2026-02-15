@@ -172,6 +172,123 @@ function runWsChallengeFlow(wsUrl, walletA, walletB) {
   });
 }
 
+function runWsFreeFlow(wsUrl) {
+  return new Promise((resolve, reject) => {
+    const a = new WebSocket(`${wsUrl}?name=FreeA`);
+    const b = new WebSocket(`${wsUrl}?name=FreeB`);
+
+    let aId = '';
+    let bId = '';
+    let started = false;
+    let challengeId = '';
+    let aAccepted = false;
+    let bAccepted = false;
+    let movesSent = false;
+    let done = false;
+
+    const fail = (message) => {
+      if (done) return;
+      done = true;
+      a.close();
+      b.close();
+      reject(new Error(message));
+    };
+
+    const complete = (payload) => {
+      if (done) return;
+      done = true;
+      a.close();
+      b.close();
+      resolve(payload);
+    };
+
+    const timer = setTimeout(() => {
+      fail('Timed out waiting for free challenge flow resolution');
+    }, 14000);
+
+    const maybeStart = () => {
+      if (started || !aId || !bId) return;
+      started = true;
+      setTimeout(() => {
+        a.send(JSON.stringify({
+          type: 'challenge_send',
+          targetId: bId,
+          gameType: 'rps',
+          wager: 0
+        }));
+      }, 500);
+    };
+
+    const isOurPair = (challenge) => {
+      if (!challenge || !aId || !bId) return false;
+      return (
+        (challenge.challengerId === aId && challenge.opponentId === bId) ||
+        (challenge.challengerId === bId && challenge.opponentId === aId)
+      );
+    };
+
+    const onMessage = (label, socket, raw) => {
+      let msg;
+      try {
+        msg = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+
+      if (msg.type === 'welcome') {
+        if (label === 'A') aId = msg.playerId;
+        else bId = msg.playerId;
+        maybeStart();
+        return;
+      }
+      if (msg.type !== 'challenge') return;
+
+      if (msg.event === 'invalid' || msg.event === 'busy') {
+        fail(`Free challenge rejected: ${msg.reason || msg.event}`);
+        return;
+      }
+
+      if (msg.event === 'created' && isOurPair(msg.challenge)) {
+        challengeId = msg.challenge?.id || challengeId;
+        if (label === 'B' && challengeId) {
+          socket.send(JSON.stringify({
+            type: 'challenge_response',
+            challengeId,
+            accept: true
+          }));
+        }
+        return;
+      }
+
+      if (msg.event === 'accepted' && isOurPair(msg.challenge)) {
+        challengeId = msg.challenge?.id || challengeId;
+        if (!challengeId) {
+          fail('Accepted event missing challenge id');
+          return;
+        }
+        if (label === 'A') aAccepted = true;
+        if (label === 'B') bAccepted = true;
+        if (aAccepted && bAccepted && !movesSent) {
+          movesSent = true;
+          setTimeout(() => {
+            a.send(JSON.stringify({ type: 'challenge_move', challengeId, move: 'rock' }));
+            b.send(JSON.stringify({ type: 'challenge_move', challengeId, move: 'paper' }));
+          }, 250);
+        }
+        return;
+      }
+
+      if (msg.event === 'resolved' && isOurPair(msg.challenge)) {
+        clearTimeout(timer);
+        complete(msg.challenge);
+      }
+    };
+
+    a.on('message', (raw) => onMessage('A', a, raw));
+    b.on('message', (raw) => onMessage('B', b, raw));
+  });
+}
+
 async function main() {
   const server = startService('server', 'npx', ['tsx', 'apps/server/src/index.ts'], {
     PORT: String(SERVER_PORT),
@@ -199,6 +316,9 @@ async function main() {
   try {
     await waitForHealth(`http://localhost:${SERVER_PORT}/health`);
     await waitForHealth(`http://localhost:${RUNTIME_PORT}/health`);
+
+    const freeResult = await runWsFreeFlow(`ws://localhost:${SERVER_PORT}/ws`);
+    console.log('Free match smoke passed', { id: freeResult?.id, wager: freeResult?.wager });
 
     const runtimeStatusRes = await fetch(`http://localhost:${RUNTIME_PORT}/status`);
     if (!runtimeStatusRes.ok) {
