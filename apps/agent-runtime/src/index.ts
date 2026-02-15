@@ -40,6 +40,11 @@ if (process.env.WALLET_SKILLS_ENABLED === 'false') {
 
 const systemSeedBalance = Math.max(0, Number(process.env.SYSTEM_BOT_START_BALANCE ?? 120));
 const userSeedBalance = Math.max(0, Number(process.env.USER_BOT_START_BALANCE ?? 20));
+const houseBankStartBalance = Math.max(0, Number(process.env.HOUSE_BANK_START_BALANCE ?? 2000));
+const npcWalletFloor = Math.max(0, Number(process.env.NPC_WALLET_FLOOR ?? 40));
+const npcWalletTopupAmount = Math.max(0, Number(process.env.NPC_WALLET_TOPUP_AMOUNT ?? 20));
+const npcBudgetTickMs = Math.max(1000, Number(process.env.NPC_BUDGET_TICK_MS ?? 10000));
+const superAgentWalletFloor = Math.max(npcWalletFloor, Number(process.env.SUPER_AGENT_WALLET_FLOOR ?? 120));
 
 const runtimeSecrets = {
   openRouterApiKey: process.env.OPENROUTER_API_KEY ?? ''
@@ -140,6 +145,22 @@ const escrowLocks = new Map<string, EscrowLockRecord>();
 const escrowSettlements: EscrowSettlementRecord[] = [];
 const backgroundBotIds = new Set<string>();
 const subjectToProfileId = new Map<string, string>();
+
+type HouseLedgerEntry = {
+  at: number;
+  toWalletId: string;
+  amount: number;
+  reason: string;
+};
+
+const houseLedger: HouseLedgerEntry[] = [];
+
+type OwnerPresenceRecord = {
+  until: number;
+  savedByBotId: Map<string, { mode: AgentBehaviorConfig['mode']; challengeEnabled: boolean }>;
+};
+
+const ownerPresence = new Map<string, OwnerPresenceRecord>();
 
 type SuperAgentMemoryEntry = {
   at: number;
@@ -506,6 +527,11 @@ function applySuperAgentDelegation(): void {
     baseWager: 3,
     maxWager: 8
   });
+
+  // Owner presence override must win over delegation (player online => park owner bot).
+  for (const profileId of ownerPresence.keys()) {
+    applyOwnerPresence(profileId);
+  }
 }
 
 function reconcileBots(targetCount: number): void {
@@ -636,6 +662,7 @@ function walletSummary(wallet: WalletRecord | null) {
 
 function runtimeStatus() {
   const statuses = botStatuses();
+  const house = houseBankWallet();
 
   return {
     configuredBotCount: statuses.length,
@@ -662,7 +689,14 @@ function runtimeStatus() {
     },
     bots: statuses,
     profiles: publicProfiles(),
-    wallets: [...wallets.values()].map((wallet) => walletSummary(wallet))
+    wallets: [...wallets.values()].map((wallet) => walletSummary(wallet)),
+    house: {
+      wallet: walletSummary(house),
+      npcWalletFloor,
+      npcWalletTopupAmount,
+      superAgentWalletFloor,
+      recentTransfers: houseLedger.slice(-18)
+    }
   };
 }
 
@@ -1168,8 +1202,110 @@ function getOrCreateWallet(ownerProfileId: string): WalletRecord {
   if (existing) {
     return existing;
   }
+  if (ownerProfileId === 'system_house') {
+    return createWallet(ownerProfileId, houseBankStartBalance);
+  }
   const seeded = ownerProfileId.startsWith('system_') ? systemSeedBalance : userSeedBalance;
   return createWallet(ownerProfileId, seeded);
+}
+
+function houseBankWallet(): WalletRecord {
+  return getOrCreateWallet('system_house');
+}
+
+function recordHouseTransfer(toWalletId: string, amount: number, reason: string): void {
+  houseLedger.push({ at: Date.now(), toWalletId, amount, reason: reason.slice(0, 120) });
+  if (houseLedger.length > 80) {
+    houseLedger.splice(0, houseLedger.length - 80);
+  }
+}
+
+function transferFromHouse(toWalletId: string, amount: number, reason: string): { ok: true; amount: number } | { ok: false; reason: string } {
+  const target = wallets.get(toWalletId);
+  if (!target) {
+    return { ok: false, reason: 'wallet_not_found' };
+  }
+  const house = houseBankWallet();
+  const value = Math.max(0, Number(amount || 0));
+  if (value <= 0) {
+    return { ok: false, reason: 'invalid_amount' };
+  }
+  if (house.balance < value) {
+    return { ok: false, reason: 'house_insufficient_balance' };
+  }
+  house.balance -= value;
+  house.lastTxAt = Date.now();
+  target.balance += value;
+  target.lastTxAt = Date.now();
+  recordHouseTransfer(toWalletId, value, reason);
+  schedulePersistState();
+  return { ok: true, amount: value };
+}
+
+function applyOwnerPresence(profileId: string): void {
+  const record = ownerPresence.get(profileId);
+  if (!record) {
+    return;
+  }
+  for (const botRecord of botRegistry.values()) {
+    if (botRecord.ownerProfileId !== profileId) {
+      continue;
+    }
+    const bot = bots.get(botRecord.id);
+    if (!bot) {
+      continue;
+    }
+    if (!record.savedByBotId.has(botRecord.id)) {
+      const behavior = bot.getStatus().behavior;
+      record.savedByBotId.set(botRecord.id, {
+        mode: behavior.mode,
+        challengeEnabled: behavior.challengeEnabled
+      });
+    }
+    bot.updateBehavior({ mode: 'passive', challengeEnabled: false });
+  }
+}
+
+function restoreOwnerPresence(profileId: string): void {
+  const record = ownerPresence.get(profileId);
+  if (!record) {
+    return;
+  }
+  for (const [botId, saved] of record.savedByBotId.entries()) {
+    const bot = bots.get(botId);
+    if (!bot) {
+      continue;
+    }
+    bot.updateBehavior({ mode: saved.mode, challengeEnabled: saved.challengeEnabled });
+  }
+  ownerPresence.delete(profileId);
+}
+
+function setOwnerOnline(profileId: string, ttlMs: number): void {
+  const boundedTtl = Math.max(10_000, Math.min(5 * 60_000, Number(ttlMs || 90_000)));
+  const until = Date.now() + boundedTtl;
+  const existing = ownerPresence.get(profileId);
+  if (existing) {
+    existing.until = until;
+    applyOwnerPresence(profileId);
+    return;
+  }
+  ownerPresence.set(profileId, { until, savedByBotId: new Map() });
+  applyOwnerPresence(profileId);
+}
+
+function setOwnerOffline(profileId: string): void {
+  restoreOwnerPresence(profileId);
+}
+
+function reconcileOwnerPresence(): void {
+  const now = Date.now();
+  for (const [profileId, record] of ownerPresence.entries()) {
+    if (record.until > now) {
+      continue;
+    }
+    restoreOwnerPresence(profileId);
+  }
 }
 
 function normalizeWalletTx(wallet: WalletRecord): void {
@@ -1345,9 +1481,23 @@ function ensureSeedBalances(): void {
     if (!wallet) {
       continue;
     }
-    const floor = record.ownerProfileId ? userSeedBalance : systemSeedBalance;
-    if (wallet.balance < floor) {
-      wallet.balance = floor;
+    if (record.ownerProfileId) {
+      const floor = userSeedBalance;
+      if (wallet.balance < floor) {
+        wallet.balance = floor;
+      }
+      continue;
+    }
+
+    // System NPCs are funded by the house bank rather than magic refills.
+    const floor = record.duty === 'super' ? superAgentWalletFloor : npcWalletFloor;
+    if (wallet.balance >= floor) {
+      continue;
+    }
+    const needed = floor - wallet.balance;
+    const topup = Math.min(needed, npcWalletTopupAmount || needed);
+    if (topup > 0) {
+      transferFromHouse(wallet.id, topup, `auto_topup:${record.id}`);
     }
   }
 }
@@ -1475,11 +1625,17 @@ async function loadPersistedState(): Promise<void> {
   }
 }
 await loadPersistedState();
+houseBankWallet();
 reconcileWalletAddressesFromKeys();
 void syncEthSkillsKnowledge(false).catch(() => undefined);
 const initialBotCount = Math.max(8, Number(process.env.BOT_COUNT ?? 8));
 reconcileBots(initialBotCount);
 ensureSeedBalances();
+const npcBudgetTimer = setInterval(() => {
+  ensureSeedBalances();
+  reconcileOwnerPresence();
+}, Math.min(10_000, npcBudgetTickMs));
+npcBudgetTimer.unref();
 void persistRuntimeState().catch(() => undefined);
 const autosave = setInterval(() => {
   void persistRuntimeState().catch(() => undefined);
@@ -1510,6 +1666,31 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/status') {
     sendJson(res, runtimeStatus());
+    return;
+  }
+
+  const ownerPresenceMatch = url.pathname.match(/^\/owners\/([^/]+)\/presence$/);
+  if (ownerPresenceMatch && req.method === 'POST') {
+    if (!isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const profileId = String(ownerPresenceMatch[1] || '').trim();
+    if (!profileId) {
+      sendJson(res, { ok: false, reason: 'profile_required' }, 400);
+      return;
+    }
+    const body = await readJsonBody<{ state?: 'online' | 'offline'; ttlMs?: number }>(req);
+    const state = body?.state === 'offline' ? 'offline' : 'online';
+    if (state === 'online') {
+      setOwnerOnline(profileId, Number(body?.ttlMs ?? 90_000));
+      schedulePersistState();
+      sendJson(res, { ok: true, state: 'online', until: ownerPresence.get(profileId)?.until ?? null });
+      return;
+    }
+    setOwnerOffline(profileId);
+    schedulePersistState();
+    sendJson(res, { ok: true, state: 'offline' });
     return;
   }
 

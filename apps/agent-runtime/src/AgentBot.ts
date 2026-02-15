@@ -295,6 +295,12 @@ export class AgentBot {
       return;
     }
 
+    if (this.config.behavior.mode === 'passive') {
+      // Passive means "parked": stop locomotion and do not make decisions.
+      this.ws.send(JSON.stringify({ type: 'input', moveX: 0, moveZ: 0 }));
+      return;
+    }
+
     const allOthers = [...this.playersById.values()].filter((entry) => entry.id !== this.playerId);
     const scopedOthers = allOthers.filter((entry) => this.isInSameOrAdjacentSection(self, entry));
     const worldOthers = scopedOthers.length > 0 ? scopedOthers : allOthers;

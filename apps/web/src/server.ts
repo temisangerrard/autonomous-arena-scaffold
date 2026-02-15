@@ -56,6 +56,7 @@ const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
+const internalToken = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
 const adminEmails = new Set(
   (process.env.ADMIN_EMAILS ?? process.env.SUPER_ADMIN_EMAIL ?? '')
     .split(',')
@@ -344,7 +345,9 @@ function requireRole(req: import('node:http').IncomingMessage, roles: Role[]): {
 }
 
 async function runtimeGet<T>(pathname: string): Promise<T> {
-  const response = await fetch(`${runtimeBase}${pathname}`);
+  const response = await fetch(`${runtimeBase}${pathname}`, {
+    headers: internalToken ? { 'x-internal-token': internalToken } : undefined
+  });
   if (!response.ok) {
     throw new Error(`runtime_get_${response.status}`);
   }
@@ -354,7 +357,10 @@ async function runtimeGet<T>(pathname: string): Promise<T> {
 async function runtimePost<T>(pathname: string, body: unknown): Promise<T> {
   const response = await fetch(`${runtimeBase}${pathname}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(internalToken ? { 'x-internal-token': internalToken } : {})
+    },
     body: JSON.stringify(body)
   });
   const payload = await response.json().catch(() => null) as T | null;
@@ -1198,6 +1204,31 @@ const server = createServer(async (req, res) => {
     }
 
     reply('I did not recognize that. Say "help" for supported commands.');
+    return;
+  }
+
+  if (pathname === '/api/player/presence' && req.method === 'POST') {
+    const auth = requireRole(req, ['player', 'admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    const identity = auth.identity;
+    if (!identity.profileId) {
+      sendJson(res, { ok: false, reason: 'profile_missing' }, 404);
+      return;
+    }
+    const body = await readJsonBody<{ state?: 'online' | 'offline' }>(req);
+    const state = body?.state === 'offline' ? 'offline' : 'online';
+    try {
+      const payload = await runtimePost(`/owners/${identity.profileId}/presence`, {
+        state,
+        ttlMs: 90_000
+      });
+      sendJson(res, { ok: true, state, runtime: payload });
+    } catch {
+      sendJson(res, { ok: false, reason: 'presence_update_failed' }, 400);
+    }
     return;
   }
 

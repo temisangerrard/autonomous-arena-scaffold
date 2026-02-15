@@ -492,6 +492,34 @@ async function resolveWsBaseUrl() {
 }
 
 let socket = null;
+let presenceTimer = null;
+
+async function setPresence(state) {
+  try {
+    await fetch('/api/player/presence', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ state })
+    });
+  } catch {
+    // ignore
+  }
+}
+
+function setPresenceBestEffort(state) {
+  try {
+    const payload = JSON.stringify({ state });
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'application/json' });
+      navigator.sendBeacon('/api/player/presence', blob);
+      return;
+    }
+  } catch {
+    // ignore
+  }
+  void setPresence(state);
+}
 
 async function connectSocket() {
   const wsUrlObj = new URL(await resolveWsBaseUrl());
@@ -564,11 +592,22 @@ async function connectSocket() {
   socket.addEventListener('open', () => {
     state.wsConnected = true;
     addFeedEvent('system', 'Connected to game server.');
+    void setPresence('online');
+    if (presenceTimer) {
+      window.clearInterval(presenceTimer);
+    }
+    presenceTimer = window.setInterval(() => {
+      void setPresence('online');
+    }, 25_000);
   });
 
   socket.addEventListener('close', () => {
     state.wsConnected = false;
     addFeedEvent('system', 'Disconnected from game server.');
+    if (presenceTimer) {
+      window.clearInterval(presenceTimer);
+      presenceTimer = null;
+    }
     // If ws auth is enabled server-side, users who are logged out should get bounced.
     if (queryParams.get('test') !== '1') {
       try {
@@ -728,6 +767,14 @@ async function connectSocket() {
 }
 
 void connectSocket();
+
+window.addEventListener('pagehide', () => {
+  if (queryParams.get('test') === '1') {
+    return;
+  }
+  setPresenceBestEffort('offline');
+});
+
 
 async function loadWorldWithFallback() {
   if (worldLoading) {
