@@ -57,7 +57,11 @@ export function createInitialState() {
         playerPick: '',
         coinflipResult: '',
         payoutDelta: 0,
-        escrowTx: null
+        escrowTx: null,
+        reason: '',
+        reasonCode: '',
+        reasonText: '',
+        preflight: null
       }
     },
     touch: {

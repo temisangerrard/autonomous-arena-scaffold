@@ -6,7 +6,7 @@ import { config, resolveInternalServiceToken } from './config.js';
 import { Database } from './Database.js';
 import { DistributedBus, type AdminCommand, type ChallengeCommand } from './DistributedBus.js';
 import { DistributedChallengeStore } from './DistributedChallengeStore.js';
-import { EscrowAdapter } from './EscrowAdapter.js';
+import { EscrowAdapter, type EscrowPreflightReasonCode } from './EscrowAdapter.js';
 import { log } from './logger.js';
 import { PresenceStore } from './PresenceStore.js';
 import { WORLD_SECTION_SPAWNS, WorldSim } from './WorldSim.js';
@@ -92,10 +92,17 @@ type PendingDealerRound = {
   commitHash: string;
   method: string;
   createdAt: number;
+  preflightApproved: boolean;
 };
 
 const pendingDealerRounds = new Map<string, PendingDealerRound>();
 const challengeEscrowTxById = new Map<string, { lock?: string; resolve?: string; refund?: string }>();
+const challengeEscrowFailureById = new Map<string, {
+  reason: string;
+  reasonCode?: EscrowPreflightReasonCode;
+  reasonText?: string;
+  preflight?: { playerOk: boolean; houseOk: boolean };
+}>();
 
 let houseWalletId: string | null = null;
 async function refreshHouseWalletId(): Promise<void> {
@@ -115,6 +122,35 @@ async function refreshHouseWalletId(): Promise<void> {
 }
 void refreshHouseWalletId();
 setInterval(() => void refreshHouseWalletId(), 60_000);
+
+function stationErrorFromEscrowFailure(input: {
+  reason?: string;
+  raw?: Record<string, unknown>;
+}): {
+  reason: string;
+  reasonCode?: EscrowPreflightReasonCode;
+  reasonText?: string;
+  preflight?: { playerOk: boolean; houseOk: boolean };
+} {
+  const reason = String(input.reason || 'escrow_lock_failed');
+  const reasonCode = typeof input.raw?.reasonCode === 'string'
+    ? input.raw.reasonCode as EscrowPreflightReasonCode
+    : undefined;
+  const reasonText = typeof input.raw?.reasonText === 'string' ? input.raw.reasonText : undefined;
+  const preflightRaw = input.raw?.preflight;
+  const preflight = preflightRaw && typeof preflightRaw === 'object'
+    ? {
+        playerOk: Boolean((preflightRaw as { playerOk?: unknown }).playerOk),
+        houseOk: Boolean((preflightRaw as { houseOk?: unknown }).houseOk)
+      }
+    : undefined;
+  return {
+    reason,
+    reasonCode,
+    reasonText,
+    preflight
+  };
+}
 
 const lastPlayerPos = new Map<string, { x: number; z: number }>();
 
@@ -356,6 +392,10 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         amount: wager
       });
       if (!locked.ok) {
+        challengeEscrowFailureById.set(challenge.id, stationErrorFromEscrowFailure({
+          reason: locked.reason,
+          raw: locked.raw
+        }));
         broadcastEscrowEvent({
           phase: 'lock',
           challengeId: challenge.id,
@@ -371,6 +411,7 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         return;
       }
       escrowLockedChallenges.add(challenge.id);
+      challengeEscrowFailureById.delete(challenge.id);
       broadcastEscrowEvent({
         phase: 'lock',
         challengeId: challenge.id,
@@ -699,6 +740,47 @@ wss.on('connection', (ws, request) => {
 
       if (payload.action === 'coinflip_house_start') {
         const wager = Math.max(0, Math.min(10_000, Number(payload.wager || 0)));
+        const playerWalletId = walletIdFor(playerId);
+        const currentHouseWalletId = houseWalletId || walletIdFor('system_house');
+        if (wager > 0) {
+          if (!playerWalletId || !currentHouseWalletId) {
+            sendTo(playerId, {
+              type: 'station_ui',
+              stationId,
+              view: {
+                ok: false,
+                state: 'dealer_error',
+                reason: 'wallet_required',
+                reasonCode: !playerWalletId ? 'PLAYER_SIGNER_UNAVAILABLE' : 'HOUSE_SIGNER_UNAVAILABLE',
+                reasonText: !playerWalletId
+                  ? 'Player wallet not ready for onchain escrow.'
+                  : 'House wallet unavailable for onchain escrow.',
+                preflight: { playerOk: Boolean(playerWalletId), houseOk: Boolean(currentHouseWalletId) }
+              }
+            });
+            return;
+          }
+          const preflight = await escrowAdapter.preflightStake({
+            challengerWalletId: playerWalletId,
+            opponentWalletId: currentHouseWalletId,
+            amount: wager
+          });
+          if (!preflight.ok) {
+            sendTo(playerId, {
+              type: 'station_ui',
+              stationId,
+              view: {
+                ok: false,
+                state: 'dealer_error',
+                reason: preflight.reason || 'wallet_prepare_failed',
+                reasonCode: preflight.reasonCode,
+                reasonText: preflight.reasonText,
+                preflight: preflight.preflight
+              }
+            });
+            return;
+          }
+        }
         const houseSeed = newSeedHex(24);
         const commitHash = sha256Hex(houseSeed);
         const method = 'sha256(houseSeed|playerSeed|challengeId), LSB(firstByte)=1 -> heads';
@@ -709,7 +791,8 @@ wss.on('connection', (ws, request) => {
           houseSeed,
           commitHash,
           method,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          preflightApproved: true
         });
         sendTo(playerId, {
           type: 'station_ui',
@@ -755,6 +838,21 @@ wss.on('connection', (ws, request) => {
       }
 
       const wager = Math.max(0, Math.min(10_000, Number(pending.wager || 0)));
+      if (wager > 0 && !pending.preflightApproved) {
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: {
+            ok: false,
+            state: 'dealer_error',
+            reason: 'dealer_preflight_required',
+            reasonCode: 'RPC_UNAVAILABLE',
+            reasonText: 'Run start round again to complete onchain preflight.',
+            preflight: { playerOk: false, houseOk: false }
+          }
+        });
+        return;
+      }
       const playerPick = payload.pick;
       const opponentPick = playerPick === 'heads' ? 'tails' : 'heads';
       const playerSeed = payload.playerSeed.trim().slice(0, 96) || newSeedHex(12);
@@ -816,11 +914,20 @@ wss.on('connection', (ws, request) => {
 
       const locked = wager <= 0 ? true : escrowLockedChallenges.has(created.challenge.id);
       if (!locked) {
+        const escrowFailure = challengeEscrowFailureById.get(created.challenge.id);
         pendingDealerRounds.delete(playerId);
+        challengeEscrowFailureById.delete(created.challenge.id);
         sendTo(playerId, {
           type: 'station_ui',
           stationId,
-          view: { ok: false, state: 'dealer_error', reason: 'escrow_lock_failed' }
+          view: {
+            ok: false,
+            state: 'dealer_error',
+            reason: escrowFailure?.reason || 'escrow_lock_failed',
+            reasonCode: escrowFailure?.reasonCode,
+            reasonText: escrowFailure?.reasonText,
+            preflight: escrowFailure?.preflight
+          }
         });
         return;
       }
@@ -875,6 +982,7 @@ wss.on('connection', (ws, request) => {
       });
       pendingDealerRounds.delete(playerId);
       challengeEscrowTxById.delete(created.challenge.id);
+      challengeEscrowFailureById.delete(created.challenge.id);
       return;
     }
 

@@ -23,6 +23,35 @@ type EscrowResult = {
 
 type EscrowExecutionMode = 'runtime' | 'onchain';
 
+export type EscrowPreflightReasonCode =
+  | 'PLAYER_ALLOWANCE_LOW'
+  | 'PLAYER_BALANCE_LOW'
+  | 'PLAYER_GAS_LOW'
+  | 'PLAYER_SIGNER_UNAVAILABLE'
+  | 'HOUSE_BALANCE_LOW'
+  | 'HOUSE_SIGNER_UNAVAILABLE'
+  | 'HOUSE_ALLOWANCE_LOW'
+  | 'RPC_UNAVAILABLE'
+  | 'UNKNOWN_PRECHECK_FAILURE';
+
+export type EscrowPreflightWalletStatus = {
+  walletId: string;
+  ok: boolean;
+  reason?: string;
+  allowance?: string;
+  balance?: string;
+  nativeBalanceEth?: string;
+};
+
+export type EscrowPreflightResult = {
+  ok: boolean;
+  reason?: string;
+  reasonCode?: EscrowPreflightReasonCode;
+  reasonText?: string;
+  preflight?: { playerOk: boolean; houseOk: boolean };
+  raw?: Record<string, unknown>;
+};
+
 type OnchainEscrowConfig = {
   mode: EscrowExecutionMode;
   rpcUrl?: string;
@@ -85,6 +114,33 @@ export class EscrowAdapter {
     return res;
   }
 
+  async preflightStake(params: {
+    challengerWalletId: string;
+    opponentWalletId: string;
+    amount: number;
+  }): Promise<EscrowPreflightResult> {
+    if (this.mode !== 'onchain') {
+      return { ok: true, preflight: { playerOk: true, houseOk: true } };
+    }
+    const prepared = await this.prepareWalletsForOnchainEscrow([
+      params.challengerWalletId,
+      params.opponentWalletId
+    ], params.amount);
+    if (prepared.ok) {
+      return {
+        ok: true,
+        preflight: { playerOk: true, houseOk: true },
+        raw: prepared.raw
+      };
+    }
+    return this.mapPrepareFailure({
+      challengerWalletId: params.challengerWalletId,
+      opponentWalletId: params.opponentWalletId,
+      reason: prepared.reason,
+      raw: prepared.raw
+    });
+  }
+
   async resolve(params: ResolveParams): Promise<EscrowResult> {
     if (!params.winnerWalletId) {
       return this.refund(params.challengeId);
@@ -137,12 +193,22 @@ export class EscrowAdapter {
       return { ok: false, reason: 'wallet_address_missing' };
     }
     try {
-      const prepared = await this.prepareWalletsForOnchainEscrow([
-        params.challengerWalletId,
-        params.opponentWalletId
-      ], params.amount);
-      if (!prepared.ok) {
-        return { ok: false, reason: prepared.reason ?? 'wallet_prepare_failed', raw: prepared.raw };
+      const preflight = await this.preflightStake({
+        challengerWalletId: params.challengerWalletId,
+        opponentWalletId: params.opponentWalletId,
+        amount: params.amount
+      });
+      if (!preflight.ok) {
+        return {
+          ok: false,
+          reason: preflight.reason ?? 'wallet_prepare_failed',
+          raw: {
+            reasonCode: preflight.reasonCode,
+            reasonText: preflight.reasonText,
+            preflight: preflight.preflight,
+            ...(preflight.raw ?? {})
+          }
+        };
       }
       const amount = parseUnits(String(params.amount), this.tokenDecimals);
       const tx = await escrow.createBet(
@@ -176,6 +242,86 @@ export class EscrowAdapter {
     } catch {
       return { ok: false, reason: 'wallet_prepare_unreachable' };
     }
+  }
+
+  private mapPrepareFailure(params: {
+    challengerWalletId: string;
+    opponentWalletId: string;
+    reason?: string;
+    raw?: Record<string, unknown>;
+  }): EscrowPreflightResult {
+    const rawResults = Array.isArray(params.raw?.results)
+      ? params.raw.results
+      : [];
+    const statuses: EscrowPreflightWalletStatus[] = rawResults
+      .filter((entry) => entry && typeof entry === 'object')
+      .map((entry) => {
+        const obj = entry as Record<string, unknown>;
+        return {
+          walletId: String(obj.walletId ?? ''),
+          ok: Boolean(obj.ok),
+          reason: typeof obj.reason === 'string' ? obj.reason : undefined,
+          allowance: typeof obj.allowance === 'string' ? obj.allowance : undefined,
+          balance: typeof obj.balance === 'string' ? obj.balance : undefined,
+          nativeBalanceEth: typeof obj.nativeBalanceEth === 'string' ? obj.nativeBalanceEth : undefined
+        };
+      })
+      .filter((entry) => entry.walletId.length > 0);
+
+    const player = statuses.find((entry) => entry.walletId === params.challengerWalletId);
+    const house = statuses.find((entry) => entry.walletId === params.opponentWalletId);
+    const failed =
+      statuses.find((entry) => !entry.ok)
+      ?? (player && !player.ok ? player : null)
+      ?? (house && !house.ok ? house : null);
+
+    const reason = failed?.reason || params.reason || 'wallet_prepare_failed';
+    const detail = reason.toLowerCase();
+    const isPlayer = failed?.walletId === params.challengerWalletId;
+
+    let reasonCode: EscrowPreflightReasonCode = 'UNKNOWN_PRECHECK_FAILURE';
+    let reasonText = 'Escrow precheck failed.';
+    if (
+      detail.includes('wallet_prepare_unreachable')
+      || detail.includes('onchain_config_missing')
+      || detail.includes('rpc')
+      || detail.includes('network')
+    ) {
+      reasonCode = 'RPC_UNAVAILABLE';
+      reasonText = 'Onchain network is unavailable. Try again shortly.';
+    } else if (detail.includes('wallet_signer_unavailable')) {
+      reasonCode = isPlayer ? 'PLAYER_SIGNER_UNAVAILABLE' : 'HOUSE_SIGNER_UNAVAILABLE';
+      reasonText = isPlayer
+        ? 'Player wallet signer unavailable. Reconnect wallet session.'
+        : 'House wallet signer unavailable. House must re-enable signer.';
+    } else if (detail.includes('allowance_too_low') || detail.includes('approve_failed')) {
+      reasonCode = isPlayer ? 'PLAYER_ALLOWANCE_LOW' : 'HOUSE_ALLOWANCE_LOW';
+      reasonText = isPlayer
+        ? `Approval required for ${params.challengerWalletId} before escrow lock.`
+        : `House approval required for ${params.opponentWalletId} before escrow lock.`;
+    } else if (detail.includes('gas_topup_failed') || detail.includes('insufficient funds for intrinsic')) {
+      reasonCode = isPlayer ? 'PLAYER_GAS_LOW' : 'RPC_UNAVAILABLE';
+      reasonText = isPlayer
+        ? `Insufficient ETH gas for ${params.challengerWalletId} approval transaction.`
+        : 'Gas top-up failed during escrow preparation.';
+    } else if (detail.includes('insufficient_token_balance') || detail.includes('mint_failed')) {
+      reasonCode = isPlayer ? 'PLAYER_BALANCE_LOW' : 'HOUSE_BALANCE_LOW';
+      reasonText = isPlayer
+        ? `Insufficient token balance for ${params.challengerWalletId}. Fund wallet and retry.`
+        : 'House cannot cover this wager right now.';
+    }
+
+    return {
+      ok: false,
+      reason,
+      reasonCode,
+      reasonText,
+      preflight: {
+        playerOk: Boolean(player?.ok),
+        houseOk: Boolean(house?.ok)
+      },
+      raw: params.raw
+    };
   }
 
   private async resolveOnchain(params: ResolveParams): Promise<EscrowResult> {

@@ -519,17 +519,36 @@ async function connectSocket() {
     const view = payload.view || {};
     const ok = Boolean(view.ok);
     const reason = String(view.reason || '');
+    const reasonCode = String(view.reasonCode || '');
+    const reasonText = String(view.reasonText || '');
+    const preflight = view.preflight && typeof view.preflight === 'object'
+      ? {
+          playerOk: Boolean(view.preflight.playerOk),
+          houseOk: Boolean(view.preflight.houseOk)
+        }
+      : null;
     const stateName = String(view.state || '');
     if (!ok || stateName === 'dealer_error') {
       state.ui.dealer.state = 'error';
-      addFeedEvent('system', `Station ${labelFor(payload.stationId)}: ${reason || 'request_failed'}`);
-      showToast(`Station error: ${reason || 'request_failed'}`);
+      state.ui.dealer.reason = reason || 'request_failed';
+      state.ui.dealer.reasonCode = reasonCode;
+      state.ui.dealer.reasonText = reasonText;
+      state.ui.dealer.preflight = preflight;
+      addFeedEvent(
+        'system',
+        `Station ${labelFor(payload.stationId)}: ${reasonText || reason || 'request_failed'}${reasonCode ? ` [${reasonCode}]` : ''}`
+      );
+      showToast(reasonText || `Station error: ${reason || 'request_failed'}`);
       return;
     }
     if (stateName === 'dealer_ready') {
       state.quickstart.challengeSent = true;
       state.ui.dealer.stationId = payload.stationId;
       state.ui.dealer.state = 'ready';
+      state.ui.dealer.reason = '';
+      state.ui.dealer.reasonCode = '';
+      state.ui.dealer.reasonText = '';
+      state.ui.dealer.preflight = { playerOk: true, houseOk: true };
       state.ui.dealer.wager = Number(view.wager ?? state.ui.dealer.wager ?? 1);
       state.ui.dealer.commitHash = String(view.commitHash || '');
       state.ui.dealer.method = String(view.method || '');
@@ -543,6 +562,9 @@ async function connectSocket() {
     if (stateName === 'dealer_reveal') {
       state.quickstart.matchResolved = true;
       state.ui.dealer.state = 'reveal';
+      state.ui.dealer.reason = '';
+      state.ui.dealer.reasonCode = '';
+      state.ui.dealer.reasonText = '';
       state.ui.dealer.challengeId = String(view.challengeId || '');
       state.ui.dealer.playerPick = String(view.playerPick || '');
       state.ui.dealer.coinflipResult = String(view.coinflipResult || '');
@@ -913,11 +935,14 @@ function renderInteractionCard() {
             action: 'coinflip_house_start',
             wager
           }));
-          state.ui.dealer.state = 'starting';
+          state.ui.dealer.state = 'preflight';
           state.ui.dealer.wager = wager;
           if (statusEl) {
-            statusEl.textContent = 'Dealer is preparing commit...';
+            statusEl.textContent = 'Preflight check... validating player + house wallets.';
           }
+          if (startBtn) startBtn.disabled = true;
+          if (headsBtn) headsBtn.disabled = true;
+          if (tailsBtn) tailsBtn.disabled = true;
         }
 
         function sendPick(pick) {
@@ -950,10 +975,16 @@ function renderInteractionCard() {
         if (tailsBtn) {
           tailsBtn.onclick = () => sendPick('tails');
         }
-        if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+          if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
           if (pickActions) pickActions.style.display = 'flex';
           if (statusEl) {
             statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails.`;
+          }
+        }
+        if (state.ui.dealer.state === 'preflight') {
+          if (pickActions) pickActions.style.display = 'none';
+          if (statusEl) {
+            statusEl.textContent = 'Preflight check...';
           }
         }
         if (state.ui.dealer.state === 'dealing') {
@@ -961,6 +992,17 @@ function renderInteractionCard() {
           if (statusEl) {
             statusEl.textContent = 'Dealing...';
           }
+        }
+        if (state.ui.dealer.state === 'error') {
+          if (pickActions) pickActions.style.display = 'none';
+          if (statusEl) {
+            const msg = state.ui.dealer.reasonText || state.ui.dealer.reason || 'Station request failed.';
+            const code = state.ui.dealer.reasonCode ? ` [${state.ui.dealer.reasonCode}]` : '';
+            statusEl.textContent = `${msg}${code}`;
+          }
+          if (startBtn) startBtn.disabled = false;
+          if (headsBtn) headsBtn.disabled = false;
+          if (tailsBtn) tailsBtn.disabled = false;
         }
       } else if (station.kind === 'cashier_bank') {
         stationUi.innerHTML = `
@@ -1075,17 +1117,47 @@ function renderInteractionCard() {
     if (station.kind === 'dealer_coinflip') {
       const pickActions = document.getElementById('station-pick-actions');
       const statusEl = document.getElementById('station-status');
+      const startBtn = document.getElementById('station-house-start');
+      const headsBtn = document.getElementById('station-house-heads');
+      const tailsBtn = document.getElementById('station-house-tails');
       if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+        if (startBtn) startBtn.disabled = false;
+        if (headsBtn) headsBtn.disabled = false;
+        if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'flex';
         if (statusEl) {
           statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails.`;
         }
+      } else if (state.ui.dealer.state === 'preflight') {
+        if (startBtn) startBtn.disabled = true;
+        if (headsBtn) headsBtn.disabled = true;
+        if (tailsBtn) tailsBtn.disabled = true;
+        if (pickActions) pickActions.style.display = 'none';
+        if (statusEl) {
+          statusEl.textContent = 'Preflight check...';
+        }
       } else if (state.ui.dealer.state === 'dealing') {
+        if (startBtn) startBtn.disabled = true;
+        if (headsBtn) headsBtn.disabled = true;
+        if (tailsBtn) tailsBtn.disabled = true;
         if (pickActions) pickActions.style.display = 'flex';
         if (statusEl) {
           statusEl.textContent = 'Dealing...';
         }
+      } else if (state.ui.dealer.state === 'error') {
+        if (startBtn) startBtn.disabled = false;
+        if (headsBtn) headsBtn.disabled = false;
+        if (tailsBtn) tailsBtn.disabled = false;
+        if (pickActions) pickActions.style.display = 'none';
+        if (statusEl) {
+          const msg = state.ui.dealer.reasonText || state.ui.dealer.reason || 'Station request failed.';
+          const code = state.ui.dealer.reasonCode ? ` [${state.ui.dealer.reasonCode}]` : '';
+          statusEl.textContent = `${msg}${code}`;
+        }
       } else if (state.ui.dealer.state === 'reveal') {
+        if (startBtn) startBtn.disabled = false;
+        if (headsBtn) headsBtn.disabled = false;
+        if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'none';
         if (statusEl) {
           const delta = Number(state.ui.dealer.payoutDelta || 0);

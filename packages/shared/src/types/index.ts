@@ -252,7 +252,13 @@ export type StationUiViewState =
 export interface StationUiView {
   ok: boolean;
   reason?: string;
+  reasonCode?: string;
+  reasonText?: string;
   state?: StationUiViewState;
+  preflight?: {
+    playerOk: boolean;
+    houseOk: boolean;
+  };
   stationId?: string;
   challengeId?: string;
   commitHash?: string;
