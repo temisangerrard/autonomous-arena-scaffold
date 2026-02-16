@@ -34,7 +34,13 @@ export function getDom() {
     mobileStick: document.getElementById('mobile-stick'),
     mobileStickKnob: document.getElementById('mobile-stick-knob'),
     mobileInteract: document.getElementById('mobile-interact'),
+    mobileSend: document.getElementById('mobile-send'),
+    mobileAccept: document.getElementById('mobile-accept'),
+    mobileDecline: document.getElementById('mobile-decline'),
     mobileMoves: document.getElementById('mobile-moves'),
+    mobileMove1: document.getElementById('mobile-move-1'),
+    mobileMove2: document.getElementById('mobile-move-2'),
+    mobileMove3: document.getElementById('mobile-move-3'),
     mobileMoveH: document.getElementById('mobile-move-h'),
     mobileMoveT: document.getElementById('mobile-move-t')
   };

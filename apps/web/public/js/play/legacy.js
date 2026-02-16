@@ -11,6 +11,7 @@ import { initMenu } from './menu.js';
 import { createPresence } from './ws.js';
 import { createCameraController } from './camera.js';
 import { createMovementSystem } from './movement.js';
+import { createChallengeController, normalizedChallengeGameType, normalizedChallengeWager } from './challenge.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
@@ -78,6 +79,8 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
   try {
     const summary = await apiJson('/api/player/wallet/summary');
     const after = Number(summary?.onchain?.tokenBalance);
+    const chainId = Number(summary?.onchain?.chainId);
+    state.walletChainId = Number.isFinite(chainId) ? chainId : null;
     if (Number.isFinite(after)) {
       state.walletBalance = after;
     } else {
@@ -100,6 +103,7 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
     }
   } catch {
     state.walletBalance = null;
+    state.walletChainId = null;
   }
 }
 
@@ -135,7 +139,13 @@ const {
   worldLoadingText,
   mobileControls,
   mobileInteract,
+  mobileSend,
+  mobileAccept,
+  mobileDecline,
   mobileMoves,
+  mobileMove1,
+  mobileMove2,
+  mobileMove3,
   mobileMoveH,
   mobileMoveT
 } = dom;
@@ -270,12 +280,62 @@ let connectRetryTimer = null;
 let connectFailureCount = 0;
 let interactionStationRenderKey = '';
 
+function formatUsdAmount(value, options = {}) {
+  const amount = Number(value || 0);
+  const signed = options.signed === true;
+  if (!Number.isFinite(amount)) {
+    return signed ? '$0.00' : '$0.00';
+  }
+  if (signed) {
+    const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+    return `${sign}$${Math.abs(amount).toFixed(2)}`;
+  }
+  return `$${amount.toFixed(2)}`;
+}
+
+function validTxHash(txHash) {
+  return /^0x[a-fA-F0-9]{64}$/.test(String(txHash || ''));
+}
+
+function txExplorerBase(chainId) {
+  const id = Number(chainId);
+  if (id === 1) return 'https://etherscan.io';
+  if (id === 11155111) return 'https://sepolia.etherscan.io';
+  if (id === 8453) return 'https://basescan.org';
+  if (id === 84532) return 'https://sepolia.basescan.org';
+  return 'https://sepolia.etherscan.io';
+}
+
+function txExplorerUrl(txHash, chainId = null) {
+  const normalizedHash = String(txHash || '').trim();
+  if (!validTxHash(normalizedHash)) {
+    return '';
+  }
+  return `${txExplorerBase(chainId)}/tx/${normalizedHash}`;
+}
+
+function renderDealerRevealStatus(statusEl, params) {
+  if (!statusEl) return;
+  const toss = String(params.coinflipResult || '').toUpperCase() || 'UNKNOWN';
+  const round = formatUsdAmount(params.delta, { signed: true });
+  const balance = Number(params.walletBalance);
+  const balanceLabel = Number.isFinite(balance)
+    ? ` · Balance: ${formatUsdAmount(balance)}`
+    : '';
+  const txHash = String(params.txHash || '').trim();
+  const txUrl = txExplorerUrl(txHash, params.chainId);
+  const txLink = txUrl
+    ? ` · <a class="tx-link" href="${txUrl}" target="_blank" rel="noreferrer noopener">View onchain</a>`
+    : '';
+  statusEl.innerHTML = `Result: ${toss} · Round: ${round}${balanceLabel}${txLink}`;
+}
+
 function formatWagerLabel(wager) {
   const value = Number(wager || 0);
   if (!Number.isFinite(value) || value <= 0) {
     return 'Free';
   }
-  return `Wager ${value}`;
+  return `Wager ${formatUsdAmount(value)} USDC`;
 }
 
 function formatWagerInline(wager) {
@@ -283,7 +343,7 @@ function formatWagerInline(wager) {
   if (!Number.isFinite(value) || value <= 0) {
     return 'free';
   }
-  return `wager ${value}`;
+  return `${formatUsdAmount(value)} USDC each`;
 }
 
 function scheduleConnectRetry(message) {
@@ -756,6 +816,17 @@ function resetCameraBehindPlayer() {
   cameraController.resetBehindPlayer(me);
 }
 
+const challengeController = createChallengeController({
+  state,
+  socketRef,
+  showToast,
+  labelFor,
+  isStation,
+  closestNearbyPlayerId,
+  getUiTargetId,
+  formatWagerInline
+});
+
 const inputSystem = createInputSystem({
   state,
   dom,
@@ -764,7 +835,10 @@ const inputSystem = createInputSystem({
     setInteractOpen,
     getUiTargetId,
     cycleNearbyTarget,
-    sendGameMove
+    sendGameMove,
+    sendChallenge: challengeController.sendChallenge,
+    respondToIncoming: challengeController.respondToIncoming,
+    canUseChallengeHotkeys: challengeController.canUseChallengeHotkeys
   }
 });
 
@@ -881,6 +955,13 @@ function renderInteractionCard() {
     return;
   }
   const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
+  const targetPlayer = state.players.get(targetId);
+  if (station && state.ui.interactionMode !== 'station') {
+    state.ui.interactionMode = 'station';
+  }
+  if (!station && targetPlayer && state.ui.interactionMode !== 'player') {
+    state.ui.interactionMode = 'player';
+  }
   const stationRenderKey = station ? `${station.id}:${station.kind}` : '';
 
   if (interactionNpcInfo) {
@@ -900,7 +981,7 @@ function renderInteractionCard() {
         stationUi.innerHTML = `
           <div class="station-ui__title">Dealer: Coinflip</div>
           <div class="station-ui__row">
-            <label for="station-wager">Wager (each)</label>
+            <label for="station-wager">Wager (each, USDC)</label>
             <input id="station-wager" type="number" min="0" max="10000" step="1" value="${Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)))}" />
           </div>
           <div class="station-ui__actions">
@@ -910,7 +991,7 @@ function renderInteractionCard() {
             <button id="station-house-heads" class="btn-gold" type="button">Heads</button>
             <button id="station-house-tails" class="btn-gold" type="button">Tails</button>
           </div>
-          <div class="station-ui__meta" id="station-status">Start to receive house commit hash, then pick a side. Press Esc to close this panel and return to movement.</div>
+          <div class="station-ui__meta" id="station-status">Start to receive house commit hash, then pick a side. Wagers are in USDC (displayed as $). Press Esc to close this panel and return to movement.</div>
         `;
 
         const wagerEl = document.getElementById('station-wager');
@@ -1049,12 +1130,18 @@ function renderInteractionCard() {
           try {
             const summary = await api('/api/player/wallet/summary');
             const bal = Number(summary?.onchain?.tokenBalance);
+            const chainId = Number(summary?.onchain?.chainId);
+            state.walletChainId = Number.isFinite(chainId) ? chainId : null;
             if (!Number.isFinite(bal)) {
               balanceEl.textContent = 'Balance: unavailable (onchain)';
+              state.walletBalance = null;
               return;
             }
-            balanceEl.textContent = `Balance: ${bal.toFixed(2)}`;
+            state.walletBalance = bal;
+            balanceEl.textContent = `Balance: ${formatUsdAmount(bal)} USDC`;
           } catch (err) {
+            state.walletBalance = null;
+            state.walletChainId = null;
             balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
           }
         }
@@ -1163,7 +1250,13 @@ function renderInteractionCard() {
         if (statusEl) {
           const delta = Number(state.ui.dealer.payoutDelta || 0);
           const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
-          statusEl.textContent = `Result: ${String(state.ui.dealer.coinflipResult || '').toUpperCase()} · ${delta >= 0 ? '+' : ''}${delta.toFixed(2)}${tx ? ` · tx ${String(tx).slice(0, 10)}...` : ''}`;
+          renderDealerRevealStatus(statusEl, {
+            coinflipResult: state.ui.dealer.coinflipResult,
+            delta,
+            txHash: tx,
+            walletBalance: state.walletBalance,
+            chainId: state.walletChainId
+          });
         }
       }
     }
@@ -1174,17 +1267,68 @@ function renderInteractionCard() {
   stationUi.style.display = 'none';
   stationUi.innerHTML = '';
   interactionStationRenderKey = '';
-  if (interactionNpcInfo && state.ui.interactionMode === 'npc_info') {
-    interactionTitle.textContent = `Talk: ${labelFor(targetId)}`;
+  if (interactionNpcInfo && targetPlayer && state.ui.interactionMode === 'player') {
+    interactionTitle.textContent = `Challenge: ${labelFor(targetId)}`;
     interactionNpcInfo.hidden = false;
     interactionNpcInfo.style.display = 'grid';
-    const stationLabel = state.stations instanceof Map && state.stations.size > 0
-      ? [...state.stations.values()][0]?.displayName || 'Dealer'
-      : 'Dealer';
+    const incoming = challengeController.currentIncomingChallenge();
+    const outgoingPending = Boolean(state.outgoingChallengeId);
+    const canSend = state.wsConnected && !state.respondingIncoming && !outgoingPending && targetId !== state.playerId;
+    const selectedGame = normalizedChallengeGameType(state.ui?.challenge?.gameType || 'rps');
+    const selectedWager = normalizedChallengeWager(state.ui?.challenge?.wager ?? 1, 1);
+    const incomingLabel = incoming
+      ? `${labelFor(incoming.challengerId)} challenged you (${incoming.gameType.toUpperCase()}, ${formatWagerInline(incoming.wager)}).`
+      : '';
     interactionNpcInfo.innerHTML = `
-      <div class="station-ui__title">World Guide</div>
-      <div class="station-ui__meta">${labelFor(targetId)} says: Try ${stationLabel} for house games. Press E near the station to play.</div>
+      <div class="station-ui__title">${labelFor(targetId)}</div>
+      <div class="station-ui__row">
+        <label for="player-challenge-game">Game</label>
+        <select id="player-challenge-game">
+          <option value="rps" ${selectedGame === 'rps' ? 'selected' : ''}>Rock Paper Scissors</option>
+          <option value="coinflip" ${selectedGame === 'coinflip' ? 'selected' : ''}>Coin Flip</option>
+        </select>
+      </div>
+      <div class="station-ui__row">
+        <label for="player-challenge-wager">Wager (each, USDC)</label>
+        <input id="player-challenge-wager" type="number" min="0" max="10000" step="1" value="${selectedWager}" />
+      </div>
+      <div class="station-ui__actions">
+        <button id="player-challenge-send" class="btn-gold" type="button" ${canSend ? '' : 'disabled'}>Send Challenge (C)</button>
+      </div>
+      <div class="station-ui__actions">
+        <button id="player-challenge-accept" class="btn-ghost" type="button" ${(incoming && !state.respondingIncoming) ? '' : 'disabled'}>Accept (Y)</button>
+        <button id="player-challenge-decline" class="btn-ghost" type="button" ${(incoming && !state.respondingIncoming) ? '' : 'disabled'}>Decline (N)</button>
+      </div>
+      <div class="station-ui__meta">${incomingLabel || `Pick a game and send a challenge. ${outgoingPending ? 'You already have a pending outgoing challenge.' : ''}`}</div>
     `;
+    const gameEl = document.getElementById('player-challenge-game');
+    const wagerEl = document.getElementById('player-challenge-wager');
+    const sendBtn = document.getElementById('player-challenge-send');
+    const acceptBtn = document.getElementById('player-challenge-accept');
+    const declineBtn = document.getElementById('player-challenge-decline');
+    if (gameEl instanceof HTMLSelectElement) {
+      gameEl.onchange = () => {
+        state.ui.challenge.gameType = normalizedChallengeGameType(gameEl.value);
+      };
+    }
+    if (wagerEl instanceof HTMLInputElement) {
+      wagerEl.oninput = () => {
+        state.ui.challenge.wager = normalizedChallengeWager(wagerEl.value, 1);
+      };
+    }
+    if (sendBtn instanceof HTMLButtonElement) {
+      sendBtn.onclick = () => {
+        const gameType = gameEl instanceof HTMLSelectElement ? gameEl.value : state.ui.challenge.gameType;
+        const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
+        challengeController.sendChallenge(targetId, gameType, wager);
+      };
+    }
+    if (acceptBtn instanceof HTMLButtonElement) {
+      acceptBtn.onclick = () => challengeController.respondToIncoming(true);
+    }
+    if (declineBtn instanceof HTMLButtonElement) {
+      declineBtn.onclick = () => challengeController.respondToIncoming(false);
+    }
   }
 }
 
@@ -1200,14 +1344,21 @@ function renderMobileControls() {
   mobileControls.setAttribute('aria-hidden', 'false');
 
   const hasTarget = Boolean(getUiTargetId());
-  const dealerPickReady = state.ui.interactOpen
-    && state.ui.interactionMode === 'station'
-    && state.ui.dealer.state === 'ready';
+  const context = challengeController.computeControlContext();
 
   if (mobileInteract) mobileInteract.style.display = hasTarget ? 'inline-flex' : 'none';
-  if (mobileMoves) mobileMoves.style.display = dealerPickReady ? 'grid' : 'none';
-  if (mobileMoveH) mobileMoveH.style.display = dealerPickReady ? 'inline-flex' : 'none';
-  if (mobileMoveT) mobileMoveT.style.display = dealerPickReady ? 'inline-flex' : 'none';
+  if (mobileSend) mobileSend.style.display = context === 'near_player_idle' ? 'inline-flex' : 'none';
+  if (mobileAccept) mobileAccept.style.display = context === 'incoming_challenge' ? 'inline-flex' : 'none';
+  if (mobileDecline) mobileDecline.style.display = context === 'incoming_challenge' ? 'inline-flex' : 'none';
+
+  const rpsVisible = context === 'active_rps';
+  const coinflipVisible = context === 'active_coinflip' || context === 'dealer_ready';
+  if (mobileMoves) mobileMoves.style.display = (rpsVisible || coinflipVisible) ? 'grid' : 'none';
+  if (mobileMove1) mobileMove1.style.display = rpsVisible ? 'inline-flex' : 'none';
+  if (mobileMove2) mobileMove2.style.display = rpsVisible ? 'inline-flex' : 'none';
+  if (mobileMove3) mobileMove3.style.display = rpsVisible ? 'inline-flex' : 'none';
+  if (mobileMoveH) mobileMoveH.style.display = coinflipVisible ? 'inline-flex' : 'none';
+  if (mobileMoveT) mobileMoveT.style.display = coinflipVisible ? 'inline-flex' : 'none';
 }
 
 function update(nowMs) {
@@ -1333,10 +1484,25 @@ function closestNearbyStationId() {
 
 function getUiTargetId() {
   if (state.ui?.interactOpen && state.ui?.interactionMode === 'station') {
+    const preferred = state.ui?.targetId || '';
+    if (preferred && isStation(preferred) && state.nearbyStationIds.has(preferred)) {
+      return preferred;
+    }
     const stationId = closestNearbyStationId();
     if (stationId) {
       state.ui.targetId = stationId;
       return stationId;
+    }
+  }
+  if (state.ui?.interactOpen && state.ui?.interactionMode === 'player') {
+    const preferred = state.ui?.targetId || '';
+    if (preferred && !isStation(preferred) && state.nearbyIds.has(preferred)) {
+      return preferred;
+    }
+    const playerId = closestNearbyPlayerId();
+    if (playerId) {
+      state.ui.targetId = playerId;
+      return playerId;
     }
   }
   const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
@@ -1363,6 +1529,9 @@ function cycleNearbyTarget(next = true) {
   const idx = Math.max(0, ids.indexOf(current));
   const nextIdx = (idx + (next ? 1 : -1) + ids.length) % ids.length;
   state.ui.targetId = ids[nextIdx] || ids[0];
+  if (state.ui.interactOpen) {
+    state.ui.interactionMode = isStation(state.ui.targetId) ? 'station' : 'player';
+  }
 }
 
 function setInteractOpen(nextOpen) {
@@ -1379,7 +1548,7 @@ function setInteractOpen(nextOpen) {
       state.ui.interactionMode = 'station';
     } else if (closestNearbyPlayerId()) {
       state.ui.targetId = closestNearbyPlayerId();
-      state.ui.interactionMode = 'npc_info';
+      state.ui.interactionMode = 'player';
     } else {
       state.ui.interactionMode = 'none';
     }
@@ -1522,7 +1691,7 @@ function sendGameMove(move) {
 }
 
 function updateRpsVisibility() {
-  // Station-only gameplay path: no legacy match move controls.
+  // Mobile controls are context-driven; kept for backwards compatibility hooks.
 }
 
 function addFeedEvent(type, text, meta = null) {
@@ -1607,15 +1776,17 @@ function renderFeed() {
       txBadge.className = 'tx-chip';
       txBadge.textContent = `${txHash.slice(0, 8)}...${txHash.slice(-6)}`;
 
-      const txLink = document.createElement('a');
-      txLink.className = 'tx-link';
-      txLink.href = `https://sepolia.etherscan.io/tx/${txHash}`;
-      txLink.target = '_blank';
-      txLink.rel = 'noreferrer noopener';
-      txLink.textContent = 'view tx';
-
       txRow.appendChild(txBadge);
-      txRow.appendChild(txLink);
+      const txUrl = txExplorerUrl(txHash, state.walletChainId);
+      if (txUrl) {
+        const txLink = document.createElement('a');
+        txLink.className = 'tx-link';
+        txLink.href = txUrl;
+        txLink.target = '_blank';
+        txLink.rel = 'noreferrer noopener';
+        txLink.textContent = 'view tx';
+        txRow.appendChild(txLink);
+      }
       item.appendChild(txRow);
     }
     feedPanel.appendChild(item);
@@ -1785,8 +1956,12 @@ function renderInteractionPrompt() {
     return;
   }
   const distance = state.nearbyDistances.get(targetId);
-  const verb = isStation(targetId) ? 'play station' : 'talk';
-  interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E ${verb} · Tab switch · V profile`;
+  const incoming = challengeController.currentIncomingChallenge();
+  if (isStation(targetId)) {
+    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E play station · Tab switch`;
+  } else {
+    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · C send · Tab switch${incoming ? ' · Y/N respond' : ''}`;
+  }
   interactionPrompt.classList.add('visible');
 }
 

@@ -35,6 +35,7 @@ export function createInitialState() {
     deskCollapsed: false,
     deskAutoCollapsedByMatch: false,
     walletBalance: null,
+    walletChainId: null,
     streak: 0,
     quickstart: {
       challengeSent: false,
@@ -47,6 +48,10 @@ export function createInitialState() {
       targetId: '',
       interactOpen: false,
       interactionMode: 'none',
+      challenge: {
+        gameType: 'rps',
+        wager: 1
+      },
       dealer: {
         stationId: '',
         state: 'idle',

@@ -99,6 +99,30 @@ export function createInputSystem({
       event.preventDefault();
       actions.sendGameMove?.('tails');
     }
+    if (event.code === 'Digit1') {
+      event.preventDefault();
+      actions.sendGameMove?.('rock');
+    }
+    if (event.code === 'Digit2') {
+      event.preventDefault();
+      actions.sendGameMove?.('paper');
+    }
+    if (event.code === 'Digit3') {
+      event.preventDefault();
+      actions.sendGameMove?.('scissors');
+    }
+    if (event.code === 'KeyC' && actions.canUseChallengeHotkeys?.()) {
+      event.preventDefault();
+      actions.sendChallenge?.();
+    }
+    if (event.code === 'KeyY' && actions.canUseChallengeHotkeys?.()) {
+      event.preventDefault();
+      actions.respondToIncoming?.(true);
+    }
+    if (event.code === 'KeyN' && actions.canUseChallengeHotkeys?.()) {
+      event.preventDefault();
+      actions.respondToIncoming?.(false);
+    }
 
     // Toggle control hints panel
     if (event.code === 'Slash' && event.shiftKey) {
@@ -269,6 +293,12 @@ export function createInputSystem({
       if (!actions.getUiTargetId?.()) return;
       actions.setInteractOpen?.(true);
     });
+    dom.mobileSend?.addEventListener('click', () => actions.sendChallenge?.());
+    dom.mobileAccept?.addEventListener('click', () => actions.respondToIncoming?.(true));
+    dom.mobileDecline?.addEventListener('click', () => actions.respondToIncoming?.(false));
+    dom.mobileMove1?.addEventListener('click', () => actions.sendGameMove?.('rock'));
+    dom.mobileMove2?.addEventListener('click', () => actions.sendGameMove?.('paper'));
+    dom.mobileMove3?.addEventListener('click', () => actions.sendGameMove?.('scissors'));
     dom.mobileMoveH?.addEventListener('click', () => actions.sendGameMove?.('heads'));
     dom.mobileMoveT?.addEventListener('click', () => actions.sendGameMove?.('tails'));
   }

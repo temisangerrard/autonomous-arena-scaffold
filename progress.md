@@ -469,3 +469,28 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Web `/api/player/wallet/summary` now strictly passes upstream status/payload through to client (no local fallback substitution).
 - Dashboard wallet rendering now uses only `onchain.tokenBalance`; shows `—` + `Onchain unavailable` when missing.
 - Play HUD wallet balance now updates only from successful onchain summary and remains blank (`$—`) when unavailable.
+
+- 2026-02-16: Dealer wallet UX polish + refactor in play legacy client.
+  - Added shared money formatter + chain-aware tx explorer helpers in play UI.
+  - Dealer reveal now shows explicit labels: result toss, round delta, optional total balance, and clickable onchain tx link.
+  - Dealer wager label now indicates USDC/$ display; incoming wager copy now money-formatted.
+  - Feed tx links now use shared chain-aware explorer URL helper (fallback Sepolia).
+  - Wallet summary refresh now stores chainId and keeps HUD blank (`$—`) when onchain summary unavailable.
+  - Validation: `node --check` passed for `apps/web/public/js/play/legacy.js` and `apps/web/public/js/play/state.js`.
+
+- 2026-02-16: Re-enabled PvP challenge controls in play client (desktop + mobile context).
+  - Added player-target interaction card flow with game selector, wager input, send, accept, decline.
+  - Restored challenge websocket emits in client: challenge_send, challenge_response.
+  - Added guarded desktop hotkeys (card-open player mode): C send, Y accept, N decline, 1/2/3 RPS, H/T coinflip/dealer.
+  - Added contextual mobile action bar states and buttons: send/accept/decline + RPS + coinflip/dealer move sets.
+  - Added challenge state config in play state (`ui.challenge`) and target-mode switching (station/player) when cycling targets.
+  - Updated onboarding/control hint copy and mobile controls DOM in play.html.
+  - Updated challenge-flow e2e file to strict assertions; local run currently fails when target URL does not serve play client (runtime /play returns not_found).
+
+- 2026-02-16: Clean challenge-control refactor completed.
+  - Added new module `apps/web/public/js/play/challenge.js` with challenge controller factory and normalized wager/game helpers.
+  - Kept `input.js` as single input manager; it now only dispatches actions while challenge decision logic lives in challenge controller.
+  - `legacy.js` now consumes challenge controller methods (`sendChallenge/respondToIncoming/currentIncomingChallenge/computeControlContext/canUseChallengeHotkeys`) instead of embedding those implementations.
+  - Added authenticated Playwright flow for `/play` in `scripts/e2e/challenge-flow.test.js` (local auth bootstrap + onboarding bypass).
+  - Updated e2e selectors/assertions to verify real interaction card + mobile control inventory + HUD shell on web runtime.
+  - Validation: `node --check` passed for updated play modules and challenge e2e script; e2e challenge-flow now passes (4/4) with LOCAL_AUTH_ENABLED=true.

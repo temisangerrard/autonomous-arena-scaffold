@@ -7,116 +7,103 @@
 
 const { test, expect } = require('@playwright/test');
 
+const WEB_BASE_URL = process.env.E2E_WEB_BASE_URL || 'http://localhost:3000';
+const PLAY_URL = `${WEB_BASE_URL}/play?world=train_world`;
+const LOCAL_USERNAME = process.env.E2E_LOCAL_USERNAME || process.env.ADMIN_USERNAME || 'admin';
+const LOCAL_PASSWORD = process.env.E2E_LOCAL_PASSWORD || process.env.ADMIN_PASSWORD || '12345';
+
+async function ensureAuthenticatedPlay(page) {
+  const meRes = await page.request.get(`${WEB_BASE_URL}/api/player/me`);
+  if (meRes.ok()) return;
+
+  const loginRes = await page.request.post(`${WEB_BASE_URL}/api/auth/local`, {
+    data: {
+      username: LOCAL_USERNAME,
+      password: LOCAL_PASSWORD
+    }
+  });
+  if (!loginRes.ok()) {
+    throw new Error(
+      `Unable to authenticate local test user. Set LOCAL_AUTH_ENABLED=true and valid E2E_LOCAL_USERNAME/E2E_LOCAL_PASSWORD. status=${loginRes.status()}`
+    );
+  }
+}
+
+async function openPlay(page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('arena_onboarding_completed', 'true');
+  });
+  await page.goto(PLAY_URL);
+}
+
 test.describe('Challenge Flow', () => {
-  test('should display challenge desk UI', async ({ page }) => {
-    await page.goto('http://localhost:4100/play?world=train_world');
+  test('should render interaction challenge UI shell', async ({ page }) => {
+    await ensureAuthenticatedPlay(page);
+    await openPlay(page);
     await page.waitForLoadState('networkidle');
-    
-    // Wait for game to initialize
     await page.waitForTimeout(2000);
-    
-    // Look for challenge desk elements
-    const challengeDesk = page.locator('.challenge-desk, #challenge-desk, [class*="challenge"]');
-    const hasChallengeDesk = await challengeDesk.count() > 0;
-    
-    // Look for match controls
-    const matchControls = page.locator('.match-controls, #match-controls, [class*="match"], [class*="controls"]');
-    const hasMatchControls = await matchControls.count() > 0;
-    
-    // Take screenshot
-    await page.screenshot({ path: 'output/e2e/challenge-desk.png', fullPage: true });
-    
-    console.log('Challenge desk found:', hasChallengeDesk);
-    console.log('Match controls found:', hasMatchControls);
+
+    await expect(page.locator('#interaction-card')).toHaveCount(1);
+    await expect(page.locator('#station-ui')).toHaveCount(1);
+    await expect(page.locator('#interaction-npc-info')).toHaveCount(1);
+    await expect(page.locator('#interaction-prompt')).toHaveCount(1);
+
+    await page.screenshot({ path: 'output/e2e/challenge-desk.png' });
   });
 
-  test('should show RPS controls when in game', async ({ page }) => {
-    await page.goto('http://localhost:4100/play?world=train_world');
+  test('should expose desktop/mobile controls for RPS and coinflip', async ({ page }) => {
+    await ensureAuthenticatedPlay(page);
+    await openPlay(page);
     await page.waitForLoadState('networkidle');
-    
-    // Wait for any UI to load
     await page.waitForTimeout(3000);
-    
-    // Look for RPS buttons (rock, paper, scissors)
-    const rockBtn = page.locator('[class*="rock"], button:has-text("Rock")');
-    const paperBtn = page.locator('[class*="paper"], button:has-text("Paper")');
-    const scissorsBtn = page.locator('[class*="scissors"], button:has-text("Scissors")');
-    
-    const hasRPS = (await rockBtn.count() > 0) || (await paperBtn.count() > 0) || (await scissorsBtn.count() > 0);
-    
-    // Look for Coinflip buttons
-    const headsBtn = page.locator('[class*="head"], button:has-text("Heads")');
-    const tailsBtn = page.locator('[class*="tail"], button:has-text("Tails")');
-    
-    const hasCoinflip = (await headsBtn.count() > 0) || (await tailsBtn.count() > 0);
-    
-    // Take screenshot
-    await page.screenshot({ path: 'output/e2e/game-controls.png', fullPage: true });
-    
-    console.log('RPS controls found:', hasRPS);
-    console.log('Coinflip controls found:', hasCoinflip);
+
+    await expect(page.locator('#mobile-controls')).toHaveCount(1);
+    await expect(page.locator('#mobile-interact')).toHaveCount(1);
+    await expect(page.locator('#mobile-send')).toHaveCount(1);
+    await expect(page.locator('#mobile-accept')).toHaveCount(1);
+    await expect(page.locator('#mobile-decline')).toHaveCount(1);
+    await expect(page.locator('#mobile-move-1')).toHaveCount(1);
+    await expect(page.locator('#mobile-move-2')).toHaveCount(1);
+    await expect(page.locator('#mobile-move-3')).toHaveCount(1);
+    await expect(page.locator('#mobile-move-h')).toHaveCount(1);
+    await expect(page.locator('#mobile-move-t')).toHaveCount(1);
+    await expect(page.locator('#control-hints')).toHaveCount(1);
+
+    await page.screenshot({ path: 'output/e2e/game-controls.png' });
   });
 
   test('should display HUD with game info', async ({ page }) => {
-    await page.goto('http://localhost:4100/play?world=train_world');
+    await ensureAuthenticatedPlay(page);
+    await openPlay(page);
     await page.waitForLoadState('networkidle');
-    
     await page.waitForTimeout(2000);
-    
-    // Look for HUD elements
-    const statusText = page.locator('[class*="status"], [class*="score"], [class*="wallet"]');
-    const hudCount = await statusText.count();
-    
-    // Look for minimap
-    const minimap = page.locator('[class*="map"], canvas:below(#hud)');
-    const hasMinimap = await minimap.count() > 0;
-    
-    // Take screenshot
-    await page.screenshot({ path: 'output/e2e/hud-display.png', fullPage: true });
-    
-    console.log('HUD elements found:', hudCount);
-    console.log('Minimap found:', hasMinimap);
+
+    await expect(page.locator('#hud')).toHaveCount(1);
+    await expect(page.locator('#topbar-name')).toHaveCount(1);
+    await expect(page.locator('#topbar-wallet')).toHaveCount(1);
+    await expect(page.locator('#topbar-streak')).toHaveCount(1);
+    await expect(page.locator('#world-map')).toHaveCount(1);
+    await expect(page.locator('#map-coords')).toHaveCount(1);
+
+    await page.screenshot({ path: 'output/e2e/hud-display.png' });
   });
 
-  test('should connect WebSocket for real-time updates', async ({ page }) => {
-    const wsMessages = [];
-    
-    await page.goto('http://localhost:4100/play?world=train_world');
+  test('should expose websocket/runtime readiness signals', async ({ page }) => {
+    await ensureAuthenticatedPlay(page);
+    await openPlay(page);
     await page.waitForLoadState('networkidle');
-    
-    // Listen for WebSocket messages
-    await page.evaluate(() => {
-      window.wsMessages = [];
-      const originalWS = window.WebSocket;
-      window.WebSocket = class extends originalWS {
-        constructor(url) {
-          const ws = new originalWS(url);
-          ws.addEventListener = (event, handler) => {
-            if (event === 'message') {
-              const originalHandler = handler;
-              handler = (e) => {
-                try {
-                  window.wsMessages.push(JSON.parse(e.data));
-                } catch (err) {}
-                originalHandler(e);
-              };
-            }
-            return super.addEventListener(event, handler);
-          };
-          return ws;
-        }
+    await page.waitForTimeout(5000);
+
+    const runtime = await page.evaluate(() => {
+      return {
+        hasWebSocket: typeof window.WebSocket === 'function',
+        hasSceneCanvas: Boolean(document.getElementById('scene'))
       };
     });
-    
-    await page.waitForTimeout(5000);
-    
-    // Get captured messages
-    const messages = await page.evaluate(() => window.wsMessages || []);
-    
-    // Take screenshot
-    await page.screenshot({ path: 'output/e2e/websocket-test.png', fullPage: true });
-    
-    console.log('WebSocket messages captured:', messages.length);
-    console.log('Message types:', [...new Set(messages.map(m => m.type))]);
+
+    expect(runtime.hasWebSocket).toBe(true);
+    expect(runtime.hasSceneCanvas).toBe(true);
+
+    await page.screenshot({ path: 'output/e2e/websocket-test.png' });
   });
 });
