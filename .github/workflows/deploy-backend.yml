@@ -1,0 +1,135 @@
+name: Deploy Backend (Cloud Run)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/server/**"
+      - "apps/agent-runtime/**"
+      - "packages/shared/**"
+      - "Dockerfile.server"
+      - "Dockerfile.agent-runtime"
+      - "cloudbuild.server.yaml"
+      - "cloudbuild.runtime.yaml"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_server:
+        description: "Deploy arena-server"
+        required: true
+        default: "true"
+      deploy_runtime:
+        description: "Deploy arena-runtime"
+        required: true
+        default: "true"
+
+env:
+  GCP_PROJECT_ID: junipalee
+  GCP_REGION: us-central1
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      runtime: ${{ steps.filter.outputs.runtime }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            server:
+              - 'apps/server/**'
+              - 'packages/shared/**'
+              - 'Dockerfile.server'
+              - 'cloudbuild.server.yaml'
+            runtime:
+              - 'apps/agent-runtime/**'
+              - 'packages/shared/**'
+              - 'Dockerfile.agent-runtime'
+              - 'cloudbuild.runtime.yaml'
+
+  deploy-server:
+    needs: changes
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_server == 'true') ||
+      (github.event_name != 'workflow_dispatch' && needs.changes.outputs.server == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Build server image
+        run: |
+          gcloud builds submit \
+            --project "${GCP_PROJECT_ID}" \
+            --config cloudbuild.server.yaml \
+            --substitutions "_TAG=${IMAGE_TAG}" \
+            .
+
+      - name: Deploy server service
+        run: |
+          gcloud run deploy arena-server \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --platform managed \
+            --image "gcr.io/${GCP_PROJECT_ID}/arena-server:${IMAGE_TAG}" \
+            --quiet
+
+  deploy-runtime:
+    needs: changes
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_runtime == 'true') ||
+      (github.event_name != 'workflow_dispatch' && needs.changes.outputs.runtime == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Build runtime image
+        run: |
+          gcloud builds submit \
+            --project "${GCP_PROJECT_ID}" \
+            --config cloudbuild.runtime.yaml \
+            --substitutions "_TAG=${IMAGE_TAG}" \
+            .
+
+      - name: Deploy runtime service
+        run: |
+          gcloud run deploy arena-runtime \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --platform managed \
+            --image "gcr.io/${GCP_PROJECT_ID}/arena-runtime:${IMAGE_TAG}" \
+            --quiet

@@ -42,6 +42,25 @@ curl http://localhost:4100/status
 curl http://localhost:4000/presence
 ```
 
+## Backend Auto-Deploy (GitHub Actions -> Cloud Run)
+
+This repo now includes `.github/workflows/deploy-backend.yml` to auto-deploy:
+- `arena-server`
+- `arena-runtime`
+
+Triggers:
+- push to `main` (only when backend-related paths change)
+- manual run via `workflow_dispatch`
+
+Required GitHub repository secret:
+- `GCP_SA_KEY`: JSON key for a GCP service account in project `junipalee`
+
+Required IAM permissions for that service account:
+- `roles/cloudbuild.builds.editor`
+- `roles/run.admin`
+- `roles/iam.serviceAccountUser`
+- `roles/storage.admin` (for Cloud Build source/upload access)
+
 ## Environment
 Copy `.env.example` to `.env` and fill values as needed.
 
