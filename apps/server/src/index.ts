@@ -1029,11 +1029,15 @@ async function handleAdminCommand(command: AdminCommand): Promise<void> {
 }
 
 setInterval(() => {
-  void presenceStore.heartbeatServer();
+  void presenceStore.heartbeatServer().catch((error) => {
+    log.warn({ err: error }, 'presence heartbeat failed');
+  });
 }, 2_000);
 
 setInterval(() => {
-  void expireOrphanedChallenges();
+  void expireOrphanedChallenges().catch((error) => {
+    log.warn({ err: error }, 'orphan challenge sweep failed');
+  });
 }, 3_000);
 
 async function expireOrphanedChallenges(): Promise<void> {

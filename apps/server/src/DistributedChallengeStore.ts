@@ -154,13 +154,20 @@ export class DistributedChallengeStore {
     if (!this.redis) {
       return [...this.memoryMeta.values()];
     }
-    const keys = await this.redis.keys(`${CHALLENGE_KEY_PREFIX}*`);
+    const keys = (await this.redis.keys(`${CHALLENGE_KEY_PREFIX}*`))
+      .filter((key) => key !== HISTORY_KEY);
     if (keys.length === 0) {
       return [];
     }
-    const hashes = await Promise.all(keys.map((key) => this.redis!.hGetAll(key)));
     const metas: ChallengeMeta[] = [];
-    for (const hash of hashes) {
+    for (const key of keys) {
+      let hash: Record<string, string>;
+      try {
+        hash = await this.redis.hGetAll(key);
+      } catch (error) {
+        log.warn({ err: error, key }, 'failed to read challenge hash');
+        continue;
+      }
       if (!hash.challengeId) {
         continue;
       }
@@ -182,15 +189,29 @@ export class DistributedChallengeStore {
     if (!this.redis) {
       return;
     }
-    await this.redis.lPush(HISTORY_KEY, [encoded]);
-    await this.redis.lTrim(HISTORY_KEY, 0, HISTORY_LIMIT - 1);
+    try {
+      await this.redis.lPush(HISTORY_KEY, [encoded]);
+      await this.redis.lTrim(HISTORY_KEY, 0, HISTORY_LIMIT - 1);
+    } catch (error) {
+      // Self-heal stale key type mismatches from older deployments.
+      log.warn({ err: error }, 'history key invalid type; resetting');
+      await this.redis.del(HISTORY_KEY);
+      await this.redis.lPush(HISTORY_KEY, [encoded]);
+      await this.redis.lTrim(HISTORY_KEY, 0, HISTORY_LIMIT - 1);
+    }
   }
 
   async recentHistory(limit: number): Promise<Record<string, unknown>[]> {
     if (!this.redis) {
       return [];
     }
-    const raw = await this.redis.lRange(HISTORY_KEY, 0, Math.max(0, limit - 1));
+    let raw: string[] = [];
+    try {
+      raw = await this.redis.lRange(HISTORY_KEY, 0, Math.max(0, limit - 1));
+    } catch (error) {
+      log.warn({ err: error }, 'failed reading challenge history');
+      return [];
+    }
     return raw
       .map((entry) => {
         try {
