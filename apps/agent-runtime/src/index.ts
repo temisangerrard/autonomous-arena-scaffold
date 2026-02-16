@@ -1741,6 +1741,7 @@ registerRuntimeRoutes(router, {
     canUseWallet,
     canLockStake,
     transferFromHouse,
+    refillHouse,
     schedulePersistState,
     onchainProvider,
     onchainTokenAddress,

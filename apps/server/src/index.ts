@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { ChallengeService, type ChallengeEvent } from './ChallengeService.js';
 import { config, resolveInternalServiceToken } from './config.js';
@@ -26,6 +26,7 @@ import {
   emitProximityEvents,
   clearPlayerProximityPairs
 } from './game/proximity.js';
+import { computeCoinflipFromSeeds, sha256Hex } from './coinflip.js';
 
 type PlayerMeta = {
   role: PlayerRole;
@@ -56,18 +57,8 @@ const escrowAdapter = new EscrowAdapter(
 
 const stationProximityThreshold = Math.max(3, Math.min(25, Number(process.env.STATION_PROXIMITY_THRESHOLD ?? 8)));
 
-function sha256Hex(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
-}
-
 function newSeedHex(bytes = 18): string {
   return randomBytes(Math.max(8, Math.min(64, bytes))).toString('hex');
-}
-
-function computeCoinflipFromSeeds(houseSeed: string, playerSeed: string, challengeId: string): 'heads' | 'tails' {
-  const digest = sha256Hex(`${houseSeed}|${playerSeed}|${challengeId}`);
-  const firstByte = Number.parseInt(digest.slice(0, 2), 16);
-  return (firstByte & 1) === 1 ? 'heads' : 'tails';
 }
 
 const STATIONS: SnapshotStation[] = [
@@ -78,7 +69,7 @@ const STATIONS: SnapshotStation[] = [
     x: (WORLD_SECTION_SPAWNS[1]?.x ?? -25) + 0,
     z: (WORLD_SECTION_SPAWNS[1]?.z ?? -30) + 6,
     yaw: 0,
-    actions: ['coinflip_house', 'coinflip_pvp'] satisfies StationActionId[]
+    actions: ['coinflip_house_start', 'coinflip_house_pick'] satisfies StationActionId[]
   },
   {
     id: 'station_cashier_bank',
@@ -92,6 +83,19 @@ const STATIONS: SnapshotStation[] = [
 ];
 
 const stationById = new Map<string, SnapshotStation>(STATIONS.map((s) => [s.id, s]));
+
+type PendingDealerRound = {
+  playerId: string;
+  stationId: string;
+  wager: number;
+  houseSeed: string;
+  commitHash: string;
+  method: string;
+  createdAt: number;
+};
+
+const pendingDealerRounds = new Map<string, PendingDealerRound>();
+const challengeEscrowTxById = new Map<string, { lock?: string; resolve?: string; refund?: string }>();
 
 let houseWalletId: string | null = null;
 async function refreshHouseWalletId(): Promise<void> {
@@ -267,6 +271,13 @@ function broadcastEscrowEvent(payload: {
   fee?: number;
   payout?: number;
 }): void {
+  const escrowTx = challengeEscrowTxById.get(payload.challengeId) ?? {};
+  if (payload.txHash) {
+    if (payload.phase === 'lock') escrowTx.lock = payload.txHash;
+    if (payload.phase === 'resolve') escrowTx.resolve = payload.txHash;
+    if (payload.phase === 'refund') escrowTx.refund = payload.txHash;
+    challengeEscrowTxById.set(payload.challengeId, escrowTx);
+  }
   // Persist escrow event to database before broadcasting
   void database.insertEscrowEvent({
     challengeId: payload.challengeId,
@@ -652,48 +663,139 @@ wss.on('connection', (ws, request) => {
       const stationId = payload.stationId.trim();
       const station = stationById.get(stationId);
       if (!station) {
-        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'station_not_found' } });
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'station_not_found' }
+        });
         return;
       }
       const pos = lastPlayerPos.get(playerId);
       if (!pos) {
-        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'position_unknown' } });
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'position_unknown' }
+        });
         return;
       }
       const dist = Math.hypot(pos.x - station.x, pos.z - station.z);
       if (dist > stationProximityThreshold) {
-        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'not_near_station' } });
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'not_near_station' }
+        });
         return;
       }
-      if (station.kind !== 'dealer_coinflip' || payload.action !== 'coinflip_house') {
-        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: 'invalid_station_action' } });
+      if (station.kind !== 'dealer_coinflip') {
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'invalid_station_kind' }
+        });
         return;
       }
 
-      const wager = Math.max(0, Math.min(10_000, Number(payload.wager || 0)));
+      if (payload.action === 'coinflip_house_start') {
+        const wager = Math.max(0, Math.min(10_000, Number(payload.wager || 0)));
+        const houseSeed = newSeedHex(24);
+        const commitHash = sha256Hex(houseSeed);
+        const method = 'sha256(houseSeed|playerSeed|challengeId), LSB(firstByte)=1 -> heads';
+        pendingDealerRounds.set(playerId, {
+          playerId,
+          stationId,
+          wager,
+          houseSeed,
+          commitHash,
+          method,
+          createdAt: Date.now()
+        });
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: {
+            ok: true,
+            state: 'dealer_ready',
+            stationId,
+            wager,
+            commitHash,
+            method
+          }
+        });
+        return;
+      }
+
+      if (payload.action !== 'coinflip_house_pick') {
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'invalid_station_action' }
+        });
+        return;
+      }
+
+      const pending = pendingDealerRounds.get(playerId);
+      if (!pending || pending.stationId !== stationId) {
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'dealer_round_not_started' }
+        });
+        return;
+      }
+      if (Date.now() - pending.createdAt > 60_000) {
+        pendingDealerRounds.delete(playerId);
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'dealer_round_expired' }
+        });
+        return;
+      }
+
+      const wager = Math.max(0, Math.min(10_000, Number(pending.wager || 0)));
       const playerPick = payload.pick;
       const opponentPick = playerPick === 'heads' ? 'tails' : 'heads';
       const playerSeed = payload.playerSeed.trim().slice(0, 96) || newSeedHex(12);
 
-      const houseSeed = newSeedHex(24);
-      const commitHash = sha256Hex(houseSeed);
-      const method = 'sha256(houseSeed|playerSeed|challengeId), LSB(firstByte)=1 -> heads';
+      sendTo(playerId, {
+        type: 'station_ui',
+        stationId,
+        view: {
+          ok: true,
+          state: 'dealer_dealing',
+          stationId,
+          wager,
+          playerPick
+        }
+      });
 
       const created = challengeService.createChallenge(playerId, 'system_house', 'coinflip', wager);
       if (created.event !== 'created' || !created.challenge) {
-        sendTo(playerId, { type: 'station_ui', stationId, view: { ok: false, reason: created.reason || 'challenge_create_failed' } });
+        pendingDealerRounds.delete(playerId);
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: created.reason || 'challenge_create_failed' }
+        });
         return;
       }
 
       created.challenge.provablyFair = {
-        commitHash,
+        commitHash: pending.commitHash,
         playerSeed,
-        method
+        method: pending.method
       };
 
-      // House challenges are solo activities; avoid publishing to a non-existent opponent socket.
       created.to = [playerId];
       if (!(await registerCreatedChallenge(created, playerId))) {
+        pendingDealerRounds.delete(playerId);
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'challenge_lock_failed' }
+        });
         return;
       }
 
@@ -701,9 +803,9 @@ wss.on('connection', (ws, request) => {
         type: 'provably_fair',
         phase: 'commit',
         challengeId: created.challenge.id,
-        commitHash,
+        commitHash: pending.commitHash,
         playerSeed,
-        method
+        method: pending.method
       });
 
       await dispatchChallengeEventWithEscrow(withActorRecipient(created, playerId));
@@ -714,24 +816,29 @@ wss.on('connection', (ws, request) => {
 
       const locked = wager <= 0 ? true : escrowLockedChallenges.has(created.challenge.id);
       if (!locked) {
-        // Escrow lock failures are already broadcast; do not proceed.
+        pendingDealerRounds.delete(playerId);
+        sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'escrow_lock_failed' }
+        });
         return;
       }
 
       if (created.challenge.provablyFair) {
-        created.challenge.provablyFair.revealSeed = houseSeed;
+        created.challenge.provablyFair.revealSeed = pending.houseSeed;
       }
       sendToDistributed(playerId, {
         type: 'provably_fair',
         phase: 'reveal',
         challengeId: created.challenge.id,
-        commitHash,
+        commitHash: pending.commitHash,
         playerSeed,
-        houseSeed,
-        method
+        houseSeed: pending.houseSeed,
+        method: pending.method
       });
 
-      const result = computeCoinflipFromSeeds(houseSeed, playerSeed, created.challenge.id);
+      const result = computeCoinflipFromSeeds(pending.houseSeed, playerSeed, created.challenge.id);
       challengeService.setCoinflipResultOverride(created.challenge.id, result);
 
       const submitted1 = challengeService.submitMove(created.challenge.id, playerId, playerPick);
@@ -741,6 +848,33 @@ wss.on('connection', (ws, request) => {
       const submitted2 = challengeService.submitMove(created.challenge.id, 'system_house', opponentPick);
       submitted2.to = [playerId];
       await dispatchChallengeEventWithEscrow(withActorRecipient(submitted2, playerId));
+
+      const finalChallenge = submitted2.challenge ?? challengeService.getChallenge(created.challenge.id);
+      const winnerId = finalChallenge?.winnerId ?? null;
+      const payoutDelta =
+        winnerId === playerId ? wager :
+        winnerId && winnerId !== playerId ? -wager :
+        0;
+      sendTo(playerId, {
+        type: 'station_ui',
+        stationId,
+        view: {
+          ok: true,
+          state: 'dealer_reveal',
+          stationId,
+          challengeId: created.challenge.id,
+          wager,
+          playerPick,
+          coinflipResult: finalChallenge?.coinflipResult ?? result,
+          winnerId,
+          payoutDelta,
+          commitHash: pending.commitHash,
+          method: pending.method,
+          escrowTx: challengeEscrowTxById.get(created.challenge.id) ?? {}
+        }
+      });
+      pendingDealerRounds.delete(playerId);
+      challengeEscrowTxById.delete(created.challenge.id);
       return;
     }
 
@@ -904,6 +1038,7 @@ wss.on('connection', (ws, request) => {
     }
     sockets.delete(playerId);
     metaByPlayer.delete(playerId);
+    pendingDealerRounds.delete(playerId);
     worldSim.removePlayer(playerId);
     lastPlayerPos.delete(playerId);
     void presenceStore.remove(playerId).catch((error) => {
@@ -921,6 +1056,11 @@ wss.on('connection', (ws, request) => {
 setInterval(() => {
   const snapshot = worldSim.step(1 / 20);
   const now = Date.now();
+  for (const [dealerPlayerId, round] of pendingDealerRounds) {
+    if (now - round.createdAt > 60_000) {
+      pendingDealerRounds.delete(dealerPlayerId);
+    }
+  }
   if (now - lastPresenceRefreshAt >= 500) {
     lastPresenceRefreshAt = now;
     void presenceStore.list().then((entries) => {

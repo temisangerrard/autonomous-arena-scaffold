@@ -1583,72 +1583,13 @@
       <button id="interaction-close" class="interaction-card__close" type="button" aria-label="Close">×</button>
     </div>
     <div class="interaction-card__body">
-      <div id="station-ui" class="station-ui" aria-live="polite" hidden></div>
-      <div class="interaction-row">
-        <label for="interaction-game">Game</label>
-        <select id="interaction-game">
-          <option value="rps">Rock Paper Scissors</option>
-          <option value="coinflip">Coin Flip</option>
-        </select>
+      <div id="station-ui" class="station-ui" aria-live="polite"></div>
+      <div id="interaction-npc-info" class="station-ui" hidden>
+        <div class="station-ui__title">Local Guide</div>
+        <div class="station-ui__meta">This NPC is a world guide. To play, visit a nearby Dealer station and press E.</div>
       </div>
-      <div class="interaction-row">
-        <label for="interaction-wager">Wager (each)</label>
-        <input id="interaction-wager" type="number" min="0" max="10000" step="1" value="1" aria-describedby="wager-hint" />
-      </div>
-      <div class="interaction-actions">
-        <button id="interaction-send" class="btn-gold" type="button">Send Challenge</button>
-        <button id="interaction-open-desk" class="btn-ghost" type="button">Desk</button>
-      </div>
-      <p id="wager-hint" class="interaction-hint">
-        <span class="interaction-prompt__key">0</span> free ·
-        <span class="interaction-prompt__key">E</span> close ·
-        <span class="interaction-prompt__key">Tab</span> switch ·
-        <span class="interaction-prompt__key">Y/N</span> respond
-      </p>
     </div>
   </section>
-
-  <!-- Challenge Desk Panel (Secondary) -->
-  <aside class="challenge-panel" id="context-panel" aria-label="Challenge desk">
-    <div class="challenge-panel__head">
-      <h2>Challenge Desk</h2>
-      <button id="desk-toggle" class="desk-toggle" type="button">Collapse</button>
-    </div>
-    <div class="challenge-panel__body" id="desk-body">
-      <div class="pill-row">
-        <span class="pill">C send</span>
-        <span class="pill">Y/N respond</span>
-        <span class="pill">1/2/3 RPS</span>
-        <span class="pill">H/T coin</span>
-      </div>
-      <div id="challenge-status-line" class="status-line" role="status">Find a nearby target to challenge.</div>
-      <div class="row">
-        <label for="challenge-target">Nearby target</label>
-        <select id="challenge-target" aria-label="Select nearby target"></select>
-      </div>
-      <div class="challenge-grid">
-        <div>
-          <label for="challenge-game">Game</label>
-          <select id="challenge-game">
-            <option value="rps">Rock Paper Scissors</option>
-            <option value="coinflip">Coin Flip</option>
-          </select>
-        </div>
-        <div>
-          <label for="challenge-wager">Wager</label>
-          <input id="challenge-wager" type="number" min="0" max="10000" step="1" value="1">
-        </div>
-      </div>
-      <div class="challenge-actions">
-        <button id="challenge-send" type="button">Send Challenge</button>
-        <button id="challenge-cancel" type="button">Clear</button>
-      </div>
-      <div class="challenge-actions">
-        <button id="challenge-accept" type="button">Accept (Y)</button>
-        <button id="challenge-decline" type="button">Decline (N)</button>
-      </div>
-    </div>
-  </aside>
 
   <!-- World Map -->
   <aside class="world-map-panel" aria-label="Arena minimap">
@@ -1679,16 +1620,11 @@
         <div class="control-hints__col">
           <h4>Interaction</h4>
           <div class="control-hints__row"><kbd>E</kbd> Interact with nearby</div>
-          <div class="control-hints__row"><kbd>C</kbd> Send challenge</div>
           <div class="control-hints__row"><kbd>Tab</kbd> Switch target</div>
           <div class="control-hints__row"><kbd>V</kbd> View profile</div>
         </div>
         <div class="control-hints__col">
-          <h4>Match</h4>
-          <div class="control-hints__row"><kbd>Y</kbd> Accept challenge</div>
-          <div class="control-hints__row"><kbd>N</kbd> Decline challenge</div>
-          <div class="control-hints__row"><kbd>O</kbd> Counter-offer</div>
-          <div class="control-hints__row"><kbd>1 2 3</kbd> RPS moves</div>
+          <h4>Coinflip</h4>
           <div class="control-hints__row"><kbd>H T</kbd> Coin flip</div>
         </div>
       </div>
@@ -1698,36 +1634,6 @@
 
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
-
-  <!-- Game Modal -->
-  <div id="game-modal" class="game-modal" role="dialog" aria-modal="true" aria-labelledby="game-title">
-    <div class="game-card">
-      <h3 id="game-title">Match</h3>
-      <p id="game-players">Waiting...</p>
-      <p id="game-status">Preparing challenge.</p>
-      <p id="game-detail"></p>
-      <div id="challenge-timer-wrap" class="game-card__timer" style="display:none;">
-        <div class="game-card__timer-bar">
-          <div id="challenge-timer-bar" class="game-card__timer-fill"></div>
-        </div>
-      </div>
-      <button id="game-close" type="button">Close</button>
-    </div>
-  </div>
-
-  <!-- Match Controls -->
-  <section id="match-controls" class="match-controls" aria-label="Match controls">
-    <div class="match-controls__header">
-      <div class="match-controls__title" id="match-controls-title">Match</div>
-      <span id="match-controls-badge" class="match-controls__badge match-controls__badge--active">Active</span>
-    </div>
-    <div class="match-controls__status" id="match-controls-status">No active match.</div>
-    <div class="match-controls__actions" id="match-controls-actions"></div>
-    <div id="match-counter-offer" class="match-controls__counter">
-      <input id="counter-wager" type="number" min="0" max="10000" step="1" value="1" aria-label="Counter wager amount" />
-      <button id="counter-send" type="button">Counter</button>
-    </div>
-  </section>
 
   <!-- Mobile Controls -->
   <section id="mobile-controls" class="mobile-controls" aria-hidden="true">
@@ -1739,14 +1645,7 @@
     </div>
     <div class="mobile-actions" aria-label="Action buttons">
       <button id="mobile-interact" type="button" class="mobile-btn mobile-btn--gold">Interact</button>
-      <button id="mobile-send" type="button" class="mobile-btn mobile-btn--gold">Send</button>
-      <button id="mobile-accept" type="button" class="mobile-btn">Accept</button>
-      <button id="mobile-decline" type="button" class="mobile-btn">Decline</button>
-      <button id="mobile-counter" type="button" class="mobile-btn">Counter</button>
       <div id="mobile-moves" class="mobile-moves">
-        <button id="mobile-move-1" type="button" class="mobile-btn">Rock</button>
-        <button id="mobile-move-2" type="button" class="mobile-btn">Paper</button>
-        <button id="mobile-move-3" type="button" class="mobile-btn">Scissors</button>
         <button id="mobile-move-h" type="button" class="mobile-btn">Heads</button>
         <button id="mobile-move-t" type="button" class="mobile-btn">Tails</button>
       </div>

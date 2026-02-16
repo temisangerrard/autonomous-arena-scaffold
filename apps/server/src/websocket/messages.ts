@@ -14,11 +14,17 @@ export type InputMessage = {
 export type StationInteractMessage = {
   type: 'station_interact';
   stationId: string;
-  action: 'coinflip_house';
-  wager: number;
-  pick: 'heads' | 'tails';
-  playerSeed: string;
-};
+} & (
+  | {
+      action: 'coinflip_house_start';
+      wager: number;
+    }
+  | {
+      action: 'coinflip_house_pick';
+      pick: 'heads' | 'tails';
+      playerSeed: string;
+    }
+);
 
 export type ChallengeSendMessage = {
   type: 'challenge_send';
@@ -93,20 +99,30 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
 
     if (
       payload.type === 'station_interact' &&
-      typeof payload.stationId === 'string' &&
-      payload.action === 'coinflip_house' &&
-      typeof payload.pick === 'string' &&
-      (payload.pick === 'heads' || payload.pick === 'tails') &&
-      typeof payload.playerSeed === 'string'
+      typeof payload.stationId === 'string'
     ) {
-      return {
-        type: 'station_interact',
-        stationId: payload.stationId,
-        action: 'coinflip_house',
-        wager: typeof payload.wager === 'number' ? payload.wager : 1,
-        pick: payload.pick,
-        playerSeed: payload.playerSeed
-      };
+      if (payload.action === 'coinflip_house_start') {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'coinflip_house_start',
+          wager: typeof payload.wager === 'number' ? payload.wager : 1
+        };
+      }
+      if (
+        payload.action === 'coinflip_house_pick' &&
+        typeof payload.pick === 'string' &&
+        (payload.pick === 'heads' || payload.pick === 'tails') &&
+        typeof payload.playerSeed === 'string'
+      ) {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'coinflip_house_pick',
+          pick: payload.pick,
+          playerSeed: payload.playerSeed
+        };
+      }
     }
 
     if (

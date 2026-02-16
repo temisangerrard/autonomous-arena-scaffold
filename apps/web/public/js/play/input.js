@@ -39,13 +39,7 @@ export function createInputSystem({
       || target instanceof HTMLTextAreaElement
       || (target instanceof HTMLElement && target.isContentEditable);
     const allowDuringEditing =
-      event.code === 'KeyY'
-      || event.code === 'KeyN'
-      || event.code === 'KeyO'
-      || event.code === 'Digit1'
-      || event.code === 'Digit2'
-      || event.code === 'Digit3'
-      || event.code === 'KeyH'
+      event.code === 'KeyH'
       || event.code === 'KeyT'
       || event.code === 'Escape'
       || event.code === 'KeyE'
@@ -71,11 +65,6 @@ export function createInputSystem({
       actions.resetCameraBehindPlayer?.();
     }
 
-    if (event.code === 'KeyC') {
-      if (state.ui?.interactOpen) actions.sendChallenge?.();
-      else actions.setInteractOpen?.(true);
-    }
-
     if (event.code === 'KeyE') {
       if (!actions.getUiTargetId?.()) return;
       event.preventDefault();
@@ -91,22 +80,6 @@ export function createInputSystem({
       actions.setInteractOpen?.(false);
     }
 
-    if (event.code === 'KeyY') actions.respondToIncoming?.(true);
-    if (event.code === 'KeyN') actions.respondToIncoming?.(false);
-    if (event.code === 'KeyO') actions.sendCounterOffer?.();
-
-    if (event.code === 'Digit1') {
-      event.preventDefault();
-      actions.sendGameMove?.('rock');
-    }
-    if (event.code === 'Digit2') {
-      event.preventDefault();
-      actions.sendGameMove?.('paper');
-    }
-    if (event.code === 'Digit3') {
-      event.preventDefault();
-      actions.sendGameMove?.('scissors');
-    }
     if (event.code === 'KeyH') {
       event.preventDefault();
       actions.sendGameMove?.('heads');
@@ -285,17 +258,6 @@ export function createInputSystem({
       if (!actions.getUiTargetId?.()) return;
       actions.setInteractOpen?.(true);
     });
-    dom.mobileSend?.addEventListener('click', () => {
-      if (!state.ui.interactOpen) actions.setInteractOpen?.(true);
-      actions.sendChallenge?.();
-    });
-    dom.mobileAccept?.addEventListener('click', () => actions.respondToIncoming?.(true));
-    dom.mobileDecline?.addEventListener('click', () => actions.respondToIncoming?.(false));
-    dom.mobileCounter?.addEventListener('click', () => actions.sendCounterOffer?.());
-
-    dom.mobileMove1?.addEventListener('click', () => actions.sendGameMove?.('rock'));
-    dom.mobileMove2?.addEventListener('click', () => actions.sendGameMove?.('paper'));
-    dom.mobileMove3?.addEventListener('click', () => actions.sendGameMove?.('scissors'));
     dom.mobileMoveH?.addEventListener('click', () => actions.sendGameMove?.('heads'));
     dom.mobileMoveT?.addEventListener('click', () => actions.sendGameMove?.('tails'));
   }
