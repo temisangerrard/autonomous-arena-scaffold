@@ -386,6 +386,14 @@ const server = createServer(async (req, res) => {
   const requestUrl = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
   const pathname = requestUrl.pathname;
 
+  // Auth/session APIs must never be cached by browser/CDN; stale 401/404s can
+  // look like random forced logout loops.
+  if (pathname.startsWith('/api/')) {
+    res.setHeader('cache-control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('pragma', 'no-cache');
+    res.setHeader('expires', '0');
+  }
+
   if (pathname === '/health') {
     const base = createHealthStatus();
     const [redisOk, runtimeOk, serverOk] = await Promise.all([
