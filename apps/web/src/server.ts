@@ -676,7 +676,8 @@ const server = createServer(async (req, res) => {
       user: sanitizeUser(identity),
       profile,
       bots,
-      wsAuth: wsAuthForIdentity(identity)
+      wsAuth: wsAuthForIdentity(identity),
+      sessionId: cookieSessionId(req)
     });
     return;
   }

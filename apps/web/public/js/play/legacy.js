@@ -311,6 +311,12 @@ async function connectSocket() {
       if (mePayload?.wsAuth) {
         sessionWsAuth = String(mePayload.wsAuth);
       }
+      if (mePayload?.sessionId) {
+        const sid = String(mePayload.sessionId).trim();
+        if (sid) {
+          localStorage.setItem(SID_KEY, sid);
+        }
+      }
       state.walletBalance = Number(profile?.wallet?.balance ?? 0);
     } catch {
       // If auth is flaky, do not sign the user out; retry.
