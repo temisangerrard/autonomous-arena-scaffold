@@ -1329,6 +1329,11 @@ function setInteractOpen(nextOpen) {
       interactionWager.focus?.();
       interactionWager.select?.();
     }
+  } else {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && interactionCard.contains(active)) {
+      active.blur?.();
+    }
   }
 }
 

@@ -19,6 +19,19 @@ export function createInputSystem({
     ArrowRight: 'right'
   };
 
+  function resetKeyboardInput() {
+    state.input.forward = false;
+    state.input.backward = false;
+    state.input.left = false;
+    state.input.right = false;
+  }
+
+  function onVisibilityChange() {
+    if (document.hidden) {
+      resetKeyboardInput();
+    }
+  }
+
   function onKeyDown(event) {
     const target = event.target;
     const editing =
@@ -115,12 +128,6 @@ export function createInputSystem({
   }
 
   function onKeyUp(event) {
-    const target = event.target;
-    const editing =
-      target instanceof HTMLInputElement
-      || target instanceof HTMLTextAreaElement
-      || (target instanceof HTMLElement && target.isContentEditable);
-    if (editing) return;
     const action = keyMap[event.code];
     if (action) {
       state.input[action] = false;
@@ -130,6 +137,8 @@ export function createInputSystem({
 
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', resetKeyboardInput);
+  document.addEventListener('visibilitychange', onVisibilityChange);
 
   // Orbit drag
   let dragging = false;
@@ -312,6 +321,8 @@ export function createInputSystem({
   function dispose() {
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('blur', resetKeyboardInput);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
     canvas.removeEventListener('pointerdown', onPointerDown);
     canvas.removeEventListener('contextmenu', onContextMenu);
     canvas.removeEventListener('pointerup', onPointerUp);
