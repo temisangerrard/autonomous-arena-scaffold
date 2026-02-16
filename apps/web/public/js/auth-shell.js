@@ -225,12 +225,17 @@ async function loadConfig() {
 
 async function getSessionUser() {
   try {
-    const data = await fetchJson('/api/session');
-    return { user: data.user ?? null, source: 'server' };
+    const response = await fetch('/api/session', { credentials: 'include' });
+    if (response.status === 401 || response.status === 403) {
+      return { user: null, source: 'server' };
+    }
+    if (!response.ok) {
+      return { user: readUser(), source: 'cache' };
+    }
+    const data = await response.json().catch(() => null);
+    return { user: data?.user ?? null, source: 'server' };
   } catch {
-    // Single source of truth is the server session cookie.
-    // Falling back to local cache causes "signed-in UI" with an expired server session.
-    return { user: null, source: 'server' };
+    return { user: readUser(), source: 'cache' };
   }
 }
 
@@ -243,9 +248,13 @@ async function boot() {
   const clientId = cfg.googleClientId || localStorage.getItem(CLIENT_KEY) || '';
   const finalCfg = { ...cfg, googleClientId: clientId, authEnabled: Boolean(clientId) };
   const session = await getSessionUser();
-  if (session.user) {
-    writeUser(session.user);
-  } else {
+  if (session.source === 'server') {
+    if (session.user) {
+      writeUser(session.user);
+    } else {
+      writeUser(null);
+    }
+  } else if (!session.user) {
     writeUser(null);
   }
 
