@@ -2,13 +2,14 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
 import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldVersionByAlias } from './worldAssets.js';
 import { signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
-import { clearSessionCookie, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setSessionCookieWithOptions } from './lib/http.js';
+import { clearCookie, clearSessionCookie, parseCookies, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setCookie, setSessionCookieWithOptions } from './lib/http.js';
 import { cookieSessionId, createSessionStore, type IdentityRecord, type Role, type SessionRecord } from './sessionStore.js';
 
 loadEnvFromFile();
@@ -34,6 +35,11 @@ const localAdminUsername = process.env.ADMIN_USERNAME ?? '';
 const localAdminPassword = process.env.ADMIN_PASSWORD ?? '';
 const localAuthEnabled = (process.env.LOCAL_AUTH_ENABLED ?? 'false') === 'true';
 const isProduction = process.env.NODE_ENV === 'production';
+const googleNonceSecret =
+  process.env.GOOGLE_NONCE_SECRET?.trim()
+  || wsAuthSecret
+  || internalToken
+  || randomBytes(32).toString('hex');
 
 // --- Startup secret validation ---
 if (localAuthEnabled && !localAdminPassword) {
@@ -61,6 +67,10 @@ if (isProduction && !internalToken) {
 }
 if (isProduction && !redisUrl) {
   log.fatal('REDIS_URL must be set in production for auth session persistence. Refusing to start.');
+  process.exit(1);
+}
+if (isProduction && googleClientId && !process.env.GOOGLE_NONCE_SECRET?.trim() && !wsAuthSecret && !internalToken) {
+  log.fatal('GOOGLE_NONCE_SECRET (or GAME_WS_AUTH_SECRET / INTERNAL_SERVICE_TOKEN) must be set in production when GOOGLE_CLIENT_ID is enabled.');
   process.exit(1);
 }
 const webStateFile = process.env.WEB_STATE_FILE
@@ -129,7 +139,11 @@ type RuntimeStatusPayload = {
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COOKIE_NAME = 'arena_sid';
+const GOOGLE_NONCE_COOKIE = 'arena_google_nonce';
+const GOOGLE_NONCE_TTL_SEC = 5 * 60;
 const IDENTITY_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
+const googleAuthClient = new OAuth2Client(googleClientId || undefined);
 
 const sessionStore = await createSessionStore({
   redisUrl,
@@ -262,13 +276,126 @@ async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> 
   identity.displayName = created.profile.displayName;
 }
 
-async function googleTokenInfo(idToken: string): Promise<{ sub: string; email: string; name?: string; picture?: string; aud: string; exp: string }> {
-  const url = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`;
-  const response = await fetch(url);
-  if (!response.ok) {
+type GoogleTokenInfo = {
+  sub: string;
+  email: string;
+  name?: string;
+  picture?: string;
+  aud: string;
+  exp: string;
+  iss?: string;
+  nonce?: string;
+  email_verified?: string | boolean;
+};
+
+async function googleTokenInfo(idToken: string): Promise<GoogleTokenInfo> {
+  if (!googleClientId) {
     throw new Error('invalid_google_token');
   }
-  return response.json() as Promise<{ sub: string; email: string; name?: string; picture?: string; aud: string; exp: string }>;
+  const ticket = await googleAuthClient.verifyIdToken({
+    idToken,
+    audience: googleClientId
+  });
+  const payload = ticket.getPayload();
+  if (!payload?.sub || !payload.email) {
+    throw new Error('invalid_google_token');
+  }
+  return {
+    sub: payload.sub,
+    email: payload.email,
+    name: payload.name,
+    picture: payload.picture,
+    aud: Array.isArray(payload.aud) ? String(payload.aud[0] || '') : String(payload.aud || ''),
+    exp: String(payload.exp || ''),
+    iss: payload.iss,
+    nonce: payload.nonce,
+    email_verified: payload.email_verified
+  };
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) {
+    return null;
+  }
+  try {
+    const payload = parts[1] || '';
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+    const decoded = Buffer.from(`${normalized}${pad}`, 'base64').toString('utf8');
+    const parsed = JSON.parse(decoded) as Record<string, unknown>;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function signGoogleNonce(rawNonce: string): string {
+  return createHmac('sha256', googleNonceSecret).update(rawNonce).digest('hex');
+}
+
+function issueGoogleNonceToken(now = Date.now()): string {
+  const payload = `${now}.${randomBytes(16).toString('hex')}`;
+  const sig = signGoogleNonce(payload);
+  return `${payload}.${sig}`;
+}
+
+function verifyGoogleNonceToken(nonceToken: string, now = Date.now()): boolean {
+  const token = String(nonceToken || '').trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return false;
+  }
+  const ts = parts[0] || '';
+  const rand = parts[1] || '';
+  const sig = parts[2] || '';
+  if (!/^\d{13}$/.test(ts) || !/^[a-f0-9]{32}$/.test(rand) || !/^[a-f0-9]{64}$/.test(sig)) {
+    return false;
+  }
+  const issuedAt = Number(ts);
+  if (!Number.isFinite(issuedAt)) {
+    return false;
+  }
+  if (issuedAt > now + 30_000) {
+    return false;
+  }
+  if (now - issuedAt > GOOGLE_NONCE_TTL_SEC * 1000) {
+    return false;
+  }
+  const payload = `${ts}.${rand}`;
+  const expected = signGoogleNonce(payload);
+  const got = Buffer.from(sig, 'utf8');
+  const want = Buffer.from(expected, 'utf8');
+  if (got.length !== want.length) {
+    return false;
+  }
+  return timingSafeEqual(got, want);
+}
+
+function isSameOriginRequest(req: import('node:http').IncomingMessage): boolean {
+  const host = String(req.headers.host ?? '').trim().toLowerCase();
+  if (!host) {
+    return false;
+  }
+  const origin = String(req.headers.origin ?? '').trim();
+  const referer = String(req.headers.referer ?? '').trim();
+  const expected = `${isSecureRequest(req) ? 'https' : 'http'}://${host}`;
+
+  const candidates = [origin, referer].filter(Boolean);
+  if (candidates.length === 0) {
+    return !isProduction;
+  }
+  for (const value of candidates) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.origin.toLowerCase() !== expected.toLowerCase()) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 function sanitizeUser(identity: IdentityRecord): Record<string, unknown> {
@@ -435,6 +562,22 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/auth/google/nonce' && req.method === 'GET') {
+    if (!googleClientId) {
+      sendJson(res, { ok: false, reason: 'google_auth_disabled' }, 403);
+      return;
+    }
+    const nonce = issueGoogleNonceToken();
+    setCookie(res, GOOGLE_NONCE_COOKIE, nonce, {
+      ttlSec: GOOGLE_NONCE_TTL_SEC,
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: isSecureRequest(req)
+    });
+    sendJson(res, { ok: true, nonce });
+    return;
+  }
+
   if (pathname === '/api/auth/local' && req.method === 'POST') {
     if (!localAuthEnabled) {
       sendJson(res, { ok: false, reason: 'local_auth_disabled' }, 403);
@@ -501,13 +644,20 @@ const server = createServer(async (req, res) => {
     sendJson(res, {
       ok: true,
       user: sanitizeUser(identity),
-      redirectTo: '/dashboard',
-      sessionId: sid
+      redirectTo: '/dashboard'
     });
     return;
   }
 
   if (pathname === '/api/auth/google' && req.method === 'POST') {
+    if (!googleClientId) {
+      sendJson(res, { ok: false, reason: 'google_auth_disabled' }, 403);
+      return;
+    }
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, { ok: false, reason: 'origin_mismatch' }, 403);
+      return;
+    }
     const body = await readJsonBody<{ credential?: string }>(req);
     const credential = body?.credential?.trim();
     if (!credential) {
@@ -516,13 +666,40 @@ const server = createServer(async (req, res) => {
     }
 
     try {
+      const cookieNonce = parseCookies(req)[GOOGLE_NONCE_COOKIE] || '';
+      const jwtPayload = decodeJwtPayload(credential);
+      const jwtNonce = String(jwtPayload?.nonce || '').trim();
+      if (!cookieNonce || !jwtNonce || cookieNonce !== jwtNonce || !verifyGoogleNonceToken(cookieNonce)) {
+        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
+        sendJson(res, { ok: false, reason: 'nonce_mismatch' }, 401);
+        return;
+      }
+
       const token = await googleTokenInfo(credential);
       if (!token.sub || !token.email) {
+        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
         sendJson(res, { ok: false, reason: 'invalid_token_payload' }, 401);
         return;
       }
       if (googleClientId && token.aud !== googleClientId) {
+        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
         sendJson(res, { ok: false, reason: 'audience_mismatch' }, 401);
+        return;
+      }
+      if (!token.iss || !GOOGLE_ISSUERS.has(token.iss)) {
+        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
+        sendJson(res, { ok: false, reason: 'issuer_mismatch' }, 401);
+        return;
+      }
+      if (String(token.email_verified ?? '').toLowerCase() !== 'true') {
+        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
+        sendJson(res, { ok: false, reason: 'email_not_verified' }, 401);
+        return;
+      }
+      const tokenExpSec = Number(token.exp || '0');
+      if (!Number.isFinite(tokenExpSec) || tokenExpSec * 1000 <= Date.now()) {
+        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
+        sendJson(res, { ok: false, reason: 'token_expired' }, 401);
         return;
       }
 
@@ -566,16 +743,17 @@ const server = createServer(async (req, res) => {
       await sessionStore.setSession(session, SESSION_TTL_MS);
       await sessionStore.addSessionForSub(identity.sub, sid, SESSION_TTL_MS);
       setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
+      clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
 
       sendJson(res, {
         ok: true,
         user: sanitizeUser(identity),
         // Always go to the dashboard first; admin entry points live there.
-        redirectTo: '/dashboard',
-        sessionId: sid
+        redirectTo: '/dashboard'
       });
       return;
     } catch (error) {
+      clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
       sendJson(res, { ok: false, reason: String((error as Error).message || 'auth_failed') }, 401);
       return;
     }
@@ -601,7 +779,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
     }
-    sendJson(res, { ok: true, user: sanitizeUser(identity), sessionId: cookieSessionId(req) });
+    sendJson(res, { ok: true, user: sanitizeUser(identity) });
     return;
   }
 
@@ -646,8 +824,7 @@ const server = createServer(async (req, res) => {
           user: sanitizeUser(identity),
           profile: fallbackProfile,
           bots: [],
-          wsAuth: wsAuthForIdentity(identity),
-          sessionId: cookieSessionId(req)
+          wsAuth: wsAuthForIdentity(identity)
         });
         return;
       }
@@ -705,8 +882,7 @@ const server = createServer(async (req, res) => {
       user: sanitizeUser(identity),
       profile,
       bots,
-      wsAuth: wsAuthForIdentity(identity),
-      sessionId: cookieSessionId(req)
+      wsAuth: wsAuthForIdentity(identity)
     });
     return;
   }

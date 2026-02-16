@@ -27,13 +27,28 @@ export class ChallengeService {
   private readonly recentLogs: ChallengeLog[] = [];
   private challengeCounter = 1;
   private readonly coinflipResultOverride = new Map<string, CoinflipMove>();
+  private readonly challengeIdPrefix: string;
 
   constructor(
     private readonly now: () => number,
     private readonly random: () => number,
     private readonly pendingTimeoutMs = 15_000,
-    private readonly activeResolveMs = 45_000
-  ) {}
+    private readonly activeResolveMs = 45_000,
+    challengeIdPrefix = 'default'
+  ) {
+    this.challengeIdPrefix = String(challengeIdPrefix || 'default')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '_')
+      .slice(0, 48) || 'default';
+  }
+
+  private nextChallengeId(): string {
+    let candidate = '';
+    do {
+      candidate = `c_${this.challengeIdPrefix}_${(this.challengeCounter++).toString(36)}`;
+    } while (this.challenges.has(candidate));
+    return candidate;
+  }
 
   private isHouse(playerId: string): boolean {
     return playerId === 'system_house';
@@ -63,7 +78,7 @@ export class ChallengeService {
     const safeWager = Math.max(0, Math.min(10_000, Number.isFinite(wager) ? wager : 1));
 
     const challenge: Challenge = {
-      id: `c_${this.challengeCounter++}`,
+      id: this.nextChallengeId(),
       challengerId,
       opponentId,
       status: 'pending',

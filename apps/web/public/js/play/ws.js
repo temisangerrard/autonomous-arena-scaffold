@@ -4,14 +4,9 @@ export function createPresence({
 }) {
   async function setPresence(state) {
     try {
-      const headers = { 'content-type': 'application/json' };
-      const sid = String(localStorage.getItem('arena_sid_fallback') || '').trim();
-      if (sid) {
-        headers['x-arena-sid'] = sid;
-      }
       await fetch(url, {
         method: 'POST',
-        headers,
+        headers: { 'content-type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ state })
       });

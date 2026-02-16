@@ -6,7 +6,7 @@ import { config, resolveInternalServiceToken } from './config.js';
 import { Database } from './Database.js';
 import { DistributedBus, type AdminCommand, type ChallengeCommand } from './DistributedBus.js';
 import { DistributedChallengeStore } from './DistributedChallengeStore.js';
-import { EscrowAdapter, type EscrowPreflightReasonCode } from './EscrowAdapter.js';
+import { EscrowAdapter } from './EscrowAdapter.js';
 import { log } from './logger.js';
 import { PresenceStore } from './PresenceStore.js';
 import { WORLD_SECTION_SPAWNS, WorldSim } from './WorldSim.js';
@@ -40,7 +40,14 @@ const database = new Database();
 const presenceStore = new PresenceStore(serverInstanceId, config.presenceTtlSeconds);
 const distributedChallengeStore = new DistributedChallengeStore(serverInstanceId);
 const worldSim = new WorldSim();
-const challengeService = new ChallengeService(() => Date.now(), () => Math.random());
+const challengeIdPrefix = `${serverInstanceId}_${Date.now().toString(36)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+const challengeService = new ChallengeService(
+  () => Date.now(),
+  () => Math.random(),
+  config.challengePendingTimeoutMs,
+  45_000,
+  challengeIdPrefix
+);
 const internalServiceToken = resolveInternalServiceToken();
 const escrowAdapter = new EscrowAdapter(
   config.agentRuntimeUrl,
@@ -99,7 +106,7 @@ const pendingDealerRounds = new Map<string, PendingDealerRound>();
 const challengeEscrowTxById = new Map<string, { lock?: string; resolve?: string; refund?: string }>();
 const challengeEscrowFailureById = new Map<string, {
   reason: string;
-  reasonCode?: EscrowPreflightReasonCode;
+  reasonCode?: string;
   reasonText?: string;
   preflight?: { playerOk: boolean; houseOk: boolean };
 }>();
@@ -128,13 +135,13 @@ function stationErrorFromEscrowFailure(input: {
   raw?: Record<string, unknown>;
 }): {
   reason: string;
-  reasonCode?: EscrowPreflightReasonCode;
+  reasonCode?: string;
   reasonText?: string;
   preflight?: { playerOk: boolean; houseOk: boolean };
 } {
   const reason = String(input.reason || 'escrow_lock_failed');
   const reasonCode = typeof input.raw?.reasonCode === 'string'
-    ? input.raw.reasonCode as EscrowPreflightReasonCode
+    ? input.raw.reasonCode
     : undefined;
   const reasonText = typeof input.raw?.reasonText === 'string' ? input.raw.reasonText : undefined;
   const preflightRaw = input.raw?.preflight;

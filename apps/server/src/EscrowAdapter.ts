@@ -22,6 +22,13 @@ type EscrowResult = {
 };
 
 type EscrowExecutionMode = 'runtime' | 'onchain';
+type EscrowOnchainReasonCode =
+  | 'BET_ID_ALREADY_USED'
+  | 'INVALID_WAGER'
+  | 'INVALID_ESCROW_PARTICIPANTS'
+  | 'BET_NOT_LOCKED'
+  | 'WINNER_NOT_PARTICIPANT'
+  | 'ONCHAIN_EXECUTION_ERROR';
 
 export type EscrowPreflightReasonCode =
   | 'PLAYER_ALLOWANCE_LOW'
@@ -70,7 +77,12 @@ type EscrowContractApi = Contract & {
 const ESCROW_ABI = [
   'function createBet(bytes32 betId, address challenger, address opponent, uint256 amount) external',
   'function resolveBet(bytes32 betId, address winner) external',
-  'function refundBet(bytes32 betId) external'
+  'function refundBet(bytes32 betId) external',
+  'error InvalidAddress()',
+  'error InvalidAmount()',
+  'error BetAlreadyExists()',
+  'error BetNotLocked()',
+  'error WinnerNotParticipant()'
 ];
 
 export class EscrowAdapter {
@@ -220,7 +232,7 @@ export class EscrowAdapter {
       const receipt = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
-      return { ok: false, reason: this.errorReason(error, 'onchain_lock_failed') };
+      return this.onchainErrorResult(error, 'onchain_lock_failed');
     }
   }
 
@@ -338,7 +350,7 @@ export class EscrowAdapter {
       const receipt = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
-      return { ok: false, reason: this.errorReason(error, 'onchain_resolve_failed') };
+      return this.onchainErrorResult(error, 'onchain_resolve_failed');
     }
   }
 
@@ -352,8 +364,104 @@ export class EscrowAdapter {
       const receipt = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
-      return { ok: false, reason: this.errorReason(error, 'onchain_refund_failed') };
+      return this.onchainErrorResult(error, 'onchain_refund_failed');
     }
+  }
+
+  private onchainErrorResult(error: unknown, fallback: string): EscrowResult {
+    const decoded = this.decodeEscrowCustomError(error);
+    if (decoded) {
+      return {
+        ok: false,
+        reason: decoded.reason,
+        raw: {
+          reasonCode: decoded.reasonCode,
+          reasonText: decoded.reasonText
+        }
+      };
+    }
+
+    const message = this.errorReason(error, fallback);
+    return {
+      ok: false,
+      reason: message,
+      raw: {
+        reasonCode: 'ONCHAIN_EXECUTION_ERROR',
+        reasonText: message
+      }
+    };
+  }
+
+  private decodeEscrowCustomError(error: unknown): {
+    reason: string;
+    reasonCode: EscrowOnchainReasonCode;
+    reasonText: string;
+  } | null {
+    const escrow = this.escrowContract;
+    if (!escrow) {
+      return null;
+    }
+
+    const data = this.errorData(error);
+    if (!data) {
+      return null;
+    }
+
+    try {
+      const parsed = escrow.interface.parseError(data);
+      const name = String(parsed?.name || '');
+      if (name === 'BetAlreadyExists') {
+        return {
+          reason: 'bet_already_exists',
+          reasonCode: 'BET_ID_ALREADY_USED',
+          reasonText: 'Existing escrow bet ID detected. Retry after refresh.'
+        };
+      }
+      if (name === 'InvalidAmount') {
+        return {
+          reason: 'invalid_amount',
+          reasonCode: 'INVALID_WAGER',
+          reasonText: 'Invalid wager amount for escrow lock.'
+        };
+      }
+      if (name === 'InvalidAddress') {
+        return {
+          reason: 'invalid_address',
+          reasonCode: 'INVALID_ESCROW_PARTICIPANTS',
+          reasonText: 'Escrow participants are invalid. Reconnect wallets and retry.'
+        };
+      }
+      if (name === 'BetNotLocked') {
+        return {
+          reason: 'bet_not_locked',
+          reasonCode: 'BET_NOT_LOCKED',
+          reasonText: 'Escrow bet is not locked for this challenge.'
+        };
+      }
+      if (name === 'WinnerNotParticipant') {
+        return {
+          reason: 'winner_not_participant',
+          reasonCode: 'WINNER_NOT_PARTICIPANT',
+          reasonText: 'Winner wallet is not a participant in this escrow bet.'
+        };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  private errorData(error: unknown): string | null {
+    const directData = (error as { data?: unknown } | null | undefined)?.data;
+    if (typeof directData === 'string' && directData.length > 0) {
+      return directData;
+    }
+    const nestedData = (error as { info?: { error?: { data?: unknown } } } | null | undefined)
+      ?.info?.error?.data;
+    if (typeof nestedData === 'string' && nestedData.length > 0) {
+      return nestedData;
+    }
+    return null;
   }
 
   private errorReason(error: unknown, fallback: string): string {

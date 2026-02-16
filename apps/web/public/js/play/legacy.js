@@ -520,16 +520,17 @@ async function connectSocket() {
       : null;
     const stateName = String(view.state || '');
     if (!ok || stateName === 'dealer_error') {
+      const resolvedReasonText = reasonText || dealerReasonLabel(reason, reasonCode);
       state.ui.dealer.state = 'error';
       state.ui.dealer.reason = reason || 'request_failed';
       state.ui.dealer.reasonCode = reasonCode;
-      state.ui.dealer.reasonText = reasonText;
+      state.ui.dealer.reasonText = resolvedReasonText;
       state.ui.dealer.preflight = preflight;
       addFeedEvent(
         'system',
-        `Station ${labelFor(payload.stationId)}: ${reasonText || reason || 'request_failed'}${reasonCode ? ` [${reasonCode}]` : ''}`
+        `Station ${labelFor(payload.stationId)}: ${resolvedReasonText || reason || 'request_failed'}${reasonCode ? ` [${reasonCode}]` : ''}`
       );
-      showToast(reasonText || `Station error: ${reason || 'request_failed'}`);
+      showToast(resolvedReasonText || `Station error: ${reason || 'request_failed'}`);
       return;
     }
     if (stateName === 'dealer_ready') {
@@ -1723,6 +1724,30 @@ function challengeReasonLabel(reason) {
     default:
       return reason ? `Action rejected: ${reason}` : 'Challenge action rejected.';
   }
+}
+
+function dealerReasonLabel(reason, reasonCode) {
+  const code = String(reasonCode || '').toUpperCase();
+  const raw = String(reason || '').toLowerCase();
+  if (code === 'BET_ID_ALREADY_USED' || raw.includes('bet_already_exists')) {
+    return 'Escrow id collision detected. Please retry the round.';
+  }
+  if (code === 'INVALID_WAGER' || raw === 'invalid_amount') {
+    return 'Invalid wager amount. Enter a valid amount and retry.';
+  }
+  if (code === 'INVALID_ESCROW_PARTICIPANTS' || raw === 'invalid_address') {
+    return 'Wallet participants are invalid. Reconnect and retry.';
+  }
+  if (code === 'BET_NOT_LOCKED' || raw === 'bet_not_locked') {
+    return 'Escrow lock is missing for this round. Start a new round.';
+  }
+  if (code === 'WINNER_NOT_PARTICIPANT' || raw === 'winner_not_participant') {
+    return 'Escrow winner wallet is invalid for this round.';
+  }
+  if (code === 'ONCHAIN_EXECUTION_ERROR') {
+    return 'Onchain escrow transaction failed. Retry shortly.';
+  }
+  return '';
 }
 
 function renderInteractionPrompt() {

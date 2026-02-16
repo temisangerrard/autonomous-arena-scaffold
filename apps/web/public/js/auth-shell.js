@@ -1,6 +1,5 @@
 const AUTH_KEY = 'arena_auth_user';
 const CLIENT_KEY = 'arena_google_client_id';
-const SID_KEY = 'arena_sid_fallback';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
 
 // Test harness can load pages without going through auth.
@@ -36,25 +35,8 @@ function writeUser(user) {
   window.dispatchEvent(new CustomEvent('arena-auth-updated', { detail: user }));
 }
 
-function getSid() {
-  return String(localStorage.getItem(SID_KEY) || '').trim();
-}
-
-function writeSid(sid) {
-  const value = String(sid || '').trim();
-  if (value) {
-    localStorage.setItem(SID_KEY, value);
-  } else {
-    localStorage.removeItem(SID_KEY);
-  }
-}
-
 async function fetchJson(url, init = {}) {
   const headers = new Headers(init.headers || {});
-  const sid = getSid();
-  if (sid) {
-    headers.set('x-arena-sid', sid);
-  }
   const response = await fetch(url, {
     credentials: 'include',
     ...init,
@@ -62,16 +44,9 @@ async function fetchJson(url, init = {}) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    if (payload?.sessionId) {
-      writeSid(payload.sessionId);
-    }
     throw new Error(payload?.reason || `status_${response.status}`);
   }
-  const payload = await response.json().catch(() => ({}));
-  if (payload?.sessionId) {
-    writeSid(payload.sessionId);
-  }
-  return payload;
+  return response.json().catch(() => ({}));
 }
 
 function currentPath() {
@@ -157,7 +132,6 @@ async function handleGoogleCredential(response, config) {
     if (!payload?.ok || !payload?.user) {
       throw new Error(payload?.reason || 'auth_failed');
     }
-    writeSid(payload.sessionId || '');
     writeUser(payload.user);
     renderAuthState(config, payload.user);
     if (window.location.pathname === '/welcome' && payload.redirectTo) {
@@ -182,7 +156,6 @@ async function handleLogout(config) {
     // best effort: clear client state even if request fails
   }
   writeUser(null);
-  writeSid('');
   renderAuthState(config, null);
   if (window.location.pathname !== '/welcome' && window.location.pathname !== '/viewer') {
     window.location.href = '/welcome';
@@ -204,18 +177,30 @@ function renderGoogleButton(config) {
   if (!window.google?.accounts?.id) {
     return;
   }
-  window.google.accounts.id.initialize({
-    client_id: config.googleClientId,
-    callback: (response) => {
-      void handleGoogleCredential(response, config);
+  void (async () => {
+    try {
+      const noncePayload = await fetchJson('/api/auth/google/nonce');
+      const nonce = String(noncePayload?.nonce || '').trim();
+      if (!nonce) {
+        throw new Error('nonce_missing');
+      }
+      window.google.accounts.id.initialize({
+        client_id: config.googleClientId,
+        nonce,
+        callback: (response) => {
+          void handleGoogleCredential(response, config);
+        }
+      });
+      window.google.accounts.id.renderButton(document.getElementById('google-signin-shell'), {
+        theme: 'outline',
+        size: 'small',
+        type: 'standard',
+        text: 'signin_with'
+      });
+    } catch (error) {
+      authContainer.innerHTML = `<span class="global-shell__hint">Sign-in setup failed: ${String((error).message || error)}</span>`;
     }
-  });
-  window.google.accounts.id.renderButton(document.getElementById('google-signin-shell'), {
-    theme: 'outline',
-    size: 'small',
-    type: 'standard',
-    text: 'signin_with'
-  });
+  })();
 }
 
 function renderAuthState(config, user) {
@@ -254,23 +239,14 @@ async function loadConfig() {
 
 async function getSessionUser() {
   try {
-    const headers = new Headers();
-    const sid = getSid();
-    if (sid) {
-      headers.set('x-arena-sid', sid);
-    }
-    const response = await fetch('/api/session', { credentials: 'include', headers });
+    const response = await fetch('/api/session', { credentials: 'include' });
     if (response.status === 401 || response.status === 403) {
-      writeSid('');
       return { user: null, source: 'server' };
     }
     if (!response.ok) {
       return { user: readUser(), source: 'cache' };
     }
     const data = await response.json().catch(() => null);
-    if (data?.sessionId) {
-      writeSid(data.sessionId);
-    }
     return { user: data?.user ?? null, source: 'server' };
   } catch {
     return { user: readUser(), source: 'cache' };

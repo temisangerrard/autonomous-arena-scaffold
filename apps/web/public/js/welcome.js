@@ -1,5 +1,4 @@
 const AUTH_KEY = 'arena_auth_user';
-const SID_KEY = 'arena_sid_fallback';
 
 const ctaRoot = document.getElementById('welcome-session-cta');
 const hint = document.getElementById('welcome-hint');
@@ -25,34 +24,14 @@ function setStoredUser(user) {
   }
 }
 
-function getSid() {
-  return String(localStorage.getItem(SID_KEY) || '').trim();
-}
-
-function setSid(sid) {
-  const value = String(sid || '').trim();
-  if (value) {
-    localStorage.setItem(SID_KEY, value);
-  } else {
-    localStorage.removeItem(SID_KEY);
-  }
-}
-
 async function requestJson(path, init = {}) {
   const headers = new Headers(init.headers || {});
-  const sid = getSid();
-  if (sid) {
-    headers.set('x-arena-sid', sid);
-  }
   const response = await fetch(path, {
     credentials: 'include',
     ...init,
     headers
   });
   const payload = await response.json().catch(() => ({}));
-  if (payload?.sessionId) {
-    setSid(payload.sessionId);
-  }
   if (!response.ok) {
     throw new Error(payload?.reason || `status_${response.status}`);
   }
@@ -76,7 +55,6 @@ async function logout() {
     // best-effort
   }
   setStoredUser(null);
-  setSid('');
   await render();
 }
 
@@ -114,18 +92,27 @@ function renderSignedOut() {
   hint.textContent = 'Sign in with Google to create your player bot and wallet.';
   ctaRoot.innerHTML = '<div id="google-signin-welcome"></div>';
   if (window.google?.accounts?.id) {
-    window.google.accounts.id.initialize({
-      client_id: config.googleClientId,
-      callback: (response) => {
-        void handleGoogleCredential(response.credential || '');
+    void (async () => {
+      const noncePayload = await requestJson('/api/auth/google/nonce').catch(() => null);
+      const nonce = String(noncePayload?.nonce || '').trim();
+      if (!nonce) {
+        showAuthError('Sign-in setup failed. Refresh and try again.');
+        return;
       }
-    });
-    window.google.accounts.id.renderButton(document.getElementById('google-signin-welcome'), {
-      theme: 'outline',
-      size: 'large',
-      text: 'signin_with',
-      width: 260
-    });
+      window.google.accounts.id.initialize({
+        client_id: config.googleClientId,
+        nonce,
+        callback: (response) => {
+          void handleGoogleCredential(response.credential || '');
+        }
+      });
+      window.google.accounts.id.renderButton(document.getElementById('google-signin-welcome'), {
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        width: 260
+      });
+    })();
   }
 }
 
@@ -138,7 +125,6 @@ async function handleGoogleCredential(credential) {
       body: JSON.stringify({ credential })
     });
     setStoredUser(result.user || null);
-    setSid(result.sessionId || '');
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
     showAuthError(`Sign-in failed: ${String(error.message || error)}`);
@@ -210,7 +196,6 @@ adminLoginBtn?.addEventListener('click', async () => {
       body: JSON.stringify({ username, password })
     });
     setStoredUser(result.user || null);
-    setSid(result.sessionId || '');
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
     if (adminStatus) {

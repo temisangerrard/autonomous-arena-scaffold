@@ -47,6 +47,7 @@ Copy `.env.example` to `.env` and fill values as needed.
 
 Google sign-in scaffold expects:
 - `GOOGLE_CLIENT_ID` in web env (OAuth Web Client ID)
+- `GOOGLE_NONCE_SECRET` in web env (required in production unless `GAME_WS_AUTH_SECRET` or `INTERNAL_SERVICE_TOKEN` is set)
 
 Local scaffold admin auth (dev-only escape hatch):
 - set `LOCAL_AUTH_ENABLED=true` only in local dev

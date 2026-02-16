@@ -2,6 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { ChallengeService } from './ChallengeService.js';
 
 describe('ChallengeService', () => {
+  it('generates prefixed monotonic challenge IDs', () => {
+    const service = new ChallengeService(() => 1000, () => 0.2, 10_000, 6_000, 'srv_a_boot1');
+    const c1 = service.createChallenge('a', 'b', 'rps', 2);
+    const c2 = service.createChallenge('c', 'd', 'coinflip', 1);
+    expect(c1.challengeId).toBeDefined();
+    expect(c2.challengeId).toBeDefined();
+    expect(c1.challengeId).toMatch(/^c_srv_a_boot1_[a-z0-9]+$/);
+    expect(c2.challengeId).toMatch(/^c_srv_a_boot1_[a-z0-9]+$/);
+    expect(c1.challengeId).not.toBe(c2.challengeId);
+  });
+
+  it('does not collide across services with different prefixes', () => {
+    const serviceA = new ChallengeService(() => 1000, () => 0.2, 10_000, 6_000, 'srv_a_boot1');
+    const serviceB = new ChallengeService(() => 1000, () => 0.2, 10_000, 6_000, 'srv_b_boot1');
+    const cA = serviceA.createChallenge('a', 'b', 'rps', 1);
+    const cB = serviceB.createChallenge('x', 'y', 'rps', 1);
+    expect(cA.challengeId).toBeDefined();
+    expect(cB.challengeId).toBeDefined();
+    expect(cA.challengeId).not.toBe(cB.challengeId);
+  });
+
   it('creates pending challenge and locks both players', () => {
     const now = 1000;
     const service = new ChallengeService(() => now, () => 0.2, 10000, 6000);

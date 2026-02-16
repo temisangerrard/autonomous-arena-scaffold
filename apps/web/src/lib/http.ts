@@ -3,6 +3,19 @@ import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { stat } from 'node:fs/promises';
 
+function appendSetCookie(res: ServerResponse, cookieValue: string): void {
+  const existing = res.getHeader('set-cookie');
+  if (!existing) {
+    res.setHeader('set-cookie', cookieValue);
+    return;
+  }
+  if (Array.isArray(existing)) {
+    res.setHeader('set-cookie', [...existing, cookieValue]);
+    return;
+  }
+  res.setHeader('set-cookie', [String(existing), cookieValue]);
+}
+
 export function parseCookies(req: IncomingMessage): Record<string, string> {
   const header = req.headers.cookie ?? '';
   const out: Record<string, string> = {};
@@ -21,8 +34,8 @@ export function parseCookies(req: IncomingMessage): Record<string, string> {
 }
 
 export function setSessionCookie(res: ServerResponse, cookieName: string, sessionId: string, ttlMs: number): void {
-  res.setHeader(
-    'set-cookie',
+  appendSetCookie(
+    res,
     `${cookieName}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(ttlMs / 1000)}`
   );
 }
@@ -35,14 +48,57 @@ export function setSessionCookieWithOptions(
   options?: { secure?: boolean }
 ): void {
   const secure = options?.secure ? '; Secure' : '';
-  res.setHeader(
-    'set-cookie',
+  appendSetCookie(
+    res,
     `${cookieName}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=${Math.floor(ttlMs / 1000)}`
   );
 }
 
 export function clearSessionCookie(res: ServerResponse, cookieName: string): void {
-  res.setHeader('set-cookie', `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  appendSetCookie(res, `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+export function setCookie(
+  res: ServerResponse,
+  cookieName: string,
+  value: string,
+  options?: {
+    ttlSec?: number;
+    httpOnly?: boolean;
+    sameSite?: 'Lax' | 'Strict' | 'None';
+    secure?: boolean;
+    path?: string;
+  }
+): void {
+  const parts = [`${cookieName}=${encodeURIComponent(value)}`];
+  parts.push(`Path=${options?.path ?? '/'}`);
+  if (options?.httpOnly !== false) {
+    parts.push('HttpOnly');
+  }
+  if (options?.sameSite) {
+    parts.push(`SameSite=${options.sameSite}`);
+  }
+  if (options?.secure) {
+    parts.push('Secure');
+  }
+  if (typeof options?.ttlSec === 'number') {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(options.ttlSec))}`);
+  }
+  appendSetCookie(res, parts.join('; '));
+}
+
+export function clearCookie(
+  res: ServerResponse,
+  cookieName: string,
+  options?: { httpOnly?: boolean; sameSite?: 'Lax' | 'Strict' | 'None'; secure?: boolean; path?: string }
+): void {
+  setCookie(res, cookieName, '', {
+    ttlSec: 0,
+    httpOnly: options?.httpOnly,
+    sameSite: options?.sameSite,
+    secure: options?.secure,
+    path: options?.path
+  });
 }
 
 export function sendJson(res: ServerResponse, payload: unknown, statusCode = 200): void {
