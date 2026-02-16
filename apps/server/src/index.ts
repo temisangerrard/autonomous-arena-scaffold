@@ -615,10 +615,11 @@ wss.on('connection', (ws, request) => {
   ws.send(JSON.stringify({ type: 'welcome', playerId, role, displayName: displayNameFor(playerId), serverId: serverInstanceId }));
 
   ws.on('message', async (raw: RawData) => {
-    const payload = parseClientMessage(raw);
-    if (!payload) {
-      return;
-    }
+    try {
+      const payload = parseClientMessage(raw);
+      if (!payload) {
+        return;
+      }
 
     if (payload.type === 'input') {
       const role = metaByPlayer.get(playerId)?.role ?? 'human';
@@ -848,7 +849,7 @@ wss.on('connection', (ws, request) => {
       return;
     }
 
-    if (payload.type === 'challenge_move') {
+      if (payload.type === 'challenge_move') {
       const event = challengeService.submitMove(payload.challengeId, playerId, payload.move);
       if (event.event === 'invalid' && event.reason === 'challenge_not_active') {
         const owner = await distributedChallengeStore.getOwnerServerId(payload.challengeId);
@@ -864,6 +865,9 @@ wss.on('connection', (ws, request) => {
       }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
     }
+    } catch (error) {
+      log.warn({ err: error, playerId }, 'failed to process ws message');
+    }
   });
 
   ws.on('close', () => {
@@ -874,7 +878,9 @@ wss.on('connection', (ws, request) => {
     metaByPlayer.delete(playerId);
     worldSim.removePlayer(playerId);
     lastPlayerPos.delete(playerId);
-    void presenceStore.remove(playerId);
+    void presenceStore.remove(playerId).catch((error) => {
+      log.warn({ err: error, playerId }, 'presence remove failed');
+    });
 
     clearPlayerProximityPairs(activeProximityPairs, playerId);
 
@@ -958,6 +964,8 @@ setInterval(() => {
         z: player.z,
         yaw: player.yaw,
         speed: player.speed
+      }).catch((error) => {
+        log.warn({ err: error, playerId: player.id }, 'presence upsert failed');
       });
     }
   }

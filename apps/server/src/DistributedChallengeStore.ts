@@ -248,12 +248,26 @@ export class DistributedChallengeStore {
     const locked: string[] = [];
     for (const playerId of playerIds) {
       const key = playerLockKey(playerId);
-      const setResult = await this.redis.set(key, lockValue, { NX: true, PX: ttlMs });
+      let setResult: string | null = null;
+      try {
+        setResult = await this.redis.set(key, lockValue, { NX: true, PX: ttlMs });
+      } catch (error) {
+        log.warn({ err: error, key }, 'failed to set player lock');
+        // Self-heal stale key type mismatches from previous schemas.
+        await this.redis.del(key);
+        setResult = await this.redis.set(key, lockValue, { NX: true, PX: ttlMs });
+      }
       if (setResult === 'OK') {
         locked.push(key);
         continue;
       }
-      const existing = await this.redis.get(key);
+      let existing: string | null = null;
+      try {
+        existing = await this.redis.get(key);
+      } catch (error) {
+        log.warn({ err: error, key }, 'failed to read player lock');
+        await this.redis.del(key);
+      }
       if (existing === lockValue) {
         locked.push(key);
         continue;
@@ -278,7 +292,14 @@ export class DistributedChallengeStore {
     }
     for (const playerId of playerIds) {
       const key = playerLockKey(playerId);
-      const existing = await this.redis.get(key);
+      let existing: string | null = null;
+      try {
+        existing = await this.redis.get(key);
+      } catch (error) {
+        log.warn({ err: error, key }, 'failed to read player lock during release');
+        await this.redis.del(key);
+        continue;
+      }
       if (existing === lockValue) {
         await this.redis.del(key);
       }
