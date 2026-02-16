@@ -539,13 +539,27 @@ document.addEventListener('keydown', (event) => {
 });
 
 async function sendSuperAgent(message) {
-  const result = await api('/api/player/house/chat', {
+  const trimmed = String(message || '').trim();
+  const confirmMatch = trimmed.match(/^confirm\s+([a-z0-9_:-]+)$/i);
+  const payload = confirmMatch?.[1]
+    ? { confirmToken: confirmMatch[1] }
+    : { message: trimmed };
+
+  const result = await api('/api/chief/v1/chat', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ message, includeStatus: false })
+    body: JSON.stringify(payload)
   });
 
-  const reply = String(result?.reply || 'No reply.');
+  const actions = Array.isArray(result?.actions)
+    ? result.actions.map((entry) => `${entry.tool} (${entry.status})`).join(', ')
+    : '';
+  const confirmation = result?.requiresConfirmation
+    ? `\n\nConfirmation required. Re-send with token:\nconfirm ${String(result?.confirmToken || '').trim()}`
+    : '';
+  const reply = String(result?.reply || 'No reply.')
+    + (actions ? `\n\nActions: ${actions}` : '')
+    + confirmation;
   if (superAgentResponse) {
     superAgentResponse.textContent = reply;
   }

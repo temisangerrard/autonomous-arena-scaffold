@@ -4,6 +4,9 @@
  */
 
 import { createHash } from 'node:crypto';
+import { loadEnvFromFile } from './lib/env.js';
+
+loadEnvFromFile();
 
 export const config = {
   // Server

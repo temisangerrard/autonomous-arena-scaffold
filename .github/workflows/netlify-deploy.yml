@@ -12,7 +12,27 @@ on:
   workflow_dispatch:
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      can_deploy: ${{ steps.check.outputs.can_deploy }}
+    steps:
+      - name: Check Netlify secrets
+        id: check
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          if [ -n "$NETLIFY_AUTH_TOKEN" ] && [ -n "$NETLIFY_SITE_ID" ]; then
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping deploy: NETLIFY_AUTH_TOKEN and/or NETLIFY_SITE_ID is not set."
+          fi
+
   deploy-production:
+    needs: preflight
+    if: needs.preflight.outputs.can_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -29,16 +49,6 @@ jobs:
 
       - name: Build Netlify runtime config
         run: node scripts/netlify-build.mjs
-
-      - name: Validate Netlify secrets
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        run: |
-          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
-            echo "::error::Missing NETLIFY_AUTH_TOKEN or NETLIFY_SITE_ID repository secret."
-            exit 1
-          fi
 
       - name: Deploy to Netlify (production)
         env:

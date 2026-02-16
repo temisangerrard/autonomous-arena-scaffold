@@ -33,6 +33,11 @@ npm run -w @arena/agent-runtime start
 npm run -w @arena/web start
 ```
 
+Or start local dev watchers together:
+```bash
+npm run dev:up
+```
+
 ## Verify
 ```bash
 curl http://localhost:3000/health
@@ -40,7 +45,13 @@ curl http://localhost:4000/health
 curl http://localhost:4100/health
 curl http://localhost:4100/status
 curl http://localhost:4000/presence
+curl http://localhost:3000/api/chief/v1/heartbeat
 ```
+
+Chief APIs:
+- `GET /api/chief/v1/heartbeat`
+- `POST /api/chief/v1/chat`
+- Compatibility shim: `POST /api/player/chief/chat`
 
 ## Backend Auto-Deploy (GitHub Actions -> Cloud Run)
 

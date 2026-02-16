@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
+import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldVersionByAlias } from './worldAssets.js';
 import { signWsAuthToken } from '@arena/shared';
@@ -265,6 +266,15 @@ async function serverPost<T>(pathname: string, body: unknown): Promise<T> {
   }
   return payload;
 }
+
+const chiefService = createChiefService({
+  runtimeGet,
+  runtimePost,
+  serverGet,
+  runtimeProfiles,
+  purgeSessionsForProfile: (profileId) => sessionStore.purgeSessionsForProfile(profileId),
+  log
+});
 
 async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
   if (identity.profileId && identity.walletId) {
@@ -562,6 +572,16 @@ const server = createServer(async (req, res) => {
         server: serverOk
       }
     });
+    return;
+  }
+
+  if (pathname === '/api/chief/v1/heartbeat') {
+    const heartbeat = await chiefService.heartbeat();
+    sendJson(res, {
+      service: 'chief',
+      timestamp: new Date().toISOString(),
+      ...heartbeat
+    }, heartbeat.ok ? 200 : 503);
     return;
   }
 
@@ -1271,6 +1291,27 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/chief/v1/chat' && req.method === 'POST') {
+    const auth = await requireRole(req, ['player', 'admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+
+    const body = await readJsonBody<ChiefChatRequest>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
+      return;
+    }
+
+    const response = await chiefService.handleChat({
+      identity: auth.identity,
+      request: body
+    });
+    sendJson(res, response, response.ok ? 200 : 400);
+    return;
+  }
+
   // Ops super-agent is admin-only. Players use the scoped chief-of-staff endpoint below.
   if (pathname === '/api/super-agent/chat' && req.method === 'POST') {
     const auth = await requireRole(req, ['admin']);
@@ -1306,129 +1347,28 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
     }
-    const identity = auth.identity;
-
-    const body = await readJsonBody<{ message?: string; includeStatus?: boolean }>(req);
-    const message = String(body?.message ?? '').trim();
-    if (!message) {
-      sendJson(res, { ok: false, reason: 'message_required' }, 400);
+    const body = await readJsonBody<ChiefChatRequest>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
       return;
     }
-
-    // Player-facing House chat: structured actions first, then OpenRouter-backed "House" reply.
-    const normalized = message.toLowerCase().trim();
-
-    const actions: string[] = [];
-    function reply(text: string) {
-      sendJson(res, { ok: true, reply: text, actions });
-    }
-
-    if (/\b(help|what can you do)\b/.test(normalized)) {
-      reply(
-        [
-          'I can help with:',
-          '- status',
-          '- fund <amount>',
-          '- withdraw <amount>',
-          '- set personality <social|aggressive|conservative>',
-          '- set target <human_first|human_only|any>',
-          '- set mode <active|passive>',
-          '- set cooldown <ms>',
-          '- set wager base <n> max <n>'
-        ].join('\n')
-      );
-      return;
-    }
-
-    if (/\bstatus\b/.test(normalized) || body?.includeStatus) {
-      const ctx = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [], wallets: [] }));
-      const ownerBot = (ctx.bots ?? []).find((entry) => entry.meta?.ownerProfileId === identity.profileId);
-      const wallet = (ctx.wallets ?? []).find((entry) => entry.id === identity.walletId);
-      reply(
-        [
-          `profileId=${identity.profileId || '-'}`,
-          `walletId=${identity.walletId || '-'} balance=${Number(wallet?.balance || 0).toFixed(2)}`,
-          ownerBot
-            ? `bot=${ownerBot.id} personality=${ownerBot.behavior?.personality || '-'} target=${ownerBot.behavior?.targetPreference || '-'} mode=${ownerBot.behavior?.mode || '-'}`
-            : 'bot=missing'
-        ].join('\n')
-      );
-      return;
-    }
-
-    const fundMatch = normalized.match(/\bfund\s+(\d+(\.\d+)?)\b/);
-    if (fundMatch?.[1]) {
-      const amount = Math.max(0, Number(fundMatch[1]));
-      if (!identity.walletId) {
-        sendJson(res, { ok: false, reason: 'wallet_missing' }, 400);
-        return;
-      }
-      await runtimePost(`/wallets/${identity.walletId}/fund`, { amount }).catch(() => null);
-      actions.push(`fund:${amount}`);
-      reply(`Funded wallet by ${amount}.`);
-      return;
-    }
-
-    const withdrawMatch = normalized.match(/\b(withdraw|cash out)\s+(\d+(\.\d+)?)\b/);
-    if (withdrawMatch?.[2]) {
-      const amount = Math.max(0, Number(withdrawMatch[2]));
-      if (!identity.walletId) {
-        sendJson(res, { ok: false, reason: 'wallet_missing' }, 400);
-        return;
-      }
-      await runtimePost(`/wallets/${identity.walletId}/withdraw`, { amount }).catch(() => null);
-      actions.push(`withdraw:${amount}`);
-      reply(`Withdrew ${amount} from wallet.`);
-      return;
-    }
-
-    const personalityMatch = normalized.match(/\b(personality|persona)\s+(social|aggressive|conservative)\b/);
-    const targetMatch = normalized.match(/\btarget\s+(human_first|human_only|any)\b/);
-    const modeMatch = normalized.match(/\bmode\s+(active|passive)\b/);
-    const cooldownMatch = normalized.match(/\bcooldown\s+(\d{3,6})\b/);
-    const wagerMatch = normalized.match(/\bwager\s+base\s+(\d+)\s+max\s+(\d+)\b/);
-
-    if (personalityMatch || targetMatch || modeMatch || cooldownMatch || wagerMatch) {
-      const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [] }));
-      const bot = (runtimeStatus.bots ?? []).find((entry) => entry.meta?.ownerProfileId === identity.profileId);
-      if (!bot?.id) {
-        sendJson(res, { ok: false, reason: 'bot_not_found' }, 404);
-        return;
-      }
-
-      const patch: Record<string, unknown> = {};
-      if (personalityMatch?.[2]) patch.personality = personalityMatch[2];
-      if (targetMatch?.[1]) patch.targetPreference = targetMatch[1];
-      if (modeMatch?.[1]) patch.mode = modeMatch[1];
-      if (cooldownMatch?.[1]) patch.challengeCooldownMs = Number(cooldownMatch[1]);
-      if (wagerMatch?.[1] && wagerMatch?.[2]) {
-        const base = Math.max(1, Number(wagerMatch[1]));
-        const max = Math.max(base, Number(wagerMatch[2]));
-        patch.baseWager = base;
-        patch.maxWager = max;
-      }
-
-      await runtimePost(`/agents/${bot.id}/config`, patch);
-      actions.push(`bot_config:${bot.id}`);
-      reply(`Updated ${bot.id}.`);
-      return;
-    }
-
-    try {
-      const payload = await runtimePost<{ ok: boolean; reply?: string }>('/house/chat', {
-        message,
-        player: {
-          profileId: identity.profileId ?? null,
-          displayName: identity.displayName ?? null,
-          walletId: identity.walletId ?? null
-        }
-      });
-      reply(String(payload?.reply || ''));
-      return;
-    } catch {
-      reply('I did not recognize that. Say "help" for supported commands.');
-      return;
-    }
+    const response = await chiefService.handleChat({
+      identity: auth.identity,
+      request: body,
+      forcedMode: 'player'
+    });
+    const legacyPayload = {
+      ok: response.ok,
+      reply: response.reply,
+      actions: response.actions.map((entry) => `${entry.tool}:${entry.status}`),
+      requiresConfirmation: response.requiresConfirmation,
+      confirmToken: response.confirmToken,
+      intent: response.intent,
+      mode: response.mode,
+      errors: response.errors,
+      stateSnapshot: response.stateSnapshot
+    };
+    sendJson(res, legacyPayload, response.ok ? 200 : 400);
     return;
   }
 
@@ -1754,5 +1694,12 @@ process.on('SIGTERM', () => {
 });
 
 server.listen(port, () => {
-  log.info({ port }, 'web server listening');
+  log.info({
+    port,
+    runtimeBase,
+    serverBase,
+    internalTokenConfigured: Boolean(internalToken),
+    wsAuthConfigured: Boolean(wsAuthSecret),
+    chiefReady: true
+  }, 'web server listening');
 });

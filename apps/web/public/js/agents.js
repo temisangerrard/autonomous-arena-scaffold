@@ -312,18 +312,21 @@ superChatSendBtn?.addEventListener('click', async () => {
   }
   try {
     appendSuperChat(`you: ${message}`);
-    const result = await postJson(`${runtimeBase}/super-agent/chat`, {
-      message,
-      includeStatus: true
-    });
+    const confirmMatch = message.match(/^confirm\s+([a-z0-9_:-]+)$/i);
+    const result = await postJson('/api/chief/v1/chat', confirmMatch?.[1]
+      ? { confirmToken: confirmMatch[1] }
+      : { message, context: { page: 'admin' } });
+    const actionText = Array.isArray(result.actions)
+      ? result.actions.map((entry) => `${entry.tool}:${entry.status}`).join(', ')
+      : '';
     appendSuperChat(`super-agent: ${String(result.reply || '').replace(/\n/g, ' | ')}`);
-    if (result.status) {
-      latestStatus = result.status;
-      statusSummary.textContent = summarizeStatus(result.status);
-      populateControlValues(result.status);
-      renderProfiles(result.status);
-      renderBots(result.status);
+    if (actionText) {
+      appendSuperChat(`actions: ${actionText}`);
     }
+    if (result.requiresConfirmation) {
+      appendSuperChat(`confirm: confirm ${String(result.confirmToken || '')}`);
+    }
+    await load();
     superChatInput.value = '';
   } catch (error) {
     appendSuperChat(`super-agent error: ${String(error.message || error)}`);
@@ -332,18 +335,12 @@ superChatSendBtn?.addEventListener('click', async () => {
 
 superChatStatusBtn?.addEventListener('click', async () => {
   try {
-    const result = await postJson(`${runtimeBase}/super-agent/chat`, {
+    const result = await postJson('/api/chief/v1/chat', {
       message: 'status',
-      includeStatus: true
+      context: { page: 'admin' }
     });
     appendSuperChat(`super-agent: ${String(result.reply || '').replace(/\n/g, ' | ')}`);
-    if (result.status) {
-      latestStatus = result.status;
-      statusSummary.textContent = summarizeStatus(result.status);
-      populateControlValues(result.status);
-      renderProfiles(result.status);
-      renderBots(result.status);
-    }
+    await load();
   } catch (error) {
     appendSuperChat(`super-agent error: ${String(error.message || error)}`);
   }

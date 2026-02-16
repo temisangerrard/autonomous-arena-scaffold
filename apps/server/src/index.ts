@@ -1496,6 +1496,13 @@ void (async () => {
     log.info('websocket auth is enabled; ensure GAME_WS_AUTH_SECRET matches across web/server/agent-runtime.');
   }
   server.listen(config.port, () => {
-    log.info({ port: config.port, instanceId: serverInstanceId }, 'server listening');
+    log.info({
+      port: config.port,
+      instanceId: serverInstanceId,
+      runtimeUrl: config.agentRuntimeUrl,
+      redisConfigured: Boolean(config.redisUrl),
+      wsAuthConfigured: Boolean(wsAuthSecret),
+      internalTokenConfigured: Boolean(internalServiceToken)
+    }, 'server listening');
   });
 })();

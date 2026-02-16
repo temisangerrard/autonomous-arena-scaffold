@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadEnvFromFile } from './lib/env.js';
 import { formatCodebaseContext, getTroubleshootingGuide } from './codebaseContext.js';
 import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
 import {
@@ -42,6 +43,8 @@ import {
   type WalletPolicy
 } from './SuperAgent.js';
 import type { Personality } from './PolicyEngine.js';
+
+loadEnvFromFile();
 
 const port = Number(process.env.PORT ?? 4100);
 const wsBaseUrl = process.env.GAME_WS_URL ?? 'ws://localhost:4000/ws';
@@ -112,6 +115,18 @@ const onchainProvider = onchainRpcUrl ? new JsonRpcProvider(onchainRpcUrl) : nul
 const gasFunderPrivateKey = process.env.GAS_FUNDING_PRIVATE_KEY || process.env.ESCROW_RESOLVER_PRIVATE_KEY || '';
 const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
 const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
+
+function startupDiagnostics() {
+  console.log('[agent-runtime] startup diagnostics', {
+    port,
+    wsBaseUrl,
+    wsAuthConfigured: Boolean(wsAuthSecret),
+    internalTokenConfigured: Boolean(internalToken),
+    openRouterConfigured: Boolean(runtimeSecrets.openRouterApiKey),
+    onchainRpcConfigured: Boolean(onchainRpcUrl),
+    onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress)
+  });
+}
 
 function resolveInternalServiceToken(): string {
   const configured = process.env.INTERNAL_SERVICE_TOKEN?.trim();
@@ -1975,5 +1990,6 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
+  startupDiagnostics();
   console.log(`agent-runtime listening on :${port}`);
 });
