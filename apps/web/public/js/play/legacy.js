@@ -130,6 +130,12 @@ const { localAvatarParts, remoteAvatars, syncRemoteAvatars } = createAvatarSyste
 const { syncStations } = createStationSystem({ THREE, scene });
 
 const state = createInitialState();
+if (!(state.stations instanceof Map)) {
+  state.stations = new Map();
+}
+if (!(state.nearbyStationIds instanceof Set)) {
+  state.nearbyStationIds = new Set();
+}
 initMenu(dom, { queryParams });
 
 const presence = createPresence({ queryParams });
@@ -790,7 +796,7 @@ function renderTargetSpotlight() {
     return;
   }
   const target = state.players.get(targetId);
-  const station = target ? null : state.stations.get(targetId);
+  const station = target ? null : (state.stations instanceof Map ? state.stations.get(targetId) : null);
   if (!target && !station) {
     targetSpotlight.visible = false;
     return;
@@ -817,7 +823,7 @@ function renderInteractionCard() {
     setInteractOpen(false);
     return;
   }
-  const station = isStation(targetId) ? state.stations.get(targetId) : null;
+  const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
 
   const challengeRows = interactionCard.querySelectorAll('.interaction-row, .interaction-actions, #wager-hint');
   const showStation = Boolean(station);
@@ -1096,7 +1102,7 @@ function labelFor(id) {
     return 'Unknown';
   }
   const player = state.players.get(id);
-  const station = state.stations.get(id);
+  const station = state.stations instanceof Map ? state.stations.get(id) : null;
   if (station?.displayName) {
     return station.displayName;
   }
@@ -1147,24 +1153,26 @@ function refreshNearbyTargetOptions() {
 }
 
 function closestNearbyTargetId() {
-  if (state.nearbyIds.size === 0 && state.nearbyStationIds.size === 0) {
+  const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
+  if (state.nearbyIds.size === 0 && nearbyStations.size === 0) {
     return '';
   }
   let bestId = '';
   let bestDist = Number.POSITIVE_INFINITY;
-  for (const id of [...state.nearbyIds, ...state.nearbyStationIds]) {
+  for (const id of [...state.nearbyIds, ...nearbyStations]) {
     const distance = Number(state.nearbyDistances.get(id) ?? Number.POSITIVE_INFINITY);
     if (distance < bestDist) {
       bestDist = distance;
       bestId = id;
     }
   }
-  return bestId || [...state.nearbyIds][0] || [...state.nearbyStationIds][0] || '';
+  return bestId || [...state.nearbyIds][0] || [...nearbyStations][0] || '';
 }
 
 function getUiTargetId() {
+  const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
   const preferred = state.ui?.targetId || '';
-  if (preferred && (state.nearbyIds.has(preferred) || state.nearbyStationIds.has(preferred))) {
+  if (preferred && (state.nearbyIds.has(preferred) || nearbyStations.has(preferred))) {
     return preferred;
   }
   const closest = closestNearbyTargetId();
@@ -1175,7 +1183,8 @@ function getUiTargetId() {
 }
 
 function cycleNearbyTarget(next = true) {
-  const ids = [...state.nearbyIds, ...state.nearbyStationIds];
+  const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
+  const ids = [...state.nearbyIds, ...nearbyStations];
   if (ids.length === 0) {
     state.ui.targetId = '';
     return;
@@ -1237,6 +1246,12 @@ function syncNearbyStations() {
   if (!selfId) return;
   const self = state.players.get(selfId);
   if (!self) return;
+  if (!(state.stations instanceof Map)) {
+    state.stations = new Map();
+  }
+  if (!(state.nearbyStationIds instanceof Set)) {
+    state.nearbyStationIds = new Set();
+  }
 
   const threshold = 8;
   const next = new Set();
@@ -1953,17 +1968,19 @@ function renderWorldMap() {
     ctx.stroke();
   }
 
-  for (const station of state.stations.values()) {
-    const x = ((station.x + WORLD_BOUND) / (WORLD_BOUND * 2)) * width;
-    const y = ((station.z + WORLD_BOUND) / (WORLD_BOUND * 2)) * height;
-    ctx.beginPath();
-    const size = 6;
-    ctx.rect(x - size / 2, y - size / 2, size, size);
-    ctx.fillStyle = station.kind === 'cashier_bank' ? 'rgba(47, 109, 255, 0.92)' : 'rgba(243, 156, 18, 0.92)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  if (state.stations instanceof Map) {
+    for (const station of state.stations.values()) {
+      const x = ((station.x + WORLD_BOUND) / (WORLD_BOUND * 2)) * width;
+      const y = ((station.z + WORLD_BOUND) / (WORLD_BOUND * 2)) * height;
+      ctx.beginPath();
+      const size = 6;
+      ctx.rect(x - size / 2, y - size / 2, size, size);
+      ctx.fillStyle = station.kind === 'cashier_bank' ? 'rgba(47, 109, 255, 0.92)' : 'rgba(243, 156, 18, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
   }
 
   if (state.playerId) {
