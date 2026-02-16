@@ -18,6 +18,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
   canUseWallet: (wallet: WalletRecord) => WalletDenied | null;
   canLockStake: (wallet: WalletRecord, amount: number) => WalletDenied | null;
   transferFromHouse: (toWalletId: string, amount: number, reason: string) => { ok: true; amount: number } | { ok: false; reason: string };
+  refillHouse: (amount: number, reason: string) => { ok: true; amount: number } | { ok: false; reason: string };
   schedulePersistState: () => void;
   onchainProvider: unknown;
   onchainTokenAddress: string;
@@ -420,6 +421,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       return;
     }
     const isHouseManagedOpponent = opponent.ownerProfileId.startsWith('system_');
+    const isHouseWalletOpponent = opponent.ownerProfileId === 'system_house';
     let opponentDenied = deps.canLockStake(opponent, amount);
     let houseTopupAmount = 0;
 
@@ -437,6 +439,21 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           return;
         }
         houseTopupAmount = topup.amount;
+      }
+      opponentDenied = deps.canLockStake(opponent, amount);
+    }
+
+    // Dealer bets against the house should always be coverable in testnet/runtime mode.
+    // If the house wallet itself is short, refill and retry lock once.
+    if (opponentDenied?.reason === 'insufficient_balance' && isHouseWalletOpponent) {
+      const needed = Math.max(0, amount - opponent.balance);
+      if (needed > 0) {
+        const refill = deps.refillHouse(needed, `escrow_house_cover:${challengeId}`);
+        if (!refill.ok) {
+          sendJson(res, { ok: false, reason: `opponent_${refill.reason}` }, 403);
+          return;
+        }
+        houseTopupAmount = refill.amount;
       }
       opponentDenied = deps.canLockStake(opponent, amount);
     }

@@ -218,7 +218,8 @@ export interface SnapshotPlayer {
 }
 
 export type StationActionId =
-  | 'coinflip_house'
+  | 'coinflip_house_start'
+  | 'coinflip_house_pick'
   | 'coinflip_pvp'
   | 'balance'
   | 'fund'
@@ -240,6 +241,32 @@ export interface ProvablyFairReceipt {
   playerSeed: string;
   revealSeed?: string;
   method: string;
+}
+
+export type StationUiViewState =
+  | 'dealer_ready'
+  | 'dealer_dealing'
+  | 'dealer_reveal'
+  | 'dealer_error';
+
+export interface StationUiView {
+  ok: boolean;
+  reason?: string;
+  state?: StationUiViewState;
+  stationId?: string;
+  challengeId?: string;
+  commitHash?: string;
+  method?: string;
+  wager?: number;
+  playerPick?: CoinflipMove;
+  coinflipResult?: CoinflipMove;
+  winnerId?: string | null;
+  payoutDelta?: number;
+  escrowTx?: {
+    lock?: string;
+    resolve?: string;
+    refund?: string;
+  };
 }
 
 /**
@@ -279,6 +306,7 @@ export type ServerMessageType =
   | 'snapshot' 
   | 'challenge' 
   | 'challenge_escrow'
+  | 'station_ui'
   | 'error';
 
 export interface ServerMessage {

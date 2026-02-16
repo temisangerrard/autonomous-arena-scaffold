@@ -121,45 +121,16 @@ const {
   topbarName,
   topbarWallet,
   topbarStreak,
-  targetSelect,
-  gameSelect,
-  wagerInput,
-  sendChallengeBtn,
-  clearChallengeBtn,
-  acceptBtn,
-  declineBtn,
-  rpsButtons,
-  coinButtons,
   feedPanel,
   challengeStatusLine,
   worldMapCanvas,
   mapCoords,
-  deskToggle,
-  challengePanel,
-  gameModal,
-  gameTitle,
-  gamePlayers,
-  gameStatus,
-  gameDetail,
-  gameClose,
-  challengeTimerWrap,
-  challengeTimerBar,
-  matchControls,
-  matchControlsTitle,
-  matchControlsStatus,
-  matchControlsActions,
-  matchCounterOffer,
-  counterWagerInput,
-  counterSendBtn,
   interactionPrompt,
   interactionCard,
   interactionTitle,
   interactionClose,
-  interactionGame,
-  interactionWager,
-  interactionSend,
-  interactionOpenDesk,
   stationUi,
+  interactionNpcInfo,
   quickstartPanel,
   quickstartList,
   quickstartClose,
@@ -168,14 +139,7 @@ const {
   worldLoadingText,
   mobileControls,
   mobileInteract,
-  mobileSend,
-  mobileAccept,
-  mobileDecline,
-  mobileCounter,
   mobileMoves,
-  mobileMove1,
-  mobileMove2,
-  mobileMove3,
   mobileMoveH,
   mobileMoveT
 } = dom;
@@ -234,15 +198,6 @@ const presence = createPresence({ queryParams });
 presence.installOfflineBeacon();
 
 const cameraController = createCameraController({ THREE, camera, state });
-
-if (deskToggle && challengePanel) {
-  deskToggle.addEventListener('click', () => {
-    state.deskCollapsed = !state.deskCollapsed;
-    state.deskAutoCollapsedByMatch = false;
-    challengePanel.classList.toggle('compact', state.deskCollapsed);
-    deskToggle.textContent = state.deskCollapsed ? 'Expand' : 'Collapse';
-  });
-}
 
 quickstartClose?.addEventListener('click', () => {
   state.quickstart.dismissed = true;
@@ -536,9 +491,7 @@ async function connectSocket() {
       }
     }
 
-    refreshNearbyTargetOptions();
     updateRpsVisibility();
-    updateGameModalFromState();
     return;
   }
 
@@ -559,16 +512,51 @@ async function connectSocket() {
       state.nearbyDistances.delete(payload.otherId);
       addFeedEvent('proximity', `${payload.otherName || payload.otherId} left range.`);
     }
-    refreshNearbyTargetOptions();
     return;
   }
 
   if (payload.type === 'station_ui' && typeof payload.stationId === 'string') {
-    const ok = Boolean(payload.view?.ok);
-    const reason = String(payload.view?.reason || '');
-    if (!ok) {
+    const view = payload.view || {};
+    const ok = Boolean(view.ok);
+    const reason = String(view.reason || '');
+    const stateName = String(view.state || '');
+    if (!ok || stateName === 'dealer_error') {
+      state.ui.dealer.state = 'error';
       addFeedEvent('system', `Station ${labelFor(payload.stationId)}: ${reason || 'request_failed'}`);
       showToast(`Station error: ${reason || 'request_failed'}`);
+      return;
+    }
+    if (stateName === 'dealer_ready') {
+      state.quickstart.challengeSent = true;
+      state.ui.dealer.stationId = payload.stationId;
+      state.ui.dealer.state = 'ready';
+      state.ui.dealer.wager = Number(view.wager ?? state.ui.dealer.wager ?? 1);
+      state.ui.dealer.commitHash = String(view.commitHash || '');
+      state.ui.dealer.method = String(view.method || '');
+      return;
+    }
+    if (stateName === 'dealer_dealing') {
+      state.quickstart.matchActive = true;
+      state.ui.dealer.state = 'dealing';
+      return;
+    }
+    if (stateName === 'dealer_reveal') {
+      state.quickstart.matchResolved = true;
+      state.ui.dealer.state = 'reveal';
+      state.ui.dealer.challengeId = String(view.challengeId || '');
+      state.ui.dealer.playerPick = String(view.playerPick || '');
+      state.ui.dealer.coinflipResult = String(view.coinflipResult || '');
+      state.ui.dealer.payoutDelta = Number(view.payoutDelta || 0);
+      state.ui.dealer.escrowTx = view.escrowTx || null;
+      const winnerId = String(view.winnerId || '');
+      const won = winnerId && winnerId === state.playerId;
+      const tone = won ? 'win' : (winnerId ? 'loss' : 'neutral');
+      const title = won ? 'YOU WIN' : (winnerId ? 'YOU LOSE' : 'DRAW');
+      const tossLine = state.ui.dealer.coinflipResult ? `\nTOSS: ${state.ui.dealer.coinflipResult.toUpperCase()}` : '';
+      const delta = state.ui.dealer.payoutDelta;
+      showResultSplash(`${title}${tossLine}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, tone);
+      void refreshWalletBalanceAndShowDelta(state.walletBalance, null);
+      return;
     }
     return;
   }
@@ -754,12 +742,9 @@ const inputSystem = createInputSystem({
   dom,
   actions: {
     resetCameraBehindPlayer,
-    sendChallenge,
     setInteractOpen,
     getUiTargetId,
     cycleNearbyTarget,
-    respondToIncoming,
-    sendCounterOffer,
     sendGameMove
   }
 });
@@ -772,20 +757,6 @@ const movementSystem = createMovementSystem({
   cameraController
 });
 
-sendChallengeBtn?.addEventListener('click', () => sendChallenge());
-targetSelect?.addEventListener('change', () => {
-  const value = String(targetSelect?.value || '');
-  if (value && state.nearbyIds.has(value)) {
-    state.ui.targetId = value;
-  }
-});
-clearChallengeBtn?.addEventListener('click', () => {
-  state.challengeMessage = '';
-  state.challengeStatus = 'none';
-  hideGameModal();
-});
-acceptBtn?.addEventListener('click', () => respondToIncoming(true));
-declineBtn?.addEventListener('click', () => respondToIncoming(false));
 interactionPrompt?.addEventListener('click', () => {
   if (!getUiTargetId()) {
     return;
@@ -793,47 +764,6 @@ interactionPrompt?.addEventListener('click', () => {
   setInteractOpen(true);
 });
 interactionClose?.addEventListener('click', () => setInteractOpen(false));
-interactionSend?.addEventListener('click', () => {
-  if (!state.ui.interactOpen) {
-    setInteractOpen(true);
-  }
-  sendChallenge();
-});
-interactionOpenDesk?.addEventListener('click', () => {
-  if (!challengePanel) {
-    return;
-  }
-  state.deskCollapsed = false;
-  state.deskAutoCollapsedByMatch = false;
-  challengePanel.classList.remove('compact');
-  if (deskToggle) {
-    deskToggle.textContent = 'Collapse';
-  }
-  setInteractOpen(false);
-});
-gameClose?.addEventListener('click', () => hideGameModal());
-rpsButtons?.addEventListener('click', (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLButtonElement)) {
-    return;
-  }
-  const move = target.dataset.rps;
-  if (!move || (move !== 'rock' && move !== 'paper' && move !== 'scissors')) {
-    return;
-  }
-  sendGameMove(move);
-});
-coinButtons?.addEventListener('click', (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLButtonElement)) {
-    return;
-  }
-  const move = target.dataset.coin;
-  if (!move || (move !== 'heads' && move !== 'tails')) {
-    return;
-  }
-  sendGameMove(move);
-});
 
 function updateLocalAvatar() {
   if (!state.playerId) {
@@ -919,9 +849,11 @@ function renderInteractionCard() {
   }
   const active = state.activeChallenge;
   const inMatch = Boolean(active && active.status === 'active');
-  const incoming = Boolean(state.incomingChallengeId);
-  if (inMatch || incoming) {
+  if (inMatch && state.ui.interactionMode !== 'station') {
     setInteractOpen(false);
+    return;
+  }
+  if (!state.ui.interactOpen) {
     return;
   }
   const targetId = getUiTargetId();
@@ -932,17 +864,17 @@ function renderInteractionCard() {
   const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
   const stationRenderKey = station ? `${station.id}:${station.kind}` : '';
 
-  const challengeRows = interactionCard.querySelectorAll('.interaction-row, .interaction-actions, #wager-hint');
-  const showStation = Boolean(station);
-  for (const row of challengeRows) {
-    row.style.display = showStation ? 'none' : '';
+  if (interactionNpcInfo) {
+    interactionNpcInfo.hidden = true;
   }
-  if (stationUi) {
-    stationUi.hidden = !showStation;
+  if (!stationUi) {
+    return;
   }
 
-  if (station) {
+  if (station && state.ui.interactionMode === 'station') {
     interactionTitle.textContent = station.displayName || 'Station';
+    stationUi.hidden = false;
+    stationUi.style.display = 'grid';
     if (stationUi && interactionStationRenderKey !== stationRenderKey) {
       interactionStationRenderKey = stationRenderKey;
       if (station.kind === 'dealer_coinflip') {
@@ -950,30 +882,26 @@ function renderInteractionCard() {
           <div class="station-ui__title">Dealer: Coinflip</div>
           <div class="station-ui__row">
             <label for="station-wager">Wager (each)</label>
-            <input id="station-wager" type="number" min="0" max="10000" step="1" value="${Math.max(0, Math.min(10000, Number(interactionWager?.value || 1)))}" />
+            <input id="station-wager" type="number" min="0" max="10000" step="1" value="${Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)))}" />
           </div>
           <div class="station-ui__actions">
-            <button id="station-house-heads" class="btn-gold" type="button">Heads vs House</button>
-            <button id="station-house-tails" class="btn-gold" type="button">Tails vs House</button>
+            <button id="station-house-start" class="btn-gold" type="button">Start Round</button>
           </div>
-          <div class="station-ui__meta">PvP: use the Desk for now to challenge a nearby player to Coinflip.</div>
+          <div class="station-ui__actions" id="station-pick-actions" style="display:none;">
+            <button id="station-house-heads" class="btn-gold" type="button">Heads</button>
+            <button id="station-house-tails" class="btn-gold" type="button">Tails</button>
+          </div>
+          <div class="station-ui__meta" id="station-status">Start to receive house commit hash, then pick a side.</div>
         `;
 
         const wagerEl = document.getElementById('station-wager');
+        const startBtn = document.getElementById('station-house-start');
         const headsBtn = document.getElementById('station-house-heads');
         const tailsBtn = document.getElementById('station-house-tails');
+        const pickActions = document.getElementById('station-pick-actions');
+        const statusEl = document.getElementById('station-status');
 
-        function playerSeed() {
-          try {
-            const buf = new Uint8Array(16);
-            crypto.getRandomValues(buf);
-            return Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
-          } catch {
-            return String(Math.random()).slice(2) + String(Date.now());
-          }
-        }
-
-        function sendHouse(pick) {
+        function sendStart() {
           if (!socket || socket.readyState !== WebSocket.OPEN) {
             showToast('Not connected to server.');
             return;
@@ -982,20 +910,57 @@ function renderInteractionCard() {
           socket.send(JSON.stringify({
             type: 'station_interact',
             stationId: station.id,
-            action: 'coinflip_house',
-            wager,
-            pick,
-            playerSeed: playerSeed()
+            action: 'coinflip_house_start',
+            wager
           }));
-          showToast(`Coinflip vs House: ${pick} (${wager})`);
-          setInteractOpen(false);
+          state.ui.dealer.state = 'starting';
+          state.ui.dealer.wager = wager;
+          if (statusEl) {
+            statusEl.textContent = 'Dealer is preparing commit...';
+          }
         }
 
+        function sendPick(pick) {
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            showToast('Not connected to server.');
+            return;
+          }
+          socket.send(JSON.stringify({
+            type: 'station_interact',
+            stationId: station.id,
+            action: 'coinflip_house_pick',
+            pick,
+            playerSeed: makePlayerSeed()
+          }));
+          state.ui.dealer.state = 'dealing';
+          if (statusEl) {
+            statusEl.textContent = `Flipping... ${pick.toUpperCase()} selected.`;
+          }
+          if (startBtn) startBtn.disabled = true;
+          if (headsBtn) headsBtn.disabled = true;
+          if (tailsBtn) tailsBtn.disabled = true;
+        }
+
+        if (startBtn) {
+          startBtn.onclick = () => sendStart();
+        }
         if (headsBtn) {
-          headsBtn.onclick = () => sendHouse('heads');
+          headsBtn.onclick = () => sendPick('heads');
         }
         if (tailsBtn) {
-          tailsBtn.onclick = () => sendHouse('tails');
+          tailsBtn.onclick = () => sendPick('tails');
+        }
+        if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+          if (pickActions) pickActions.style.display = 'flex';
+          if (statusEl) {
+            statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails.`;
+          }
+        }
+        if (state.ui.dealer.state === 'dealing') {
+          if (pickActions) pickActions.style.display = 'flex';
+          if (statusEl) {
+            statusEl.textContent = 'Dealing...';
+          }
         }
       } else if (station.kind === 'cashier_bank') {
         stationUi.innerHTML = `
@@ -1106,18 +1071,47 @@ function renderInteractionCard() {
         stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
       }
     }
-    if (interactionSend) interactionSend.style.display = 'none';
-    if (interactionOpenDesk) interactionOpenDesk.style.display = '';
+
+    if (station.kind === 'dealer_coinflip') {
+      const pickActions = document.getElementById('station-pick-actions');
+      const statusEl = document.getElementById('station-status');
+      if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+        if (pickActions) pickActions.style.display = 'flex';
+        if (statusEl) {
+          statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails.`;
+        }
+      } else if (state.ui.dealer.state === 'dealing') {
+        if (pickActions) pickActions.style.display = 'flex';
+        if (statusEl) {
+          statusEl.textContent = 'Dealing...';
+        }
+      } else if (state.ui.dealer.state === 'reveal') {
+        if (pickActions) pickActions.style.display = 'none';
+        if (statusEl) {
+          const delta = Number(state.ui.dealer.payoutDelta || 0);
+          const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
+          statusEl.textContent = `Result: ${String(state.ui.dealer.coinflipResult || '').toUpperCase()} · ${delta >= 0 ? '+' : ''}${delta.toFixed(2)}${tx ? ` · tx ${String(tx).slice(0, 10)}...` : ''}`;
+        }
+      }
+    }
     return;
   }
 
-  if (interactionSend) interactionSend.style.display = '';
-  if (interactionOpenDesk) interactionOpenDesk.style.display = '';
+  stationUi.hidden = true;
+  stationUi.style.display = 'none';
+  stationUi.innerHTML = '';
   interactionStationRenderKey = '';
-  const isNpc = isStaticNpc(targetId);
-  interactionTitle.textContent = isNpc ? `Request a game: ${labelFor(targetId)}` : `Challenge: ${labelFor(targetId)}`;
-  if (interactionSend) {
-    interactionSend.textContent = isNpc ? 'Request Game' : 'Send Challenge';
+  if (interactionNpcInfo && state.ui.interactionMode === 'npc_info') {
+    interactionTitle.textContent = `Talk: ${labelFor(targetId)}`;
+    interactionNpcInfo.hidden = false;
+    interactionNpcInfo.style.display = 'grid';
+    const stationLabel = state.stations instanceof Map && state.stations.size > 0
+      ? [...state.stations.values()][0]?.displayName || 'Dealer'
+      : 'Dealer';
+    interactionNpcInfo.innerHTML = `
+      <div class="station-ui__title">World Guide</div>
+      <div class="station-ui__meta">${labelFor(targetId)} says: Try ${stationLabel} for house games. Press E near the station to play.</div>
+    `;
   }
 }
 
@@ -1133,31 +1127,14 @@ function renderMobileControls() {
   mobileControls.setAttribute('aria-hidden', 'false');
 
   const hasTarget = Boolean(getUiTargetId());
-  const active = state.activeChallenge;
-  const inMatch = Boolean(active && active.status === 'active');
-  const incoming = Boolean(state.incomingChallengeId && state.challengeStatus === 'incoming');
-  const canSend = Boolean(hasTarget && !incoming && !inMatch);
+  const dealerPickReady = state.ui.interactOpen
+    && state.ui.interactionMode === 'station'
+    && state.ui.dealer.state === 'ready';
 
-  if (mobileInteract) mobileInteract.style.display = canSend ? 'inline-flex' : 'none';
-  if (mobileSend) mobileSend.style.display = (canSend && state.ui.interactOpen) ? 'inline-flex' : 'none';
-
-  if (mobileAccept) mobileAccept.style.display = incoming ? 'inline-flex' : 'none';
-  if (mobileDecline) mobileDecline.style.display = incoming ? 'inline-flex' : 'none';
-  if (mobileCounter) mobileCounter.style.display = incoming ? 'inline-flex' : 'none';
-
-  if (mobileMoves) {
-    const showMoves = Boolean(inMatch && active && (active.challengerId === state.playerId || active.opponentId === state.playerId));
-    mobileMoves.style.display = showMoves ? 'grid' : 'none';
-  }
-
-  const gameType = active?.gameType || '';
-  const showRps = inMatch && gameType === 'rps';
-  const showCoin = inMatch && gameType === 'coinflip';
-  if (mobileMove1) mobileMove1.style.display = showRps ? 'inline-flex' : 'none';
-  if (mobileMove2) mobileMove2.style.display = showRps ? 'inline-flex' : 'none';
-  if (mobileMove3) mobileMove3.style.display = showRps ? 'inline-flex' : 'none';
-  if (mobileMoveH) mobileMoveH.style.display = showCoin ? 'inline-flex' : 'none';
-  if (mobileMoveT) mobileMoveT.style.display = showCoin ? 'inline-flex' : 'none';
+  if (mobileInteract) mobileInteract.style.display = hasTarget ? 'inline-flex' : 'none';
+  if (mobileMoves) mobileMoves.style.display = dealerPickReady ? 'grid' : 'none';
+  if (mobileMoveH) mobileMoveH.style.display = dealerPickReady ? 'inline-flex' : 'none';
+  if (mobileMoveT) mobileMoveT.style.display = dealerPickReady ? 'inline-flex' : 'none';
 }
 
 function update(nowMs) {
@@ -1186,10 +1163,8 @@ function update(nowMs) {
   }
 
   renderWorldMap();
-  renderContextPanel();
   renderInteractionPrompt();
   renderInteractionCard();
-  renderMatchControls();
   renderMobileControls();
   renderQuickstart();
 }
@@ -1200,17 +1175,6 @@ function render() {
 
 function frame(nowMs) {
   const isTest = queryParams.get('test') === '1';
-  if (state.incomingChallengeExpiresAt && challengeTimerBar) {
-    const remaining = Math.max(0, state.incomingChallengeExpiresAt - Date.now());
-    const ratio = Math.max(0, Math.min(1, remaining / 15000));
-    challengeTimerBar.style.width = `${(ratio * 100).toFixed(1)}%`;
-    if (remaining <= 0) {
-      state.incomingChallengeExpiresAt = null;
-      if (challengeTimerWrap) {
-        challengeTimerWrap.style.display = 'none';
-      }
-    }
-  }
   update(nowMs);
   // Headless smoke tests don't need WebGL draws and can hang on `renderer.render`
   // under SwiftShader. Skip render in `test=1` mode; state still advances.
@@ -1234,47 +1198,8 @@ function labelFor(id) {
   return player?.displayName || state.nearbyNames.get(id) || id;
 }
 
-function isStaticNpc(id) {
-  return typeof id === 'string' && id.startsWith('agent_bg_');
-}
-
 function isStation(id) {
   return typeof id === 'string' && id.startsWith('station_');
-}
-
-function refreshNearbyTargetOptions() {
-  if (!targetSelect) {
-    return;
-  }
-
-  const previous = targetSelect.value;
-  targetSelect.innerHTML = '';
-
-  const options = [...state.nearbyIds].sort();
-  if (options.length === 0) {
-    const empty = document.createElement('option');
-    empty.value = '';
-    empty.textContent = 'No nearby players';
-    targetSelect.appendChild(empty);
-    targetSelect.disabled = true;
-    return;
-  }
-
-  targetSelect.disabled = false;
-  for (const id of options) {
-    const option = document.createElement('option');
-    option.value = id;
-    const role = isStaticNpc(id) ? 'npc' : (state.players.get(id)?.role === 'agent' ? 'agent' : 'human');
-    option.textContent = `${labelFor(id)} (${role})`;
-    targetSelect.appendChild(option);
-  }
-
-  if (options.includes(previous)) {
-    targetSelect.value = previous;
-    state.ui.targetId = previous;
-  } else if (state.ui?.targetId && options.includes(state.ui.targetId)) {
-    targetSelect.value = state.ui.targetId;
-  }
 }
 
 function closestNearbyTargetId() {
@@ -1328,6 +1253,13 @@ function closestNearbyStationId() {
 }
 
 function getUiTargetId() {
+  if (state.ui?.interactOpen && state.ui?.interactionMode === 'station') {
+    const stationId = closestNearbyStationId();
+    if (stationId) {
+      state.ui.targetId = stationId;
+      return stationId;
+    }
+  }
   const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
   const preferred = state.ui?.targetId || '';
   if (preferred && (state.nearbyIds.has(preferred) || nearbyStations.has(preferred))) {
@@ -1352,9 +1284,6 @@ function cycleNearbyTarget(next = true) {
   const idx = Math.max(0, ids.indexOf(current));
   const nextIdx = (idx + (next ? 1 : -1) + ids.length) % ids.length;
   state.ui.targetId = ids[nextIdx] || ids[0];
-  if (targetSelect) {
-    targetSelect.value = state.ui.targetId;
-  }
 }
 
 function setInteractOpen(nextOpen) {
@@ -1368,24 +1297,25 @@ function setInteractOpen(nextOpen) {
     const stationFirst = closestNearbyStationId();
     if (stationFirst) {
       state.ui.targetId = stationFirst;
+      state.ui.interactionMode = 'station';
+    } else if (closestNearbyPlayerId()) {
+      state.ui.targetId = closestNearbyPlayerId();
+      state.ui.interactionMode = 'npc_info';
+    } else {
+      state.ui.interactionMode = 'none';
     }
     try {
       document.activeElement?.blur?.();
     } catch {
       // ignore
     }
-    const targetId = getUiTargetId();
-    const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
-    if (interactionWager && !station) {
-      const targetId = getUiTargetId();
-      const isNpc = isStaticNpc(targetId);
-      const suggested = isNpc ? (state.walletBalance >= 1 ? 1 : 0) : Number(interactionWager.value ?? 1);
-      interactionWager.value = String(Math.max(0, Math.min(10000, Number.isFinite(suggested) ? suggested : 0)));
-      interactionWager.focus?.();
-      interactionWager.select?.();
-    }
+    state.ui.dealer.state = 'idle';
+    state.ui.dealer.escrowTx = null;
   } else {
     interactionStationRenderKey = '';
+    state.ui.interactionMode = 'none';
+    state.ui.dealer.state = 'idle';
+    state.ui.dealer.escrowTx = null;
     const active = document.activeElement;
     if (active instanceof HTMLElement && interactionCard.contains(active)) {
       active.blur?.();
@@ -1441,101 +1371,41 @@ function syncNearbyStations() {
   state.nearbyStationIds = next;
 }
 
-function sendChallenge() {
-  if (!state.wsConnected || !socket || socket.readyState !== WebSocket.OPEN) {
-    state.challengeMessage = 'Not connected to game server.';
-    return;
+function makePlayerSeed() {
+  try {
+    const buf = new Uint8Array(16);
+    crypto.getRandomValues(buf);
+    return Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return String(Math.random()).slice(2) + String(Date.now());
   }
-
-  const selectedTarget = targetSelect?.value || '';
-  const targetId =
-    (selectedTarget && state.nearbyIds.has(selectedTarget) ? selectedTarget : '') ||
-    (state.ui?.targetId && state.nearbyIds.has(state.ui.targetId) ? state.ui.targetId : '') ||
-    closestNearbyPlayerId();
-  if (!targetId) {
-    state.challengeMessage = 'No nearby target selected.';
-    return;
-  }
-
-  const gameTypeSource = (interactionGame && state.ui.interactOpen) ? interactionGame : gameSelect;
-  const wagerSource = (interactionWager && state.ui.interactOpen) ? interactionWager : wagerInput;
-  const gameType = gameTypeSource?.value === 'coinflip' ? 'coinflip' : 'rps';
-  const wager = Math.max(0, Math.min(10000, Number(wagerSource?.value ?? 1)));
-
-  socket.send(
-    JSON.stringify({
-      type: 'challenge_send',
-      targetId,
-      gameType,
-      wager
-    })
-  );
-
-  state.challengeStatus = 'sent';
-  state.challengeMessage = `Challenge sent (${gameType}, ${formatWagerInline(wager)}) to ${labelFor(targetId)}`;
-  if (gameType === 'coinflip' && isStaticNpc(targetId)) {
-    state.ui.pendingCoinflipPick = Math.random() < 0.5 ? 'heads' : 'tails';
-  } else {
-    state.ui.pendingCoinflipPick = null;
-  }
-  state.quickstart.challengeSent = true;
-  setInteractOpen(false);
-}
-
-function respondToIncoming(accept) {
-  if (!state.incomingChallengeId || !socket || socket.readyState !== WebSocket.OPEN) {
-    state.challengeMessage = 'No incoming challenge to respond to.';
-    return;
-  }
-
-  if (state.respondingIncoming) {
-    return;
-  }
-  state.respondingIncoming = true;
-  state.challengeStatus = 'responding';
-  state.challengeMessage = accept ? 'Accepting challenge...' : 'Declining challenge...';
-
-  socket.send(
-    JSON.stringify({
-      type: 'challenge_response',
-      challengeId: state.incomingChallengeId,
-      accept
-    })
-  );
-  if (accept) {
-    state.quickstart.challengeSent = true;
-  }
-}
-
-function sendCounterOffer() {
-  const challenge = state.activeChallenge;
-  if (!challenge || challenge.status !== 'pending' || challenge.opponentId !== state.playerId) {
-    state.challengeMessage = 'No incoming challenge to counter.';
-    return;
-  }
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    state.challengeMessage = 'Not connected to game server.';
-    return;
-  }
-  if (state.respondingIncoming) {
-    return;
-  }
-  const wager = Math.max(0, Math.min(10000, Number(counterWagerInput?.value ?? challenge.wager ?? 1)));
-  state.respondingIncoming = true;
-  state.challengeStatus = 'responding';
-  state.challengeMessage = `Countering with ${formatWagerInline(wager)}...`;
-
-  socket.send(
-    JSON.stringify({
-      type: 'challenge_counter',
-      challengeId: challenge.id,
-      wager
-    })
-  );
-  state.quickstart.challengeSent = true;
 }
 
 function sendGameMove(move) {
+  if (
+    (move === 'heads' || move === 'tails')
+    && state.ui.interactOpen
+    && state.ui.interactionMode === 'station'
+    && state.ui.dealer.state === 'ready'
+    && state.ui.dealer.stationId
+    && socket
+    && socket.readyState === WebSocket.OPEN
+  ) {
+    socket.send(
+      JSON.stringify({
+        type: 'station_interact',
+        stationId: state.ui.dealer.stationId,
+        action: 'coinflip_house_pick',
+        pick: move,
+        playerSeed: makePlayerSeed()
+      })
+    );
+    state.ui.dealer.state = 'dealing';
+    state.challengeMessage = `Flipping coin... ${move.toUpperCase()} selected.`;
+    state.quickstart.moveSubmitted = true;
+    return;
+  }
+
   const challenge = state.activeChallenge;
   if (!challenge || !socket || socket.readyState !== WebSocket.OPEN) {
     state.challengeMessage = 'No active match right now.';
@@ -1573,31 +1443,7 @@ function sendGameMove(move) {
 }
 
 function updateRpsVisibility() {
-  if (!rpsButtons) {
-    return;
-  }
-
-  const challenge = state.activeChallenge;
-  const show =
-    challenge &&
-    challenge.status === 'active' &&
-    challenge.gameType === 'rps' &&
-    (challenge.challengerId === state.playerId || challenge.opponentId === state.playerId);
-
-  rpsButtons.classList.toggle('visible', Boolean(show));
-  const showCoin =
-    challenge &&
-    challenge.status === 'active' &&
-    challenge.gameType === 'coinflip' &&
-    (challenge.challengerId === state.playerId || challenge.opponentId === state.playerId);
-  coinButtons?.classList.toggle('visible', Boolean(showCoin));
-
-  if (rpsButtons) {
-    rpsButtons.style.opacity = show ? '1' : '0.55';
-  }
-  if (coinButtons) {
-    coinButtons.style.opacity = showCoin ? '1' : '0.55';
-  }
+  // Station-only gameplay path: no legacy match move controls.
 }
 
 function addFeedEvent(type, text, meta = null) {
@@ -1697,49 +1543,6 @@ function renderFeed() {
   }
 }
 
-function showGameModal(challenge, statusText, detailText = '') {
-  if (!gameModal || !gameTitle || !gamePlayers || !gameStatus || !gameDetail) {
-    return;
-  }
-
-  gameTitle.textContent = challenge.gameType === 'rps' ? 'Rock Paper Scissors' : 'Coin Flip';
-  gamePlayers.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | ${formatWagerLabel(challenge.wager)}`;
-  gameStatus.textContent = statusText;
-  gameDetail.textContent = detailText;
-  const showAlways = statusText.toLowerCase().includes('incoming') || statusText.toLowerCase().includes('resolved');
-  if (showAlways) {
-    gameModal.classList.add('visible');
-  }
-}
-
-function hideGameModal() {
-  gameModal?.classList.remove('visible');
-}
-
-function updateGameModalFromState() {
-  const challenge = state.activeChallenge;
-  if (!challenge || challenge.status !== 'active') {
-    return;
-  }
-
-  if (challenge.gameType === 'rps') {
-    const left = challenge.challengerMove ? `${labelFor(challenge.challengerId)} locked move` : `${labelFor(challenge.challengerId)} thinking...`;
-    const right = challenge.opponentMove ? `${labelFor(challenge.opponentId)} locked move` : `${labelFor(challenge.opponentId)} thinking...`;
-    showGameModal(challenge, 'Submit move to play', `${left} | ${right}`);
-    return;
-  }
-
-  const left =
-    challenge.challengerMove && (challenge.challengerMove === 'heads' || challenge.challengerMove === 'tails')
-      ? `${labelFor(challenge.challengerId)} picked ${challenge.challengerMove}`
-      : `${labelFor(challenge.challengerId)} choosing...`;
-  const right =
-    challenge.opponentMove && (challenge.opponentMove === 'heads' || challenge.opponentMove === 'tails')
-      ? `${labelFor(challenge.opponentId)} picked ${challenge.opponentMove}`
-      : `${labelFor(challenge.opponentId)} choosing...`;
-  showGameModal(challenge, 'Choose heads or tails (H/T)', `${left} | ${right}`);
-}
-
 function handleChallenge(payload) {
   const challenge = payload.challenge;
   if (challenge) {
@@ -1752,25 +1555,12 @@ function handleChallenge(payload) {
       state.incomingChallengeId = challenge.id;
       state.challengeStatus = 'incoming';
       state.challengeMessage = `Incoming ${challenge.gameType} challenge from ${labelFor(challenge.challengerId)} (${formatWagerInline(challenge.wager)}).`;
-      state.incomingChallengeExpiresAt = Number(challenge.expiresAt || (Date.now() + 15000));
-      if (challengeTimerWrap) {
-        challengeTimerWrap.style.display = 'block';
-      }
-      if (challengeTimerBar) {
-        challengeTimerBar.style.width = '100%';
-      }
-      showGameModal(
-        challenge,
-        'Incoming challenge',
-        `${labelFor(challenge.challengerId)} challenges you to ${challenge.gameType.toUpperCase()} (${formatWagerInline(challenge.wager)}). Accept as-is, or counter-offer (O).`
-      );
     }
 
     if (challenge.challengerId === state.playerId) {
       state.outgoingChallengeId = challenge.id;
       state.challengeStatus = 'sent';
       state.challengeMessage = `Challenge created. Waiting for ${labelFor(challenge.opponentId)}.`;
-      hideGameModal();
     }
   }
 
@@ -1780,28 +1570,11 @@ function handleChallenge(payload) {
     state.outgoingChallengeId = null;
     state.challengeStatus = 'active';
     state.challengeMessage = `${challenge.gameType.toUpperCase()} active.`;
-    state.incomingChallengeExpiresAt = null;
-    if (challengeTimerWrap) {
-      challengeTimerWrap.style.display = 'none';
-    }
     state.quickstart.matchActive = true;
-    hideGameModal();
-    if (
-      challenge.gameType === 'coinflip'
-      && state.ui.pendingCoinflipPick
-      && (challenge.challengerId === state.playerId || challenge.opponentId === state.playerId)
-    ) {
-      const pick = state.ui.pendingCoinflipPick;
-      state.ui.pendingCoinflipPick = null;
-      window.setTimeout(() => {
-        sendGameMove(pick);
-      }, 120);
-    }
   }
 
   if (payload.event === 'move_submitted' && challenge) {
     state.challengeStatus = 'active';
-    hideGameModal();
   }
 
   if (payload.event === 'declined' && challenge) {
@@ -1812,12 +1585,6 @@ function handleChallenge(payload) {
     state.challengeStatus = 'declined';
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     state.challengeMessage = `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`;
-    state.incomingChallengeExpiresAt = null;
-    if (challengeTimerWrap) {
-      challengeTimerWrap.style.display = 'none';
-    }
-    hideGameModal();
-    state.ui.pendingCoinflipPick = null;
   }
 
   if (payload.event === 'expired' && challenge) {
@@ -1828,12 +1595,6 @@ function handleChallenge(payload) {
     state.challengeStatus = 'expired';
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     state.challengeMessage = `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`;
-    state.incomingChallengeExpiresAt = null;
-    if (challengeTimerWrap) {
-      challengeTimerWrap.style.display = 'none';
-    }
-    hideGameModal();
-    state.ui.pendingCoinflipPick = null;
   }
 
   if (payload.event === 'resolved' && challenge) {
@@ -1844,7 +1605,6 @@ function handleChallenge(payload) {
     state.outgoingChallengeId = null;
     state.challengeStatus = 'resolved';
     const winnerLabel = challenge.winnerId ? labelFor(challenge.winnerId) : 'Draw';
-    const coinInfo = challenge.gameType === 'coinflip' && challenge.coinflipResult ? ` | Toss: ${challenge.coinflipResult}` : '';
     if (challenge.winnerId === state.playerId) {
       state.streak += 1;
     } else if (challenge.winnerId) {
@@ -1852,18 +1612,12 @@ function handleChallenge(payload) {
     }
     state.challengeMessage = challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.';
     state.quickstart.matchResolved = true;
-    showGameModal(challenge, 'Match resolved', `Winner: ${winnerLabel}${coinInfo}`);
     void refreshWalletBalanceAndShowDelta(beforeBalance, challenge);
-    setTimeout(() => {
-      hideGameModal();
-    }, 3500);
-    state.ui.pendingCoinflipPick = null;
   }
 
   if (payload.event === 'invalid' || payload.event === 'busy') {
     state.respondingIncoming = false;
     state.challengeMessage = challengeReasonLabel(payload.reason);
-    state.ui.pendingCoinflipPick = null;
     showToast(state.challengeMessage);
   }
 
@@ -1908,16 +1662,6 @@ function challengeReasonLabel(reason) {
   }
 }
 
-function renderContextPanel() {
-  if (!challengePanel) {
-    return;
-  }
-  const hasNearby = false;
-  const isIncoming = Boolean(state.incomingChallengeId && state.challengeStatus === 'incoming');
-  const inMatch = Boolean(state.activeChallenge && state.activeChallenge.status === 'active');
-  challengePanel.classList.toggle('active', hasNearby || isIncoming || inMatch);
-}
-
 function renderInteractionPrompt() {
   if (!interactionPrompt) {
     return;
@@ -1938,7 +1682,7 @@ function renderInteractionPrompt() {
     return;
   }
   const distance = state.nearbyDistances.get(targetId);
-  const verb = isStaticNpc(targetId) ? 'request game' : 'interact';
+  const verb = isStation(targetId) ? 'play station' : 'talk';
   interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E ${verb} · Tab switch · V profile`;
   interactionPrompt.classList.add('visible');
 }
@@ -1969,125 +1713,16 @@ function renderQuickstart() {
 
   const steps = [
     { done: Boolean(state.playerId && state.wsConnected), text: 'Connected to arena server' },
-    { done: state.nearbyIds.size > 0, text: 'Find a nearby player/agent' },
-    { done: state.quickstart.challengeSent, text: 'Send or accept a challenge (C / Y)' },
-    { done: state.quickstart.matchActive, text: 'Match started' },
-    { done: state.quickstart.moveSubmitted, text: 'Submit your move (1/2/3 or H/T)' },
-    { done: state.quickstart.matchResolved, text: 'Match resolved and payout posted' }
+    { done: state.nearbyStationIds.size > 0, text: 'Find a nearby station' },
+    { done: state.quickstart.challengeSent, text: 'Start a dealer round (E)' },
+    { done: state.quickstart.matchActive, text: 'Dealer confirms your pick' },
+    { done: state.quickstart.matchResolved, text: 'Result revealed and payout posted' }
   ];
 
   quickstartList.innerHTML = steps
     .map((step) => `<li class="${step.done ? 'done' : ''}">${step.done ? '✓' : '○'} ${step.text}</li>`)
     .join('');
 }
-
-function renderMatchControls() {
-  if (!matchControls || !matchControlsActions || !matchControlsStatus || !matchControlsTitle) {
-    return;
-  }
-
-  const challenge = state.activeChallenge;
-  const isIncoming = Boolean(state.incomingChallengeId && state.challengeStatus === 'incoming');
-  const isParticipant =
-    challenge && (challenge.challengerId === state.playerId || challenge.opponentId === state.playerId);
-
-  const shouldShow = Boolean(isIncoming || (challenge && challenge.status === 'active' && isParticipant));
-  if (!shouldShow) {
-    if (state.deskAutoCollapsedByMatch && challengePanel && deskToggle) {
-      state.deskCollapsed = false;
-      state.deskAutoCollapsedByMatch = false;
-      challengePanel.classList.remove('compact');
-      deskToggle.textContent = 'Collapse';
-    }
-    matchControls.classList.remove('visible');
-    matchControlsActions.innerHTML = '';
-    matchCounterOffer?.classList.remove('visible');
-    return;
-  }
-
-  if (!state.deskCollapsed && challengePanel && deskToggle) {
-    state.deskCollapsed = true;
-    state.deskAutoCollapsedByMatch = true;
-    challengePanel.classList.add('compact');
-    deskToggle.textContent = 'Expand';
-  }
-
-  matchControls.classList.add('visible');
-  matchControlsActions.innerHTML = '';
-
-  if (isIncoming && challenge) {
-    matchControlsTitle.textContent = 'Incoming Challenge';
-    matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} challenged you (${challenge.gameType}, ${formatWagerInline(challenge.wager)}).`;
-    matchControlsActions.className = 'match-controls__actions two';
-    matchControlsActions.innerHTML = `
-      <button type="button" data-action="accept" ${state.respondingIncoming ? 'disabled' : ''}>Accept (Y)</button>
-      <button type="button" data-action="decline" ${state.respondingIncoming ? 'disabled' : ''}>Decline (N)</button>
-    `;
-    if (counterWagerInput) {
-      counterWagerInput.value = String(Math.max(0, Number(challenge.wager ?? 1)));
-      counterWagerInput.disabled = state.respondingIncoming;
-    }
-    if (counterSendBtn) {
-      counterSendBtn.disabled = state.respondingIncoming;
-    }
-    matchCounterOffer?.classList.add('visible');
-    return;
-  }
-
-  if (!challenge) {
-    return;
-  }
-  matchCounterOffer?.classList.remove('visible');
-
-  matchControlsTitle.textContent = challenge.gameType === 'rps' ? 'RPS Match' : 'Coinflip Match';
-  matchControlsStatus.textContent = `${labelFor(challenge.challengerId)} vs ${labelFor(challenge.opponentId)} | ${formatWagerLabel(challenge.wager)}`;
-
-  const iAmChallenger = challenge.challengerId === state.playerId;
-  const myMove = iAmChallenger ? challenge.challengerMove : challenge.opponentMove;
-
-  if (challenge.gameType === 'rps') {
-    matchControlsActions.className = 'match-controls__actions';
-    matchControlsActions.innerHTML = `
-      <button type="button" data-move="rock" ${myMove ? 'disabled' : ''}>Rock (1)</button>
-      <button type="button" data-move="paper" ${myMove ? 'disabled' : ''}>Paper (2)</button>
-      <button type="button" data-move="scissors" ${myMove ? 'disabled' : ''}>Scissors (3)</button>
-    `;
-  } else {
-    matchControlsActions.className = 'match-controls__actions two';
-    matchControlsActions.innerHTML = `
-      <button type="button" data-move="heads" ${myMove ? 'disabled' : ''}>Heads (H)</button>
-      <button type="button" data-move="tails" ${myMove ? 'disabled' : ''}>Tails (T)</button>
-    `;
-  }
-
-  if (myMove) {
-    matchControlsStatus.textContent = `${matchControlsStatus.textContent} | Locked: ${myMove}. Waiting for opponent.`;
-  }
-}
-
-matchControlsActions?.addEventListener('click', (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLButtonElement)) {
-    return;
-  }
-  const action = target.dataset.action;
-  if (action === 'accept') {
-    respondToIncoming(true);
-    return;
-  }
-  if (action === 'decline') {
-    respondToIncoming(false);
-    return;
-  }
-  const move = target.dataset.move;
-  if (move) {
-    sendGameMove(move);
-  }
-});
-
-counterSendBtn?.addEventListener('click', () => {
-  sendCounterOffer();
-});
 
 function renderWorldMap() {
   if (!(worldMapCanvas instanceof HTMLCanvasElement)) {

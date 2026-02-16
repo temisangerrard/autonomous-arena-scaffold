@@ -36,7 +36,6 @@ export function createInitialState() {
     deskAutoCollapsedByMatch: false,
     walletBalance: 0,
     streak: 0,
-    incomingChallengeExpiresAt: null,
     quickstart: {
       challengeSent: false,
       matchActive: false,
@@ -47,7 +46,19 @@ export function createInitialState() {
     ui: {
       targetId: '',
       interactOpen: false,
-      pendingCoinflipPick: null
+      interactionMode: 'none',
+      dealer: {
+        stationId: '',
+        state: 'idle',
+        wager: 1,
+        commitHash: '',
+        method: '',
+        challengeId: '',
+        playerPick: '',
+        coinflipResult: '',
+        payoutDelta: 0,
+        escrowTx: null
+      }
     },
     touch: {
       stickActive: false,
