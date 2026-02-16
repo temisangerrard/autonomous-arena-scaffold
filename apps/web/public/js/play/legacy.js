@@ -87,7 +87,14 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
       state.walletBalance = null;
     }
     if (challenge && Number.isFinite(after)) {
-      const delta = Number((after - Number(beforeBalance || 0)).toFixed(2));
+      const settledByOutcome = challenge.winnerId === state.playerId
+        ? Number(challenge.wager || 0)
+        : challenge.winnerId
+          ? -Number(challenge.wager || 0)
+          : 0;
+      const delta = Number.isFinite(settledByOutcome)
+        ? Number(settledByOutcome.toFixed(2))
+        : Number((after - Number(beforeBalance || 0)).toFixed(2));
       const won = challenge.winnerId === state.playerId;
       const lost = Boolean(challenge.winnerId && challenge.winnerId !== state.playerId);
       const toss = challenge.gameType === 'coinflip' && challenge.coinflipResult

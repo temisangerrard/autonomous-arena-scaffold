@@ -167,6 +167,7 @@ const server = createServer(createRouter({
   presenceStore,
   distributedChallengeStore,
   challengeService,
+  database,
   internalToken: internalServiceToken,
   publishAdminCommand: (targetServerId, command) => distributedBus.publishAdminCommand(targetServerId, command),
   teleportLocal: (playerId, x, z) => worldSim.teleportPlayer(playerId, x, z)
@@ -180,6 +181,7 @@ let nextClient = 1;
 // Use config values
 const proximityThreshold = config.proximityThreshold;
 const escrowLockedChallenges = new Set<string>();
+const challengeWalletsById = new Map<string, { challengerWalletId: string; opponentWalletId: string }>();
 const agentToHumanChallengeCooldownMs = config.agentToHumanChallengeCooldownMs;
 const recentAgentToHumanChallengeAt = new Map<string, number>();
 let lastPresenceSyncAt = 0;
@@ -418,6 +420,7 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         return;
       }
       escrowLockedChallenges.add(challenge.id);
+      challengeWalletsById.set(challenge.id, { challengerWalletId, opponentWalletId });
       challengeEscrowFailureById.delete(challenge.id);
       broadcastEscrowEvent({
         phase: 'lock',
@@ -438,7 +441,14 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         dispatchChallengeEvent(event);
         return;
       }
-      const winnerWalletId = challenge.winnerId ? walletIdFor(challenge.winnerId) : null;
+      const participants = challengeWalletsById.get(challenge.id);
+      const winnerWalletId = !challenge.winnerId
+        ? null
+        : challenge.winnerId === challenge.challengerId
+          ? (participants?.challengerWalletId ?? walletIdFor(challenge.winnerId))
+          : challenge.winnerId === challenge.opponentId
+            ? (participants?.opponentWalletId ?? walletIdFor(challenge.winnerId))
+            : walletIdFor(challenge.winnerId);
       const settled = await escrowAdapter.resolve({
         challengeId: challenge.id,
         winnerWalletId
@@ -459,6 +469,7 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
           txHash: refunded.txHash
         });
         escrowLockedChallenges.delete(challenge.id);
+        challengeWalletsById.delete(challenge.id);
       } else {
         broadcastEscrowEvent({
           phase: 'resolve',
@@ -469,6 +480,7 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
           payout: settled.payout
         });
         escrowLockedChallenges.delete(challenge.id);
+        challengeWalletsById.delete(challenge.id);
       }
     }
 
@@ -486,9 +498,11 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         txHash: refunded.txHash
       });
       escrowLockedChallenges.delete(challenge.id);
+      challengeWalletsById.delete(challenge.id);
     }
 
     if (event.event === 'resolved' || event.event === 'declined' || event.event === 'expired') {
+      challengeWalletsById.delete(challenge.id);
       await distributedChallengeStore.releasePlayers(
         challenge.id,
         [challenge.challengerId, challenge.opponentId].filter((id) => id !== 'system_house')

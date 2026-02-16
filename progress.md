@@ -494,3 +494,11 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - Added authenticated Playwright flow for `/play` in `scripts/e2e/challenge-flow.test.js` (local auth bootstrap + onboarding bypass).
   - Updated e2e selectors/assertions to verify real interaction card + mobile control inventory + HUD shell on web runtime.
   - Validation: `node --check` passed for updated play modules and challenge e2e script; e2e challenge-flow now passes (4/4) with LOCAL_AUTH_ENABLED=true.
+
+- 2026-02-16: Fixed escrow settlement consistency + onchain activity visibility.
+  - Server now stores challenge participant wallet IDs at lock time and reuses them for resolve to avoid stale wallet lookups causing erroneous refunds.
+  - Added server endpoint `/escrow/events/recent` (internal-token gated) backed by Postgres join of `escrow_events` + `challenges`.
+  - Web `/api/player/wallet/escrow-history` now reads server escrow events by `profileId` with runtime-history fallback for non-DB environments.
+  - Dashboard escrow history renderer now supports both runtime settlement shape and server escrow-event shape.
+  - Play result splash now uses match outcome delta (`±wager`) instead of transient balance diff to avoid misleading positive-loss flashes.
+  - Validation: `@arena/server` and `@arena/web` TypeScript builds passed; updated client JS syntax checks passed.

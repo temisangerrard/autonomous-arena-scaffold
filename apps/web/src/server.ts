@@ -244,7 +244,9 @@ async function runtimeProfiles(): Promise<PlayerProfile[]> {
 }
 
 async function serverGet<T>(pathname: string): Promise<T> {
-  const response = await fetch(`${serverBase}${pathname}`);
+  const response = await fetch(`${serverBase}${pathname}`, {
+    headers: internalToken ? { 'x-internal-token': internalToken } : undefined
+  });
   if (!response.ok) {
     throw new Error(`server_get_${response.status}`);
   }
@@ -1121,25 +1123,18 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/player/wallet/escrow-history') {
     const auth = await requireRole(req, ['player', 'admin']);
-    if (!auth.ok || !auth.identity.walletId) {
+    if (!auth.ok || !auth.identity.profileId) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
     }
     const limit = Math.max(1, Math.min(120, Number(requestUrl.searchParams.get('limit') ?? 30)));
     try {
-      const payload = await runtimeGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(`/wallets/escrow/history?limit=${limit}`);
-      const recent = (payload.recent ?? []).filter((entry) =>
-        entry &&
-        typeof entry === 'object' &&
-        (
-          entry.winnerWalletId === auth.identity.walletId ||
-          entry.challengerWalletId === auth.identity.walletId ||
-          entry.opponentWalletId === auth.identity.walletId
-        )
+      const payload = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+        `/escrow/events/recent?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
       );
-      sendJson(res, { ok: true, recent });
+      sendJson(res, { ok: true, recent: Array.isArray(payload?.recent) ? payload.recent : [] });
     } catch {
-      sendJson(res, { ok: false, reason: 'escrow_history_unavailable' }, 400);
+      sendJson(res, { ok: false, reason: 'escrow_history_unavailable' }, 503);
     }
     return;
   }

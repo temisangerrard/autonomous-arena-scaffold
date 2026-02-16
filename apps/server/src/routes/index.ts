@@ -6,6 +6,7 @@ import { createHealthStatus } from '../health.js';
 import type { PresenceStore } from '../PresenceStore.js';
 import type { DistributedChallengeStore } from '../DistributedChallengeStore.js';
 import type { ChallengeService } from '../ChallengeService.js';
+import type { Database } from '../Database.js';
 import { WORLD_SECTION_SPAWNS } from '../WorldSim.js';
 import type { AdminCommand } from '../DistributedBus.js';
 
@@ -14,6 +15,7 @@ export type RouteContext = {
   presenceStore: PresenceStore;
   distributedChallengeStore: DistributedChallengeStore;
   challengeService: ChallengeService;
+  database: Database;
   internalToken: string;
   publishAdminCommand: (serverId: string, command: AdminCommand) => Promise<void>;
   teleportLocal: (playerId: string, x: number, z: number) => boolean;
@@ -230,6 +232,28 @@ export function createRouter(ctx: RouteContext) {
 
     if (req.url?.startsWith('/challenges/recent')) {
       await handleChallengesRecent(req, res, ctx);
+      return;
+    }
+
+    if (req.url?.startsWith('/escrow/events/recent')) {
+      if (!isInternalAuthorized(req, ctx.internalToken)) {
+        res.statusCode = 401;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: false, reason: 'unauthorized_internal' }));
+        return;
+      }
+      const parsed = new URL(req.url ?? '/', 'http://localhost');
+      const playerId = String(parsed.searchParams.get('playerId') || '').trim();
+      const limit = Math.max(1, Math.min(300, Number(parsed.searchParams.get('limit') ?? 60)));
+      if (!playerId) {
+        res.statusCode = 400;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: false, reason: 'player_id_required' }));
+        return;
+      }
+      const recent = await ctx.database.getEscrowEventsForPlayer({ playerId, limit });
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: true, recent }));
       return;
     }
 

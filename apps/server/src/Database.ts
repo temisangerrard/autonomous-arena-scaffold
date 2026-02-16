@@ -195,6 +195,70 @@ export class Database {
     }
   }
 
+  async getEscrowEventsForPlayer(params: {
+    playerId: string;
+    limit: number;
+  }): Promise<Array<{
+    challengeId: string;
+    phase: string;
+    ok: boolean;
+    reason: string | null;
+    txHash: string | null;
+    fee: number | null;
+    payout: number | null;
+    at: number;
+    challengerId: string;
+    opponentId: string;
+    winnerId: string | null;
+    gameType: string;
+    wager: number;
+  }>> {
+    if (!this.pool) return [];
+    try {
+      const safeLimit = Math.max(1, Math.min(300, Number(params.limit || 60)));
+      const result = await this.pool.query(
+        `SELECT
+           e.challenge_id,
+           e.phase,
+           e.ok,
+           e.reason,
+           e.tx_hash,
+           e.fee,
+           e.payout,
+           e.created_at,
+           c.challenger_id,
+           c.opponent_id,
+           c.winner_id,
+           c.game_type,
+           c.wager
+         FROM escrow_events e
+         JOIN challenges c ON c.id = e.challenge_id
+         WHERE c.challenger_id = $1 OR c.opponent_id = $1
+         ORDER BY e.created_at DESC
+         LIMIT $2`,
+        [params.playerId, safeLimit]
+      );
+      return result.rows.map((row) => ({
+        challengeId: String(row.challenge_id || ''),
+        phase: String(row.phase || 'unknown'),
+        ok: Boolean(row.ok),
+        reason: row.reason == null ? null : String(row.reason),
+        txHash: row.tx_hash == null ? null : String(row.tx_hash),
+        fee: row.fee == null ? null : Number(row.fee),
+        payout: row.payout == null ? null : Number(row.payout),
+        at: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
+        challengerId: String(row.challenger_id || ''),
+        opponentId: String(row.opponent_id || ''),
+        winnerId: row.winner_id == null ? null : String(row.winner_id),
+        gameType: String(row.game_type || 'unknown'),
+        wager: Number(row.wager ?? 0)
+      }));
+    } catch (err) {
+      log.error({ err, playerId: params.playerId }, 'failed to query escrow events for player');
+      return [];
+    }
+  }
+
   // ─── Recovery Queries ───────────────────────────────────
 
   async findStuckChallenges(): Promise<Array<{

@@ -300,8 +300,16 @@ function renderContext() {
   bindPlayLink();
 }
 
-function renderEscrowHistory(entries) {
+function renderEscrowHistory(entries, errorMessage = '') {
   if (!escrowHistory) {
+    return;
+  }
+  if (errorMessage) {
+    if (errorMessage.includes('escrow_history_unavailable')) {
+      escrowHistory.textContent = 'Onchain escrow activity is temporarily unavailable.';
+      return;
+    }
+    escrowHistory.textContent = 'Failed to load escrow activity.';
     return;
   }
   if (!Array.isArray(entries) || entries.length === 0) {
@@ -311,30 +319,41 @@ function renderEscrowHistory(entries) {
   escrowHistory.textContent = entries
     .map((entry) => {
       const at = entry?.at ? new Date(Number(entry.at)).toLocaleTimeString() : '--:--:--';
-      const outcome = String(entry?.outcome || 'unknown');
+      const outcome = String(entry?.outcome || entry?.phase || 'unknown');
       const challengeId = String(entry?.challengeId || 'n/a');
-      const amount = Number(entry?.amount || 0).toFixed(2);
-      const payout = Number(entry?.payout || 0).toFixed(2);
+      const amountValue = Number(entry?.amount ?? entry?.wager ?? 0);
+      const amount = Number.isFinite(amountValue) ? amountValue.toFixed(2) : '0.00';
+      const payoutValue = Number(entry?.payout ?? 0);
+      const payout = Number.isFinite(payoutValue) ? payoutValue.toFixed(2) : '0.00';
+      const ok = entry?.ok === false ? 'failed' : 'ok';
+      const reason = entry?.reason ? ` reason=${String(entry.reason)}` : '';
       const txHash = String(entry?.txHash || '');
       const shortTx = txHash ? `${txHash.slice(0, 10)}...${txHash.slice(-8)}` : 'n/a';
-      return `${at} ${outcome} ${challengeId} amount=${amount} payout=${payout} tx=${shortTx}`;
+      return `${at} ${outcome} ${ok} ${challengeId} amount=${amount} payout=${payout} tx=${shortTx}${reason}`;
     })
     .join('\n');
 }
 
 async function refreshContext() {
-  const [ctx, bootstrap, directory, escrow, walletSummary] = await Promise.all([
+  const [ctx, bootstrap, directory, walletSummary] = await Promise.all([
     api('/api/player/me'),
     api('/api/player/bootstrap?world=mega'),
     api('/api/player/directory').catch(() => ({ players: [] })),
-    api('/api/player/wallet/escrow-history?limit=20').catch(() => ({ recent: [] })),
     api('/api/player/wallet/summary').catch(() => null)
   ]);
+  let escrowEntries = [];
+  let escrowError = '';
+  try {
+    const escrow = await api('/api/player/wallet/escrow-history?limit=20');
+    escrowEntries = Array.isArray(escrow?.recent) ? escrow.recent : [];
+  } catch (error) {
+    escrowError = String(error?.message || error);
+  }
   playerCtx = ctx;
   bootstrapCtx = bootstrap;
   playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
   walletSummaryCtx = walletSummary;
-  renderEscrowHistory(Array.isArray(escrow?.recent) ? escrow.recent : []);
+  renderEscrowHistory(escrowEntries, escrowError);
   renderContext();
 }
 
