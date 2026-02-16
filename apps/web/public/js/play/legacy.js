@@ -275,7 +275,7 @@ async function connectSocket() {
         signal: controller.signal
       });
       window.clearTimeout(timeout);
-      if (meResponse.status === 401 || meResponse.status === 403) {
+      if (meResponse.status === 401 || meResponse.status === 403 || meResponse.status === 404) {
         // Hard gate: no unauthenticated play access (even if static hosting bypasses /play routing).
         localStorage.removeItem('arena_last_name');
         window.location.href = '/welcome';
