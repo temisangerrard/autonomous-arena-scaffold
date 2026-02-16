@@ -17,6 +17,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
   walletSummary: (wallet: WalletRecord | null) => unknown;
   canUseWallet: (wallet: WalletRecord) => WalletDenied | null;
   canLockStake: (wallet: WalletRecord, amount: number) => WalletDenied | null;
+  transferFromHouse: (toWalletId: string, amount: number, reason: string) => { ok: true; amount: number } | { ok: false; reason: string };
   schedulePersistState: () => void;
   onchainProvider: unknown;
   onchainTokenAddress: string;
@@ -418,7 +419,33 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       sendJson(res, { ok: false, reason: `challenger_${challengerDenied.reason}` }, 403);
       return;
     }
-    const opponentDenied = deps.canLockStake(opponent, amount);
+    const isHouseManagedOpponent = opponent.ownerProfileId.startsWith('system_');
+    let opponentDenied = deps.canLockStake(opponent, amount);
+    let houseTopupAmount = 0;
+
+    // House-managed wallets should not reject wagers because an NPC wallet is dry.
+    if (
+      opponentDenied?.reason === 'insufficient_balance'
+      && isHouseManagedOpponent
+      && opponent.ownerProfileId !== 'system_house'
+    ) {
+      const needed = Math.max(0, amount - opponent.balance);
+      if (needed > 0) {
+        const topup = deps.transferFromHouse(opponent.id, needed, `escrow_topup:${challengeId}`);
+        if (!topup.ok) {
+          sendJson(res, { ok: false, reason: `opponent_${topup.reason}` }, 403);
+          return;
+        }
+        houseTopupAmount = topup.amount;
+      }
+      opponentDenied = deps.canLockStake(opponent, amount);
+    }
+
+    // Max-bet bankroll cap is for player safety; house-managed opponents can take larger bets.
+    if (opponentDenied?.reason === 'max_bet_percent_exceeded' && isHouseManagedOpponent) {
+      opponentDenied = null;
+    }
+
     if (opponentDenied) {
       sendJson(res, { ok: false, reason: `opponent_${opponentDenied.reason}` }, 403);
       return;
@@ -446,6 +473,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       challengeId,
       escrow: lock,
       txHash: lock.lockTxHash,
+      houseTopupAmount: houseTopupAmount > 0 ? houseTopupAmount : undefined,
       challenger: deps.walletSummary(challenger),
       opponent: deps.walletSummary(opponent)
     });
