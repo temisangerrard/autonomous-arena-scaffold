@@ -14,15 +14,9 @@ import { createMovementSystem } from './movement.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
-const SID_KEY = 'arena_sid_fallback';
 
 function buildSessionHeaders(existingHeaders) {
-  const headers = new Headers(existingHeaders || {});
-  const sid = String(localStorage.getItem(SID_KEY) || '').trim();
-  if (sid) {
-    headers.set('x-arena-sid', sid);
-  }
-  return headers;
+  return new Headers(existingHeaders || {});
 }
 
 async function apiJson(path, init = {}) {
@@ -308,6 +302,10 @@ function scheduleConnectRetry(message) {
 
 async function connectSocket() {
   const wsUrlObj = new URL(await resolveWsBaseUrl());
+  // Never forward cookie-session query fallbacks to game WS.
+  // WS auth must use signed wsAuth tokens.
+  wsUrlObj.searchParams.delete('sid');
+  wsUrlObj.searchParams.delete('arena_sid');
   let sessionName = '';
   let sessionWalletId = '';
   let sessionClientId = '';
@@ -349,13 +347,12 @@ async function connectSocket() {
       if (mePayload?.wsAuth) {
         sessionWsAuth = String(mePayload.wsAuth);
       }
-      if (mePayload?.sessionId) {
-        const sid = String(mePayload.sessionId).trim();
-        if (sid) {
-          localStorage.setItem(SID_KEY, sid);
-        }
-      }
       state.walletBalance = Number(profile?.wallet?.balance ?? 0);
+      if (!sessionWsAuth) {
+        // Strict mode: if signed WS token is missing, force re-auth bootstrap.
+        scheduleConnectRetry('Session token missing. Refreshing auth.');
+        return;
+      }
     } catch {
       // If auth is flaky, do not sign the user out; retry.
       scheduleConnectRetry('Auth backend unavailable.');
@@ -381,12 +378,6 @@ async function connectSocket() {
   if (sessionWsAuth) {
     wsUrlObj.searchParams.set('wsAuth', sessionWsAuth);
   }
-  // Fallback for cross-origin ws where browser may not send Netlify cookie.
-  const sid = String(localStorage.getItem(SID_KEY) || '').trim();
-  if (sid) {
-    wsUrlObj.searchParams.set('sid', sid);
-  }
-
   const wsUrl = wsUrlObj.toString();
   socket = new WebSocket(wsUrl);
   socketRef.current = socket;
