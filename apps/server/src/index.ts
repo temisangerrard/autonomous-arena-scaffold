@@ -493,20 +493,31 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
   dispatchChallengeEvent(event);
 }
 
-async function registerCreatedChallenge(event: ChallengeEvent, actorId: string): Promise<boolean> {
+async function registerCreatedChallenge(
+  event: ChallengeEvent,
+  actorId: string
+): Promise<{ ok: boolean; reason?: string }> {
   if (!(event.event === 'created' && event.challenge)) {
-    return true;
+    return { ok: true };
   }
-  const lockParticipants = [event.challenge.challengerId, event.challenge.opponentId].filter((id) => id !== 'system_house');
-  const lockResult = await distributedChallengeStore.tryLockPlayers(
-    event.challenge.id,
-    lockParticipants,
-    Math.max(6_000, challengePendingTimeoutMs)
-  );
-  if (!lockResult.ok) {
-    const aborted = challengeService.abortChallenge(event.challenge.id, 'declined', lockResult.reason ?? 'player_busy');
-    await dispatchChallengeEventWithEscrow(withActorRecipient(aborted, actorId));
-    return false;
+  const isHouseMatch =
+    event.challenge.challengerId === 'system_house'
+    || event.challenge.opponentId === 'system_house';
+  const lockParticipants = isHouseMatch
+    ? []
+    : [event.challenge.challengerId, event.challenge.opponentId].filter((id) => id !== 'system_house');
+
+  if (lockParticipants.length > 0) {
+    const lockResult = await distributedChallengeStore.tryLockPlayers(
+      event.challenge.id,
+      lockParticipants,
+      Math.max(6_000, challengePendingTimeoutMs)
+    );
+    if (!lockResult.ok) {
+      const aborted = challengeService.abortChallenge(event.challenge.id, 'declined', lockResult.reason ?? 'player_busy');
+      await dispatchChallengeEventWithEscrow(withActorRecipient(aborted, actorId));
+      return { ok: false, reason: lockResult.reason ?? 'player_busy' };
+    }
   }
   await distributedChallengeStore.registerChallenge({
     challengeId: event.challenge.id,
@@ -515,7 +526,7 @@ async function registerCreatedChallenge(event: ChallengeEvent, actorId: string):
     status: event.event,
     challengeJson: JSON.stringify(event.challenge)
   });
-  return true;
+  return { ok: true };
 }
 
 // Note: emitProximityEvents is imported from game/proximity.ts
@@ -532,12 +543,20 @@ server.on('upgrade', (request, socket, head) => {
 
   // If WEB_AUTH_URL is configured, validate session before upgrade
   if (webAuthUrl) {
-    // Allow agents through without session (they use agentId param)
     const parsed = new URL(request.url ?? '/ws', 'http://localhost');
-    const sidQuery = parsed.searchParams.get('sid')?.trim() || '';
-    const safeSid = /^[a-zA-Z0-9_-]{20,128}$/.test(sidQuery) ? sidQuery : '';
-    void validateSession(request.headers.cookie, safeSid).then((identity) => {
-      const isAgent = parsed.searchParams.get('role') === 'agent';
+    const isAgent = parsed.searchParams.get('role') === 'agent';
+    const hasWsAuth = Boolean(parsed.searchParams.get('wsAuth')?.trim());
+
+    // Agents and wsAuth-signed humans can connect without forwarding cookie session IDs in query/header.
+    if (isAgent || (wsAuthSecret && hasWsAuth)) {
+      (request as unknown as Record<string, unknown>).__validatedIdentity = null;
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+      return;
+    }
+
+    void validateSession(request.headers.cookie).then((identity) => {
 
       if (!identity && !isAgent) {
         log.warn({ url: request.url }, 'WebSocket upgrade rejected: no valid session');
@@ -887,12 +906,21 @@ wss.on('connection', (ws, request) => {
       };
 
       created.to = [playerId];
-      if (!(await registerCreatedChallenge(created, playerId))) {
+      const createdRegistered = await registerCreatedChallenge(created, playerId);
+      if (!createdRegistered.ok) {
         pendingDealerRounds.delete(playerId);
         sendTo(playerId, {
           type: 'station_ui',
           stationId,
-          view: { ok: false, state: 'dealer_error', reason: 'challenge_lock_failed' }
+          view: {
+            ok: false,
+            state: 'dealer_error',
+            reason: createdRegistered.reason || 'challenge_lock_failed',
+            reasonCode: createdRegistered.reason === 'player_busy' ? 'PLAYER_BUSY' : 'CHALLENGE_LOCK_FAILED',
+            reasonText: createdRegistered.reason === 'player_busy'
+              ? 'You already have a pending/active round. Wait a moment and retry.'
+              : 'Challenge lock failed. Please retry.'
+          }
         });
         return;
       }
@@ -1033,7 +1061,8 @@ wss.on('connection', (ws, request) => {
         payload.gameType,
         payload.wager
       );
-      if (!(await registerCreatedChallenge(event, playerId))) {
+      const registered = await registerCreatedChallenge(event, playerId);
+      if (!registered.ok) {
         return;
       }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
@@ -1112,7 +1141,8 @@ wss.on('connection', (ws, request) => {
         existing.gameType,
         safeWager
       );
-      if (!(await registerCreatedChallenge(counterEvent, playerId))) {
+      const counterRegistered = await registerCreatedChallenge(counterEvent, playerId);
+      if (!counterRegistered.ok) {
         return;
       }
       await dispatchChallengeEventWithEscrow(withActorRecipient(counterEvent, playerId));
@@ -1295,7 +1325,8 @@ async function handleDistributedCommand(command: ChallengeCommand): Promise<void
       existing.gameType,
       safeWager
     );
-    if (!(await registerCreatedChallenge(counterEvent, command.actorId))) {
+    const commandRegistered = await registerCreatedChallenge(counterEvent, command.actorId);
+    if (!commandRegistered.ok) {
       return;
     }
     await dispatchChallengeEventWithEscrow(withActorRecipient(counterEvent, command.actorId));
