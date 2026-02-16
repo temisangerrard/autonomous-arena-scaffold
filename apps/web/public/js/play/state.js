@@ -46,7 +46,8 @@ export function createInitialState() {
     },
     ui: {
       targetId: '',
-      interactOpen: false
+      interactOpen: false,
+      pendingCoinflipPick: null
     },
     touch: {
       stickActive: false,

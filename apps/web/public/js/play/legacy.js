@@ -1294,6 +1294,39 @@ function closestNearbyTargetId() {
   return bestId || [...state.nearbyIds][0] || [...nearbyStations][0] || '';
 }
 
+function closestNearbyPlayerId() {
+  if (state.nearbyIds.size === 0) {
+    return '';
+  }
+  let bestId = '';
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const id of state.nearbyIds) {
+    const distance = Number(state.nearbyDistances.get(id) ?? Number.POSITIVE_INFINITY);
+    if (distance < bestDist) {
+      bestDist = distance;
+      bestId = id;
+    }
+  }
+  return bestId || [...state.nearbyIds][0] || '';
+}
+
+function closestNearbyStationId() {
+  const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
+  if (nearbyStations.size === 0) {
+    return '';
+  }
+  let bestId = '';
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const id of nearbyStations) {
+    const distance = Number(state.nearbyDistances.get(id) ?? Number.POSITIVE_INFINITY);
+    if (distance < bestDist) {
+      bestDist = distance;
+      bestId = id;
+    }
+  }
+  return bestId || [...nearbyStations][0] || '';
+}
+
 function getUiTargetId() {
   const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
   const preferred = state.ui?.targetId || '';
@@ -1332,6 +1365,10 @@ function setInteractOpen(nextOpen) {
   interactionCard.classList.toggle('open', state.ui.interactOpen);
   interactionCard.setAttribute('aria-hidden', state.ui.interactOpen ? 'false' : 'true');
   if (state.ui.interactOpen) {
+    const stationFirst = closestNearbyStationId();
+    if (stationFirst) {
+      state.ui.targetId = stationFirst;
+    }
     try {
       document.activeElement?.blur?.();
     } catch {
@@ -1414,7 +1451,7 @@ function sendChallenge() {
   const targetId =
     (selectedTarget && state.nearbyIds.has(selectedTarget) ? selectedTarget : '') ||
     (state.ui?.targetId && state.nearbyIds.has(state.ui.targetId) ? state.ui.targetId : '') ||
-    closestNearbyTargetId();
+    closestNearbyPlayerId();
   if (!targetId) {
     state.challengeMessage = 'No nearby target selected.';
     return;
@@ -1436,6 +1473,11 @@ function sendChallenge() {
 
   state.challengeStatus = 'sent';
   state.challengeMessage = `Challenge sent (${gameType}, ${formatWagerInline(wager)}) to ${labelFor(targetId)}`;
+  if (gameType === 'coinflip' && isStaticNpc(targetId)) {
+    state.ui.pendingCoinflipPick = Math.random() < 0.5 ? 'heads' : 'tails';
+  } else {
+    state.ui.pendingCoinflipPick = null;
+  }
   state.quickstart.challengeSent = true;
   setInteractOpen(false);
 }
@@ -1744,6 +1786,17 @@ function handleChallenge(payload) {
     }
     state.quickstart.matchActive = true;
     hideGameModal();
+    if (
+      challenge.gameType === 'coinflip'
+      && state.ui.pendingCoinflipPick
+      && (challenge.challengerId === state.playerId || challenge.opponentId === state.playerId)
+    ) {
+      const pick = state.ui.pendingCoinflipPick;
+      state.ui.pendingCoinflipPick = null;
+      window.setTimeout(() => {
+        sendGameMove(pick);
+      }, 120);
+    }
   }
 
   if (payload.event === 'move_submitted' && challenge) {
@@ -1764,6 +1817,7 @@ function handleChallenge(payload) {
       challengeTimerWrap.style.display = 'none';
     }
     hideGameModal();
+    state.ui.pendingCoinflipPick = null;
   }
 
   if (payload.event === 'expired' && challenge) {
@@ -1779,6 +1833,7 @@ function handleChallenge(payload) {
       challengeTimerWrap.style.display = 'none';
     }
     hideGameModal();
+    state.ui.pendingCoinflipPick = null;
   }
 
   if (payload.event === 'resolved' && challenge) {
@@ -1802,11 +1857,14 @@ function handleChallenge(payload) {
     setTimeout(() => {
       hideGameModal();
     }, 3500);
+    state.ui.pendingCoinflipPick = null;
   }
 
   if (payload.event === 'invalid' || payload.event === 'busy') {
     state.respondingIncoming = false;
     state.challengeMessage = challengeReasonLabel(payload.reason);
+    state.ui.pendingCoinflipPick = null;
+    showToast(state.challengeMessage);
   }
 
   addFeedEvent('match', `challenge:${payload.event}${payload.reason ? ` (${payload.reason})` : ''}`);
@@ -1866,6 +1924,10 @@ function renderInteractionPrompt() {
   }
   const active = state.activeChallenge;
   if (active && active.status === 'active') {
+    interactionPrompt.classList.remove('visible');
+    return;
+  }
+  if (state.ui?.interactOpen) {
     interactionPrompt.classList.remove('visible');
     return;
   }
