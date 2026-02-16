@@ -5,16 +5,24 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 export { THREE };
 
 let worldManifestPromise = null;
+const WORLD_FILENAME_FALLBACK = {
+  train_world: 'train_station_mega_world.glb',
+  'train-world': 'train_station_mega_world.glb',
+  mega: 'train_station_mega_world.glb',
+  plaza: 'train_station_plaza_expanded.glb',
+  base: 'train_station_world.glb',
+  world: 'train_station_world.glb'
+};
 async function loadWorldManifest() {
   if (worldManifestPromise) return worldManifestPromise;
   worldManifestPromise = (async () => {
     try {
       const res = await fetch('/api/worlds', { credentials: 'include' });
-      if (!res.ok) return null;
+      if (!res.ok) return WORLD_FILENAME_FALLBACK;
       const payload = await res.json();
-      return payload?.filenameByAlias || null;
+      return payload?.filenameByAlias || WORLD_FILENAME_FALLBACK;
     } catch {
-      return null;
+      return WORLD_FILENAME_FALLBACK;
     }
   })();
   return worldManifestPromise;

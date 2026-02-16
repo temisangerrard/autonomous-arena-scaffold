@@ -622,6 +622,31 @@ const server = createServer(async (req, res) => {
     try {
       profiles = await runtimeProfiles();
     } catch {
+      // Degraded mode: keep signed-in players playable when runtime has a brief outage.
+      // We can still issue wsAuth from cached identity profile/wallet linkage.
+      if (identity.profileId && identity.walletId) {
+        const fallbackProfile: PlayerProfile = {
+          id: identity.profileId,
+          username: identity.username || 'player',
+          displayName: identity.displayName || identity.name || 'Player',
+          walletId: identity.walletId,
+          ownedBotIds: [],
+          wallet: {
+            id: identity.walletId,
+            balance: 0
+          }
+        };
+        sendJson(res, {
+          ok: true,
+          degraded: true,
+          user: sanitizeUser(identity),
+          profile: fallbackProfile,
+          bots: [],
+          wsAuth: wsAuthForIdentity(identity),
+          sessionId: cookieSessionId(req)
+        });
+        return;
+      }
       sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
       return;
     }
