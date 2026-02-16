@@ -20,6 +20,23 @@ const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
+const allowedAuthOrigins = new Set(
+  (process.env.ALLOWED_AUTH_ORIGINS?.trim()
+    ? process.env.ALLOWED_AUTH_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)
+    : [
+        'https://autobett.netlify.app',
+        'https://www.autobett.netlify.app',
+        'http://localhost:3000'
+      ])
+    .map((value) => {
+      try {
+        return new URL(value).origin.toLowerCase();
+      } catch {
+        return '';
+      }
+    })
+    .filter(Boolean)
+);
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
 const internalToken = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
 const redisUrl = process.env.REDIS_URL?.trim() || '';
@@ -107,6 +124,10 @@ type PlayerDirectoryEntry = {
 };
 
 type RuntimeStatusPayload = {
+  connectedBotCount?: number;
+  disconnectedBotIds?: string[];
+  lastBotWsErrorAt?: number | null;
+  lastBotWsCloseById?: Record<string, { code?: number; reason?: string; at: number }>;
   bots?: Array<{
     id: string;
     connected?: boolean;
@@ -383,12 +404,15 @@ function isSameOriginRequest(req: import('node:http').IncomingMessage): boolean 
 
   const candidates = [origin, referer].filter(Boolean);
   if (candidates.length === 0) {
-    return !isProduction;
+    // Netlify edge proxy may omit browser Origin/Referer when forwarding to Cloud Run.
+    const netlifyForwarded = typeof req.headers['x-nf-request-id'] === 'string';
+    return netlifyForwarded || !isProduction;
   }
   for (const value of candidates) {
     try {
       const parsed = new URL(value);
-      if (parsed.origin.toLowerCase() !== expected.toLowerCase()) {
+      const normalized = parsed.origin.toLowerCase();
+      if (normalized !== expected.toLowerCase() && !allowedAuthOrigins.has(normalized)) {
         return false;
       }
     } catch {
@@ -824,6 +848,10 @@ const server = createServer(async (req, res) => {
           user: sanitizeUser(identity),
           profile: fallbackProfile,
           bots: [],
+          bot: {
+            id: null,
+            connected: null
+          },
           wsAuth: wsAuthForIdentity(identity)
         });
         return;
@@ -876,12 +904,17 @@ const server = createServer(async (req, res) => {
         walletId: ownerWalletId,
         walletAddress: ownerWalletAddress || undefined
       }));
+    const ownerBot = bots[0] ?? null;
 
     sendJson(res, {
       ok: true,
       user: sanitizeUser(identity),
       profile,
       bots,
+      bot: {
+        id: ownerBot?.id ?? null,
+        connected: typeof ownerBot?.connected === 'boolean' ? ownerBot.connected : null
+      },
       wsAuth: wsAuthForIdentity(identity)
     });
     return;
@@ -1098,10 +1131,21 @@ const server = createServer(async (req, res) => {
       return;
     }
     try {
-      const payload = await runtimeGet(`/wallets/${auth.identity.walletId}/summary`);
-      sendJson(res, payload);
+      const runtimeResponse = await fetch(`${runtimeBase}/wallets/${auth.identity.walletId}/summary`, {
+        headers: internalToken ? { 'x-internal-token': internalToken } : undefined
+      });
+      const payload = await runtimeResponse.json().catch(() => null);
+      if (!runtimeResponse.ok) {
+        sendJson(
+          res,
+          payload && typeof payload === 'object' ? payload : { ok: false, reason: 'wallet_summary_unavailable' },
+          runtimeResponse.status
+        );
+        return;
+      }
+      sendJson(res, payload ?? { ok: false, reason: 'wallet_summary_unavailable' });
     } catch {
-      sendJson(res, { ok: false, reason: 'wallet_summary_unavailable' }, 400);
+      sendJson(res, { ok: false, reason: 'wallet_summary_unavailable' }, 503);
     }
     return;
   }

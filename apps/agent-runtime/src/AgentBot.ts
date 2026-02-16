@@ -43,6 +43,8 @@ export type AgentBotStatus = {
   playerId: string | null;
   behavior: AgentBehaviorConfig;
   nearbyCount: number;
+  lastWsErrorAt: number | null;
+  lastWsClose: { code?: number; reason?: string; at: number } | null;
   stats: {
     challengesSent: number;
     challengesReceived: number;
@@ -61,6 +63,7 @@ export class AgentBot {
 
   private ws: WebSocket | null = null;
   private connected = false;
+  private running = false;
   private playerId: string | null = null;
   private playersById = new Map<string, SnapshotPlayer>();
   private nearbyIds = new Set<string>();
@@ -74,6 +77,8 @@ export class AgentBot {
   private submittedMoveByChallenge = new Set<string>();
   private stallFrames = 0;
   private lastSample: { x: number; z: number } | null = null;
+  private lastWsErrorAt: number | null = null;
+  private lastWsClose: { code?: number; reason?: string; at: number } | null = null;
 
   private stats = {
     challengesSent: 0,
@@ -91,10 +96,15 @@ export class AgentBot {
   }
 
   start(): void {
+    if (this.running) {
+      return;
+    }
+    this.running = true;
     this.connect();
   }
 
   stop(): void {
+    this.running = false;
     this.connected = false;
     if (this.decisionTimer) {
       clearInterval(this.decisionTimer);
@@ -142,11 +152,34 @@ export class AgentBot {
       playerId: this.playerId,
       behavior: { ...this.config.behavior },
       nearbyCount: this.nearbyIds.size,
+      lastWsErrorAt: this.lastWsErrorAt,
+      lastWsClose: this.lastWsClose ? { ...this.lastWsClose } : null,
       stats: { ...this.stats }
     };
   }
 
+  ensureActive(): void {
+    if (!this.running) {
+      this.start();
+      return;
+    }
+    if (this.connected) {
+      return;
+    }
+    if (this.ws || this.reconnectTimer) {
+      return;
+    }
+    this.connect();
+  }
+
   private connect(): void {
+    if (!this.running) {
+      return;
+    }
+    if (this.ws) {
+      return;
+    }
+
     const wsUrl = new URL(this.config.wsBaseUrl);
     wsUrl.searchParams.set('role', 'agent');
     wsUrl.searchParams.set('agentId', this.config.id);
@@ -172,6 +205,7 @@ export class AgentBot {
 
     ws.on('open', () => {
       this.connected = true;
+      this.ws = ws;
       this.startDecisionLoop();
     });
 
@@ -179,8 +213,17 @@ export class AgentBot {
       this.onMessage(raw.toString());
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reasonBuffer) => {
       this.connected = false;
+      if (this.ws === ws) {
+        this.ws = null;
+      }
+      const reason = String(reasonBuffer ?? '').trim();
+      this.lastWsClose = {
+        code: Number.isFinite(Number(code)) ? Number(code) : undefined,
+        reason: reason || undefined,
+        at: Date.now()
+      };
       this.playerId = null;
       this.playersById.clear();
       this.nearbyIds.clear();
@@ -193,13 +236,17 @@ export class AgentBot {
         this.decisionTimer = null;
       }
 
+      if (!this.running) {
+        return;
+      }
       this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
         this.connect();
       }, 1000);
     });
 
     ws.on('error', () => {
-      // Silent reconnect loop is enough for v1 runtime.
+      this.lastWsErrorAt = Date.now();
     });
   }
 

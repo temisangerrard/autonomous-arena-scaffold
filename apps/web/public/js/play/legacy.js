@@ -77,11 +77,13 @@ function showResultSplash(text, tone = 'neutral') {
 async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null) {
   try {
     const summary = await apiJson('/api/player/wallet/summary');
-    const after = Number(summary?.wallet?.balance ?? summary?.balance ?? state.walletBalance ?? 0);
+    const after = Number(summary?.onchain?.tokenBalance);
     if (Number.isFinite(after)) {
       state.walletBalance = after;
+    } else {
+      state.walletBalance = null;
     }
-    if (challenge) {
+    if (challenge && Number.isFinite(after)) {
       const delta = Number((after - Number(beforeBalance || 0)).toFixed(2));
       const won = challenge.winnerId === state.playerId;
       const lost = Boolean(challenge.winnerId && challenge.winnerId !== state.playerId);
@@ -97,7 +99,7 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
       }
     }
   } catch {
-    // keep local value if summary endpoint is temporarily unavailable
+    state.walletBalance = null;
   }
 }
 
@@ -347,7 +349,9 @@ async function connectSocket() {
       if (mePayload?.wsAuth) {
         sessionWsAuth = String(mePayload.wsAuth);
       }
-      state.walletBalance = Number(profile?.wallet?.balance ?? 0);
+      if (mePayload?.bot && mePayload.bot.connected === false) {
+        state.challengeMessage = 'Offline bot is currently disconnected. Controls still work, but that bot will not appear until runtime reconnects.';
+      }
       if (!sessionWsAuth) {
         // Strict mode: if signed WS token is missing, force re-auth bootstrap.
         scheduleConnectRetry('Session token missing. Refreshing auth.');
@@ -402,6 +406,7 @@ async function connectSocket() {
       window.clearInterval(presenceTimer);
       presenceTimer = null;
     }
+    scheduleConnectRetry('Connection lost.');
   });
 
   socket.addEventListener('message', (event) => {
@@ -905,7 +910,7 @@ function renderInteractionCard() {
             <button id="station-house-heads" class="btn-gold" type="button">Heads</button>
             <button id="station-house-tails" class="btn-gold" type="button">Tails</button>
           </div>
-          <div class="station-ui__meta" id="station-status">Start to receive house commit hash, then pick a side.</div>
+          <div class="station-ui__meta" id="station-status">Start to receive house commit hash, then pick a side. Press Esc to close this panel and return to movement.</div>
         `;
 
         const wagerEl = document.getElementById('station-wager');
@@ -930,7 +935,7 @@ function renderInteractionCard() {
           state.ui.dealer.state = 'preflight';
           state.ui.dealer.wager = wager;
           if (statusEl) {
-            statusEl.textContent = 'Preflight check... validating player + house wallets.';
+            statusEl.textContent = 'Preflight check... validating player + house wallets. Press Esc to close panel.';
           }
           if (startBtn) startBtn.disabled = true;
           if (headsBtn) headsBtn.disabled = true;
@@ -970,13 +975,13 @@ function renderInteractionCard() {
           if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
           if (pickActions) pickActions.style.display = 'flex';
           if (statusEl) {
-            statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails.`;
+            statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`;
           }
         }
         if (state.ui.dealer.state === 'preflight') {
           if (pickActions) pickActions.style.display = 'none';
           if (statusEl) {
-            statusEl.textContent = 'Preflight check...';
+            statusEl.textContent = 'Preflight check... (Esc closes panel)';
           }
         }
         if (state.ui.dealer.state === 'dealing') {
@@ -1043,7 +1048,11 @@ function renderInteractionCard() {
         async function refresh() {
           try {
             const summary = await api('/api/player/wallet/summary');
-            const bal = Number(summary?.wallet?.balance ?? summary?.balance ?? 0);
+            const bal = Number(summary?.onchain?.tokenBalance);
+            if (!Number.isFinite(bal)) {
+              balanceEl.textContent = 'Balance: unavailable (onchain)';
+              return;
+            }
             balanceEl.textContent = `Balance: ${bal.toFixed(2)}`;
           } catch (err) {
             balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
@@ -1118,7 +1127,7 @@ function renderInteractionCard() {
         if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'flex';
         if (statusEl) {
-          statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails.`;
+          statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`;
         }
       } else if (state.ui.dealer.state === 'preflight') {
         if (startBtn) startBtn.disabled = true;
@@ -1126,7 +1135,7 @@ function renderInteractionCard() {
         if (tailsBtn) tailsBtn.disabled = true;
         if (pickActions) pickActions.style.display = 'none';
         if (statusEl) {
-          statusEl.textContent = 'Preflight check...';
+          statusEl.textContent = 'Preflight check... (Esc closes panel)';
         }
       } else if (state.ui.dealer.state === 'dealing') {
         if (startBtn) startBtn.disabled = true;
@@ -1214,16 +1223,22 @@ function update(nowMs) {
   if (hud && topbarName && topbarWallet && topbarStreak) {
     const me = state.playerId ? state.players.get(state.playerId) : null;
     topbarName.textContent = me?.displayName || 'Player';
-    topbarWallet.textContent = `$${state.walletBalance.toFixed(2)}`;
+    topbarWallet.textContent = Number.isFinite(Number(state.walletBalance))
+      ? `$${Number(state.walletBalance).toFixed(2)}`
+      : '$—';
     topbarStreak.textContent = `Streak ${state.streak}`;
   }
 
   if (challengeStatusLine) {
-    challengeStatusLine.textContent =
-      state.challengeMessage ||
-      (state.challengeStatus === 'none'
-        ? 'Find a nearby target and start a challenge.'
-        : `Status: ${state.challengeStatus}`);
+    if (!state.wsConnected) {
+      challengeStatusLine.textContent = state.challengeMessage || 'Disconnected from game server. Reconnecting...';
+    } else {
+      challengeStatusLine.textContent =
+        state.challengeMessage ||
+        (state.challengeStatus === 'none'
+          ? 'Find a nearby target and start a challenge.'
+          : `Status: ${state.challengeStatus}`);
+    }
   }
 
   renderWorldMap();

@@ -46,6 +46,30 @@ import type { Personality } from './PolicyEngine.js';
 const port = Number(process.env.PORT ?? 4100);
 const wsBaseUrl = process.env.GAME_WS_URL ?? 'ws://localhost:4000/ws';
 const personalities: Personality[] = ['aggressive', 'conservative', 'social'];
+const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
+
+let wsBaseUrlValid = true;
+try {
+  const parsedWsBaseUrl = new URL(wsBaseUrl);
+  if (parsedWsBaseUrl.protocol !== 'ws:' && parsedWsBaseUrl.protocol !== 'wss:') {
+    wsBaseUrlValid = false;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.GAME_WS_URL?.trim()) {
+      console.warn('[agent-runtime] GAME_WS_URL is not set; using default ws://localhost:4000/ws. Bots will not connect in deployed environments unless this is overridden.');
+    } else if (parsedWsBaseUrl.hostname === 'localhost' || parsedWsBaseUrl.hostname === '127.0.0.1') {
+      console.warn(`[agent-runtime] GAME_WS_URL points to local host (${wsBaseUrl}) in production. Bots will not connect across deployed services.`);
+    }
+    if (!wsAuthSecret) {
+      console.warn('[agent-runtime] GAME_WS_AUTH_SECRET is not set. If the game server requires wsAuth, bots will be rejected (4401/4403).');
+    }
+  }
+} catch {
+  wsBaseUrlValid = false;
+}
+if (!wsBaseUrlValid) {
+  console.warn(`[agent-runtime] Invalid GAME_WS_URL "${wsBaseUrl}". Expected ws:// or wss:// URL. Bot connectivity will fail until fixed.`);
+}
 
 const superAgentConfig: SuperAgentConfig = createDefaultSuperAgentConfig(
   process.env.GRAND_AGENT_ID ?? 'agent_1'
@@ -435,6 +459,45 @@ function registerBot(id: string, behavior: AgentBehaviorConfig, record: BotRecor
   botRegistry.set(id, record);
 }
 
+function reconcileOwnerBotsViaSuperAgent(): void {
+  for (const profile of profiles.values()) {
+    const fallbackBotId = `agent_${profile.id}`;
+    const primaryBotId = String(profile.ownedBotIds?.[0] ?? '').trim() || fallbackBotId;
+    if (!Array.isArray(profile.ownedBotIds) || profile.ownedBotIds.length === 0 || profile.ownedBotIds[0] !== primaryBotId) {
+      const remaining = Array.isArray(profile.ownedBotIds)
+        ? profile.ownedBotIds.filter((id) => typeof id === 'string' && id.trim() && id !== primaryBotId)
+        : [];
+      profile.ownedBotIds = [primaryBotId, ...remaining];
+    }
+
+    const patrolSection = hashString(profile.id) % PATROL_SECTION_COUNT;
+    const walletId = profile.walletId || getOrCreateWallet(profile.id).id;
+    profile.walletId = walletId;
+
+    const existingRecord = botRegistry.get(primaryBotId);
+    const existingBot = bots.get(primaryBotId);
+    const behavior =
+      existingBot?.getStatus().behavior
+      ?? makeBehaviorForDuty('owner', patrolSection, patrolSection);
+
+    registerBot(
+      primaryBotId,
+      behavior,
+      existingRecord ?? {
+        id: primaryBotId,
+        ownerProfileId: profile.id,
+        displayName: pickDisplayName(`${profile.displayName} Bot`),
+        createdAt: Date.now(),
+        managedBySuperAgent: true,
+        duty: 'owner',
+        patrolSection,
+        walletId
+      }
+    );
+    bots.get(primaryBotId)?.ensureActive();
+  }
+}
+
 function ensureSuperAgentExists(): void {
   // Super agent is a control plane construct; it doesn't need to appear as an in-world bot.
   // Keep its wallet around for budgeting/policy systems.
@@ -442,6 +505,9 @@ function ensureSuperAgentExists(): void {
 }
 
 function applySuperAgentDelegation(): void {
+  // Super Agent owns owner-bot continuity: keep exactly one primary owner bot
+  // registered + connected for each profile, then apply policy delegation.
+  reconcileOwnerBotsViaSuperAgent();
   const directives = buildWorkerDirectives(superAgentConfig, [...bots.keys()]);
   for (const directive of directives) {
     const record = botRegistry.get(directive.botId);
@@ -566,6 +632,44 @@ function botStatuses(): Array<AgentBotStatus & { meta?: BotRecord }> {
   });
 }
 
+function buildBotConnectionDiagnostics(statuses: Array<AgentBotStatus & { meta?: BotRecord }>): {
+  disconnectedBotIds: string[];
+  lastWsErrorAt: number | null;
+  lastWsCloseById: Record<string, { code?: number; reason?: string; at: number }>;
+  wsAuthMismatchLikely: boolean;
+} {
+  const disconnectedBotIds = statuses
+    .filter((bot) => !bot.connected)
+    .map((bot) => bot.id);
+
+  let lastWsErrorAt: number | null = null;
+  const lastWsCloseById: Record<string, { code?: number; reason?: string; at: number }> = {};
+  let authFailureCloseCount = 0;
+
+  for (const bot of statuses) {
+    if (typeof bot.lastWsErrorAt === 'number' && (!lastWsErrorAt || bot.lastWsErrorAt > lastWsErrorAt)) {
+      lastWsErrorAt = bot.lastWsErrorAt;
+    }
+    if (bot.lastWsClose && typeof bot.lastWsClose.at === 'number') {
+      lastWsCloseById[bot.id] = { ...bot.lastWsClose };
+      if (bot.lastWsClose.code === 4401 || bot.lastWsClose.code === 4403) {
+        authFailureCloseCount += 1;
+      }
+    }
+  }
+
+  const wsAuthMismatchLikely =
+    disconnectedBotIds.length > 0
+    && authFailureCloseCount >= Math.max(2, Math.ceil(disconnectedBotIds.length * 0.6));
+
+  return {
+    disconnectedBotIds,
+    lastWsErrorAt,
+    lastWsCloseById,
+    wsAuthMismatchLikely
+  };
+}
+
 function publicProfiles() {
   return [...profiles.values()].map((profile) => ({
     ...profile,
@@ -592,11 +696,16 @@ function walletSummary(wallet: WalletRecord | null) {
 
 function runtimeStatus() {
   const statuses = botStatuses();
+  const diagnostics = buildBotConnectionDiagnostics(statuses);
   const house = houseBankWallet();
 
   return {
     configuredBotCount: statuses.length,
     connectedBotCount: statuses.filter((bot) => bot.connected).length,
+    disconnectedBotIds: diagnostics.disconnectedBotIds,
+    lastBotWsErrorAt: diagnostics.lastWsErrorAt,
+    lastBotWsCloseById: diagnostics.lastWsCloseById,
+    wsAuthMismatchLikely: diagnostics.wsAuthMismatchLikely,
     backgroundBotCount: backgroundBotIds.size,
     profileBotCount: statuses.filter((bot) => bot.meta?.ownerProfileId).length,
     escrowLockCount: escrowLocks.size,
@@ -1721,10 +1830,13 @@ reconcileWalletAddressesFromKeys();
 void syncEthSkillsKnowledge(false).catch(() => undefined);
 const initialBotCount = Math.max(8, Number(process.env.BOT_COUNT ?? 8));
 reconcileBots(initialBotCount);
+ensureSuperAgentExists();
+applySuperAgentDelegation();
 ensureSeedBalances();
 const npcBudgetTimer = setInterval(() => {
   ensureSeedBalances();
   reconcileOwnerPresence();
+  applySuperAgentDelegation();
 }, Math.min(10_000, npcBudgetTickMs));
 npcBudgetTimer.unref();
 void persistRuntimeState().catch(() => undefined);
@@ -1738,6 +1850,17 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   void persistRuntimeState().finally(() => process.exit(0));
 });
+
+const startupBotConnectivityCheck = setTimeout(() => {
+  const status = runtimeStatus();
+  if (status.disconnectedBotIds.length > 0) {
+    console.warn(`[agent-runtime] ${status.disconnectedBotIds.length} bot(s) disconnected after startup: ${status.disconnectedBotIds.join(', ')}`);
+  }
+  if (status.wsAuthMismatchLikely) {
+    console.warn('[agent-runtime] Bot websocket auth mismatch is likely (repeated 4401/4403 closes). Ensure GAME_WS_AUTH_SECRET matches between runtime and game server.');
+  }
+}, 15_000);
+startupBotConnectivityCheck.unref();
 
 const router = new SimpleRouter();
 

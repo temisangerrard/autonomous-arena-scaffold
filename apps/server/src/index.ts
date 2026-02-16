@@ -614,6 +614,9 @@ wss.on('connection', (ws, request) => {
     const token = parsed.searchParams.get('wsAuth')?.trim() || '';
     const verified = verifyWsAuth(token, role);
     if (!verified.ok) {
+      if (role === 'agent') {
+        log.warn({ reason: verified.reason, requestedAgentId }, 'agent websocket auth rejected');
+      }
       try {
         ws.close(4401, verified.reason);
       } catch {
@@ -635,6 +638,7 @@ wss.on('connection', (ws, request) => {
     } else {
       const validated = validateAgentAuthClaims(claims, requestedAgentId, walletId ?? undefined);
       if (!validated.ok) {
+        log.warn({ reason: validated.reason, requestedAgentId }, 'agent websocket claims mismatch');
         try {
           ws.close(4403, validated.reason ?? 'ws_auth_invalid_claims');
         } catch {
@@ -1488,6 +1492,9 @@ void (async () => {
   await presenceStore.connect(config.redisUrl);
   await distributedChallengeStore.connect(config.redisUrl);
   await distributedBus.connect(config.redisUrl);
+  if (wsAuthSecret) {
+    log.info('websocket auth is enabled; ensure GAME_WS_AUTH_SECRET matches across web/server/agent-runtime.');
+  }
   server.listen(config.port, () => {
     log.info({ port: config.port, instanceId: serverInstanceId }, 'server listening');
   });

@@ -446,3 +446,26 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run typecheck` ✅
     - `npm test` ✅
     - `SMOKE_SERVER_PORT=4010 SMOKE_RUNTIME_PORT=4110 npm run test:playable` ✅
+- 2026-02-16: Reliability + offline-owner-bot implementation pass.
+- Web play reconnect hardening:
+  - `/play` now schedules reconnect on websocket close and surfaces a clear disconnected/reconnecting HUD status.
+  - `/api/player/me` bot connectivity signal is consumed to warn when offline owner bot is disconnected.
+- Input focus trap fix:
+  - Movement keys now recover control when `station-wager` input is focused (blur + continue movement input), while keeping normal text-entry guarding for other editable fields.
+  - Station UI now explicitly tells players: `Esc` closes panel and returns movement focus.
+- Agent runtime owner-bot resilience + diagnostics:
+  - Added owner-bot invariant reconciliation so every profile keeps a primary owner bot online.
+  - Added bot run-state guards (`start`/`stop`/`ensureActive`) and websocket diagnostics capture (`lastWsErrorAt`, `lastWsClose`).
+  - Runtime `/status` now includes `disconnectedBotIds`, `lastBotWsErrorAt`, `lastBotWsCloseById`, `wsAuthMismatchLikely`.
+  - Startup guardrails now warn on invalid/missing `GAME_WS_URL`, localhost `GAME_WS_URL` in production, missing runtime `GAME_WS_AUTH_SECRET`, and likely ws-auth mismatch after startup.
+- Game server guardrails:
+  - Added explicit logs for rejected/mismatched agent ws-auth claims (common secret mismatch signal).
+  - Startup info log now reminds that ws auth secret must match web/server/runtime.
+- 2026-02-16 (follow-up): owner-bot continuity moved under Super Agent authority.
+- Replaced direct runtime invariant loop (`ensureOwnerBotsInvariant`) with `reconcileOwnerBotsViaSuperAgent` executed inside `applySuperAgentDelegation()`.
+- Startup and maintenance now call Super Agent delegation (not standalone owner-bot invariant calls), so lifecycle control remains in the Super Agent path.
+- 2026-02-16: Enforced onchain-only wallet balance display (no runtime fallback).
+- Runtime `/wallets/:walletId/summary` now returns `503 onchain_unavailable` when onchain config/read is unavailable; removed synthetic runtime-shaped onchain fallback payload.
+- Web `/api/player/wallet/summary` now strictly passes upstream status/payload through to client (no local fallback substitution).
+- Dashboard wallet rendering now uses only `onchain.tokenBalance`; shows `—` + `Onchain unavailable` when missing.
+- Play HUD wallet balance now updates only from successful onchain summary and remains blank (`$—`) when unavailable.

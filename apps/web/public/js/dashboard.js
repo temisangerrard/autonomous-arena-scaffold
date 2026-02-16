@@ -201,10 +201,11 @@ function renderContext() {
   const user = playerCtx?.user;
   const profile = playerCtx?.profile;
   const bots = playerCtx?.bots || [];
-  const runtimeBalanceValue = Number(profile?.wallet?.balance || 0).toFixed(2);
   const walletId = profile?.wallet?.id || profile?.walletId || walletSummaryCtx?.wallet?.id || '-';
   const walletAddress = profile?.wallet?.address || walletSummaryCtx?.onchain?.address || walletSummaryCtx?.wallet?.address || '-';
-  const tokenBalance = walletSummaryCtx?.onchain?.tokenBalance ?? runtimeBalanceValue;
+  const rawOnchainBalance = walletSummaryCtx?.onchain?.tokenBalance;
+  const hasOnchainBalance = Number.isFinite(Number(rawOnchainBalance));
+  const tokenBalance = hasOnchainBalance ? Number(rawOnchainBalance) : null;
   const tokenSymbol = walletSummaryCtx?.onchain?.tokenSymbol || 'TOKEN';
   const nativeBalance = walletSummaryCtx?.onchain?.nativeBalanceEth || null;
   const onchainMode = walletSummaryCtx?.onchain?.mode === 'onchain';
@@ -214,11 +215,11 @@ function renderContext() {
   if (meProfile) meProfile.textContent = profile?.displayName ? `${profile.displayName} (@${profile.username})` : '-';
   if (meWallet) meWallet.textContent = walletId;
   if (meWalletAddress) meWalletAddress.textContent = walletAddress;
-  if (walletBalance) walletBalance.textContent = Number(tokenBalance || 0).toFixed(4);
+  if (walletBalance) walletBalance.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(4) : '—';
   if (walletBalanceNote) {
     walletBalanceNote.textContent = onchainMode
       ? `${tokenSymbol} onchain`
-      : `Runtime wallet balance (scaffold mode) · ${tokenSymbol}`;
+      : 'Onchain unavailable';
   }
 
   // Show gas indicator for onchain wallets
@@ -235,7 +236,7 @@ function renderContext() {
 
   if (sidebarName) sidebarName.textContent = profile?.displayName || user?.name || 'Player';
   if (sidebarHandle) sidebarHandle.textContent = `@${profile?.username || 'player'}`;
-  if (sidebarWallet) sidebarWallet.textContent = `◆ ${Number(tokenBalance || 0).toFixed(2)}`;
+  if (sidebarWallet) sidebarWallet.textContent = hasOnchainBalance ? `◆ ${Number(tokenBalance).toFixed(2)}` : '◆ —';
 
   if (profileDisplayName) profileDisplayName.value = profile?.displayName || '';
   if (profileUsername) profileUsername.value = profile?.username || '';
@@ -279,7 +280,7 @@ function renderContext() {
   if (onboardingList) {
     const hasUser = Boolean(user?.email);
     const hasProfile = Boolean(profile?.id);
-    const hasFunds = Number(profile?.wallet?.balance || 0) > 0;
+    const hasFunds = hasOnchainBalance && Number(tokenBalance) > 0;
     const hasBot = bots.length > 0;
     const hasActiveBot = bots.some((entry) => entry.behavior?.mode !== 'passive' && entry.behavior?.challengeEnabled !== false);
     const hasPlayLink = Boolean(inviteLink?.value);

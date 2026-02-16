@@ -34,6 +34,7 @@ export function createInputSystem({
 
   function onKeyDown(event) {
     const target = event.target;
+    const movementKey = Object.prototype.hasOwnProperty.call(keyMap, event.code);
     const editing =
       target instanceof HTMLInputElement
       || target instanceof HTMLTextAreaElement
@@ -44,7 +45,17 @@ export function createInputSystem({
       || event.code === 'Escape'
       || event.code === 'KeyE'
       || event.code === 'Tab';
-    if (editing && !allowDuringEditing) {
+    const recoveredMovementFromWager =
+      editing
+      && movementKey
+      && target instanceof HTMLInputElement
+      && target.id === 'station-wager'
+      && state.ui?.interactOpen;
+    if (recoveredMovementFromWager) {
+      // Let movement keys recover controls while station wager field is focused.
+      target.blur();
+    }
+    if (editing && !allowDuringEditing && !recoveredMovementFromWager) {
       return;
     }
     const action = keyMap[event.code];

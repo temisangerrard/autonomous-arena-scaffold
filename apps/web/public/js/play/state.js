@@ -34,7 +34,7 @@ export function createInitialState() {
     cameraDistance: 5,
     deskCollapsed: false,
     deskAutoCollapsedByMatch: false,
-    walletBalance: 0,
+    walletBalance: null,
     streak: 0,
     quickstart: {
       challengeSent: false,

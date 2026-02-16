@@ -332,27 +332,20 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
       return;
     }
+    if (!deps.onchainProvider || !deps.onchainTokenAddress) {
+      sendJson(res, { ok: false, reason: 'onchain_unavailable' }, 503);
+      return;
+    }
     try {
       const onchain = await deps.onchainWalletSummary(wallet);
       sendJson(res, { ok: true, wallet: deps.walletSummary(wallet), onchain });
       deps.schedulePersistState();
     } catch (error) {
       sendJson(res, {
-        ok: true,
-        wallet: deps.walletSummary(wallet),
-        onchain: {
-          mode: 'runtime',
-          chainId: null,
-          tokenAddress: deps.onchainTokenAddress || null,
-          tokenSymbol: null,
-          tokenDecimals: deps.onchainTokenDecimals,
-          address: wallet.address,
-          nativeBalanceEth: null,
-          tokenBalance: null,
-          synced: false,
-          reason: String((error as Error).message || 'onchain_summary_failed').slice(0, 160)
-        }
-      });
+        ok: false,
+        reason: 'onchain_unavailable',
+        detail: String((error as Error).message || 'onchain_summary_failed').slice(0, 160)
+      }, 503);
     }
   });
 
