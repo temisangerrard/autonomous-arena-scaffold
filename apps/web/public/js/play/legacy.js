@@ -317,6 +317,7 @@ const socketRef = { current: null };
 let presenceTimer = null;
 let connectRetryTimer = null;
 let connectFailureCount = 0;
+let interactionStationRenderKey = '';
 
 function formatWagerLabel(wager) {
   const value = Number(wager || 0);
@@ -929,6 +930,7 @@ function renderInteractionCard() {
     return;
   }
   const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
+  const stationRenderKey = station ? `${station.id}:${station.kind}` : '';
 
   const challengeRows = interactionCard.querySelectorAll('.interaction-row, .interaction-actions, #wager-hint');
   const showStation = Boolean(station);
@@ -941,7 +943,8 @@ function renderInteractionCard() {
 
   if (station) {
     interactionTitle.textContent = station.displayName || 'Station';
-    if (stationUi) {
+    if (stationUi && interactionStationRenderKey !== stationRenderKey) {
+      interactionStationRenderKey = stationRenderKey;
       if (station.kind === 'dealer_coinflip') {
         stationUi.innerHTML = `
           <div class="station-ui__title">Dealer: Coinflip</div>
@@ -988,8 +991,12 @@ function renderInteractionCard() {
           setInteractOpen(false);
         }
 
-        headsBtn?.addEventListener('click', () => sendHouse('heads'), { once: true });
-        tailsBtn?.addEventListener('click', () => sendHouse('tails'), { once: true });
+        if (headsBtn) {
+          headsBtn.onclick = () => sendHouse('heads');
+        }
+        if (tailsBtn) {
+          tailsBtn.onclick = () => sendHouse('tails');
+        }
       } else if (station.kind === 'cashier_bank') {
         stationUi.innerHTML = `
           <div class="station-ui__title">Cashier</div>
@@ -1082,10 +1089,18 @@ function renderInteractionCard() {
           showToast(`Transferred ${amount} to ${toWalletId}.`);
         }
 
-        refreshBtn?.addEventListener('click', () => void refresh(), { once: true });
-        fundBtn?.addEventListener('click', () => void fund().catch((e) => showToast(String(e.message || e))), { once: true });
-        withdrawBtn?.addEventListener('click', () => void withdraw().catch((e) => showToast(String(e.message || e))), { once: true });
-        transferBtn?.addEventListener('click', () => void transfer().catch((e) => showToast(String(e.message || e))), { once: true });
+        if (refreshBtn) {
+          refreshBtn.onclick = () => { void refresh(); };
+        }
+        if (fundBtn) {
+          fundBtn.onclick = () => { void fund().catch((e) => showToast(String(e.message || e))); };
+        }
+        if (withdrawBtn) {
+          withdrawBtn.onclick = () => { void withdraw().catch((e) => showToast(String(e.message || e))); };
+        }
+        if (transferBtn) {
+          transferBtn.onclick = () => { void transfer().catch((e) => showToast(String(e.message || e))); };
+        }
         void refresh();
       } else {
         stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
@@ -1098,6 +1113,7 @@ function renderInteractionCard() {
 
   if (interactionSend) interactionSend.style.display = '';
   if (interactionOpenDesk) interactionOpenDesk.style.display = '';
+  interactionStationRenderKey = '';
   const isNpc = isStaticNpc(targetId);
   interactionTitle.textContent = isNpc ? `Request a game: ${labelFor(targetId)}` : `Challenge: ${labelFor(targetId)}`;
   if (interactionSend) {
@@ -1321,7 +1337,9 @@ function setInteractOpen(nextOpen) {
     } catch {
       // ignore
     }
-    if (interactionWager) {
+    const targetId = getUiTargetId();
+    const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
+    if (interactionWager && !station) {
       const targetId = getUiTargetId();
       const isNpc = isStaticNpc(targetId);
       const suggested = isNpc ? (state.walletBalance >= 1 ? 1 : 0) : Number(interactionWager.value ?? 1);
@@ -1330,6 +1348,7 @@ function setInteractOpen(nextOpen) {
       interactionWager.select?.();
     }
   } else {
+    interactionStationRenderKey = '';
     const active = document.activeElement;
     if (active instanceof HTMLElement && interactionCard.contains(active)) {
       active.blur?.();
