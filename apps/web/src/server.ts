@@ -232,13 +232,11 @@ async function serverPost<T>(pathname: string, body: unknown): Promise<T> {
 }
 
 async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
-  if (identity.role !== 'player') {
-    return;
-  }
-
   if (identity.profileId && identity.walletId) {
     return;
   }
+
+  const externalSubject = identity.sub.includes(':') ? identity.sub : `google:${identity.sub}`;
 
   const created = await runtimePost<{
     ok?: boolean;
@@ -247,7 +245,7 @@ async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> 
     profile?: PlayerProfile;
     wallet?: { id: string; balance: number };
   }>('/profiles/provision', {
-    externalSubject: `google:${identity.sub}`,
+    externalSubject,
     email: identity.email,
     displayName: identity.name,
     personality: 'social',
@@ -601,16 +599,45 @@ const server = createServer(async (req, res) => {
     }
 
     const identity = auth.identity;
-    if (!identity.profileId) {
-      sendJson(res, { ok: false, reason: 'profile_missing' }, 404);
-      return;
+    if (!identity.profileId || !identity.walletId) {
+      try {
+        await ensurePlayerProvisioned(identity);
+      } catch {
+        sendJson(res, { ok: false, reason: 'provision_failed' }, 503);
+        return;
+      }
     }
 
-    const profiles = await runtimeProfiles();
-    const profile = profiles.find((entry) => entry.id === identity.profileId);
-    if (!profile) {
-      sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+    let profiles: PlayerProfile[] = [];
+    try {
+      profiles = await runtimeProfiles();
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
       return;
+    }
+    let profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
+    if (!profile) {
+      // Runtime can restart while Redis session survives; reprovision and retry once.
+      identity.profileId = null;
+      identity.walletId = null;
+      try {
+        await ensurePlayerProvisioned(identity);
+        await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+      } catch {
+        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        return;
+      }
+      try {
+        profiles = await runtimeProfiles();
+      } catch {
+        sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+        return;
+      }
+      profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
+      if (!profile) {
+        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        return;
+      }
     }
 
     identity.walletId = profile.wallet?.id ?? profile.walletId;
@@ -668,23 +695,51 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/bootstrap') {
-    const auth = await requireRole(req, ['player']);
+    const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
     }
 
     const identity = auth.identity;
-    if (!identity.profileId) {
-      sendJson(res, { ok: false, reason: 'profile_missing' }, 404);
-      return;
+    if (!identity.profileId || !identity.walletId) {
+      try {
+        await ensurePlayerProvisioned(identity);
+      } catch {
+        sendJson(res, { ok: false, reason: 'provision_failed' }, 503);
+        return;
+      }
     }
 
-    const profiles = await runtimeProfiles();
-    const profile = profiles.find((entry) => entry.id === identity.profileId);
-    if (!profile) {
-      sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+    let profiles: PlayerProfile[] = [];
+    try {
+      profiles = await runtimeProfiles();
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
       return;
+    }
+    let profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
+    if (!profile) {
+      identity.profileId = null;
+      identity.walletId = null;
+      try {
+        await ensurePlayerProvisioned(identity);
+        await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+      } catch {
+        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        return;
+      }
+      try {
+        profiles = await runtimeProfiles();
+      } catch {
+        sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+        return;
+      }
+      profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
+      if (!profile) {
+        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        return;
+      }
     }
 
     const walletId = profile.wallet?.id ?? profile.walletId;
