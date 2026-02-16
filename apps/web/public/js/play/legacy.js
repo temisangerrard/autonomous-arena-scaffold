@@ -337,6 +337,11 @@ async function connectSocket() {
   if (sessionWsAuth) {
     wsUrlObj.searchParams.set('wsAuth', sessionWsAuth);
   }
+  // Fallback for cross-origin ws where browser may not send Netlify cookie.
+  const sid = String(localStorage.getItem(SID_KEY) || '').trim();
+  if (sid) {
+    wsUrlObj.searchParams.set('sid', sid);
+  }
 
   const wsUrl = wsUrlObj.toString();
   socket = new WebSocket(wsUrl);

@@ -32,14 +32,25 @@ export function extractCookie(cookieHeader: string | undefined, name: string): s
 /**
  * Validate a session cookie against the web auth service
  */
-export async function validateSession(cookieHeader: string | undefined): Promise<ValidatedIdentity | null> {
+export async function validateSession(
+  cookieHeader: string | undefined,
+  fallbackSid?: string | null
+): Promise<ValidatedIdentity | null> {
   if (!config.webAuthUrl) return null; // Auth not configured — skip validation
-  const sid = extractCookie(cookieHeader, 'arena_sid');
+  const cookieSid = extractCookie(cookieHeader, 'arena_sid');
+  const headerSid = String(fallbackSid || '').trim();
+  const sid = cookieSid || headerSid;
   if (!sid) return null;
 
   try {
+    const headers: Record<string, string> = {
+      cookie: `arena_sid=${encodeURIComponent(sid)}`
+    };
+    if (headerSid) {
+      headers['x-arena-sid'] = headerSid;
+    }
     const response = await fetch(`${config.webAuthUrl}/api/session`, {
-      headers: { cookie: `arena_sid=${encodeURIComponent(sid)}` }
+      headers
     });
     if (!response.ok) return null;
     const data = await response.json() as { ok?: boolean; user?: { sub?: string; role?: string; walletId?: string | null; displayName?: string | null } };

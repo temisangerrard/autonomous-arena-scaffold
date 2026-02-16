@@ -466,9 +466,11 @@ server.on('upgrade', (request, socket, head) => {
 
   // If WEB_AUTH_URL is configured, validate session before upgrade
   if (webAuthUrl) {
-    void validateSession(request.headers.cookie).then((identity) => {
-      // Allow agents through without session (they use agentId param)
-      const parsed = new URL(request.url ?? '/ws', 'http://localhost');
+    // Allow agents through without session (they use agentId param)
+    const parsed = new URL(request.url ?? '/ws', 'http://localhost');
+    const sidQuery = parsed.searchParams.get('sid')?.trim() || '';
+    const safeSid = /^[a-zA-Z0-9_-]{20,128}$/.test(sidQuery) ? sidQuery : '';
+    void validateSession(request.headers.cookie, safeSid).then((identity) => {
       const isAgent = parsed.searchParams.get('role') === 'agent';
 
       if (!identity && !isAgent) {
