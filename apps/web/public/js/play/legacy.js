@@ -14,6 +14,16 @@ import { createMovementSystem } from './movement.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
+const SID_KEY = 'arena_sid_fallback';
+
+function buildSessionHeaders(existingHeaders) {
+  const headers = new Headers(existingHeaders || {});
+  const sid = String(localStorage.getItem(SID_KEY) || '').trim();
+  if (sid) {
+    headers.set('x-arena-sid', sid);
+  }
+  return headers;
+}
 
 const { showToast } = createToaster(dom.toastContainer);
 const { announce } = createAnnouncer(dom.srAnnouncer);
@@ -170,6 +180,7 @@ async function loadArenaConfig() {
       const timeout = window.setTimeout(() => controller.abort(), 3500);
       const cfgRes = await fetch('/api/config', {
         credentials: 'include',
+        headers: buildSessionHeaders(),
         signal: controller.signal
       });
       window.clearTimeout(timeout);
@@ -272,6 +283,7 @@ async function connectSocket() {
       const timeout = window.setTimeout(() => controller.abort(), 3500);
       const meResponse = await fetch('/api/player/me', {
         credentials: 'include',
+        headers: buildSessionHeaders(),
         signal: controller.signal
       });
       window.clearTimeout(timeout);
@@ -916,7 +928,11 @@ function renderInteractionCard() {
         const transferBtn = document.getElementById('station-transfer');
 
         async function api(path, init) {
-          const res = await fetch(path, { credentials: 'include', ...init });
+          const res = await fetch(path, {
+            credentials: 'include',
+            ...init,
+            headers: buildSessionHeaders(init?.headers)
+          });
           const json = await res.json().catch(() => null);
           if (!res.ok) {
             const reason = String(json?.reason || `http_${res.status}`);

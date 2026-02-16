@@ -417,7 +417,12 @@
         // Check if user is already logged in and redirect to dashboard
         (async function () {
             try {
-                const res = await fetch('/api/session', { credentials: 'include' });
+                const headers = {};
+                const sid = String(localStorage.getItem('arena_sid_fallback') || '').trim();
+                if (sid) {
+                    headers['x-arena-sid'] = sid;
+                }
+                const res = await fetch('/api/session', { credentials: 'include', headers });
                 if (res.ok) {
                     const payload = await res.json();
                     if (payload?.user) {

@@ -1,4 +1,5 @@
 const AUTH_KEY = 'arena_auth_user';
+const SID_KEY = 'arena_sid_fallback';
 
 const ctaRoot = document.getElementById('welcome-session-cta');
 const hint = document.getElementById('welcome-hint');
@@ -24,12 +25,34 @@ function setStoredUser(user) {
   }
 }
 
+function getSid() {
+  return String(localStorage.getItem(SID_KEY) || '').trim();
+}
+
+function setSid(sid) {
+  const value = String(sid || '').trim();
+  if (value) {
+    localStorage.setItem(SID_KEY, value);
+  } else {
+    localStorage.removeItem(SID_KEY);
+  }
+}
+
 async function requestJson(path, init = {}) {
+  const headers = new Headers(init.headers || {});
+  const sid = getSid();
+  if (sid) {
+    headers.set('x-arena-sid', sid);
+  }
   const response = await fetch(path, {
     credentials: 'include',
-    ...init
+    ...init,
+    headers
   });
   const payload = await response.json().catch(() => ({}));
+  if (payload?.sessionId) {
+    setSid(payload.sessionId);
+  }
   if (!response.ok) {
     throw new Error(payload?.reason || `status_${response.status}`);
   }
@@ -53,6 +76,7 @@ async function logout() {
     // best-effort
   }
   setStoredUser(null);
+  setSid('');
   await render();
 }
 
@@ -114,6 +138,7 @@ async function handleGoogleCredential(credential) {
       body: JSON.stringify({ credential })
     });
     setStoredUser(result.user || null);
+    setSid(result.sessionId || '');
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
     showAuthError(`Sign-in failed: ${String(error.message || error)}`);
@@ -185,6 +210,7 @@ adminLoginBtn?.addEventListener('click', async () => {
       body: JSON.stringify({ username, password })
     });
     setStoredUser(result.user || null);
+    setSid(result.sessionId || '');
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
     if (adminStatus) {

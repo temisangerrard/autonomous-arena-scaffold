@@ -51,6 +51,14 @@ export type SessionStore = {
 };
 
 const COOKIE_NAME = 'arena_sid';
+const SESSION_HEADER = 'x-arena-sid';
+
+function firstHeaderValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return String(value[0] ?? '').trim();
+  }
+  return String(value ?? '').trim();
+}
 
 type RedisLike = {
   on: (event: 'error', listener: (error: unknown) => void) => void;
@@ -66,6 +74,10 @@ type RedisLike = {
 };
 
 export function cookieSessionId(req: IncomingMessage): string | null {
+  const headerSid = firstHeaderValue(req.headers[SESSION_HEADER]);
+  if (headerSid) {
+    return headerSid;
+  }
   const header = req.headers.cookie ?? '';
   for (const part of header.split(';')) {
     const idx = part.indexOf('=');

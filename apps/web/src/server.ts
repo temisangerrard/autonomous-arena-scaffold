@@ -497,7 +497,8 @@ const server = createServer(async (req, res) => {
     sendJson(res, {
       ok: true,
       user: sanitizeUser(identity),
-      redirectTo: '/dashboard'
+      redirectTo: '/dashboard',
+      sessionId: sid
     });
     return;
   }
@@ -566,7 +567,8 @@ const server = createServer(async (req, res) => {
         ok: true,
         user: sanitizeUser(identity),
         // Always go to the dashboard first; admin entry points live there.
-        redirectTo: '/dashboard'
+        redirectTo: '/dashboard',
+        sessionId: sid
       });
       return;
     } catch (error) {
@@ -595,7 +597,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
     }
-    sendJson(res, { ok: true, user: sanitizeUser(identity) });
+    sendJson(res, { ok: true, user: sanitizeUser(identity), sessionId: cookieSessionId(req) });
     return;
   }
 

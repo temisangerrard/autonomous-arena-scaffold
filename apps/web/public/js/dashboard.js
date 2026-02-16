@@ -60,6 +60,7 @@ const botModal = document.getElementById('bot-modal');
 const botModalClose = document.getElementById('bot-modal-close');
 const botModalTitle = document.getElementById('bot-modal-title');
 const botModalSub = document.getElementById('bot-modal-sub');
+const SID_KEY = 'arena_sid_fallback';
 
 const sidebarButtons = [...document.querySelectorAll('.sidebar-nav [data-view]')];
 const views = [...document.querySelectorAll('.dash-view')];
@@ -96,14 +97,24 @@ function setView(nextView) {
 }
 
 async function api(path, init = {}) {
+  const headers = new Headers(init.headers || {});
+  const sid = String(localStorage.getItem(SID_KEY) || '').trim();
+  if (sid) {
+    headers.set('x-arena-sid', sid);
+  }
   const response = await fetch(path, {
     credentials: 'include',
-    ...init
+    ...init,
+    headers
   });
   const payload = await response.json().catch(() => ({}));
+  if (payload?.sessionId) {
+    localStorage.setItem(SID_KEY, String(payload.sessionId));
+  }
   if (response.status === 401 || response.status === 403) {
     try {
       localStorage.removeItem('arena_ws_auth');
+      localStorage.removeItem(SID_KEY);
     } catch {
       // ignore
     }
