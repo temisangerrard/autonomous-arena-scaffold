@@ -215,6 +215,20 @@ function walletIdFor(playerId: string): string | null {
   return metaByPlayer.get(playerId)?.walletId ?? presenceByPlayerId.get(playerId)?.walletId ?? null;
 }
 
+function isStaticNpcId(playerId: string): boolean {
+  return typeof playerId === 'string' && playerId.startsWith('agent_bg_');
+}
+
+function autoNpcMove(challengeId: string, gameType: 'rps' | 'coinflip'): 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' {
+  const digest = sha256Hex(challengeId);
+  const seed = Number.parseInt(digest.slice(0, 2), 16);
+  if (gameType === 'coinflip') {
+    return (seed & 1) === 1 ? 'heads' : 'tails';
+  }
+  const rps: Array<'rock' | 'paper' | 'scissors'> = ['rock', 'paper', 'scissors'];
+  return rps[seed % rps.length] ?? 'rock';
+}
+
 function broadcast(payload: object): void {
   const message = JSON.stringify(payload);
   for (const ws of sockets.values()) {
@@ -781,6 +795,20 @@ wss.on('connection', (ws, request) => {
         return;
       }
       await dispatchChallengeEventWithEscrow(withActorRecipient(event, playerId));
+
+      // Static ambient NPCs should feel responsive even if their bot loop is delayed.
+      if (event.challenge && isStaticNpcId(payload.targetId)) {
+        const accepted = challengeService.respond(event.challenge.id, payload.targetId, true);
+        await dispatchChallengeEventWithEscrow(withActorRecipient(accepted, payload.targetId));
+        if (accepted.challenge && accepted.challenge.status === 'active') {
+          const move = autoNpcMove(
+            accepted.challenge.id,
+            accepted.challenge.gameType === 'coinflip' ? 'coinflip' : 'rps'
+          );
+          const moveEvent = challengeService.submitMove(accepted.challenge.id, payload.targetId, move);
+          await dispatchChallengeEventWithEscrow(withActorRecipient(moveEvent, payload.targetId));
+        }
+      }
       return;
     }
 

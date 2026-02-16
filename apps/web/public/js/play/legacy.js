@@ -1317,7 +1317,8 @@ function sendChallenge() {
   const gameTypeSource = (interactionGame && state.ui.interactOpen) ? interactionGame : gameSelect;
   const wagerSource = (interactionWager && state.ui.interactOpen) ? interactionWager : wagerInput;
   const gameType = gameTypeSource?.value === 'coinflip' ? 'coinflip' : 'rps';
-  const wager = Math.max(0, Math.min(10000, Number(wagerSource?.value ?? 1)));
+  const requestedWager = Math.max(0, Math.min(10000, Number(wagerSource?.value ?? 1)));
+  const wager = isStaticNpc(targetId) ? 0 : requestedWager;
 
   socket.send(
     JSON.stringify({
@@ -1748,7 +1749,7 @@ function renderContextPanel() {
   if (!challengePanel) {
     return;
   }
-  const hasNearby = state.nearbyIds.size > 0;
+  const hasNearby = false;
   const isIncoming = Boolean(state.incomingChallengeId && state.challengeStatus === 'incoming');
   const inMatch = Boolean(state.activeChallenge && state.activeChallenge.status === 'active');
   challengePanel.classList.toggle('active', hasNearby || isIncoming || inMatch);
