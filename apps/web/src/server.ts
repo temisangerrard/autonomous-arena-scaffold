@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { createHealthStatus } from './health.js';
 import { log } from './logger.js';
-import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias } from './worldAssets.js';
+import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldVersionByAlias } from './worldAssets.js';
 import { signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
 import { clearSessionCookie, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setSessionCookieWithOptions } from './lib/http.js';
@@ -415,7 +415,11 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/worlds') {
-    sendJson(res, { aliases: availableWorldAliases(), filenameByAlias: worldFilenameByAlias() });
+    sendJson(res, {
+      aliases: availableWorldAliases(),
+      filenameByAlias: worldFilenameByAlias(),
+      versionByAlias: worldVersionByAlias()
+    });
     return;
   }
 

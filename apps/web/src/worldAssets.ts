@@ -17,9 +17,23 @@ const WORLD_FILE_BY_ALIAS: Record<string, string> = {
   world: 'train_station_world.glb'
 };
 
+const WORLD_VERSION_BY_ALIAS: Record<string, string> = {
+  train_world: '2026-02-16.1',
+  'train-world': '2026-02-16.1',
+  mega: '2026-02-16.1',
+  plaza: '2026-02-16.1',
+  base: '2026-02-16.1',
+  world: '2026-02-16.1'
+};
+
 export function worldFilenameByAlias(): Record<string, string> {
   // Public mapping (safe to expose to clients).
   return { ...WORLD_FILE_BY_ALIAS };
+}
+
+export function worldVersionByAlias(): Record<string, string> {
+  // Public cache-buster version mapping for deterministic client cache keys.
+  return { ...WORLD_VERSION_BY_ALIAS };
 }
 
 export function worldFilenameForAlias(alias: string): string | null {

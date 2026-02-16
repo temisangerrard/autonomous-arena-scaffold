@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { availableWorldAliases, resolveWorldAssetPath, worldFilenameForAlias } from './worldAssets.js';
+import {
+  availableWorldAliases,
+  resolveWorldAssetPath,
+  worldFilenameForAlias,
+  worldVersionByAlias
+} from './worldAssets.js';
 
 describe('resolveWorldAssetPath', () => {
   it('maps train-world aliases to mega world file', () => {
@@ -16,5 +21,14 @@ describe('resolveWorldAssetPath', () => {
   it('returns aliases list with primary entries', () => {
     expect(availableWorldAliases()).toContain('train_world');
     expect(availableWorldAliases()).toContain('plaza');
+  });
+
+  it('returns cache versions for every world alias', () => {
+    const versions = worldVersionByAlias();
+    const aliases = availableWorldAliases();
+    for (const alias of aliases) {
+      expect(typeof versions[alias]).toBe('string');
+      expect(versions[alias]?.length).toBeGreaterThan(0);
+    }
   });
 });

@@ -13,39 +13,72 @@ const WORLD_FILENAME_FALLBACK = {
   base: 'train_station_world.glb',
   world: 'train_station_world.glb'
 };
+const WORLD_VERSION_FALLBACK = {
+  train_world: '2026-02-16.1',
+  'train-world': '2026-02-16.1',
+  mega: '2026-02-16.1',
+  plaza: '2026-02-16.1',
+  base: '2026-02-16.1',
+  world: '2026-02-16.1'
+};
+
+function normalizeWorldAlias(alias) {
+  return String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+}
+
 async function loadWorldManifest() {
   if (worldManifestPromise) return worldManifestPromise;
   worldManifestPromise = (async () => {
     try {
       const res = await fetch('/api/worlds', { credentials: 'include' });
-      if (!res.ok) return WORLD_FILENAME_FALLBACK;
+      if (!res.ok) {
+        return {
+          filenameByAlias: WORLD_FILENAME_FALLBACK,
+          versionByAlias: WORLD_VERSION_FALLBACK
+        };
+      }
       const payload = await res.json();
-      return payload?.filenameByAlias || WORLD_FILENAME_FALLBACK;
+      return {
+        filenameByAlias: payload?.filenameByAlias || WORLD_FILENAME_FALLBACK,
+        versionByAlias: payload?.versionByAlias || WORLD_VERSION_FALLBACK
+      };
     } catch {
-      return WORLD_FILENAME_FALLBACK;
+      return {
+        filenameByAlias: WORLD_FILENAME_FALLBACK,
+        versionByAlias: WORLD_VERSION_FALLBACK
+      };
     }
   })();
   return worldManifestPromise;
 }
 
 async function resolveWorldUrl(alias) {
-  const loaderAlias = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+  const loaderAlias = normalizeWorldAlias(alias);
   const params = new URL(window.location.href).searchParams;
   const configuredBase = window.__ARENA_CONFIG?.worldAssetBaseUrl || window.ARENA_CONFIG?.worldAssetBaseUrl || '';
   const worldBaseUrl = params.get('worldBase') || configuredBase || '';
   const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
   const gcsMode = normalizedBase.includes('storage.googleapis.com') || normalizedBase.startsWith('gs://');
 
-  const filenameByAlias = await loadWorldManifest();
+  const manifest = await loadWorldManifest();
+  const filenameByAlias = manifest.filenameByAlias || WORLD_FILENAME_FALLBACK;
+  const versionByAlias = manifest.versionByAlias || WORLD_VERSION_FALLBACK;
   const filename = filenameByAlias?.[loaderAlias] || `${loaderAlias}.glb`;
+  const version = String(versionByAlias?.[loaderAlias] || '');
 
+  let rawUrl = '';
   if (!normalizedBase) {
-    return `/assets/world/${loaderAlias}.glb`;
+    rawUrl = `/assets/world/${loaderAlias}.glb`;
+  } else if (gcsMode) {
+    rawUrl = `${normalizedBase}/world/${filename}`;
+  } else {
+    rawUrl = `${normalizedBase}/assets/world/${loaderAlias}.glb`;
   }
-  if (gcsMode) {
-    return `${normalizedBase}/world/${filename}`;
+  if (!version) {
+    return rawUrl;
   }
-  return `${normalizedBase}/assets/world/${loaderAlias}.glb`;
+  const separator = rawUrl.includes('?') ? '&' : '?';
+  return `${rawUrl}${separator}v=${encodeURIComponent(version)}`;
 }
 
 export function pickWorldAlias() {
@@ -85,6 +118,8 @@ export async function loadWorld(scene, alias) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder?.(MeshoptDecoder);
   const url = await resolveWorldUrl(alias);
+  const startedAt = performance.now();
+  console.debug('[world-cache] load_start', url);
 
   const gltf = await loader.loadAsync(url);
   gltf.scene.traverse((node) => {
@@ -94,6 +129,7 @@ export async function loadWorld(scene, alias) {
     }
   });
   scene.add(gltf.scene);
+  console.debug('[world-cache] load_done', url, `${Math.round(performance.now() - startedAt)}ms`);
   return gltf.scene;
 }
 
@@ -101,6 +137,8 @@ export async function loadWorldWithProgress(scene, alias, onProgress) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder?.(MeshoptDecoder);
   const url = await resolveWorldUrl(alias);
+  const startedAt = performance.now();
+  console.debug('[world-cache] load_start', url);
 
   const gltf = await new Promise((resolve, reject) => {
     loader.load(
@@ -124,6 +162,7 @@ export async function loadWorldWithProgress(scene, alias, onProgress) {
     }
   });
   scene.add(gltf.scene);
+  console.debug('[world-cache] load_done', url, `${Math.round(performance.now() - startedAt)}ms`);
   return gltf.scene;
 }
 
