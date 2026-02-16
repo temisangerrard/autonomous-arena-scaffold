@@ -25,6 +25,88 @@ function buildSessionHeaders(existingHeaders) {
   return headers;
 }
 
+async function apiJson(path, init = {}) {
+  const response = await fetch(path, {
+    credentials: 'include',
+    ...init,
+    headers: buildSessionHeaders(init.headers)
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(String(payload?.reason || `http_${response.status}`));
+  }
+  return payload;
+}
+
+function showResultSplash(text, tone = 'neutral') {
+  const el = document.createElement('div');
+  const palette = tone === 'win'
+    ? { bg: 'rgba(14, 49, 31, 0.95)', border: 'rgba(54, 209, 134, 0.9)', fg: '#d7ffe8' }
+    : tone === 'loss'
+      ? { bg: 'rgba(57, 20, 25, 0.95)', border: 'rgba(244, 93, 113, 0.9)', fg: '#ffd7dc' }
+      : { bg: 'rgba(37, 31, 18, 0.95)', border: 'rgba(228, 188, 92, 0.9)', fg: '#fff3cc' };
+  Object.assign(el.style, {
+    position: 'fixed',
+    left: '50%',
+    top: '18%',
+    transform: 'translate(-50%, -50%) scale(0.95)',
+    zIndex: '1200',
+    minWidth: '340px',
+    maxWidth: '88vw',
+    padding: '14px 18px',
+    borderRadius: '14px',
+    border: `2px solid ${palette.border}`,
+    background: palette.bg,
+    color: palette.fg,
+    fontFamily: '"Cormorant Garamond", serif',
+    fontSize: '26px',
+    fontWeight: '700',
+    textAlign: 'center',
+    whiteSpace: 'pre-line',
+    boxShadow: '0 16px 40px rgba(0,0,0,0.36)',
+    opacity: '0',
+    transition: 'opacity 180ms ease, transform 180ms ease'
+  });
+  el.textContent = text;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => {
+    el.style.opacity = '1';
+    el.style.transform = 'translate(-50%, -50%) scale(1)';
+  });
+  window.setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translate(-50%, -50%) scale(0.96)';
+    window.setTimeout(() => el.remove(), 220);
+  }, 2100);
+}
+
+async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null) {
+  try {
+    const summary = await apiJson('/api/player/wallet/summary');
+    const after = Number(summary?.wallet?.balance ?? summary?.balance ?? state.walletBalance ?? 0);
+    if (Number.isFinite(after)) {
+      state.walletBalance = after;
+    }
+    if (challenge) {
+      const delta = Number((after - Number(beforeBalance || 0)).toFixed(2));
+      const won = challenge.winnerId === state.playerId;
+      const lost = Boolean(challenge.winnerId && challenge.winnerId !== state.playerId);
+      const toss = challenge.gameType === 'coinflip' && challenge.coinflipResult
+        ? `\nTOSS: ${String(challenge.coinflipResult).toUpperCase()}`
+        : '';
+      if (won) {
+        showResultSplash(`YOU WIN${toss}\n+${Math.abs(delta).toFixed(2)}`, 'win');
+      } else if (lost) {
+        showResultSplash(`YOU LOSE${toss}\n-${Math.abs(delta).toFixed(2)}`, 'loss');
+      } else {
+        showResultSplash(`DRAW${toss}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, 'neutral');
+      }
+    }
+  } catch {
+    // keep local value if summary endpoint is temporarily unavailable
+  }
+}
+
 const { showToast } = createToaster(dom.toastContainer);
 const { announce } = createAnnouncer(dom.srAnnouncer);
 if (document.readyState === 'loading') {
@@ -1317,8 +1399,7 @@ function sendChallenge() {
   const gameTypeSource = (interactionGame && state.ui.interactOpen) ? interactionGame : gameSelect;
   const wagerSource = (interactionWager && state.ui.interactOpen) ? interactionWager : wagerInput;
   const gameType = gameTypeSource?.value === 'coinflip' ? 'coinflip' : 'rps';
-  const requestedWager = Math.max(0, Math.min(10000, Number(wagerSource?.value ?? 1)));
-  const wager = isStaticNpc(targetId) ? 0 : requestedWager;
+  const wager = Math.max(0, Math.min(10000, Number(wagerSource?.value ?? 1)));
 
   socket.send(
     JSON.stringify({
@@ -1677,6 +1758,7 @@ function handleChallenge(payload) {
   }
 
   if (payload.event === 'resolved' && challenge) {
+    const beforeBalance = state.walletBalance;
     state.respondingIncoming = false;
     state.activeChallenge = null;
     state.incomingChallengeId = null;
@@ -1686,14 +1768,13 @@ function handleChallenge(payload) {
     const coinInfo = challenge.gameType === 'coinflip' && challenge.coinflipResult ? ` | Toss: ${challenge.coinflipResult}` : '';
     if (challenge.winnerId === state.playerId) {
       state.streak += 1;
-      state.walletBalance += Number(challenge.wager || 0);
     } else if (challenge.winnerId) {
       state.streak = 0;
-      state.walletBalance = Math.max(0, state.walletBalance - Number(challenge.wager || 0));
     }
     state.challengeMessage = challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.';
     state.quickstart.matchResolved = true;
     showGameModal(challenge, 'Match resolved', `Winner: ${winnerLabel}${coinInfo}`);
+    void refreshWalletBalanceAndShowDelta(beforeBalance, challenge);
     setTimeout(() => {
       hideGameModal();
     }, 3500);
