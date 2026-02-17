@@ -6,10 +6,11 @@
  */
 
 const { test, expect } = require('@playwright/test');
+const WEB_BASE_URL = process.env.E2E_WEB_BASE_URL || 'http://localhost:3000';
 
 test.describe('Scoring & Wallet', () => {
   test('should display wallet balance', async ({ page }) => {
-    await page.goto('http://localhost:4100/dashboard');
+    await page.goto(`${WEB_BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Wait for page to render
@@ -26,7 +27,7 @@ test.describe('Scoring & Wallet', () => {
   });
 
   test('should show escrow activity', async ({ page }) => {
-    await page.goto('http://localhost:4100/dashboard');
+    await page.goto(`${WEB_BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     await page.waitForTimeout(2000);
@@ -42,7 +43,7 @@ test.describe('Scoring & Wallet', () => {
   });
 
   test('should display challenge results', async ({ page }) => {
-    await page.goto('http://localhost:4100/play?world=train_world');
+    await page.goto(`${WEB_BASE_URL}/play?world=train_world`);
     await page.waitForLoadState('networkidle');
     
     await page.waitForTimeout(3000);
@@ -58,8 +59,8 @@ test.describe('Scoring & Wallet', () => {
   });
 
   test('should show agent/challenge feed', async ({ page }) => {
-    await page.goto('http://localhost:4100/home');
-    await page.waitForLoadState('networkidle');
+    await page.goto(`${WEB_BASE_URL}/home`);
+    await page.waitForLoadState('domcontentloaded');
     
     await page.waitForTimeout(2000);
     
@@ -74,7 +75,7 @@ test.describe('Scoring & Wallet', () => {
   });
 
   test('should display player stats', async ({ page }) => {
-    await page.goto('http://localhost:4100/dashboard');
+    await page.goto(`${WEB_BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     await page.waitForTimeout(2000);

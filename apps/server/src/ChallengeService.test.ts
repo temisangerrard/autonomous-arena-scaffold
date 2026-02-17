@@ -70,4 +70,25 @@ describe('ChallengeService', () => {
     const declined = service.respond(created.challengeId!, 'b', false);
     expect(declined.event).toBe('declined');
   });
+
+  it('resolves dice duel with deterministic station-style seeds', () => {
+    const service = new ChallengeService(() => 1000, () => 0.4);
+    const created = service.createChallenge('a', 'b', 'dice_duel', 1);
+    expect(created.challenge).toBeTruthy();
+    if (!created.challenge) {
+      return;
+    }
+    created.challenge.provablyFair = {
+      commitHash: 'c',
+      playerSeed: 'player_seed',
+      revealSeed: 'house_seed',
+      method: 'sha256(reveal|player|id|dice_duel)'
+    };
+    service.respond(created.challenge.id, 'b', true);
+    service.submitMove(created.challenge.id, 'a', 'd1');
+    const resolved = service.submitMove(created.challenge.id, 'b', 'd6');
+    expect(resolved.event).toBe('resolved');
+    expect([null, 'a', 'b']).toContain(resolved.challenge?.winnerId ?? null);
+    expect([1, 2, 3, 4, 5, 6]).toContain(resolved.challenge?.diceResult ?? 0);
+  });
 });

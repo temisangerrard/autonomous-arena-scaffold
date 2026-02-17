@@ -1,20 +1,42 @@
-import { THREE, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene } from '../world-common.js';
-import { getDom } from './dom.js';
-import { WORLD_BOUND, createInitialState } from './state.js';
-import { createToaster } from './ui/toast.js';
-import { createAnnouncer } from './ui/sr.js';
-import { initOnboarding } from './ui/onboarding.js';
-import { AVATAR_GROUND_OFFSET, animateAvatar, createAvatarSystem } from './avatars.js';
-import { createStationSystem } from './stations.js';
-import { createInputSystem } from './input.js';
-import { initMenu } from './menu.js';
-import { createPresence } from './ws.js';
-import { createCameraController } from './camera.js';
-import { createMovementSystem } from './movement.js';
-import { createChallengeController, normalizedChallengeGameType, normalizedChallengeWager } from './challenge.js';
+import { THREE, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene } from '../../world-common.js';
+import { getDom } from '../dom.js';
+import { WORLD_BOUND, createInitialState } from '../state.js';
+import { createToaster } from '../ui/toast.js';
+import { createAnnouncer } from '../ui/sr.js';
+import { initOnboarding } from '../ui/onboarding.js';
+import { AVATAR_GROUND_OFFSET, animateAvatar, createAvatarSystem } from '../avatars.js';
+import { createStationSystem } from '../stations.js';
+import { createInputSystem } from '../input.js';
+import { initMenu } from '../menu.js';
+import { createPresence } from '../ws.js';
+import { createCameraController } from '../camera.js';
+import { createMovementSystem } from '../movement.js';
+import { createChallengeController, normalizedChallengeGameType, normalizedChallengeWager } from '../challenge.js';
+import { createPluginRegistry } from './contracts.js';
+import { shouldEnableFlag } from './network.js';
+import { renderTopHud, renderNextActionLine } from './hud.js';
+import { renderMinimap } from './minimap.js';
+import { renderQuickstart as renderQuickstartModule } from './quickstart.js';
+import { describeInteractionPhase } from './interactions.js';
+import { coinflipGamePlugin } from '../plugins/games/coinflip.js';
+import { rpsGamePlugin } from '../plugins/games/rps.js';
+import { diceDuelGamePlugin } from '../plugins/games/dice-duel.js';
+import { dealerStationPlugin } from '../plugins/stations/dealer.js';
+import { cashierStationPlugin } from '../plugins/stations/cashier.js';
+import { dealerOperatorNpcPlugin } from '../plugins/npc-operator.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
+const featureMobileV2 = shouldEnableFlag('MOBILE_LAYOUT_V2_ENABLED');
+const featureDirectioningV2 = shouldEnableFlag('DIRECTIONING_V2_ENABLED');
+
+const pluginRegistry = createPluginRegistry();
+pluginRegistry.registerGame(coinflipGamePlugin);
+pluginRegistry.registerGame(rpsGamePlugin);
+pluginRegistry.registerGame(diceDuelGamePlugin);
+pluginRegistry.registerStation(dealerStationPlugin);
+pluginRegistry.registerStation(cashierStationPlugin);
+pluginRegistry.registerNpc(dealerOperatorNpcPlugin);
 
 function buildSessionHeaders(existingHeaders) {
   return new Headers(existingHeaders || {});
@@ -146,6 +168,7 @@ const {
   worldLoadingText,
   mobileControls,
   mobileInteract,
+  mobileTarget,
   mobileSend,
   mobileAccept,
   mobileDecline,
@@ -154,7 +177,13 @@ const {
   mobileMove2,
   mobileMove3,
   mobileMoveH,
-  mobileMoveT
+  mobileMoveT,
+  mobileMoveD1,
+  mobileMoveD2,
+  mobileMoveD3,
+  mobileMoveD4,
+  mobileMoveD5,
+  mobileMoveD6
 } = dom;
 
 
@@ -264,6 +293,15 @@ async function resolveWsBaseUrl() {
     : '/ws';
 
   const serverOrigin = window.ARENA_CONFIG?.serverOrigin || '';
+  const host = String(window.location.hostname || '').toLowerCase();
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  // Local dev/test should not inherit deployed `serverOrigin` baked into runtime-config.js.
+  // Use same-origin ws endpoint so local web/server ports remain aligned.
+  if (isLocalHost) {
+    return window.location.protocol === 'https:'
+      ? `wss://${window.location.host}${wsPath}`
+      : `ws://${window.location.host}${wsPath}`;
+  }
   if (serverOrigin) {
     const origin = String(serverOrigin);
     const wsOrigin = origin.startsWith('https://')
@@ -419,11 +457,9 @@ async function connectSocket() {
       if (mePayload?.bot && mePayload.bot.connected === false) {
         state.challengeMessage = 'Offline bot is currently disconnected. Controls still work, but that bot will not appear until runtime reconnects.';
       }
-      if (!sessionWsAuth) {
-        // Strict mode: if signed WS token is missing, force re-auth bootstrap.
-        scheduleConnectRetry('Session token missing. Refreshing auth.');
-        return;
-      }
+      // In local/dev environments wsAuth may be intentionally absent when
+      // GAME_WS_AUTH_SECRET is not configured. In that mode the server accepts
+      // cookie-authenticated websocket sessions, so do not hard-fail here.
     } catch {
       // If auth is flaky, do not sign the user out; retry.
       scheduleConnectRetry('Auth backend unavailable.');
@@ -605,10 +641,12 @@ async function connectSocket() {
       showToast(resolvedReasonText || `Station error: ${reason || 'request_failed'}`);
       return;
     }
-    if (stateName === 'dealer_ready') {
+    if (stateName === 'dealer_ready' || stateName === 'dealer_ready_rps' || stateName === 'dealer_ready_dice') {
       state.quickstart.challengeSent = true;
       state.ui.dealer.stationId = payload.stationId;
       state.ui.dealer.state = 'ready';
+      state.ui.dealer.gameType =
+        stateName === 'dealer_ready_rps' ? 'rps' : stateName === 'dealer_ready_dice' ? 'dice_duel' : 'coinflip';
       state.ui.dealer.reason = '';
       state.ui.dealer.reasonCode = '';
       state.ui.dealer.reasonText = '';
@@ -623,15 +661,18 @@ async function connectSocket() {
       state.ui.dealer.state = 'dealing';
       return;
     }
-    if (stateName === 'dealer_reveal') {
+    if (stateName === 'dealer_reveal' || stateName === 'dealer_reveal_rps' || stateName === 'dealer_reveal_dice') {
       state.quickstart.matchResolved = true;
       state.ui.dealer.state = 'reveal';
+      state.ui.dealer.gameType =
+        stateName === 'dealer_reveal_rps' ? 'rps' : stateName === 'dealer_reveal_dice' ? 'dice_duel' : 'coinflip';
       state.ui.dealer.reason = '';
       state.ui.dealer.reasonCode = '';
       state.ui.dealer.reasonText = '';
       state.ui.dealer.challengeId = String(view.challengeId || '');
       state.ui.dealer.playerPick = String(view.playerPick || '');
       state.ui.dealer.coinflipResult = String(view.coinflipResult || '');
+      state.ui.dealer.diceResult = Number(view.diceResult || 0);
       state.ui.dealer.payoutDelta = Number(view.payoutDelta || 0);
       state.ui.dealer.escrowTx = view.escrowTx || null;
       const winnerId = String(view.winnerId || '');
@@ -1089,6 +1130,85 @@ function renderInteractionCard() {
           if (headsBtn) headsBtn.disabled = false;
           if (tailsBtn) tailsBtn.disabled = false;
         }
+      } else if (station.kind === 'dealer_rps' || station.kind === 'dealer_dice_duel') {
+        const isRps = station.kind === 'dealer_rps';
+        const gameLabel = isRps ? 'RPS' : 'Dice Duel';
+        const startAction = isRps ? 'rps_house_start' : 'dice_duel_start';
+        const pickAction = isRps ? 'rps_house_pick' : 'dice_duel_pick';
+        stationUi.innerHTML = `
+          <div class="station-ui__title">Dealer: ${gameLabel}</div>
+          <div class="station-ui__row">
+            <label for="station-wager">Wager (each, USDC)</label>
+            <input id="station-wager" type="number" min="0" max="10000" step="1" value="${Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)))}" />
+          </div>
+          <div class="station-ui__actions">
+            <button id="station-house-start" class="btn-gold" type="button">Start Round</button>
+          </div>
+          <div class="station-ui__actions" id="station-pick-actions" style="display:none;">
+            ${isRps
+              ? '<button id="station-house-r" class="btn-gold" type="button">Rock</button><button id="station-house-p" class="btn-gold" type="button">Paper</button><button id="station-house-s" class="btn-gold" type="button">Scissors</button>'
+              : '<button id="station-house-d1" class="btn-gold" type="button">1</button><button id="station-house-d2" class="btn-gold" type="button">2</button><button id="station-house-d3" class="btn-gold" type="button">3</button><button id="station-house-d4" class="btn-gold" type="button">4</button><button id="station-house-d5" class="btn-gold" type="button">5</button><button id="station-house-d6" class="btn-gold" type="button">6</button>'
+            }
+          </div>
+          <div class="station-ui__meta" id="station-status">Start to receive commit hash, then pick your move. Press Esc to close.</div>
+        `;
+
+        const wagerEl = document.getElementById('station-wager');
+        const startBtn = document.getElementById('station-house-start');
+        const pickActions = document.getElementById('station-pick-actions');
+        const statusEl = document.getElementById('station-status');
+
+        if (startBtn) {
+          startBtn.onclick = () => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+              showToast('Not connected to server.');
+              return;
+            }
+            const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
+            socket.send(JSON.stringify({
+              type: 'station_interact',
+              stationId: station.id,
+              action: startAction,
+              wager
+            }));
+            state.ui.dealer.state = 'preflight';
+            state.ui.dealer.wager = wager;
+            state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
+            if (statusEl) {
+              statusEl.textContent = 'Preflight check...';
+            }
+          };
+        }
+
+        const picks = isRps ? ['rock', 'paper', 'scissors'] : ['d1', 'd2', 'd3', 'd4', 'd5', 'd6'];
+        for (const pick of picks) {
+          const id = isRps
+            ? `station-house-${pick.charAt(0)}`
+            : `station-house-${pick}`;
+          const btn = document.getElementById(id);
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.onclick = () => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+              showToast('Not connected to server.');
+              return;
+            }
+            socket.send(JSON.stringify({
+              type: 'station_interact',
+              stationId: station.id,
+              action: pickAction,
+              pick,
+              playerSeed: makePlayerSeed()
+            }));
+            state.ui.dealer.state = 'dealing';
+            if (statusEl) {
+              statusEl.textContent = `Dealing ${gameLabel}...`;
+            }
+          };
+        }
+
+        if (pickActions && state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+          pickActions.style.display = 'flex';
+        }
       } else if (station.kind === 'cashier_bank') {
         stationUi.innerHTML = `
           <div class="station-ui__title">Cashier</div>
@@ -1293,6 +1413,7 @@ function renderInteractionCard() {
         <select id="player-challenge-game">
           <option value="rps" ${selectedGame === 'rps' ? 'selected' : ''}>Rock Paper Scissors</option>
           <option value="coinflip" ${selectedGame === 'coinflip' ? 'selected' : ''}>Coin Flip</option>
+          <option value="dice_duel" ${selectedGame === 'dice_duel' ? 'selected' : ''}>Dice Duel</option>
         </select>
       </div>
       <div class="station-ui__row">
@@ -1352,20 +1473,33 @@ function renderMobileControls() {
 
   const hasTarget = Boolean(getUiTargetId());
   const context = challengeController.computeControlContext();
+  const interactionPhase = describeInteractionPhase(state);
 
   if (mobileInteract) mobileInteract.style.display = hasTarget ? 'inline-flex' : 'none';
+  if (mobileTarget) mobileTarget.style.display = (state.nearbyIds.size + state.nearbyStationIds.size) > 1 ? 'inline-flex' : 'none';
   if (mobileSend) mobileSend.style.display = context === 'near_player_idle' ? 'inline-flex' : 'none';
   if (mobileAccept) mobileAccept.style.display = context === 'incoming_challenge' ? 'inline-flex' : 'none';
   if (mobileDecline) mobileDecline.style.display = context === 'incoming_challenge' ? 'inline-flex' : 'none';
 
   const rpsVisible = context === 'active_rps';
   const coinflipVisible = context === 'active_coinflip' || context === 'dealer_ready';
-  if (mobileMoves) mobileMoves.style.display = (rpsVisible || coinflipVisible) ? 'grid' : 'none';
+  const diceVisible = context === 'active_dice_duel';
+  if (mobileMoves) mobileMoves.style.display = (rpsVisible || coinflipVisible || diceVisible) ? 'grid' : 'none';
   if (mobileMove1) mobileMove1.style.display = rpsVisible ? 'inline-flex' : 'none';
   if (mobileMove2) mobileMove2.style.display = rpsVisible ? 'inline-flex' : 'none';
   if (mobileMove3) mobileMove3.style.display = rpsVisible ? 'inline-flex' : 'none';
   if (mobileMoveH) mobileMoveH.style.display = coinflipVisible ? 'inline-flex' : 'none';
   if (mobileMoveT) mobileMoveT.style.display = coinflipVisible ? 'inline-flex' : 'none';
+  if (mobileMoveD1) mobileMoveD1.style.display = diceVisible ? 'inline-flex' : 'none';
+  if (mobileMoveD2) mobileMoveD2.style.display = diceVisible ? 'inline-flex' : 'none';
+  if (mobileMoveD3) mobileMoveD3.style.display = diceVisible ? 'inline-flex' : 'none';
+  if (mobileMoveD4) mobileMoveD4.style.display = diceVisible ? 'inline-flex' : 'none';
+  if (mobileMoveD5) mobileMoveD5.style.display = diceVisible ? 'inline-flex' : 'none';
+  if (mobileMoveD6) mobileMoveD6.style.display = diceVisible ? 'inline-flex' : 'none';
+
+  if (featureMobileV2 && mobileControls) {
+    mobileControls.dataset.phase = interactionPhase;
+  }
 }
 
 function update(nowMs) {
@@ -1378,16 +1512,10 @@ function update(nowMs) {
   renderMatchSpotlight();
   renderTargetSpotlight();
 
-  if (hud && topbarName && topbarWallet && topbarStreak) {
-    const me = state.playerId ? state.players.get(state.playerId) : null;
-    topbarName.textContent = me?.displayName || 'Player';
-    topbarWallet.textContent = Number.isFinite(Number(state.walletBalance))
-      ? `$${Number(state.walletBalance).toFixed(2)}`
-      : '$—';
-    topbarStreak.textContent = `Streak ${state.streak}`;
-  }
-
-  if (challengeStatusLine) {
+  renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak });
+  if (featureDirectioningV2) {
+    renderNextActionLine(state, challengeStatusLine, labelFor);
+  } else if (challengeStatusLine) {
     if (!state.wsConnected) {
       challengeStatusLine.textContent = state.challengeMessage || 'Disconnected from game server. Reconnecting...';
     } else {
@@ -1399,11 +1527,11 @@ function update(nowMs) {
     }
   }
 
-  renderWorldMap();
+  renderMinimap(state, worldMapCanvas, mapCoords);
   renderInteractionPrompt();
   renderInteractionCard();
   renderMobileControls();
-  renderQuickstart();
+  renderQuickstartModule(state, quickstartPanel, quickstartList);
 }
 
 function render() {
@@ -1637,8 +1765,19 @@ function makePlayerSeed() {
 }
 
 function sendGameMove(move) {
+  const isDealerMove = move === 'heads'
+    || move === 'tails'
+    || move === 'rock'
+    || move === 'paper'
+    || move === 'scissors'
+    || move === 'd1'
+    || move === 'd2'
+    || move === 'd3'
+    || move === 'd4'
+    || move === 'd5'
+    || move === 'd6';
   if (
-    (move === 'heads' || move === 'tails')
+    isDealerMove
     && state.ui.interactOpen
     && state.ui.interactionMode === 'station'
     && state.ui.dealer.state === 'ready'
@@ -1646,11 +1785,16 @@ function sendGameMove(move) {
     && socket
     && socket.readyState === WebSocket.OPEN
   ) {
+    const action = state.ui.dealer.gameType === 'rps'
+      ? 'rps_house_pick'
+      : state.ui.dealer.gameType === 'dice_duel'
+        ? 'dice_duel_pick'
+        : 'coinflip_house_pick';
     socket.send(
       JSON.stringify({
         type: 'station_interact',
         stationId: state.ui.dealer.stationId,
-        action: 'coinflip_house_pick',
+        action,
         pick: move,
         playerSeed: makePlayerSeed()
       })
@@ -1670,6 +1814,17 @@ function sendGameMove(move) {
     return;
   }
   if (challenge.gameType === 'coinflip' && move !== 'heads' && move !== 'tails') {
+    return;
+  }
+  if (
+    challenge.gameType === 'dice_duel'
+    && move !== 'd1'
+    && move !== 'd2'
+    && move !== 'd3'
+    && move !== 'd4'
+    && move !== 'd5'
+    && move !== 'd6'
+  ) {
     return;
   }
 
@@ -1911,6 +2066,7 @@ function challengeReasonLabel(reason) {
       return 'Only match participants can submit a move.';
     case 'invalid_rps_move':
     case 'invalid_coinflip_move':
+    case 'invalid_dice_duel_move':
       return 'Invalid move for current game type.';
     case 'human_challenge_cooldown':
       return 'Target is in cooldown from recent agent challenges.';
@@ -2128,6 +2284,7 @@ window.render_game_to_text = () => {
     cameraYaw: state.cameraYaw,
     cameraDistance: state.cameraDistance,
     desiredMove: desired,
+    interactionPhase: describeInteractionPhase(state),
     player: local
       ? {
           x: local.x,
@@ -2142,6 +2299,7 @@ window.render_game_to_text = () => {
         }
       : null,
     nearbyIds: [...state.nearbyIds],
+    nearbyStationIds: [...state.nearbyStationIds],
     challengeStatus: state.challengeStatus,
     activeChallenge: state.activeChallenge
       ? {

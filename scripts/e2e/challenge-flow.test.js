@@ -40,7 +40,7 @@ test.describe('Challenge Flow', () => {
   test('should render interaction challenge UI shell', async ({ page }) => {
     await ensureAuthenticatedPlay(page);
     await openPlay(page);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
 
     await expect(page.locator('#interaction-card')).toHaveCount(1);
@@ -54,7 +54,7 @@ test.describe('Challenge Flow', () => {
   test('should expose desktop/mobile controls for RPS and coinflip', async ({ page }) => {
     await ensureAuthenticatedPlay(page);
     await openPlay(page);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);
 
     await expect(page.locator('#mobile-controls')).toHaveCount(1);
@@ -75,7 +75,7 @@ test.describe('Challenge Flow', () => {
   test('should display HUD with game info', async ({ page }) => {
     await ensureAuthenticatedPlay(page);
     await openPlay(page);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
 
     await expect(page.locator('#hud')).toHaveCount(1);
@@ -91,7 +91,7 @@ test.describe('Challenge Flow', () => {
   test('should expose websocket/runtime readiness signals', async ({ page }) => {
     await ensureAuthenticatedPlay(page);
     await openPlay(page);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(5000);
 
     const runtime = await page.evaluate(() => {

@@ -115,6 +115,13 @@ Distributed challenge scaffold (new):
 - orphaned open challenges are auto-expired if owner server heartbeat disappears beyond `CHALLENGE_ORPHAN_GRACE_MS`
 - distributed recent feed available via `GET /challenges/recent`
 
+Gameplay modularization flags:
+- `PLAY_RUNTIME_V2_ENABLED=true` enables the new `/play` runtime entrypoint modules.
+- `STATION_PLUGIN_ROUTER_ENABLED=true` enables server station handler routing modules.
+- `DICE_DUEL_ENABLED=true` enables Dice Duel dealer stations and challenge type.
+- `MOBILE_LAYOUT_V2_ENABLED=true` enables expanded fixed right-side mobile action cluster.
+- `DIRECTIONING_V2_ENABLED=true` enables improved next-action directioning line.
+
 Auth UX is available on all pages via top-right shell nav (Home/Profile/Play/Viewer/Agents + login/logout).
 
 ## Wallet Skills

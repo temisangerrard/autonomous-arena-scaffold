@@ -1,5 +1,7 @@
 export function normalizedChallengeGameType(value) {
-  return value === 'coinflip' ? 'coinflip' : 'rps';
+  if (value === 'coinflip') return 'coinflip';
+  if (value === 'dice_duel') return 'dice_duel';
+  return 'rps';
 }
 
 export function normalizedChallengeWager(value, fallback = 1) {
@@ -124,6 +126,7 @@ export function createChallengeController(deps) {
     if (incoming) return 'incoming_challenge';
     if (inMatch && active?.gameType === 'rps') return 'active_rps';
     if (inMatch && active?.gameType === 'coinflip') return 'active_coinflip';
+    if (inMatch && active?.gameType === 'dice_duel') return 'active_dice_duel';
     if (playerTargetAvailable && !state.outgoingChallengeId) return 'near_player_idle';
     return 'idle';
   }

@@ -112,7 +112,7 @@ export interface SuperAgentLlmUsage {
 /**
  * Challenge game types
  */
-export type GameType = 'rps' | 'coinflip';
+export type GameType = 'rps' | 'coinflip' | 'dice_duel';
 
 /**
  * RPS move options
@@ -123,11 +123,12 @@ export type RpsMove = 'rock' | 'paper' | 'scissors';
  * Coinflip move options
  */
 export type CoinflipMove = 'heads' | 'tails';
+export type DiceDuelMove = 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6';
 
 /**
  * Game move union type
  */
-export type GameMove = RpsMove | CoinflipMove;
+export type GameMove = RpsMove | CoinflipMove | DiceDuelMove;
 
 /**
  * Challenge status (server-authoritative states)
@@ -170,6 +171,7 @@ export interface Challenge {
   challengerMove: GameMove | null;
   opponentMove: GameMove | null;
   coinflipResult: CoinflipMove | null;
+  diceResult?: number | null;
   provablyFair?: ProvablyFairReceipt;
 }
 
@@ -221,6 +223,12 @@ export type StationActionId =
   | 'coinflip_house_start'
   | 'coinflip_house_pick'
   | 'coinflip_pvp'
+  | 'rps_house_start'
+  | 'rps_house_pick'
+  | 'dice_duel_start'
+  | 'dice_duel_pick'
+  | 'interact_open'
+  | 'interact_use'
   | 'balance'
   | 'fund'
   | 'withdraw'
@@ -228,11 +236,13 @@ export type StationActionId =
 
 export interface SnapshotStation {
   id: string;
-  kind: 'dealer_coinflip' | 'cashier_bank';
+  kind: 'dealer_coinflip' | 'dealer_rps' | 'dealer_dice_duel' | 'cashier_bank' | 'world_interactable';
   displayName: string;
   x: number;
   z: number;
   yaw: number;
+  radius?: number;
+  interactionTag?: string;
   actions: StationActionId[];
 }
 
@@ -245,8 +255,12 @@ export interface ProvablyFairReceipt {
 
 export type StationUiViewState =
   | 'dealer_ready'
+  | 'dealer_ready_rps'
+  | 'dealer_ready_dice'
   | 'dealer_dealing'
   | 'dealer_reveal'
+  | 'dealer_reveal_rps'
+  | 'dealer_reveal_dice'
   | 'dealer_error';
 
 export interface StationUiView {
@@ -266,6 +280,9 @@ export interface StationUiView {
   wager?: number;
   playerPick?: CoinflipMove;
   coinflipResult?: CoinflipMove;
+  diceResult?: number;
+  challengerPick?: DiceDuelMove;
+  opponentPick?: DiceDuelMove;
   winnerId?: string | null;
   payoutDelta?: number;
   escrowTx?: {

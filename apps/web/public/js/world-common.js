@@ -87,10 +87,23 @@ export function pickWorldAlias() {
 }
 
 export function makeRenderer(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  return renderer;
+  try {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    return renderer;
+  } catch (error) {
+    // Keep runtime logic/test hooks alive when WebGL context creation fails
+    // (common in some headless CI/container environments).
+    console.warn('WebGL renderer unavailable; using noop renderer fallback.', error);
+    return {
+      domElement: canvas,
+      setPixelRatio() {},
+      setSize() {},
+      render() {},
+      dispose() {}
+    };
+  }
 }
 
 export function makeScene() {

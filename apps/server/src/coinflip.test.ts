@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeCoinflipFromSeeds, sha256Hex } from './coinflip.js';
+import { computeCoinflipFromSeeds, computeDiceDuelFromSeeds, sha256Hex } from './coinflip.js';
 
 describe('coinflip helpers', () => {
   it('creates deterministic commit hash and result for same inputs', () => {
@@ -25,5 +25,12 @@ describe('coinflip helpers', () => {
     const tossB = computeCoinflipFromSeeds(houseSeed, playerSeed, 'challenge_b');
     expect(['heads', 'tails']).toContain(tossA);
     expect(['heads', 'tails']).toContain(tossB);
+  });
+
+  it('produces deterministic dice duel face from seeds', () => {
+    const faceA = computeDiceDuelFromSeeds('house_seed', 'player_seed', 'challenge_1');
+    const faceB = computeDiceDuelFromSeeds('house_seed', 'player_seed', 'challenge_1');
+    expect(faceA).toBe(faceB);
+    expect([1, 2, 3, 4, 5, 6]).toContain(faceA);
   });
 });

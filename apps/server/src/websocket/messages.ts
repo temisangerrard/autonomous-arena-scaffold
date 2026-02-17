@@ -24,6 +24,31 @@ export type StationInteractMessage = {
       pick: 'heads' | 'tails';
       playerSeed: string;
     }
+  | {
+      action: 'rps_house_start';
+      wager: number;
+    }
+  | {
+      action: 'rps_house_pick';
+      pick: 'rock' | 'paper' | 'scissors';
+      playerSeed: string;
+    }
+  | {
+      action: 'dice_duel_start';
+      wager: number;
+    }
+  | {
+      action: 'dice_duel_pick';
+      pick: 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6';
+      playerSeed: string;
+    }
+  | {
+      action: 'interact_open';
+    }
+  | {
+      action: 'interact_use';
+      interactionTag?: string;
+    }
 );
 
 export type ChallengeSendMessage = {
@@ -101,11 +126,30 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
       payload.type === 'station_interact' &&
       typeof payload.stationId === 'string'
     ) {
-      if (payload.action === 'coinflip_house_start') {
+      if (payload.action === 'interact_open') {
         return {
           type: 'station_interact',
           stationId: payload.stationId,
-          action: 'coinflip_house_start',
+          action: 'interact_open'
+        };
+      }
+      if (payload.action === 'interact_use') {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'interact_use',
+          interactionTag: typeof payload.interactionTag === 'string' ? payload.interactionTag : undefined
+        };
+      }
+      if (
+        payload.action === 'coinflip_house_start'
+        || payload.action === 'rps_house_start'
+        || payload.action === 'dice_duel_start'
+      ) {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: payload.action,
           wager: typeof payload.wager === 'number' ? payload.wager : 1
         };
       }
@@ -123,12 +167,45 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           playerSeed: payload.playerSeed
         };
       }
+      if (
+        payload.action === 'rps_house_pick' &&
+        typeof payload.pick === 'string' &&
+        (payload.pick === 'rock' || payload.pick === 'paper' || payload.pick === 'scissors') &&
+        typeof payload.playerSeed === 'string'
+      ) {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'rps_house_pick',
+          pick: payload.pick,
+          playerSeed: payload.playerSeed
+        };
+      }
+      if (
+        payload.action === 'dice_duel_pick' &&
+        typeof payload.pick === 'string' &&
+        (payload.pick === 'd1' ||
+          payload.pick === 'd2' ||
+          payload.pick === 'd3' ||
+          payload.pick === 'd4' ||
+          payload.pick === 'd5' ||
+          payload.pick === 'd6') &&
+        typeof payload.playerSeed === 'string'
+      ) {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'dice_duel_pick',
+          pick: payload.pick,
+          playerSeed: payload.playerSeed
+        };
+      }
     }
 
     if (
       payload.type === 'challenge_send' &&
       typeof payload.targetId === 'string' &&
-      (payload.gameType === 'rps' || payload.gameType === 'coinflip')
+      (payload.gameType === 'rps' || payload.gameType === 'coinflip' || payload.gameType === 'dice_duel')
     ) {
       return {
         type: 'challenge_send',
@@ -168,7 +245,13 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
         payload.move === 'paper' ||
         payload.move === 'scissors' ||
         payload.move === 'heads' ||
-        payload.move === 'tails')
+        payload.move === 'tails' ||
+        payload.move === 'd1' ||
+        payload.move === 'd2' ||
+        payload.move === 'd3' ||
+        payload.move === 'd4' ||
+        payload.move === 'd5' ||
+        payload.move === 'd6')
     ) {
       return {
         type: 'challenge_move',

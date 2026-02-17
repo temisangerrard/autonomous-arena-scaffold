@@ -8,6 +8,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
+const WEB_BASE_URL = process.env.E2E_WEB_BASE_URL || 'http://localhost:3000';
 
 test.describe('Visual Regression', () => {
   const outputDir = 'output/e2e/screenshots';
@@ -20,7 +21,7 @@ test.describe('Visual Regression', () => {
   });
 
   test('should capture homepage screenshot', async ({ page }) => {
-    await page.goto('http://localhost:4100/');
+    await page.goto(`${WEB_BASE_URL}/`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     
@@ -31,7 +32,7 @@ test.describe('Visual Regression', () => {
   });
 
   test('should capture play page screenshot', async ({ page }) => {
-    await page.goto('http://localhost:4100/play?world=train_world');
+    await page.goto(`${WEB_BASE_URL}/play?world=train_world`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
     
@@ -42,7 +43,7 @@ test.describe('Visual Regression', () => {
   });
 
   test('should capture viewer page screenshot', async ({ page }) => {
-    await page.goto('http://localhost:4100/viewer?world=train_world');
+    await page.goto(`${WEB_BASE_URL}/viewer?world=train_world`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
     
@@ -53,7 +54,7 @@ test.describe('Visual Regression', () => {
   });
 
   test('should capture dashboard screenshot', async ({ page }) => {
-    await page.goto('http://localhost:4100/dashboard');
+    await page.goto(`${WEB_BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     
@@ -64,7 +65,7 @@ test.describe('Visual Regression', () => {
   });
 
   test('should capture agents page screenshot', async ({ page }) => {
-    await page.goto('http://localhost:4100/agents');
+    await page.goto(`${WEB_BASE_URL}/agents`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     
@@ -75,7 +76,7 @@ test.describe('Visual Regression', () => {
   });
 
   test('should capture canvas element screenshot', async ({ page }) => {
-    await page.goto('http://localhost:4100/play?world=train_world');
+    await page.goto(`${WEB_BASE_URL}/play?world=train_world`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
     
@@ -89,7 +90,7 @@ test.describe('Visual Regression', () => {
   });
 
   test('should capture welcome page screenshot', async ({ page }) => {
-    await page.goto('http://localhost:4100/welcome');
+    await page.goto(`${WEB_BASE_URL}/welcome`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     

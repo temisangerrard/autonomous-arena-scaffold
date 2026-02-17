@@ -293,6 +293,7 @@ export function createInputSystem({
       if (!actions.getUiTargetId?.()) return;
       actions.setInteractOpen?.(true);
     });
+    dom.mobileTarget?.addEventListener('click', () => actions.cycleNearbyTarget?.(true));
     dom.mobileSend?.addEventListener('click', () => actions.sendChallenge?.());
     dom.mobileAccept?.addEventListener('click', () => actions.respondToIncoming?.(true));
     dom.mobileDecline?.addEventListener('click', () => actions.respondToIncoming?.(false));
@@ -301,6 +302,12 @@ export function createInputSystem({
     dom.mobileMove3?.addEventListener('click', () => actions.sendGameMove?.('scissors'));
     dom.mobileMoveH?.addEventListener('click', () => actions.sendGameMove?.('heads'));
     dom.mobileMoveT?.addEventListener('click', () => actions.sendGameMove?.('tails'));
+    dom.mobileMoveD1?.addEventListener('click', () => actions.sendGameMove?.('d1'));
+    dom.mobileMoveD2?.addEventListener('click', () => actions.sendGameMove?.('d2'));
+    dom.mobileMoveD3?.addEventListener('click', () => actions.sendGameMove?.('d3'));
+    dom.mobileMoveD4?.addEventListener('click', () => actions.sendGameMove?.('d4'));
+    dom.mobileMoveD5?.addEventListener('click', () => actions.sendGameMove?.('d5'));
+    dom.mobileMoveD6?.addEventListener('click', () => actions.sendGameMove?.('d6'));
   }
 
   initMobileControls();

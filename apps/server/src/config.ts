@@ -44,6 +44,8 @@ export const config = {
   wsAuthSecret: process.env.GAME_WS_AUTH_SECRET?.trim() || '',
   webAuthUrl: process.env.WEB_AUTH_URL?.trim() || '',
   internalServiceToken: process.env.INTERNAL_SERVICE_TOKEN?.trim() || '',
+  stationPluginRouterEnabled: (process.env.STATION_PLUGIN_ROUTER_ENABLED ?? 'false') === 'true',
+  diceDuelEnabled: (process.env.DICE_DUEL_ENABLED ?? 'true') === 'true'
 } as const;
 
 /**

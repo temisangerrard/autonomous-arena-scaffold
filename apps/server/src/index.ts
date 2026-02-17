@@ -12,7 +12,7 @@ import { PresenceStore } from './PresenceStore.js';
 import { WORLD_SECTION_SPAWNS, WorldSim } from './WorldSim.js';
 import { createRouter } from './routes/index.js';
 import { parseClientMessage } from './websocket/messages.js';
-import type { SnapshotStation, StationActionId } from '@arena/shared';
+import type { GameMove } from '@arena/shared';
 import {
   validateSession,
   verifyWsAuth,
@@ -27,6 +27,7 @@ import {
   clearPlayerProximityPairs
 } from './game/proximity.js';
 import { computeCoinflipFromSeeds, sha256Hex } from './coinflip.js';
+import { createStationRouter } from './game/stations/router.js';
 
 type PlayerMeta = {
   role: PlayerRole;
@@ -68,29 +69,13 @@ function newSeedHex(bytes = 18): string {
   return randomBytes(Math.max(8, Math.min(64, bytes))).toString('hex');
 }
 
-const STATIONS: SnapshotStation[] = [
-  {
-    id: 'station_dealer_coinflip',
-    kind: 'dealer_coinflip',
-    displayName: 'Coinflip Dealer',
-    x: (WORLD_SECTION_SPAWNS[1]?.x ?? -25) + 0,
-    z: (WORLD_SECTION_SPAWNS[1]?.z ?? -30) + 6,
-    yaw: 0,
-    actions: ['coinflip_house_start', 'coinflip_house_pick'] satisfies StationActionId[]
-  },
-  {
-    id: 'station_cashier_bank',
-    kind: 'cashier_bank',
-    displayName: 'Cashier',
-    x: (WORLD_SECTION_SPAWNS[2]?.x ?? 25) + 0,
-    z: (WORLD_SECTION_SPAWNS[2]?.z ?? -30) + 6,
-    yaw: 0,
-    actions: ['balance', 'fund', 'withdraw', 'transfer'] satisfies StationActionId[]
-  }
-];
-
-const stationById = new Map<string, SnapshotStation>(STATIONS.map((s) => [s.id, s]));
-
+const challengeEscrowTxById = new Map<string, { lock?: string; resolve?: string; refund?: string }>();
+const challengeEscrowFailureById = new Map<string, {
+  reason: string;
+  reasonCode?: string;
+  reasonText?: string;
+  preflight?: { playerOk: boolean; houseOk: boolean };
+}>();
 type PendingDealerRound = {
   playerId: string;
   stationId: string;
@@ -101,15 +86,7 @@ type PendingDealerRound = {
   createdAt: number;
   preflightApproved: boolean;
 };
-
 const pendingDealerRounds = new Map<string, PendingDealerRound>();
-const challengeEscrowTxById = new Map<string, { lock?: string; resolve?: string; refund?: string }>();
-const challengeEscrowFailureById = new Map<string, {
-  reason: string;
-  reasonCode?: string;
-  reasonText?: string;
-  preflight?: { playerOk: boolean; houseOk: boolean };
-}>();
 
 let houseWalletId: string | null = null;
 async function refreshHouseWalletId(): Promise<void> {
@@ -268,11 +245,14 @@ function isStaticNpcId(playerId: string): boolean {
   return typeof playerId === 'string' && playerId.startsWith('agent_bg_');
 }
 
-function autoNpcMove(challengeId: string, gameType: 'rps' | 'coinflip'): 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' {
+function autoNpcMove(challengeId: string, gameType: 'rps' | 'coinflip' | 'dice_duel'): GameMove {
   const digest = sha256Hex(challengeId);
   const seed = Number.parseInt(digest.slice(0, 2), 16);
   if (gameType === 'coinflip') {
     return (seed & 1) === 1 ? 'heads' : 'tails';
+  }
+  if (gameType === 'dice_duel') {
+    return (['d1', 'd2', 'd3', 'd4', 'd5', 'd6'][seed % 6] ?? 'd1') as GameMove;
   }
   const rps: Array<'rock' | 'paper' | 'scissors'> = ['rock', 'paper', 'scissors'];
   return rps[seed % rps.length] ?? 'rock';
@@ -550,6 +530,29 @@ async function registerCreatedChallenge(
   return { ok: true };
 }
 
+const stationRouter = createStationRouter({
+  diceDuelEnabled: config.diceDuelEnabled,
+  stationProximityThreshold,
+  lastPlayerPos,
+  challengeEscrowTxById,
+  challengeEscrowFailureById,
+  escrowLockedChallenges,
+  challengeService,
+  escrowAdapter,
+  walletIdFor,
+  getHouseWalletId: () => houseWalletId || walletIdFor('system_house'),
+  sendTo,
+  sendToDistributed,
+  registerCreatedChallenge,
+  dispatchChallengeEventWithEscrow,
+  stationErrorFromEscrowFailure,
+  newSeedHex
+});
+const STATIONS = config.stationPluginRouterEnabled
+  ? stationRouter.stations
+  : stationRouter.stations.filter((station) => station.kind === 'dealer_coinflip' || station.kind === 'cashier_bank');
+const stationById = stationRouter.stationById;
+
 // Note: emitProximityEvents is imported from game/proximity.ts
 // Note: ValidatedIdentity is imported from websocket/auth.ts
 // Note: validateSession is imported from websocket/auth.ts
@@ -745,6 +748,10 @@ wss.on('connection', (ws, request) => {
     }
 
     if (payload.type === 'station_interact') {
+      if (config.stationPluginRouterEnabled) {
+        await stationRouter.handleStationInteract(playerId, payload);
+        return;
+      }
       const stationId = payload.stationId.trim();
       const station = stationById.get(stationId);
       if (!station) {
@@ -1202,6 +1209,7 @@ wss.on('connection', (ws, request) => {
     sockets.delete(playerId);
     metaByPlayer.delete(playerId);
     pendingDealerRounds.delete(playerId);
+    stationRouter.clearPlayer(playerId);
     worldSim.removePlayer(playerId);
     lastPlayerPos.delete(playerId);
     void presenceStore.remove(playerId).catch((error) => {
@@ -1219,6 +1227,7 @@ wss.on('connection', (ws, request) => {
 setInterval(() => {
   const snapshot = worldSim.step(1 / 20);
   const now = Date.now();
+  stationRouter.clearExpired(now);
   for (const [dealerPlayerId, round] of pendingDealerRounds) {
     if (now - round.createdAt > 60_000) {
       pendingDealerRounds.delete(dealerPlayerId);

@@ -3,11 +3,13 @@ import type {
   GameType,
   RpsMove,
   CoinflipMove,
+  DiceDuelMove,
   GameMove,
   Challenge,
   ChallengeEvent,
   ChallengeLog
 } from '@arena/shared';
+import { createHash } from 'node:crypto';
 
 // Re-export types for backward compatibility
 export type {
@@ -15,6 +17,7 @@ export type {
   GameType,
   RpsMove,
   CoinflipMove,
+  DiceDuelMove,
   GameMove,
   Challenge,
   ChallengeEvent,
@@ -91,7 +94,8 @@ export class ChallengeService {
       winnerId: null,
       challengerMove: null,
       opponentMove: null,
-      coinflipResult: null
+      coinflipResult: null,
+      diceResult: null
     };
 
     this.challenges.set(challenge.id, challenge);
@@ -190,6 +194,9 @@ export class ChallengeService {
     if (challenge.gameType === 'coinflip' && !this.isCoinflipMove(move)) {
       return this.withLog({ type: 'challenge', event: 'invalid', reason: 'invalid_coinflip_move' });
     }
+    if (challenge.gameType === 'dice_duel' && !this.isDiceDuelMove(move)) {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'invalid_dice_duel_move' });
+    }
 
     if (playerId === challenge.challengerId) {
       challenge.challengerMove = move;
@@ -211,6 +218,9 @@ export class ChallengeService {
 
     if (challenge.gameType === 'rps') {
       return this.resolveRps(challenge);
+    }
+    if (challenge.gameType === 'dice_duel') {
+      return this.resolveDiceDuel(challenge);
     }
 
     return this.resolveCoinflip(challenge);
@@ -280,6 +290,29 @@ export class ChallengeService {
           } else {
             challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
           }
+          this.clearPlayerLocks(challenge);
+          events.push(
+            this.withLog({
+              type: 'challenge',
+              event: 'resolved',
+              challengeId: challenge.id,
+              challenge,
+              to: [challenge.challengerId, challenge.opponentId],
+              reason: 'timeout_resolution'
+            })
+          );
+        }
+        if (challenge.gameType === 'dice_duel') {
+          if (challenge.challengerMove && !challenge.opponentMove) {
+            challenge.winnerId = challenge.challengerId;
+          } else if (!challenge.challengerMove && challenge.opponentMove) {
+            challenge.winnerId = challenge.opponentId;
+          } else {
+            challenge.winnerId = null;
+          }
+
+          challenge.status = 'resolved';
+          challenge.resolvedAt = now;
           this.clearPlayerLocks(challenge);
           events.push(
             this.withLog({
@@ -392,6 +425,55 @@ export class ChallengeService {
     });
   }
 
+  private resolveDiceDuel(challenge: Challenge): ChallengeEvent {
+    const challenger = challenge.challengerMove;
+    const opponent = challenge.opponentMove;
+    if (!this.isDiceDuelMove(challenger) || !this.isDiceDuelMove(opponent)) {
+      return this.withLog({ type: 'challenge', event: 'invalid', reason: 'missing_dice_duel_moves' });
+    }
+
+    const fromProvablyFair =
+      challenge.provablyFair?.revealSeed
+      && challenge.provablyFair?.playerSeed
+      ? Number.parseInt(
+          createHash('sha256')
+            .update(`${challenge.provablyFair.revealSeed}|${challenge.provablyFair.playerSeed}|${challenge.id}|dice_duel`)
+            .digest('hex')
+            .slice(0, 2),
+          16
+        )
+      : Number.NaN;
+    const rolled = Number.isFinite(fromProvablyFair)
+      ? ((fromProvablyFair % 6) + 1)
+      : (Math.floor(this.random() * 6) + 1);
+    challenge.diceResult = rolled;
+
+    const challengerValue = Number(challenger.slice(1));
+    const opponentValue = Number(opponent.slice(1));
+    const challengerMatch = challengerValue === rolled;
+    const opponentMatch = opponentValue === rolled;
+    if (challengerMatch && !opponentMatch) {
+      challenge.winnerId = challenge.challengerId;
+    } else if (!challengerMatch && opponentMatch) {
+      challenge.winnerId = challenge.opponentId;
+    } else {
+      challenge.winnerId = null;
+    }
+
+    challenge.status = 'resolved';
+    challenge.resolvedAt = this.now();
+    this.clearPlayerLocks(challenge);
+
+    return this.withLog({
+      type: 'challenge',
+      event: 'resolved',
+      challengeId: challenge.id,
+      challenge,
+      to: [challenge.challengerId, challenge.opponentId],
+      reason: challenge.winnerId ? 'dice_duel_result' : 'dice_duel_tie'
+    });
+  }
+
   private rpsWinner(
     challengerMove: RpsMove,
     opponentMove: RpsMove,
@@ -423,6 +505,15 @@ export class ChallengeService {
 
   private isCoinflipMove(move: GameMove | null): move is CoinflipMove {
     return move === 'heads' || move === 'tails';
+  }
+
+  private isDiceDuelMove(move: GameMove | null): move is DiceDuelMove {
+    return move === 'd1'
+      || move === 'd2'
+      || move === 'd3'
+      || move === 'd4'
+      || move === 'd5'
+      || move === 'd6';
   }
 
   private withLog(event: ChallengeEvent): ChallengeEvent {

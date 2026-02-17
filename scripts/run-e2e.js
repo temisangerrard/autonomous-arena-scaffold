@@ -16,9 +16,10 @@ const { setTimeout: delay } = require('timers/promises');
 const fs = require('fs');
 const path = require('path');
 
-const SERVER_PORT = process.env.E2E_SERVER_PORT || 4010;
-const RUNTIME_PORT = process.env.E2E_RUNTIME_PORT || 4110;
-const WEB_PORT = process.env.E2E_WEB_PORT || 4100;
+const SERVER_PORT = Number(process.env.E2E_SERVER_PORT || 4010);
+const RUNTIME_PORT = Number(process.env.E2E_RUNTIME_PORT || 4110);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT || 4100);
+const GAME_WS_AUTH_SECRET = process.env.E2E_GAME_WS_AUTH_SECRET || process.env.GAME_WS_AUTH_SECRET || 'e2e_ws_shared_secret';
 
 // Output directories
 const OUTPUT_DIR = path.join(__dirname, '..', 'output', 'e2e');
@@ -100,10 +101,13 @@ async function main() {
       'npx',
       ['tsx', 'apps/server/src/index.ts'],
       {
-        PORT: String(SERVER_PORT),
+        SERVER_PORT: String(SERVER_PORT),
         AGENT_RUNTIME_URL: `http://localhost:${RUNTIME_PORT}`,
         ESCROW_FEE_BPS: '0',
-        PROXIMITY_THRESHOLD: '500'
+        PROXIMITY_THRESHOLD: '500',
+        GAME_WS_AUTH_SECRET,
+        STATION_PLUGIN_ROUTER_ENABLED: process.env.STATION_PLUGIN_ROUTER_ENABLED || 'true',
+        DICE_DUEL_ENABLED: process.env.DICE_DUEL_ENABLED || 'true'
       },
       SERVER_PORT,
       '/health'
@@ -116,8 +120,10 @@ async function main() {
       'npx',
       ['tsx', 'apps/agent-runtime/src/index.ts'],
       {
+        AGENT_RUNTIME_PORT: String(RUNTIME_PORT),
         PORT: String(RUNTIME_PORT),
         GAME_WS_URL: `ws://localhost:${SERVER_PORT}/ws`,
+        GAME_WS_AUTH_SECRET,
         BOT_COUNT: '12',
         WALLET_SKILLS_ENABLED: 'true'
       },
@@ -132,9 +138,18 @@ async function main() {
       'npx',
       ['tsx', 'apps/web/src/server.ts'],
       {
+        WEB_PORT: String(WEB_PORT),
         PORT: String(WEB_PORT),
-        SERVER_URL: `http://localhost:${SERVER_PORT}`,
-        RUNTIME_URL: `http://localhost:${RUNTIME_PORT}`
+        WEB_API_BASE_URL: `http://localhost:${SERVER_PORT}`,
+        WEB_AGENT_RUNTIME_BASE_URL: `http://localhost:${RUNTIME_PORT}`,
+        WEB_GAME_WS_URL: `ws://localhost:${SERVER_PORT}/ws`,
+        GAME_WS_AUTH_SECRET,
+        LOCAL_AUTH_ENABLED: process.env.LOCAL_AUTH_ENABLED || 'true',
+        ADMIN_USERNAME: process.env.E2E_LOCAL_USERNAME || process.env.ADMIN_USERNAME || 'admin',
+        ADMIN_PASSWORD: process.env.E2E_LOCAL_PASSWORD || process.env.ADMIN_PASSWORD || '12345',
+        PLAY_RUNTIME_V2_ENABLED: process.env.PLAY_RUNTIME_V2_ENABLED || 'true',
+        MOBILE_LAYOUT_V2_ENABLED: process.env.MOBILE_LAYOUT_V2_ENABLED || 'true',
+        DIRECTIONING_V2_ENABLED: process.env.DIRECTIONING_V2_ENABLED || 'true'
       },
       WEB_PORT,
       '/health'
@@ -164,7 +179,8 @@ async function main() {
       'scripts/e2e/game-load.test.js',
       'scripts/e2e/challenge-flow.test.js',
       'scripts/e2e/scoring.test.js',
-      'scripts/e2e/visual-regression.test.js'
+      'scripts/e2e/visual-regression.test.js',
+      'scripts/e2e/world-exploration.test.js'
     ];
 
     for (const testFile of testFiles) {
@@ -172,7 +188,13 @@ async function main() {
       
       const testProc = spawn('npx', ['playwright', 'test', testFile], {
         cwd: path.join(__dirname, '..'),
-        stdio: 'inherit'
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          E2E_WEB_BASE_URL: `http://localhost:${WEB_PORT}`,
+          E2E_LOCAL_USERNAME: process.env.E2E_LOCAL_USERNAME || process.env.ADMIN_USERNAME || 'admin',
+          E2E_LOCAL_PASSWORD: process.env.E2E_LOCAL_PASSWORD || process.env.ADMIN_PASSWORD || '12345'
+        }
       });
       
       await new Promise((resolve, reject) => {

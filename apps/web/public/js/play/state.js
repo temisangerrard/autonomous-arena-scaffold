@@ -54,6 +54,7 @@ export function createInitialState() {
       },
       dealer: {
         stationId: '',
+        gameType: 'coinflip',
         state: 'idle',
         wager: 1,
         commitHash: '',
@@ -61,6 +62,7 @@ export function createInitialState() {
         challengeId: '',
         playerPick: '',
         coinflipResult: '',
+        diceResult: 0,
         payoutDelta: 0,
         escrowTx: null,
         reason: '',

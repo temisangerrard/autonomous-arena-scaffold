@@ -6,17 +6,40 @@
  */
 
 const { test, expect } = require('@playwright/test');
+const WEB_BASE_URL = process.env.E2E_WEB_BASE_URL || 'http://localhost:3000';
+const LOCAL_USERNAME = process.env.E2E_LOCAL_USERNAME || process.env.ADMIN_USERNAME || 'admin';
+const LOCAL_PASSWORD = process.env.E2E_LOCAL_PASSWORD || process.env.ADMIN_PASSWORD || '12345';
+
+async function ensureAuthenticatedPlay(page) {
+  const meRes = await page.request.get(`${WEB_BASE_URL}/api/player/me`);
+  if (meRes.ok()) return;
+  const loginRes = await page.request.post(`${WEB_BASE_URL}/api/auth/local`, {
+    data: {
+      username: LOCAL_USERNAME,
+      password: LOCAL_PASSWORD
+    }
+  });
+  if (!loginRes.ok()) {
+    throw new Error(
+      `Unable to authenticate local test user. Set LOCAL_AUTH_ENABLED=true and valid E2E_LOCAL_USERNAME/E2E_LOCAL_PASSWORD. status=${loginRes.status()}`
+    );
+  }
+}
 
 test.describe('Game World Loading', () => {
   test('should load the 3D world and render canvas', async ({ page }) => {
     // Navigate to the game
-    await page.goto('http://localhost:4100/play?world=train_world');
+    await ensureAuthenticatedPlay(page);
+    await page.addInitScript(() => {
+      localStorage.setItem('arena_onboarding_completed', 'true');
+    });
+    await page.goto(`${WEB_BASE_URL}/play?world=train_world`);
     
-    // Wait for the page to load
-    await page.waitForLoadState('networkidle');
+    // Runtime keeps long-lived network activity; use DOM readiness instead.
+    await page.waitForLoadState('domcontentloaded');
     
     // Check that the canvas exists (Three.js renders to canvas)
-    const canvas = page.locator('canvas');
+    const canvas = page.locator('canvas#scene');
     await expect(canvas).toBeVisible({ timeout: 10000 });
     
     // Verify canvas has dimensions (was rendered)
@@ -30,7 +53,7 @@ test.describe('Game World Loading', () => {
   });
 
   test('should load viewer mode', async ({ page }) => {
-    await page.goto('http://localhost:4100/viewer?world=train_world');
+    await page.goto(`${WEB_BASE_URL}/viewer?world=train_world`);
     await page.waitForLoadState('networkidle');
     
     // Wait for world to load
@@ -45,8 +68,8 @@ test.describe('Game World Loading', () => {
   });
 
   test('should load home/dashboard page', async ({ page }) => {
-    await page.goto('http://localhost:4100/home');
-    await page.waitForLoadState('networkidle');
+    await page.goto(`${WEB_BASE_URL}/home`);
+    await page.waitForLoadState('domcontentloaded');
     
     // Check page loaded
     await expect(page.locator('body')).toBeVisible();

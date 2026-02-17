@@ -1,5 +1,4 @@
-// Refactor entrypoint: keep /js/play.js stable while we decompose the old monolith.
-import './legacy.js';
+await import('./runtime/app.js');
 
 function shouldRegisterWorldCacheSw() {
   if (!('serviceWorker' in navigator)) return false;

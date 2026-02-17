@@ -55,4 +55,42 @@ describe('parseClientMessage station_interact', () => {
     );
     expect(parsed).toBeNull();
   });
+
+  it('accepts rps and dice dealer actions', () => {
+    const rpsStart = parseClientMessage(
+      Buffer.from(
+        JSON.stringify({
+          type: 'station_interact',
+          stationId: 'station_dealer_rps_a',
+          action: 'rps_house_start',
+          wager: 3
+        })
+      )
+    );
+    expect(rpsStart).toEqual({
+      type: 'station_interact',
+      stationId: 'station_dealer_rps_a',
+      action: 'rps_house_start',
+      wager: 3
+    });
+
+    const dicePick = parseClientMessage(
+      Buffer.from(
+        JSON.stringify({
+          type: 'station_interact',
+          stationId: 'station_dealer_dice_a',
+          action: 'dice_duel_pick',
+          pick: 'd4',
+          playerSeed: 'seed'
+        })
+      )
+    );
+    expect(dicePick).toEqual({
+      type: 'station_interact',
+      stationId: 'station_dealer_dice_a',
+      action: 'dice_duel_pick',
+      pick: 'd4',
+      playerSeed: 'seed'
+    });
+  });
 });

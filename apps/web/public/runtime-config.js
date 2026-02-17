@@ -8,5 +8,8 @@ window.ARENA_CONFIG = {
   "presenceBase": "/presence",
   "runtimeBase": "/runtime",
   "serverHealthPath": "/server/health",
-  "gameWsPath": "/ws"
+  "gameWsPath": "/ws",
+  "PLAY_RUNTIME_V2_ENABLED": true,
+  "MOBILE_LAYOUT_V2_ENABLED": true,
+  "DIRECTIONING_V2_ENABLED": true
 };
