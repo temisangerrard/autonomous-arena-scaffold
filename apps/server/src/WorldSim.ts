@@ -54,6 +54,8 @@ const PLAYER_RADIUS = 0.75;
 const AVOIDANCE_RADIUS = 2.2;
 const AVOIDANCE_ACCEL = 6;
 const OBSTACLE_BUFFER = 0.6;
+const SEPARATION_PASSES = 2;
+const SEPARATION_PUSH_FACTOR = 0.5;
 const SECTION_SPAWNS = WORLD_SECTION_SPAWNS;
 const HUMAN_SPAWNS: Array<{ x: number; z: number }> = [
   { x: -24, z: -24 },
@@ -330,53 +332,95 @@ export class WorldSim {
       }
     }
 
+    for (let pass = 0; pass < SEPARATION_PASSES; pass += 1) {
+      for (let i = 0; i < allPlayers.length; i += 1) {
+        for (let j = i + 1; j < allPlayers.length; j += 1) {
+          const a = allPlayers[i];
+          const b = allPlayers[j];
+          if (!a || !b) {
+            continue;
+          }
+
+          let dx = b.x - a.x;
+          let dz = b.z - a.z;
+          let dist = Math.hypot(dx, dz);
+          const minDist = PLAYER_RADIUS * 2;
+
+          if (dist >= minDist) {
+            continue;
+          }
+
+          if (dist < 0.0001) {
+            const angle = ((hashId(a.id) + hashId(b.id)) % 360) * (Math.PI / 180);
+            dx = Math.cos(angle);
+            dz = Math.sin(angle);
+            dist = 1;
+          }
+
+          const overlap = minDist - dist;
+          const nx = dx / dist;
+          const nz = dz / dist;
+          const push = overlap * SEPARATION_PUSH_FACTOR;
+
+          const nextAX = clamp(a.x - nx * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
+          const nextAZ = clamp(a.z - nz * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
+          if (!collidesWithObstacle(nextAX, nextAZ, PLAYER_RADIUS)) {
+            a.x = nextAX;
+            a.z = nextAZ;
+          }
+
+          const nextBX = clamp(b.x + nx * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
+          const nextBZ = clamp(b.z + nz * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
+          if (!collidesWithObstacle(nextBX, nextBZ, PLAYER_RADIUS)) {
+            b.x = nextBX;
+            b.z = nextBZ;
+          }
+
+          a.vx *= 0.85;
+          a.vz *= 0.85;
+          b.vx *= 0.85;
+          b.vz *= 0.85;
+        }
+      }
+    }
+
+    // Final invariant pass: avoid any remaining overlaps while respecting obstacles.
     for (let i = 0; i < allPlayers.length; i += 1) {
       for (let j = i + 1; j < allPlayers.length; j += 1) {
         const a = allPlayers[i];
         const b = allPlayers[j];
-        if (!a || !b) {
-          continue;
-        }
-
+        if (!a || !b) continue;
         let dx = b.x - a.x;
         let dz = b.z - a.z;
-        let dist = Math.hypot(dx, dz);
+        const distSq = dx * dx + dz * dz;
         const minDist = PLAYER_RADIUS * 2;
-
-        if (dist >= minDist) {
-          continue;
-        }
-
+        if (distSq >= minDist * minDist) continue;
+        let dist = Math.sqrt(distSq);
         if (dist < 0.0001) {
           const angle = ((hashId(a.id) + hashId(b.id)) % 360) * (Math.PI / 180);
           dx = Math.cos(angle);
           dz = Math.sin(angle);
           dist = 1;
         }
-
-        const overlap = minDist - dist;
         const nx = dx / dist;
         const nz = dz / dist;
-        const push = overlap * 0.35;
-
-        const nextAX = clamp(a.x - nx * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
-        const nextAZ = clamp(a.z - nz * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
-        if (!collidesWithObstacle(nextAX, nextAZ, PLAYER_RADIUS)) {
-          a.x = nextAX;
-          a.z = nextAZ;
+        const correction = (minDist - dist) * 0.5;
+        const candidateA = {
+          x: clamp(a.x - nx * correction, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS),
+          z: clamp(a.z - nz * correction, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS)
+        };
+        const candidateB = {
+          x: clamp(b.x + nx * correction, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS),
+          z: clamp(b.z + nz * correction, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS)
+        };
+        if (!collidesWithObstacle(candidateA.x, candidateA.z, PLAYER_RADIUS)) {
+          a.x = candidateA.x;
+          a.z = candidateA.z;
         }
-
-        const nextBX = clamp(b.x + nx * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
-        const nextBZ = clamp(b.z + nz * push, -WORLD_BOUND + PLAYER_RADIUS, WORLD_BOUND - PLAYER_RADIUS);
-        if (!collidesWithObstacle(nextBX, nextBZ, PLAYER_RADIUS)) {
-          b.x = nextBX;
-          b.z = nextBZ;
+        if (!collidesWithObstacle(candidateB.x, candidateB.z, PLAYER_RADIUS)) {
+          b.x = candidateB.x;
+          b.z = candidateB.z;
         }
-
-        a.vx *= 0.9;
-        a.vz *= 0.9;
-        b.vx *= 0.9;
-        b.vz *= 0.9;
       }
     }
 
