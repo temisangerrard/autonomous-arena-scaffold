@@ -29,7 +29,35 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      can_deploy: ${{ steps.check.outputs.can_deploy }}
+      auth_mode: ${{ steps.check.outputs.auth_mode }}
+    steps:
+      - name: Check GCP auth configuration
+        id: check
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$GCP_WORKLOAD_IDENTITY_PROVIDER" ] && [ -n "$GCP_SERVICE_ACCOUNT" ]; then
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "auth_mode=wif" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "$GCP_SA_KEY" ]; then
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "auth_mode=sa_key" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+          echo "auth_mode=none" >> "$GITHUB_OUTPUT"
+          echo "::warning::Skipping backend deploy: provide either GCP_SA_KEY or GCP_WORKLOAD_IDENTITY_PROVIDER + GCP_SERVICE_ACCOUNT."
+
   changes:
+    needs: preflight
     runs-on: ubuntu-latest
     outputs:
       server: ${{ steps.filter.outputs.server }}
@@ -55,10 +83,13 @@ jobs:
               - 'cloudbuild.runtime.yaml'
 
   deploy-server:
-    needs: changes
+    needs: [preflight, changes]
     if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_server == 'true') ||
-      (github.event_name != 'workflow_dispatch' && needs.changes.outputs.server == 'true')
+      needs.preflight.outputs.can_deploy == 'true' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_server == 'true') ||
+        (github.event_name != 'workflow_dispatch' && needs.changes.outputs.server == 'true')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -67,10 +98,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud (Service Account Key)
+        if: needs.preflight.outputs.auth_mode == 'sa_key'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        if: needs.preflight.outputs.auth_mode == 'wif'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -95,10 +134,13 @@ jobs:
             --quiet
 
   deploy-runtime:
-    needs: changes
+    needs: [preflight, changes]
     if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_runtime == 'true') ||
-      (github.event_name != 'workflow_dispatch' && needs.changes.outputs.runtime == 'true')
+      needs.preflight.outputs.can_deploy == 'true' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_runtime == 'true') ||
+        (github.event_name != 'workflow_dispatch' && needs.changes.outputs.runtime == 'true')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -107,10 +149,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud (Service Account Key)
+        if: needs.preflight.outputs.auth_mode == 'sa_key'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        if: needs.preflight.outputs.auth_mode == 'wif'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
