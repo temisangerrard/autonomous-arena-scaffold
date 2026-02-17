@@ -8,7 +8,9 @@ export function renderTopHud(state, dom) {
   topbarWallet.textContent = Number.isFinite(Number(state.walletBalance))
     ? `$${Number(state.walletBalance).toFixed(2)}`
     : '$—';
-  topbarStreak.textContent = `Streak ${state.streak}`;
+  const approvalMode = String(state.escrowApproval?.mode || 'manual');
+  const modeLabel = approvalMode === 'auto' ? 'Auto Approval' : 'Manual Approval';
+  topbarStreak.textContent = `Streak ${state.streak} · ${modeLabel}`;
 }
 
 export function renderNextActionLine(state, el, labelFor) {
@@ -28,6 +30,10 @@ export function renderNextActionLine(state, el, labelFor) {
   }
   if (state.challengeMessage) {
     el.textContent = state.challengeMessage;
+    return;
+  }
+  if (String(state.escrowApproval?.mode || 'manual') === 'auto') {
+    el.textContent = 'Testnet mode: approvals handled automatically for wagered challenges.';
     return;
   }
   el.textContent = 'Find a nearby target and start a challenge.';

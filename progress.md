@@ -554,3 +554,160 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - For gameplay tests on this host, keep the WebGL fallback path in place; without it, `/play` may fail before hooks initialize.
   - Prefer `domcontentloaded` on `/play` tests; avoid `networkidle` due to persistent network activity.
   - Movement E2E must respect server-authoritative snapshots; do not assume client-only stepping semantics.
+
+- 2026-02-17: Production deployment execution + fallback path (Codex).
+- User approved including unexpected local `WorldSim.ts` change in deployment.
+- Included change (`apps/server/src/WorldSim.ts`): stronger multi-pass player separation and final overlap correction.
+  - Added constants: `SEPARATION_PASSES`, `SEPARATION_PUSH_FACTOR`.
+  - Expanded separation loop and damping logic to reduce overlap stickiness.
+- Pre-push validation:
+  - `npm run -w @arena/server typecheck` ✅
+  - `npm run -w @arena/server test` ✅ (`WorldSim.test.ts` and all server tests passing)
+- Commit + push:
+  - Commit: `e40e08e` (`Tune world player separation passes for movement stability`)
+  - Branch: `main`
+  - Remote: `origin` (`temisangerrard/autonomous-arena-scaffold`)
+- GitHub Actions deployment status for commit `e40e08e`:
+  - `CI` ✅
+  - `Deploy Backend (Cloud Run)` ❌ (both push + workflow_dispatch runs)
+    - failure at `Authenticate to Google Cloud`
+    - root cause: missing repo secret for auth (`GCP_SA_KEY` not injected)
+    - error: must specify exactly one of `workload_identity_provider` or `credentials_json`
+  - `Netlify Deploy` workflow_dispatch ✅ but skipped deploy because `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` were unset in that workflow run.
+- Manual fallback deployment (successful):
+  - Backend (local `gcloud` auth account: `tagbajoh@gmail.com`, project `junipalee`)
+  - Built + deployed server image tag `e40e08e46fd8a53f806d8931a80e40b405334441`
+    - Cloud Build id: `0e94076a-3530-46cd-a864-9cacf9e30685` ✅
+    - Cloud Run revision: `arena-server-00020-m7m` ✅
+    - URL: `https://arena-server-mfpf3lbsba-uc.a.run.app`
+  - Built + deployed runtime image tag `e40e08e46fd8a53f806d8931a80e40b405334441`
+    - Cloud Build id: `2c224d8d-dc50-4632-8998-d414eace1acf` ✅
+    - Cloud Run revision: `arena-runtime-00015-rbk` ✅
+    - URL: `https://arena-runtime-mfpf3lbsba-uc.a.run.app`
+  - Web (manual Netlify CLI deploy)
+    - Ran `node scripts/netlify-build.mjs`
+    - Deployed site `autobett` (`68643f86-9c45-4294-98b1-3bce6ddf17fb`) ✅
+    - Production URL: `https://autobett.netlify.app`
+    - Unique deploy URL: `https://69948c59caaf0829fe7f649d--autobett.netlify.app`
+- Post-deploy verification:
+  - `curl https://arena-server-mfpf3lbsba-uc.a.run.app/health` ✅
+  - `curl https://arena-runtime-mfpf3lbsba-uc.a.run.app/health` ✅
+  - `curl https://autobett.netlify.app/api/health` ✅ (web deps show runtime+server healthy)
+  - `curl https://autobett.netlify.app/server/health` ✅
+  - `curl https://autobett.netlify.app/api/config` confirms production ws/world endpoints ✅
+- Follow-up infra action for repo maintainers:
+  - restore GitHub secrets for automated deploy parity:
+    - `GCP_SA_KEY` (or migrate workflow to WIF)
+    - `NETLIFY_AUTH_TOKEN`
+    - `NETLIFY_SITE_ID`
+
+- 2026-02-17 (workflow reliability): fixed backend deploy workflow hard-failure on missing GCP secrets.
+- Updated `.github/workflows/deploy-backend.yml`:
+  - Added `preflight` job that detects deploy auth mode:
+    - `wif` when both `GCP_WORKLOAD_IDENTITY_PROVIDER` + `GCP_SERVICE_ACCOUNT` are present
+    - `sa_key` when `GCP_SA_KEY` is present
+    - `none` otherwise (emits warning + marks deploy as skippable)
+  - Added `needs.preflight.outputs.can_deploy == 'true'` guard on `deploy-server` and `deploy-runtime`.
+  - Added dual auth steps in deploy jobs:
+    - `google-github-actions/auth@v2` with `credentials_json` for SA key mode
+    - `google-github-actions/auth@v2` with `workload_identity_provider` + `service_account` for WIF mode
+- Validation:
+  - Pushed commit `5bd5caa` to `main`.
+  - Triggered `Deploy Backend (Cloud Run)` via push + `workflow_dispatch`.
+  - Result: workflow completes `success`; deploy jobs are `skipped` when no auth secrets are configured (no more red-failure runs from auth step).
+  - Verified run: `https://github.com/temisangerrard/autonomous-arena-scaffold/actions/runs/22105080351`
+- Operational note:
+  - To re-enable automatic backend deploy execution (not skip), set one auth mode in repo secrets:
+    - Option A: `GCP_SA_KEY`
+    - Option B: `GCP_WORKLOAD_IDENTITY_PROVIDER` + `GCP_SERVICE_ACCOUNT`
+
+- 2026-02-17: Escrow approval UX fix for wagered player-vs-player challenges (Codex).
+- Problem observed:
+  - Wallet approval prompt was appearing during `Send Challenge` without a clear in-UI approval step, which felt abrupt and unclear.
+  - User asked who approves escrow and flagged missing UX around this action.
+- Implemented fix:
+  - `apps/web/src/server.ts`
+    - Added `POST /api/player/wallet/prepare-escrow` as authenticated player/admin proxy to runtime escrow prepare endpoint.
+  - `apps/web/public/js/play/state.js`
+    - Added challenge approval UI state: `approvalState`, `approvalMessage`, `approvalWager`.
+  - `apps/web/public/js/play/runtime/app.js`
+    - Added `ensureEscrowApproval(wager)` used by explicit `Approve Escrow` button.
+    - Interaction card now shows approval status text and approval button.
+    - Send button now stays disabled for wagered matches until approval is ready for the selected wager.
+    - Added approval-specific challenge reason labels (`allowance_too_low`, `approve_failed`, `wallet_prepare_failed`, etc.).
+    - On challenge invalid/busy events with approval reasons, approval state is set back to `required` with actionable text.
+  - `apps/web/public/js/play/challenge.js`
+    - Changed send flow to require pre-approved escrow state for wagered challenges.
+    - Removed automatic wallet-approval attempt during `Send Challenge`; user must explicitly approve first.
+- Validation:
+  - `npm run -w @arena/web typecheck` ✅
+  - `npm run -w @arena/server typecheck` ✅
+  - `npm run -w @arena/shared typecheck` ✅
+  - `npm run -w @arena/server test` ✅
+  - `npm run -w @arena/shared test` ✅
+  - `npm run build` ✅
+- Runtime-v2 E2E validation notes:
+  - First run on default ports produced false negatives because `:4100` was already occupied; runner web process crashed (`EADDRINUSE`) and tests hit the wrong instance (`/api/local/login` returned 404).
+  - Re-ran with isolated ports and runtime-v2 flags:
+    - `E2E_SERVER_PORT=4311 E2E_RUNTIME_PORT=4312 E2E_WEB_PORT=4310 LOCAL_AUTH_ENABLED=true PLAY_RUNTIME_V2_ENABLED=true MOBILE_LAYOUT_V2_ENABLED=true DIRECTIONING_V2_ENABLED=true STATION_PLUGIN_ROUTER_ENABLED=true DICE_DUEL_ENABLED=true E2E_LOCAL_USERNAME=admin E2E_LOCAL_PASSWORD=12345 node scripts/run-e2e.js`
+  - Result on isolated ports: all suites passed.
+    - game-load `3/3`
+    - challenge-flow `5/5`
+    - scoring `5/5`
+    - visual-regression `7/7`
+    - world-exploration `5/5`
+
+- 2026-02-17: Dual-mode escrow UX implemented (Sepolia frictionless, Mainnet manual) (Codex).
+- Objective:
+  - Keep testnet gameplay fast (`auto` approvals) while preserving explicit approval UX for mainnet (`manual`).
+- Implemented:
+  - Shared policy resolver added:
+    - `packages/shared/src/escrowApprovalPolicy.ts`
+    - exported via `packages/shared/src/index.ts`
+    - unit tests in `packages/shared/src/escrowApprovalPolicy.test.ts`
+  - Server policy wiring:
+    - `apps/server/src/config.ts` now reads:
+      - `ESCROW_APPROVAL_MODE_SEPOLIA`
+      - `ESCROW_APPROVAL_MODE_MAINNET`
+      - `ESCROW_APPROVAL_MODE_DEFAULT`
+      - `ESCROW_APPROVAL_CHAIN_ID`
+      - `ESCROW_APPROVAL_CHAIN_HINT`
+      - `ESCROW_AUTO_APPROVE_MAX_WAGER`
+      - `ESCROW_AUTO_APPROVE_DAILY_CAP`
+    - `apps/server/src/index.ts`:
+      - adds challenge approval metadata in websocket payloads:
+        - `approvalMode`, `approvalStatus`, `approvalSource`
+      - in `auto` mode, runs preflight sponsorship on `challenge_send` before creating wagered challenge.
+      - logs sponsorship outcomes for observability.
+  - Web API + config wiring:
+    - `apps/web/src/server.ts`:
+      - `/api/config` now returns `escrowApprovalPolicy` object with effective/default config.
+      - `/api/player/wallet/prepare-escrow` short-circuits to ready in `auto` mode (frictionless), keeps runtime prepare in `manual` mode.
+  - Runtime/UI behavior:
+    - `apps/web/public/js/play/state.js` adds `state.escrowApproval`.
+    - `apps/web/public/js/play/runtime/app.js`:
+      - resolves approval policy from `/api/config` + wallet chain id.
+      - auto mode marks approval ready for wagered challenges (no manual button path required).
+      - player interaction card:
+        - hides manual approval action in auto mode,
+        - shows `Super Agent Approval Active (Testnet)` messaging,
+        - keeps manual `Approve Escrow` flow for manual mode.
+      - challenge handling reads server approval metadata and updates local approval state.
+      - `window.render_game_to_text` now includes `escrowApprovalMode` and `escrowApprovalNetwork`.
+    - `apps/web/public/js/play/challenge.js`:
+      - send gating now requires manual pre-approval only when mode is `manual`; `auto` mode sends directly.
+    - `apps/web/public/js/play/runtime/hud.js`:
+      - top bar now surfaces approval mode (`Auto Approval`/`Manual Approval`).
+      - next-action line explains testnet auto-approval when active.
+  - Env template updated:
+    - `.env.example` includes the new escrow approval policy env vars.
+- Validation executed:
+  - `npm run -w @arena/shared test` ✅ (includes new policy tests)
+  - `npm run -w @arena/shared typecheck` ✅
+  - `npm run -w @arena/server test` ✅
+  - E2E (isolated ports + runtime-v2 flags + sepolia auto mode):
+    - `game-load` passed (`3/3`) ✅
+    - `challenge-flow` had infra flake (`browserType.launch timeout` and screenshot timeout) with other cases passing in same run (`3/5`) ⚠️
+    - run was terminated after collecting failure context.
+- Known issue encountered during validation:
+  - `tsc --noEmit` for server/web intermittently hung in this local environment (stale `tsc` processes had to be killed). This appears environmental; tests and runtime e2e still executed.

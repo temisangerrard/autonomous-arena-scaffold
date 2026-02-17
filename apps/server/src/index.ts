@@ -76,6 +76,12 @@ const challengeEscrowFailureById = new Map<string, {
   reasonText?: string;
   preflight?: { playerOk: boolean; houseOk: boolean };
 }>();
+type ChallengeApprovalMeta = {
+  approvalMode: 'auto' | 'manual';
+  approvalStatus: 'ready' | 'required' | 'failed';
+  approvalSource?: 'player_wallet' | 'super_agent';
+};
+const challengeApprovalById = new Map<string, ChallengeApprovalMeta>();
 type PendingDealerRound = {
   playerId: string;
   stationId: string;
@@ -166,6 +172,8 @@ let lastPresenceRefreshAt = 0;
 const challengePendingTimeoutMs = config.challengePendingTimeoutMs;
 const challengeOrphanGraceMs = config.challengeOrphanGraceMs;
 const wsAuthSecret = config.wsAuthSecret;
+const escrowApprovalConfig = config.escrowApproval;
+const serverEscrowApprovalMode = escrowApprovalConfig.resolved.mode;
 // Product choice: keep in-world movement reserved for human players.
 // Agents (NPCs / offline bots) can still participate in challenges, but do not roam unless explicitly enabled.
 const agentLocomotionEnabled = String(process.env.AGENT_LOCOMOTION_ENABLED ?? '').trim().toLowerCase() === 'true';
@@ -268,13 +276,38 @@ function broadcast(payload: object): void {
 }
 
 function dispatchChallengeEvent(event: ChallengeEvent): void {
+  const challenge = event.challenge;
+  const reason = String(event.reason || '').toLowerCase();
+  const isApprovalFailure = reason.includes('allowance')
+    || reason.includes('approve_failed')
+    || reason.includes('wallet_prepare_failed')
+    || reason.includes('wallet_policy_disabled');
+  const existingApproval = challenge?.id ? challengeApprovalById.get(challenge.id) : null;
+  const approvalMeta: ChallengeApprovalMeta | null = existingApproval
+    ?? (challenge && Number(challenge.wager || 0) > 0
+      ? {
+          approvalMode: serverEscrowApprovalMode,
+          approvalSource: serverEscrowApprovalMode === 'auto' ? 'super_agent' : 'player_wallet',
+          approvalStatus: serverEscrowApprovalMode === 'auto' ? 'ready' : 'required'
+        }
+      : null);
+  const finalApprovalMeta = isApprovalFailure
+    ? {
+        approvalMode: approvalMeta?.approvalMode ?? serverEscrowApprovalMode,
+        approvalSource: approvalMeta?.approvalSource ?? (serverEscrowApprovalMode === 'auto' ? 'super_agent' : 'player_wallet'),
+        approvalStatus: 'failed' as const
+      }
+    : approvalMeta;
   if (event.to) {
     for (const playerId of event.to) {
       sendToDistributed(playerId, {
         type: 'challenge',
         event: event.event,
         reason: event.reason,
-        challenge: event.challenge
+        challenge: event.challenge,
+        approvalMode: finalApprovalMeta?.approvalMode,
+        approvalSource: finalApprovalMeta?.approvalSource,
+        approvalStatus: finalApprovalMeta?.approvalStatus
       });
     }
   }
@@ -283,8 +316,15 @@ function dispatchChallengeEvent(event: ChallengeEvent): void {
     type: 'challenge_feed',
     event: event.event,
     reason: event.reason,
-    challenge: event.challenge
+    challenge: event.challenge,
+    approvalMode: finalApprovalMeta?.approvalMode,
+    approvalSource: finalApprovalMeta?.approvalSource,
+    approvalStatus: finalApprovalMeta?.approvalStatus
   });
+
+  if (challenge?.id && (event.event === 'resolved' || event.event === 'declined' || event.event === 'expired')) {
+    challengeApprovalById.delete(challenge.id);
+  }
 }
 
 function broadcastEscrowEvent(payload: {
@@ -341,6 +381,15 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
     const challenge = event.challenge;
     const wager = Math.max(0, challenge.wager);
     await distributedChallengeStore.updateStatus(challenge.id, event.event, JSON.stringify(challenge));
+    if (event.event === 'created') {
+      challengeApprovalById.set(challenge.id, {
+        approvalMode: serverEscrowApprovalMode,
+        approvalSource: serverEscrowApprovalMode === 'auto' ? 'super_agent' : 'player_wallet',
+        approvalStatus: wager > 0
+          ? (serverEscrowApprovalMode === 'auto' ? 'ready' : 'required')
+          : 'ready'
+      });
+    }
 
     // Persist challenge state to database
     if (event.event === 'created') {
@@ -483,6 +532,7 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
 
     if (event.event === 'resolved' || event.event === 'declined' || event.event === 'expired') {
       challengeWalletsById.delete(challenge.id);
+      challengeApprovalById.delete(challenge.id);
       await distributedChallengeStore.releasePlayers(
         challenge.id,
         [challenge.challengerId, challenge.opponentId].filter((id) => id !== 'system_house')
@@ -1085,6 +1135,57 @@ wss.on('connection', (ws, request) => {
           return;
         }
         recentAgentToHumanChallengeAt.set(key, now);
+      }
+
+      const wager = Math.max(0, Math.min(10_000, Number(payload.wager || 0)));
+      if (wager > 0 && serverEscrowApprovalMode === 'auto') {
+        const challengerWalletId = walletIdFor(playerId);
+        const opponentWalletId = walletIdFor(payload.targetId);
+        if (!challengerWalletId || !opponentWalletId) {
+          log.warn(
+            { playerId, targetId: payload.targetId, wager },
+            'auto approval sponsorship rejected: missing wallet'
+          );
+          sendTo(playerId, {
+            type: 'challenge',
+            event: 'invalid',
+            reason: 'wallet_required',
+            approvalMode: 'auto',
+            approvalSource: 'super_agent',
+            approvalStatus: 'failed'
+          });
+          return;
+        }
+        const preflight = await escrowAdapter.preflightStake({
+          challengerWalletId,
+          opponentWalletId,
+          amount: wager
+        });
+        if (!preflight.ok) {
+          log.warn(
+            {
+              playerId,
+              targetId: payload.targetId,
+              wager,
+              reason: preflight.reason,
+              reasonCode: preflight.reasonCode
+            },
+            'auto approval sponsorship preflight failed'
+          );
+          sendTo(playerId, {
+            type: 'challenge',
+            event: 'invalid',
+            reason: preflight.reason || 'wallet_prepare_failed',
+            approvalMode: 'auto',
+            approvalSource: 'super_agent',
+            approvalStatus: 'failed'
+          });
+          return;
+        }
+        log.info(
+          { playerId, targetId: payload.targetId, wager },
+          'auto approval sponsorship preflight ready'
+        );
       }
 
       const event = challengeService.createChallenge(

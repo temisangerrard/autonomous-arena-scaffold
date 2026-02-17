@@ -8,7 +8,7 @@ import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldVersionByAlias } from './worldAssets.js';
-import { signWsAuthToken } from '@arena/shared';
+import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
 import { clearCookie, clearSessionCookie, parseCookies, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setCookie, setSessionCookieWithOptions } from './lib/http.js';
 import { cookieSessionId, createSessionStore, type IdentityRecord, type Role, type SessionRecord } from './sessionStore.js';
@@ -53,6 +53,43 @@ const localAdminUsername = process.env.ADMIN_USERNAME ?? '';
 const localAdminPassword = process.env.ADMIN_PASSWORD ?? '';
 const localAuthEnabled = (process.env.LOCAL_AUTH_ENABLED ?? 'false') === 'true';
 const isProduction = process.env.NODE_ENV === 'production';
+const escrowApprovalChainIdRaw = Number(
+  process.env.ESCROW_APPROVAL_CHAIN_ID
+  ?? process.env.CHAIN_ID
+  ?? Number.NaN
+);
+const escrowApprovalChainId = Number.isFinite(escrowApprovalChainIdRaw) ? escrowApprovalChainIdRaw : null;
+const escrowApprovalChainHint = String(
+  process.env.ESCROW_APPROVAL_CHAIN_HINT
+  ?? process.env.CHAIN_RPC_URL
+  ?? ''
+).trim();
+const escrowApprovalModeSepolia = String(process.env.ESCROW_APPROVAL_MODE_SEPOLIA ?? 'auto').trim().toLowerCase() === 'auto'
+  ? 'auto'
+  : 'manual';
+const escrowApprovalModeMainnet = String(process.env.ESCROW_APPROVAL_MODE_MAINNET ?? 'manual').trim().toLowerCase() === 'auto'
+  ? 'auto'
+  : 'manual';
+const escrowApprovalDefaultMode = String(process.env.ESCROW_APPROVAL_MODE_DEFAULT ?? 'manual').trim().toLowerCase() === 'auto'
+  ? 'auto'
+  : 'manual';
+const escrowAutoApproveMaxWagerRaw = Number(process.env.ESCROW_AUTO_APPROVE_MAX_WAGER ?? Number.NaN);
+const escrowAutoApproveMaxWager = Number.isFinite(escrowAutoApproveMaxWagerRaw) && escrowAutoApproveMaxWagerRaw > 0
+  ? escrowAutoApproveMaxWagerRaw
+  : null;
+const escrowAutoApproveDailyCapRaw = Number(process.env.ESCROW_AUTO_APPROVE_DAILY_CAP ?? Number.NaN);
+const escrowAutoApproveDailyCap = Number.isFinite(escrowAutoApproveDailyCapRaw) && escrowAutoApproveDailyCapRaw > 0
+  ? escrowAutoApproveDailyCapRaw
+  : null;
+const escrowApprovalResolved = resolveEscrowApprovalPolicy({
+  chainId: escrowApprovalChainId,
+  chainHint: escrowApprovalChainHint,
+  modeSepolia: escrowApprovalModeSepolia,
+  modeMainnet: escrowApprovalModeMainnet,
+  defaultMode: escrowApprovalDefaultMode,
+  autoApproveMaxWager: escrowAutoApproveMaxWager,
+  autoApproveDailyCap: escrowAutoApproveDailyCap
+});
 const googleNonceSecret =
   process.env.GOOGLE_NONCE_SECRET?.trim()
   || wsAuthSecret
@@ -660,7 +697,17 @@ const server = createServer(async (req, res) => {
       localAuthEnabled,
       // Used by the static Netlify client to connect to Cloud Run infra.
       gameWsUrl: publicGameWsUrl,
-      worldAssetBaseUrl: publicWorldAssetBaseUrl
+      worldAssetBaseUrl: publicWorldAssetBaseUrl,
+      escrowApprovalPolicy: {
+        chainId: escrowApprovalChainId,
+        chainHint: escrowApprovalChainHint,
+        modeSepolia: escrowApprovalModeSepolia,
+        modeMainnet: escrowApprovalModeMainnet,
+        defaultMode: escrowApprovalDefaultMode,
+        autoApproveMaxWager: escrowAutoApproveMaxWager,
+        autoApproveDailyCap: escrowAutoApproveDailyCap,
+        effective: escrowApprovalResolved
+      }
     });
     return;
   }
@@ -1253,6 +1300,59 @@ const server = createServer(async (req, res) => {
       sendJson(res, payload ?? { ok: false, reason: 'wallet_summary_unavailable' });
     } catch {
       sendJson(res, { ok: false, reason: 'wallet_summary_unavailable' }, 503);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/wallet/prepare-escrow' && req.method === 'POST') {
+    const auth = await requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.walletId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    const body = await readJsonBody<{ amount?: number }>(req);
+    const amount = Math.max(0, Number(body?.amount ?? 0));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
+      return;
+    }
+    const activePolicy = resolveEscrowApprovalPolicy({
+      chainId: escrowApprovalChainId,
+      chainHint: escrowApprovalChainHint,
+      modeSepolia: escrowApprovalModeSepolia,
+      modeMainnet: escrowApprovalModeMainnet,
+      defaultMode: escrowApprovalDefaultMode,
+      autoApproveMaxWager: escrowAutoApproveMaxWager,
+      autoApproveDailyCap: escrowAutoApproveDailyCap
+    });
+    if (activePolicy.mode === 'auto') {
+      sendJson(res, {
+        ok: true,
+        mode: activePolicy.mode,
+        network: activePolicy.network,
+        reason: activePolicy.reason,
+        results: [{
+          walletId: auth.identity.walletId,
+          ok: true,
+          source: 'super_agent',
+          status: 'ready'
+        }]
+      });
+      return;
+    }
+
+    try {
+      const payload = await runtimePost('/wallets/onchain/prepare-escrow', {
+        amount,
+        walletIds: [auth.identity.walletId]
+      });
+      sendJson(res, {
+        ...payload,
+        mode: activePolicy.mode,
+        network: activePolicy.network
+      });
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
     }
     return;
   }

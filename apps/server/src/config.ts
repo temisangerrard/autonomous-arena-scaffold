@@ -5,8 +5,43 @@
 
 import { createHash } from 'node:crypto';
 import { loadEnvFromFile } from './lib/env.js';
+import { resolveEscrowApprovalPolicy } from '@arena/shared';
 
 loadEnvFromFile();
+
+const escrowApprovalChainIdRaw = Number(
+  process.env.ESCROW_APPROVAL_CHAIN_ID
+  ?? process.env.CHAIN_ID
+  ?? Number.NaN
+);
+const escrowApprovalChainId = Number.isFinite(escrowApprovalChainIdRaw)
+  ? escrowApprovalChainIdRaw
+  : null;
+const escrowApprovalChainHint = String(
+  process.env.ESCROW_APPROVAL_CHAIN_HINT
+  ?? process.env.CHAIN_RPC_URL
+  ?? ''
+).trim();
+const escrowApprovalModeSepolia = String(process.env.ESCROW_APPROVAL_MODE_SEPOLIA ?? 'auto').trim().toLowerCase();
+const escrowApprovalModeMainnet = String(process.env.ESCROW_APPROVAL_MODE_MAINNET ?? 'manual').trim().toLowerCase();
+const escrowApprovalDefaultMode = String(process.env.ESCROW_APPROVAL_MODE_DEFAULT ?? 'manual').trim().toLowerCase();
+const escrowAutoApproveMaxWagerRaw = Number(process.env.ESCROW_AUTO_APPROVE_MAX_WAGER ?? Number.NaN);
+const escrowAutoApproveDailyCapRaw = Number(process.env.ESCROW_AUTO_APPROVE_DAILY_CAP ?? Number.NaN);
+const escrowAutoApproveMaxWager = Number.isFinite(escrowAutoApproveMaxWagerRaw) && escrowAutoApproveMaxWagerRaw > 0
+  ? escrowAutoApproveMaxWagerRaw
+  : null;
+const escrowAutoApproveDailyCap = Number.isFinite(escrowAutoApproveDailyCapRaw) && escrowAutoApproveDailyCapRaw > 0
+  ? escrowAutoApproveDailyCapRaw
+  : null;
+const escrowApprovalResolved = resolveEscrowApprovalPolicy({
+  chainId: escrowApprovalChainId,
+  chainHint: escrowApprovalChainHint,
+  modeSepolia: escrowApprovalModeSepolia,
+  modeMainnet: escrowApprovalModeMainnet,
+  defaultMode: escrowApprovalDefaultMode,
+  autoApproveMaxWager: escrowAutoApproveMaxWager,
+  autoApproveDailyCap: escrowAutoApproveDailyCap
+});
 
 export const config = {
   // Server
@@ -45,7 +80,17 @@ export const config = {
   webAuthUrl: process.env.WEB_AUTH_URL?.trim() || '',
   internalServiceToken: process.env.INTERNAL_SERVICE_TOKEN?.trim() || '',
   stationPluginRouterEnabled: (process.env.STATION_PLUGIN_ROUTER_ENABLED ?? 'false') === 'true',
-  diceDuelEnabled: (process.env.DICE_DUEL_ENABLED ?? 'true') === 'true'
+  diceDuelEnabled: (process.env.DICE_DUEL_ENABLED ?? 'true') === 'true',
+  escrowApproval: {
+    chainId: escrowApprovalChainId,
+    chainHint: escrowApprovalChainHint,
+    modeSepolia: escrowApprovalModeSepolia === 'auto' ? 'auto' : 'manual',
+    modeMainnet: escrowApprovalModeMainnet === 'auto' ? 'auto' : 'manual',
+    defaultMode: escrowApprovalDefaultMode === 'auto' ? 'auto' : 'manual',
+    autoApproveMaxWager: escrowAutoApproveMaxWager,
+    autoApproveDailyCap: escrowAutoApproveDailyCap,
+    resolved: escrowApprovalResolved
+  }
 } as const;
 
 /**

@@ -103,6 +103,7 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
     const after = Number(summary?.onchain?.tokenBalance);
     const chainId = Number(summary?.onchain?.chainId);
     state.walletChainId = Number.isFinite(chainId) ? chainId : null;
+    syncEscrowApprovalPolicy();
     if (Number.isFinite(after)) {
       state.walletBalance = after;
     } else {
@@ -133,6 +134,7 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
   } catch {
     state.walletBalance = null;
     state.walletChainId = null;
+    syncEscrowApprovalPolicy();
   }
 }
 
@@ -236,6 +238,63 @@ if (!(state.nearbyStationIds instanceof Set)) {
 }
 initMenu(dom, { queryParams });
 
+const SEPOLIA_CHAIN_IDS = new Set([11155111, 84532]);
+const MAINNET_CHAIN_IDS = new Set([1, 8453]);
+
+function normalizeApprovalMode(value, fallback = 'manual') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'auto') return 'auto';
+  if (raw === 'manual') return 'manual';
+  return fallback;
+}
+
+function classifyApprovalNetwork(chainId, chainHint = '') {
+  const id = Number(chainId);
+  if (Number.isFinite(id)) {
+    if (SEPOLIA_CHAIN_IDS.has(id)) return 'sepolia';
+    if (MAINNET_CHAIN_IDS.has(id)) return 'mainnet';
+  }
+  const hint = String(chainHint || '').toLowerCase();
+  if (hint.includes('sepolia') || hint.includes('testnet')) return 'sepolia';
+  if (hint.includes('mainnet') || hint === 'main' || hint === 'prod') return 'mainnet';
+  return 'unknown';
+}
+
+function resolveEscrowApprovalForClient(chainId = null) {
+  const policy = window.ARENA_CONFIG?.escrowApprovalPolicy || {};
+  const fallback = policy?.effective || {};
+  const modeSepolia = normalizeApprovalMode(policy.modeSepolia, 'auto');
+  const modeMainnet = normalizeApprovalMode(policy.modeMainnet, 'manual');
+  const defaultMode = normalizeApprovalMode(policy.defaultMode, normalizeApprovalMode(fallback.mode, 'manual'));
+  const network = classifyApprovalNetwork(
+    chainId,
+    policy.chainHint || fallback.network || ''
+  );
+  const mode = network === 'sepolia'
+    ? modeSepolia
+    : network === 'mainnet'
+      ? modeMainnet
+      : defaultMode;
+  return {
+    mode,
+    network,
+    reason: network === 'unknown' ? 'fallback:default_mode' : `network:${network}`,
+    source: chainId == null ? 'config' : 'chain',
+    autoApproveMaxWager: Number.isFinite(Number(policy.autoApproveMaxWager))
+      ? Number(policy.autoApproveMaxWager)
+      : null,
+    autoApproveDailyCap: Number.isFinite(Number(policy.autoApproveDailyCap))
+      ? Number(policy.autoApproveDailyCap)
+      : null
+  };
+}
+
+function syncEscrowApprovalPolicy() {
+  state.escrowApproval = resolveEscrowApprovalForClient(state.walletChainId);
+}
+
+syncEscrowApprovalPolicy();
+
 const presence = createPresence({ queryParams });
 presence.installOfflineBeacon();
 
@@ -273,6 +332,7 @@ async function loadArenaConfig() {
           ...(window.ARENA_CONFIG || {}),
           ...cfg
         };
+        syncEscrowApprovalPolicy();
       }
       return cfg;
     } catch {
@@ -569,6 +629,8 @@ async function connectSocket() {
           x: Number(station.x || 0),
           z: Number(station.z || 0),
           yaw: Number(station.yaw || 0),
+          radius: Number(station.radius || 0),
+          interactionTag: String(station.interactionTag || ''),
           actions: Array.isArray(station.actions) ? station.actions.map((a) => String(a)) : []
         });
       }
@@ -627,6 +689,20 @@ async function connectSocket() {
         }
       : null;
     const stateName = String(view.state || '');
+    const station = state.stations instanceof Map ? state.stations.get(payload.stationId) : null;
+    if (station?.kind === 'world_interactable') {
+      const method = String(view.method || '');
+      const useLabel = String(view.reasonText || 'Use');
+      state.ui.world.stationId = payload.stationId;
+      state.ui.world.interactionTag = String(view.reasonCode || station.interactionTag || '');
+      state.ui.world.title = station.displayName || 'World Interaction';
+      state.ui.world.detail = method || useLabel || 'Interaction ready.';
+      state.ui.world.actionLabel = stateName === 'dealer_reveal' ? 'Used' : useLabel;
+      if (!ok || stateName === 'dealer_error') {
+        showToast(state.ui.world.detail || 'Interaction failed.');
+      }
+      return;
+    }
     if (!ok || stateName === 'dealer_error') {
       const resolvedReasonText = reasonText || dealerReasonLabel(reason, reasonCode);
       state.ui.dealer.state = 'error';
@@ -864,6 +940,63 @@ function resetCameraBehindPlayer() {
   cameraController.resetBehindPlayer(me);
 }
 
+function isEscrowApprovalReason(reason) {
+  const raw = String(reason || '').toLowerCase();
+  return raw === 'allowance_too_low'
+    || raw === 'approve_failed'
+    || raw === 'wallet_prepare_failed'
+    || raw === 'player_allowance_low'
+    || raw.includes('allowance');
+}
+
+async function ensureEscrowApproval(wager) {
+  const amount = Math.max(0, Number(wager || 0));
+  const approvalMode = String(state.escrowApproval?.mode || 'manual');
+  if (!(amount > 0)) {
+    state.ui.challenge.approvalState = 'idle';
+    state.ui.challenge.approvalMessage = '';
+    state.ui.challenge.approvalWager = 0;
+    return true;
+  }
+  if (approvalMode === 'auto') {
+    state.ui.challenge.approvalState = 'ready';
+    state.ui.challenge.approvalWager = amount;
+    state.ui.challenge.approvalMessage = `Testnet mode: approvals handled automatically for ${formatUsdAmount(amount)}.`;
+    return true;
+  }
+
+  state.ui.challenge.approvalState = 'checking';
+  state.ui.challenge.approvalMessage = `Preparing escrow approval for ${formatUsdAmount(amount)}...`;
+  try {
+    const payload = await apiJson('/api/player/wallet/prepare-escrow', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ amount })
+    });
+    const first = Array.isArray(payload?.results) ? payload.results[0] : null;
+    if (first?.ok) {
+      state.ui.challenge.approvalState = 'ready';
+      state.ui.challenge.approvalWager = amount;
+      state.ui.challenge.approvalMessage = `Escrow approval ready for ${formatUsdAmount(amount)}.`;
+      return true;
+    }
+    const reason = String(first?.reason || payload?.reason || 'wallet_prepare_failed');
+    state.ui.challenge.approvalState = 'required';
+    state.ui.challenge.approvalWager = 0;
+    state.ui.challenge.approvalMessage = challengeReasonLabel(reason);
+    showToast(state.ui.challenge.approvalMessage);
+    return false;
+  } catch (error) {
+    state.ui.challenge.approvalState = 'required';
+    state.ui.challenge.approvalWager = 0;
+    state.ui.challenge.approvalMessage = challengeReasonLabel(
+      String(error?.message || 'wallet_prepare_failed')
+    );
+    showToast(state.ui.challenge.approvalMessage);
+    return false;
+  }
+}
+
 const challengeController = createChallengeController({
   state,
   socketRef,
@@ -872,7 +1005,8 @@ const challengeController = createChallengeController({
   isStation,
   closestNearbyPlayerId,
   getUiTargetId,
-  formatWagerInline
+  formatWagerInline,
+  ensureEscrowApproval
 });
 
 const inputSystem = createInputSystem({
@@ -916,9 +1050,16 @@ function updateLocalAvatar() {
     return;
   }
 
-  local.displayX += (local.x - local.displayX) * 0.36;
-  local.displayY += (local.y - local.displayY) * 0.36;
-  local.displayZ += (local.z - local.displayZ) * 0.36;
+  const localError = Math.hypot(local.x - local.displayX, local.z - local.displayZ);
+  if (localError > 0.9) {
+    local.displayX = local.x;
+    local.displayY = local.y;
+    local.displayZ = local.z;
+  } else {
+    local.displayX += (local.x - local.displayX) * 0.36;
+    local.displayY += (local.y - local.displayY) * 0.36;
+    local.displayZ += (local.z - local.displayZ) * 0.36;
+  }
   local.displayYaw += (local.yaw - local.displayYaw) * 0.32;
 
   localAvatarParts.avatar.position.set(local.displayX, local.displayY + AVATAR_GROUND_OFFSET, local.displayZ);
@@ -939,6 +1080,38 @@ function updateLocalAvatar() {
     opponent,
     inMatch: Boolean(inMatch && opponent)
   });
+}
+
+function applyDisplaySeparation() {
+  const ids = [...state.players.keys()];
+  if (ids.length < 2) return;
+  const minDist = 1.5;
+  for (let pass = 0; pass < 2; pass += 1) {
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const a = state.players.get(ids[i]);
+        const b = state.players.get(ids[j]);
+        if (!a || !b) continue;
+        let dx = (b.displayX ?? b.x) - (a.displayX ?? a.x);
+        let dz = (b.displayZ ?? b.z) - (a.displayZ ?? a.z);
+        const distSq = dx * dx + dz * dz;
+        if (distSq >= minDist * minDist) continue;
+        let dist = Math.sqrt(distSq);
+        if (dist < 0.0001) {
+          dx = 1;
+          dz = 0;
+          dist = 1;
+        }
+        const nx = dx / dist;
+        const nz = dz / dist;
+        const push = (minDist - dist) * 0.5;
+        a.displayX -= nx * push;
+        a.displayZ -= nz * push;
+        b.displayX += nx * push;
+        b.displayZ += nz * push;
+      }
+    }
+  }
 }
 
 function renderMatchSpotlight() {
@@ -1259,6 +1432,7 @@ function renderInteractionCard() {
             const bal = Number(summary?.onchain?.tokenBalance);
             const chainId = Number(summary?.onchain?.chainId);
             state.walletChainId = Number.isFinite(chainId) ? chainId : null;
+            syncEscrowApprovalPolicy();
             if (!Number.isFinite(bal)) {
               balanceEl.textContent = 'Balance: unavailable (onchain)';
               state.walletBalance = null;
@@ -1269,6 +1443,7 @@ function renderInteractionCard() {
           } catch (err) {
             state.walletBalance = null;
             state.walletChainId = null;
+            syncEscrowApprovalPolicy();
             balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
           }
         }
@@ -1324,6 +1499,61 @@ function renderInteractionCard() {
           transferBtn.onclick = () => { void transfer().catch((e) => showToast(String(e.message || e))); };
         }
         void refresh();
+      } else if (station.kind === 'world_interactable') {
+        const detail = state.ui.world.stationId === station.id
+          ? state.ui.world.detail
+          : 'Interact with this world object.';
+        const actionLabel = state.ui.world.stationId === station.id
+          ? state.ui.world.actionLabel
+          : 'Use';
+        stationUi.innerHTML = `
+          <div class="station-ui__title">${station.displayName}</div>
+          <div class="station-ui__meta" id="world-interaction-detail">${detail}</div>
+          <div class="station-ui__actions">
+            <button id="world-interaction-open" class="btn-ghost" type="button">Inspect</button>
+            <button id="world-interaction-use" class="btn-gold" type="button">${actionLabel}</button>
+          </div>
+        `;
+        const openBtn = document.getElementById('world-interaction-open');
+        const useBtn = document.getElementById('world-interaction-use');
+        const detailEl = document.getElementById('world-interaction-detail');
+        if (openBtn) {
+          openBtn.onclick = () => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+              showToast('Not connected to server.');
+              return;
+            }
+            socket.send(JSON.stringify({
+              type: 'station_interact',
+              stationId: station.id,
+              action: 'interact_open'
+            }));
+          };
+        }
+        if (useBtn) {
+          useBtn.onclick = () => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+              showToast('Not connected to server.');
+              return;
+            }
+            socket.send(JSON.stringify({
+              type: 'station_interact',
+              stationId: station.id,
+              action: 'interact_use',
+              interactionTag: String(station.interactionTag || '')
+            }));
+            if (detailEl) {
+              detailEl.textContent = 'Using interaction...';
+            }
+          };
+        }
+        if (socket && socket.readyState === WebSocket.OPEN && state.ui.world.stationId !== station.id) {
+          socket.send(JSON.stringify({
+            type: 'station_interact',
+            stationId: station.id,
+            action: 'interact_open'
+          }));
+        }
       } else {
         stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
       }
@@ -1400,9 +1630,22 @@ function renderInteractionCard() {
     interactionNpcInfo.style.display = 'grid';
     const incoming = challengeController.currentIncomingChallenge();
     const outgoingPending = Boolean(state.outgoingChallengeId);
-    const canSend = state.wsConnected && !state.respondingIncoming && !outgoingPending && targetId !== state.playerId;
+    const canSendBase = state.wsConnected && !state.respondingIncoming && !outgoingPending && targetId !== state.playerId;
     const selectedGame = normalizedChallengeGameType(state.ui?.challenge?.gameType || 'rps');
     const selectedWager = normalizedChallengeWager(state.ui?.challenge?.wager ?? 1, 1);
+    const approvalMode = String(state.escrowApproval?.mode || 'manual');
+    const approvalModeAuto = approvalMode === 'auto';
+    const approvalState = String(state.ui?.challenge?.approvalState || 'idle');
+    const approvalMessage = String(state.ui?.challenge?.approvalMessage || '').trim();
+    const approvalReady = approvalState === 'ready' && Number(state.ui?.challenge?.approvalWager || 0) >= selectedWager;
+    const canSend = canSendBase && (selectedWager <= 0 || approvalModeAuto || approvalReady);
+    const approvalHint = selectedWager > 0
+      ? (approvalModeAuto
+          ? 'Super Agent Approval Active (Testnet). Wagered challenges are prepared automatically.'
+          : (approvalMessage || (approvalReady
+              ? `Escrow approval ready for ${formatUsdAmount(selectedWager)}.`
+              : `Approve escrow to place wager (${formatUsdAmount(selectedWager)}).`)))
+      : 'Free wager selected. No escrow approval needed.';
     const incomingLabel = incoming
       ? `${labelFor(incoming.challengerId)} challenged you (${incoming.gameType.toUpperCase()}, ${formatWagerInline(incoming.wager)}).`
       : '';
@@ -1420,6 +1663,13 @@ function renderInteractionCard() {
         <label for="player-challenge-wager">Wager (each, USDC)</label>
         <input id="player-challenge-wager" type="number" min="0" max="10000" step="1" value="${selectedWager}" />
       </div>
+      ${approvalModeAuto
+        ? '<div class="station-ui__meta">Super Agent Approval Active (Testnet)</div>'
+        : `<div class="station-ui__actions">
+          <button id="player-challenge-approve" class="btn-ghost" type="button" ${(selectedWager > 0 && approvalState !== 'checking') ? '' : 'disabled'}>
+            ${approvalState === 'checking' ? 'Approving...' : 'Approve Escrow'}
+          </button>
+        </div>`}
       <div class="station-ui__actions">
         <button id="player-challenge-send" class="btn-gold" type="button" ${canSend ? '' : 'disabled'}>Send Challenge (C)</button>
       </div>
@@ -1428,9 +1678,11 @@ function renderInteractionCard() {
         <button id="player-challenge-decline" class="btn-ghost" type="button" ${(incoming && !state.respondingIncoming) ? '' : 'disabled'}>Decline (N)</button>
       </div>
       <div class="station-ui__meta">${incomingLabel || `Pick a game and send a challenge. ${outgoingPending ? 'You already have a pending outgoing challenge.' : ''}`}</div>
+      <div class="station-ui__meta">${approvalHint}</div>
     `;
     const gameEl = document.getElementById('player-challenge-game');
     const wagerEl = document.getElementById('player-challenge-wager');
+    const approveBtn = document.getElementById('player-challenge-approve');
     const sendBtn = document.getElementById('player-challenge-send');
     const acceptBtn = document.getElementById('player-challenge-accept');
     const declineBtn = document.getElementById('player-challenge-decline');
@@ -1441,14 +1693,36 @@ function renderInteractionCard() {
     }
     if (wagerEl instanceof HTMLInputElement) {
       wagerEl.oninput = () => {
-        state.ui.challenge.wager = normalizedChallengeWager(wagerEl.value, 1);
+        const wager = normalizedChallengeWager(wagerEl.value, 1);
+        state.ui.challenge.wager = wager;
+        if (wager <= 0) {
+          state.ui.challenge.approvalState = 'idle';
+          state.ui.challenge.approvalMessage = '';
+          state.ui.challenge.approvalWager = 0;
+          return;
+        }
+        if (approvalModeAuto) {
+          state.ui.challenge.approvalState = 'ready';
+          state.ui.challenge.approvalWager = wager;
+          state.ui.challenge.approvalMessage = 'Testnet mode: approvals handled automatically.';
+          return;
+        }
+        if (Number(state.ui.challenge.approvalWager || 0) < wager) {
+          state.ui.challenge.approvalState = 'required';
+        }
+      };
+    }
+    if (approveBtn instanceof HTMLButtonElement) {
+      approveBtn.onclick = () => {
+        const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
+        void ensureEscrowApproval(wager);
       };
     }
     if (sendBtn instanceof HTMLButtonElement) {
       sendBtn.onclick = () => {
         const gameType = gameEl instanceof HTMLSelectElement ? gameEl.value : state.ui.challenge.gameType;
         const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
-        challengeController.sendChallenge(targetId, gameType, wager);
+        void challengeController.sendChallenge(targetId, gameType, wager);
       };
     }
     if (acceptBtn instanceof HTMLButtonElement) {
@@ -1506,6 +1780,7 @@ function update(nowMs) {
   updateLocalAvatar();
   movementSystem.send(nowMs);
   syncRemoteAvatars(state, state.playerId);
+  applyDisplaySeparation();
   syncStations(state);
   syncNearbyStations();
   refreshNearbyDistances();
@@ -1660,7 +1935,7 @@ function cycleNearbyTarget(next = true) {
     return;
   }
   ids.sort((a, b) => Number(state.nearbyDistances.get(a) ?? 9999) - Number(state.nearbyDistances.get(b) ?? 9999));
-  const current = state.ui.targetId && state.nearbyIds.has(state.ui.targetId) ? state.ui.targetId : ids[0];
+  const current = state.ui.targetId && ids.includes(state.ui.targetId) ? state.ui.targetId : ids[0];
   const idx = Math.max(0, ids.indexOf(current));
   const nextIdx = (idx + (next ? 1 : -1) + ids.length) % ids.length;
   state.ui.targetId = ids[nextIdx] || ids[0];
@@ -1694,11 +1969,17 @@ function setInteractOpen(nextOpen) {
     }
     state.ui.dealer.state = 'idle';
     state.ui.dealer.escrowTx = null;
+    state.ui.world.stationId = '';
+    state.ui.world.detail = '';
+    state.ui.world.actionLabel = 'Use';
   } else {
     interactionStationRenderKey = '';
     state.ui.interactionMode = 'none';
     state.ui.dealer.state = 'idle';
     state.ui.dealer.escrowTx = null;
+    state.ui.world.stationId = '';
+    state.ui.world.detail = '';
+    state.ui.world.actionLabel = 'Use';
     const active = document.activeElement;
     if (active instanceof HTMLElement && interactionCard.contains(active)) {
       active.blur?.();
@@ -1736,10 +2017,12 @@ function syncNearbyStations() {
     state.nearbyStationIds = new Set();
   }
 
-  const threshold = 8;
   const next = new Set();
   for (const station of state.stations.values()) {
     const distance = Math.hypot(station.x - self.x, station.z - self.z);
+    const threshold = Number.isFinite(Number(station.radius)) && Number(station.radius) > 0
+      ? Number(station.radius)
+      : 8;
     if (distance <= threshold) {
       next.add(station.id);
       state.nearbyDistances.set(station.id, distance);
@@ -1957,6 +2240,9 @@ function renderFeed() {
 
 function handleChallenge(payload) {
   const challenge = payload.challenge;
+  if (payload?.approvalMode === 'auto' || payload?.approvalMode === 'manual') {
+    state.escrowApproval.mode = payload.approvalMode;
+  }
   if (challenge) {
     state.activeChallenge = challenge;
   }
@@ -2030,6 +2316,12 @@ function handleChallenge(payload) {
   if (payload.event === 'invalid' || payload.event === 'busy') {
     state.respondingIncoming = false;
     state.challengeMessage = challengeReasonLabel(payload.reason);
+    const approvalStatus = String(payload?.approvalStatus || '');
+    if (approvalStatus === 'failed' || isEscrowApprovalReason(payload.reason)) {
+      state.ui.challenge.approvalState = 'required';
+      state.ui.challenge.approvalMessage = state.challengeMessage;
+      state.ui.challenge.approvalWager = 0;
+    }
     showToast(state.challengeMessage);
   }
 
@@ -2038,6 +2330,7 @@ function handleChallenge(payload) {
 }
 
 function challengeReasonLabel(reason) {
+  const autoApproval = String(state.escrowApproval?.mode || 'manual') === 'auto';
   switch (reason) {
     case 'target_not_found':
       return 'Target not found.';
@@ -2056,6 +2349,23 @@ function challengeReasonLabel(reason) {
     case 'challenger_max_bet_percent_exceeded':
     case 'opponent_max_bet_percent_exceeded':
       return 'Wager exceeds one player spend-limit policy.';
+    case 'allowance_too_low':
+    case 'player_allowance_low':
+      return autoApproval
+        ? 'Super-agent escrow prep failed on testnet. Retry the challenge in a moment.'
+        : 'Escrow approval needed. Tap Approve Escrow, confirm in wallet, then send the challenge again.';
+    case 'approve_failed':
+      return autoApproval
+        ? 'Super-agent approval step failed on testnet. Retry shortly.'
+        : 'Wallet approval was not completed. Tap Approve Escrow and confirm in wallet.';
+    case 'wallet_prepare_failed':
+      return 'Could not prepare escrow approval. Retry in a moment.';
+    case 'runtime_unavailable':
+      return 'Escrow service is temporarily unavailable. Retry shortly.';
+    case 'wallet_not_connected':
+      return 'Connect your wallet before wagering.';
+    case 'insufficient_funds':
+      return 'Wallet balance is too low for this wager.';
     case 'challenge_not_pending':
       return 'Challenge is no longer pending.';
     case 'challenge_not_active':
@@ -2121,9 +2431,9 @@ function renderInteractionPrompt() {
   const distance = state.nearbyDistances.get(targetId);
   const incoming = challengeController.currentIncomingChallenge();
   if (isStation(targetId)) {
-    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E play station · Tab switch`;
+    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · Tab/V switch`;
   } else {
-    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · C send · Tab switch${incoming ? ' · Y/N respond' : ''}`;
+    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · C send · Tab/V switch${incoming ? ' · Y/N respond' : ''}`;
   }
   interactionPrompt.classList.add('visible');
 }
@@ -2246,7 +2556,11 @@ function renderWorldMap() {
       ctx.beginPath();
       const size = 6;
       ctx.rect(x - size / 2, y - size / 2, size, size);
-      ctx.fillStyle = station.kind === 'cashier_bank' ? 'rgba(47, 109, 255, 0.92)' : 'rgba(243, 156, 18, 0.92)';
+      ctx.fillStyle = station.kind === 'cashier_bank'
+        ? 'rgba(47, 109, 255, 0.92)'
+        : station.kind === 'world_interactable'
+          ? 'rgba(120, 196, 163, 0.92)'
+          : 'rgba(243, 156, 18, 0.92)';
       ctx.fill();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
       ctx.lineWidth = 1;
@@ -2285,6 +2599,10 @@ window.render_game_to_text = () => {
     cameraDistance: state.cameraDistance,
     desiredMove: desired,
     interactionPhase: describeInteractionPhase(state),
+    targetId: state.ui?.targetId || '',
+    interactionMode: state.ui?.interactionMode || 'none',
+    escrowApprovalMode: state.escrowApproval?.mode || 'manual',
+    escrowApprovalNetwork: state.escrowApproval?.network || 'unknown',
     player: local
       ? {
           x: local.x,

@@ -33,7 +33,7 @@ export function createChallengeController(deps) {
     return active;
   }
 
-  function sendChallenge(targetId = null, gameType = null, wager = null) {
+  async function sendChallenge(targetId = null, gameType = null, wager = null) {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       showToast('Not connected to server.');
@@ -65,6 +65,15 @@ export function createChallengeController(deps) {
     );
     state.ui.challenge.gameType = resolvedGameType;
     state.ui.challenge.wager = resolvedWager;
+    const approvedWager = Number(state.ui?.challenge?.approvalWager || 0);
+    const approvalMode = String(state.escrowApproval?.mode || 'manual');
+    const approvalReady = String(state.ui?.challenge?.approvalState || '') === 'ready' && approvedWager >= resolvedWager;
+    if (resolvedWager > 0 && approvalMode !== 'auto' && !approvalReady) {
+      state.ui.challenge.approvalState = 'required';
+      state.ui.challenge.approvalMessage = `Approve escrow for ${formatWagerInline(resolvedWager)} before sending.`;
+      showToast(state.ui.challenge.approvalMessage);
+      return;
+    }
 
     socket.send(
       JSON.stringify({

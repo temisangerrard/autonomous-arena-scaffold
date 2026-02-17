@@ -36,6 +36,14 @@ export function createInitialState() {
     deskAutoCollapsedByMatch: false,
     walletBalance: null,
     walletChainId: null,
+    escrowApproval: {
+      mode: 'manual',
+      network: 'unknown',
+      reason: '',
+      source: 'config',
+      autoApproveMaxWager: null,
+      autoApproveDailyCap: null
+    },
     streak: 0,
     quickstart: {
       challengeSent: false,
@@ -50,7 +58,10 @@ export function createInitialState() {
       interactionMode: 'none',
       challenge: {
         gameType: 'rps',
-        wager: 1
+        wager: 1,
+        approvalState: 'idle',
+        approvalMessage: '',
+        approvalWager: 0
       },
       dealer: {
         stationId: '',
@@ -69,6 +80,13 @@ export function createInitialState() {
         reasonCode: '',
         reasonText: '',
         preflight: null
+      },
+      world: {
+        stationId: '',
+        interactionTag: '',
+        title: '',
+        detail: '',
+        actionLabel: 'Use'
       }
     },
     touch: {
