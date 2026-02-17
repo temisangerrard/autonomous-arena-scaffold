@@ -1,53 +1,7 @@
 import { log as rootLog } from './logger.js';
+import { runMigrations, getMigrationStatus, type PgPool, type Migration } from './migrations/index.js';
 
 const log = rootLog.child({ module: 'database' });
-
-type PgPool = {
-  query: (text: string, values?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
-  end: () => Promise<void>;
-};
-
-const MIGRATIONS = `
-CREATE TABLE IF NOT EXISTS players (
-  id TEXT PRIMARY KEY,
-  display_name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'human',
-  wallet_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS challenges (
-  id TEXT PRIMARY KEY,
-  challenger_id TEXT NOT NULL,
-  opponent_id TEXT NOT NULL,
-  game_type TEXT NOT NULL,
-  wager NUMERIC NOT NULL DEFAULT 0,
-  status TEXT NOT NULL,
-  winner_id TEXT,
-  challenger_move TEXT,
-  opponent_move TEXT,
-  coinflip_result TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  resolved_at TIMESTAMPTZ,
-  challenge_json JSONB
-);
-
-CREATE TABLE IF NOT EXISTS escrow_events (
-  id SERIAL PRIMARY KEY,
-  challenge_id TEXT NOT NULL,
-  phase TEXT NOT NULL,
-  ok BOOLEAN NOT NULL,
-  reason TEXT,
-  tx_hash TEXT,
-  fee NUMERIC,
-  payout NUMERIC,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_escrow_events_challenge_id ON escrow_events(challenge_id);
-CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
-`;
 
 export class Database {
   private pool: PgPool | null = null;
@@ -68,9 +22,16 @@ export class Database {
         connectionTimeoutMillis: 5_000
       }) as unknown as PgPool;
 
-      // Run auto-migrations
-      await this.pool.query(MIGRATIONS);
-      log.info('connected to postgres and ran migrations');
+      // Run versioned migrations
+      const result = await runMigrations(this.pool);
+      if (result.errors.length > 0) {
+        log.error({ errors: result.errors }, 'migration errors occurred');
+      }
+      log.info({ 
+        applied: result.applied, 
+        versions: result.versions,
+        hasErrors: result.errors.length > 0
+      }, 'database connected and migrations completed');
     } catch (err) {
       log.error({ err }, 'failed to connect to postgres — running without persistent database');
       this.pool = null;
@@ -79,6 +40,25 @@ export class Database {
 
   get connected(): boolean {
     return this.pool !== null;
+  }
+
+  /**
+   * Get the underlying pool for migrations and advanced queries
+   */
+  getPool(): PgPool | null {
+    return this.pool;
+  }
+
+  /**
+   * Get migration status for diagnostics endpoint
+   */
+  async getMigrationStatus(): Promise<{
+    currentVersion: number;
+    appliedMigrations: Array<{ version: number; name: string; appliedAt: string | null }>;
+    pendingMigrations: Array<{ version: number; name: string }>;
+  } | null> {
+    if (!this.pool) return null;
+    return getMigrationStatus(this.pool);
   }
 
   // ─── Players ────────────────────────────────────────────
@@ -103,6 +83,90 @@ export class Database {
       );
     } catch (err) {
       log.error({ err, playerId: params.id }, 'failed to upsert player');
+    }
+  }
+
+  async getPlayerById(id: string): Promise<{
+    id: string;
+    displayName: string;
+    role: string;
+    walletId: string | null;
+    wins: number;
+    losses: number;
+    totalWagered: number;
+    totalWon: number;
+  } | null> {
+    if (!this.pool) return null;
+    try {
+      const result = await this.pool.query(
+        `SELECT id, display_name, role, wallet_id, 
+           COALESCE(wins, 0) as wins, 
+           COALESCE(losses, 0) as losses,
+           COALESCE(total_wagered, 0) as total_wagered,
+           COALESCE(total_won, 0) as total_won
+         FROM players WHERE id = $1`,
+        [id]
+      );
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0]!;
+      return {
+        id: String(row.id),
+        displayName: String(row.display_name),
+        role: String(row.role),
+        walletId: row.wallet_id ? String(row.wallet_id) : null,
+        wins: Number(row.wins ?? 0),
+        losses: Number(row.losses ?? 0),
+        totalWagered: Number(row.total_wagered ?? 0),
+        totalWon: Number(row.total_won ?? 0)
+      };
+    } catch (err) {
+      log.error({ err, playerId: id }, 'failed to get player');
+      return null;
+    }
+  }
+
+  async updatePlayerStats(params: {
+    id: string;
+    wins?: number;
+    losses?: number;
+    totalWagered?: number;
+    totalWon?: number;
+  }): Promise<void> {
+    if (!this.pool) return;
+    try {
+      const sets: string[] = ['updated_at = NOW()'];
+      const values: unknown[] = [params.id];
+      let paramIdx = 2;
+
+      if (params.wins !== undefined) {
+        sets.push(`wins = COALESCE(wins, 0) + $${paramIdx}`);
+        values.push(params.wins);
+        paramIdx++;
+      }
+      if (params.losses !== undefined) {
+        sets.push(`losses = COALESCE(losses, 0) + $${paramIdx}`);
+        values.push(params.losses);
+        paramIdx++;
+      }
+      if (params.totalWagered !== undefined) {
+        sets.push(`total_wagered = COALESCE(total_wagered, 0) + $${paramIdx}`);
+        values.push(params.totalWagered);
+        paramIdx++;
+      }
+      if (params.totalWon !== undefined) {
+        sets.push(`total_won = COALESCE(total_won, 0) + $${paramIdx}`);
+        values.push(params.totalWon);
+        paramIdx++;
+      }
+
+      if (sets.length === 1) return; // Only updated_at
+
+      await this.pool.query(
+        `UPDATE players SET ${sets.join(', ')} WHERE id = $1`,
+        values
+      );
+    } catch (err) {
+      log.error({ err, playerId: params.id }, 'failed to update player stats');
     }
   }
 
@@ -169,6 +233,41 @@ export class Database {
       );
     } catch (err) {
       log.error({ err, challengeId: params.id }, 'failed to update challenge status');
+    }
+  }
+
+  async getChallengeById(id: string): Promise<{
+    id: string;
+    challengerId: string;
+    opponentId: string;
+    gameType: string;
+    wager: number;
+    status: string;
+    winnerId: string | null;
+    createdAt: number;
+  } | null> {
+    if (!this.pool) return null;
+    try {
+      const result = await this.pool.query(
+        `SELECT id, challenger_id, opponent_id, game_type, wager, status, winner_id, created_at
+         FROM challenges WHERE id = $1`,
+        [id]
+      );
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0]!;
+      return {
+        id: String(row.id),
+        challengerId: String(row.challenger_id),
+        opponentId: String(row.opponent_id),
+        gameType: String(row.game_type),
+        wager: Number(row.wager),
+        status: String(row.status),
+        winnerId: row.winner_id ? String(row.winner_id) : null,
+        createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now()
+      };
+    } catch (err) {
+      log.error({ err, challengeId: id }, 'failed to get challenge');
+      return null;
     }
   }
 
@@ -259,6 +358,163 @@ export class Database {
     }
   }
 
+  // ─── Rate Limiting ──────────────────────────────────────
+
+  async checkRateLimit(params: {
+    key: string;
+    limit: number;
+    windowMs: number;
+  }): Promise<{ allowed: boolean; count: number; resetAt: number }> {
+    if (!this.pool) {
+      return { allowed: true, count: 0, resetAt: Date.now() + params.windowMs };
+    }
+
+    const now = Date.now();
+    const windowStart = new Date(now - (now % params.windowMs));
+
+    try {
+      // Clean up expired entries first
+      await this.pool.query(
+        `DELETE FROM rate_limits WHERE window_start < $1`,
+        [windowStart.toISOString()]
+      );
+
+      // Get or create rate limit record
+      const result = await this.pool.query(
+        `INSERT INTO rate_limits (key, count, window_start, updated_at)
+         VALUES ($1, 1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET
+           count = CASE 
+             WHEN rate_limits.window_start = $2 THEN rate_limits.count + 1
+             ELSE 1
+           END,
+           window_start = CASE
+             WHEN rate_limits.window_start = $2 THEN rate_limits.window_start
+             ELSE $2
+           END,
+           updated_at = NOW()
+         RETURNING count, window_start`,
+        [params.key, windowStart.toISOString()]
+      );
+
+      const row = result.rows[0]!;
+      const count = Number(row.count);
+      const resetAt = new Date(String(row.window_start)).getTime() + params.windowMs;
+
+      return {
+        allowed: count <= params.limit,
+        count,
+        resetAt
+      };
+    } catch (err) {
+      log.error({ err, key: params.key }, 'rate limit check failed');
+      return { allowed: true, count: 0, resetAt: now + params.windowMs };
+    }
+  }
+
+  // ─── Audit Logging ──────────────────────────────────────
+
+  async insertAuditLog(params: {
+    actorId?: string;
+    actorType?: string;
+    action: string;
+    resourceType?: string;
+    resourceId?: string;
+    metadata?: object;
+    ipAddress?: string;
+    userAgent?: string;
+  }): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        `INSERT INTO audit_log (actor_id, actor_type, action, resource_type, resource_id, metadata, ip_address, user_agent, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          params.actorId ?? null,
+          params.actorType ?? null,
+          params.action,
+          params.resourceType ?? null,
+          params.resourceId ?? null,
+          params.metadata ? JSON.stringify(params.metadata) : null,
+          params.ipAddress ?? null,
+          params.userAgent ?? null
+        ]
+      );
+    } catch (err) {
+      log.error({ err, action: params.action }, 'failed to insert audit log');
+    }
+  }
+
+  async getAuditLogs(params: {
+    actorId?: string;
+    action?: string;
+    resourceType?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<{
+    id: number;
+    actorId: string | null;
+    actorType: string | null;
+    action: string;
+    resourceType: string | null;
+    resourceId: string | null;
+    metadata: object | null;
+    ipAddress: string | null;
+    createdAt: number;
+  }>> {
+    if (!this.pool) return [];
+    try {
+      const conditions: string[] = [];
+      const values: unknown[] = [];
+      let paramIdx = 1;
+
+      if (params.actorId) {
+        conditions.push(`actor_id = $${paramIdx}`);
+        values.push(params.actorId);
+        paramIdx++;
+      }
+      if (params.action) {
+        conditions.push(`action = $${paramIdx}`);
+        values.push(params.action);
+        paramIdx++;
+      }
+      if (params.resourceType) {
+        conditions.push(`resource_type = $${paramIdx}`);
+        values.push(params.resourceType);
+        paramIdx++;
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const limit = Math.max(1, Math.min(1000, params.limit ?? 100));
+      const offset = Math.max(0, params.offset ?? 0);
+
+      values.push(limit, offset);
+      const result = await this.pool.query(
+        `SELECT id, actor_id, actor_type, action, resource_type, resource_id, metadata, ip_address, created_at
+         FROM audit_log
+         ${whereClause}
+         ORDER BY created_at DESC
+         LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+        values
+      );
+
+      return result.rows.map(row => ({
+        id: Number(row.id),
+        actorId: row.actor_id ? String(row.actor_id) : null,
+        actorType: row.actor_type ? String(row.actor_type) : null,
+        action: String(row.action),
+        resourceType: row.resource_type ? String(row.resource_type) : null,
+        resourceId: row.resource_id ? String(row.resource_id) : null,
+        metadata: row.metadata ? (row.metadata as object) : null,
+        ipAddress: row.ip_address ? String(row.ip_address) : null,
+        createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now()
+      }));
+    } catch (err) {
+      log.error({ err }, 'failed to get audit logs');
+      return [];
+    }
+  }
+
   // ─── Recovery Queries ───────────────────────────────────
 
   async findStuckChallenges(): Promise<Array<{
@@ -287,6 +543,51 @@ export class Database {
       }));
     } catch (err) {
       log.error({ err }, 'failed to query stuck challenges');
+      return [];
+    }
+  }
+
+  // ─── Leaderboard ────────────────────────────────────────
+
+  async getLeaderboard(params: {
+    limit?: number;
+    sortBy?: 'wins' | 'totalWon';
+  }): Promise<Array<{
+    id: string;
+    displayName: string;
+    wins: number;
+    losses: number;
+    totalWagered: number;
+    totalWon: number;
+  }>> {
+    if (!this.pool) return [];
+    try {
+      const limit = Math.max(1, Math.min(100, params.limit ?? 10));
+      const sortBy = params.sortBy === 'totalWon' ? 'total_won' : 'wins';
+      
+      const result = await this.pool.query(
+        `SELECT id, display_name, 
+           COALESCE(wins, 0) as wins, 
+           COALESCE(losses, 0) as losses,
+           COALESCE(total_wagered, 0) as total_wagered,
+           COALESCE(total_won, 0) as total_won
+         FROM players
+         WHERE role = 'human'
+         ORDER BY ${sortBy} DESC, wins DESC
+         LIMIT $1`,
+        [limit]
+      );
+
+      return result.rows.map(row => ({
+        id: String(row.id),
+        displayName: String(row.display_name),
+        wins: Number(row.wins),
+        losses: Number(row.losses),
+        totalWagered: Number(row.total_wagered),
+        totalWon: Number(row.total_won)
+      }));
+    } catch (err) {
+      log.error({ err }, 'failed to get leaderboard');
       return [];
     }
   }

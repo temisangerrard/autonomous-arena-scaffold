@@ -44,7 +44,8 @@ export function createInputSystem({
       || event.code === 'KeyT'
       || event.code === 'Escape'
       || event.code === 'KeyE'
-      || event.code === 'Tab';
+      || event.code === 'Tab'
+      || event.code === 'KeyV';
     const recoveredMovementFromWager =
       editing
       && movementKey
@@ -86,6 +87,10 @@ export function createInputSystem({
       event.preventDefault();
       actions.cycleNearbyTarget?.(!event.shiftKey);
     }
+    if (event.code === 'KeyV') {
+      event.preventDefault();
+      actions.cycleNearbyTarget?.(!event.shiftKey);
+    }
 
     if (event.code === 'Escape') {
       actions.setInteractOpen?.(false);
@@ -124,8 +129,8 @@ export function createInputSystem({
       actions.respondToIncoming?.(false);
     }
 
-    // Toggle control hints panel
-    if (event.code === 'Slash' && event.shiftKey) {
+    // Toggle control hints panel (`?` can arrive either as Shift+/ or as key "?").
+    if ((event.code === 'Slash' && event.shiftKey) || event.key === '?') {
       event.preventDefault();
       const hintsPanel = document.getElementById('control-hints');
       if (hintsPanel) {

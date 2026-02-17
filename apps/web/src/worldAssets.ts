@@ -18,12 +18,12 @@ const WORLD_FILE_BY_ALIAS: Record<string, string> = {
 };
 
 const WORLD_VERSION_BY_ALIAS: Record<string, string> = {
-  train_world: '2026-02-16.1',
-  'train-world': '2026-02-16.1',
-  mega: '2026-02-16.1',
-  plaza: '2026-02-16.1',
-  base: '2026-02-16.1',
-  world: '2026-02-16.1'
+  train_world: '2026-02-17.2',
+  'train-world': '2026-02-17.2',
+  mega: '2026-02-17.2',
+  plaza: '2026-02-17.2',
+  base: '2026-02-17.2',
+  world: '2026-02-17.2'
 };
 
 export function worldFilenameByAlias(): Record<string, string> {

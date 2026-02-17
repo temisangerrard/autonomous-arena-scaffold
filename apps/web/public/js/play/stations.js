@@ -63,7 +63,11 @@ function createStationMarker(THREE, station) {
   const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.65, 12), pillarMat);
   pillar.position.y = 0.47;
 
-  const iconColor = station.kind === 'cashier_bank' ? 0x2f6dff : 0xf39c12;
+  const iconColor = station.kind === 'cashier_bank'
+    ? 0x2f6dff
+    : station.kind === 'world_interactable'
+      ? 0x2fbf8a
+      : 0xf39c12;
   const iconMat = new THREE.MeshStandardMaterial({ color: iconColor, roughness: 0.25, metalness: 0.4, emissive: iconColor, emissiveIntensity: 0.18 });
   const icon = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), iconMat);
   icon.position.y = 0.88;
@@ -105,4 +109,3 @@ export function createStationSystem({ THREE, scene }) {
 
   return { markers, syncStations };
 }
-

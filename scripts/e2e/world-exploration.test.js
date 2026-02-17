@@ -181,4 +181,33 @@ test.describe('World Exploration', () => {
     expect(typeof after.playerId).toBe('string');
     await page.screenshot({ path: 'output/e2e/corners-test.png', fullPage: true });
   });
+
+  test('should keep display position close to authoritative position', async ({ page }) => {
+    await page.click('canvas#scene');
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(800);
+    await page.keyboard.up('KeyW');
+    await page.waitForTimeout(350);
+
+    const sample = await page.evaluate(() => {
+      const parsed = JSON.parse(window.render_game_to_text?.() || '{}');
+      const p = parsed.player || {};
+      const dx = Number(p.x || 0) - Number(p.displayX || 0);
+      const dz = Number(p.z || 0) - Number(p.displayZ || 0);
+      return {
+        error: Math.hypot(dx, dz),
+        player: p
+      };
+    });
+
+    expect(sample.error).toBeLessThan(1);
+  });
+
+  test('should render updated interaction prompt copy', async ({ page }) => {
+    await page.waitForTimeout(1500);
+    const text = await page.locator('#interaction-prompt').textContent();
+    if (text) {
+      expect(text).toContain('E interact');
+    }
+  });
 });

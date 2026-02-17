@@ -711,3 +711,134 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - run was terminated after collecting failure context.
 - Known issue encountered during validation:
   - `tsc --noEmit` for server/web intermittently hung in this local environment (stale `tsc` processes had to be killed). This appears environmental; tests and runtime e2e still executed.
+
+- 2026-02-17: Auth/session isolation incident response + live production remediation (Codex).
+- Reported incident:
+  - Player signing in as `specialopsjon` was receiving another user profile (`profile_3` / `wallet_13`).
+  - Root symptom confirmed in web Redis identity cache (`arena:web:id:*`): Google `sub=111236128345882807948` had stale linkage to `profile_3`.
+- Code-level hardening shipped in web API (`apps/web/src/server.ts`):
+  - Added canonical link reconciliation (`reconcileIdentityLink`) on protected routes:
+    - resolves `runtime /profiles/link?subject=...` and corrects session identity if mismatched.
+  - Hardened provisioning (`ensurePlayerProvisioned`) to prefer canonical subject links and avoid trusting stale in-memory link state.
+  - Local auth isolation fix:
+    - local identities now key by entered username (`local:<username>`) instead of collapsing to one fixed admin subject.
+  - Type-safety fix for escrow prepare response spread (`runtimePost<Record<string, unknown>>`).
+- Live data repair executed:
+  - Removed stale Redis identity entry for `sub=111236128345882807948`.
+  - Re-provisioned canonical runtime subject link:
+    - `google:111236128345882807948 -> profile_6 / wallet_32`
+  - Verified in runtime endpoint and Postgres:
+    - `/profiles/link?subject=google:111236128345882807948` returns `profile_6/wallet_32` with `continuitySource=postgres`.
+    - `auth_subject_links` contains correct row.
+- Deploys performed:
+  - `arena-web-api` deployed:
+    - revision `arena-web-api-00029-gkm` (auth fix rollout)
+    - revision `arena-web-api-00030-d4f` (world version bump rollout)
+  - Netlify production deployed multiple times; latest unique deploy observed:
+    - `https://6994c0869a655d656840be64--autobett.netlify.app`
+    - production URL remains `https://autobett.netlify.app`
+- Avatar/world visual state work:
+  - Confirmed uploaded character assets exist and are publicly reachable:
+    - `/assets/characters/*.glb` all returning HTTP 200 on production.
+  - Clarified rendering paths:
+    - in-world baked NPCs come from world GLB;
+    - runtime character models are loaded from `/assets/characters/*` in `avatars.js`.
+  - Bumped world cache version for all aliases to force fresh world fetch:
+    - `apps/web/src/worldAssets.ts`
+    - `apps/web/public/js/world-common.js`
+    - version: `2026-02-17.2`
+  - Verified live `/api/worlds` reports `2026-02-17.2` for all aliases.
+- Current live state snapshot (post-remediation):
+  - Canonical subject links in Postgres include:
+    - `google:111236128345882807948 -> profile_6 / wallet_32` (`specialopsjon`)
+    - `google:105082140011149965263 -> profile_3 / wallet_13` (Gbenga account remains intact)
+  - No server/runtime redeploy was needed for the latest visual/cache-bust pass; web API + Netlify were sufficient.
+
+- 2026-02-17: Production readiness hardening pass (Security, Migrations, Observability).
+- Security hardening:
+  - Added production startup validation in `apps/server/src/middleware/security.ts`:
+    - Validates critical env vars at startup (`GAME_WS_AUTH_SECRET`, `INTERNAL_SERVICE_TOKEN`, `REDIS_URL`, `DATABASE_URL`, `ADMIN_EMAILS`).
+    - Fails fast in production if missing; warns in development.
+    - Checks for insecure default values (e.g., `WALLET_ENCRYPTION_KEY=arena-dev-wallet-key`).
+  - Added security headers middleware:
+    - CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy.
+    - Cache-Control headers for API responses.
+  - Added rate limiting middleware in `apps/server/src/middleware/rateLimit.ts`:
+    - Database-backed rate limiting with in-memory fallback.
+    - Configurable presets per endpoint type (api, auth, challenge, wallet, websocket, health).
+    - Rate limit headers in responses (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset).
+  - Added request ID tracking (X-Request-ID) for request tracing.
+  - Added IP allowlist middleware for admin endpoints.
+  - Added request size limiter to prevent oversized payloads.
+  - Updated `.env.example` with `WALLET_ENCRYPTION_KEY` documentation.
+- Database migrations:
+  - Created versioned migration system in `apps/server/src/migrations/index.ts`:
+    - Up/down migrations with automatic version tracking.
+    - Rollback capability.
+    - 5 migrations included: initial schema, player stats, challenge indexes, rate limit tracking, audit log.
+  - Updated `apps/server/src/Database.ts` to use migrations system.
+  - Added migration CLI script `scripts/migrate.ts` with npm scripts:
+    - `npm run migrate` - Run pending migrations
+    - `npm run migrate:status` - Show migration status
+    - `npm run migrate:rollback` - Rollback last migration
+    - `npm run migrate:reset` - Rollback all migrations
+  - Added new database methods:
+    - `getPlayerById()` with stats fields
+    - `updatePlayerStats()` for wins/losses/wagered/won
+    - `checkRateLimit()` for rate limit tracking
+    - `insertAuditLog()` and `getAuditLogs()` for audit logging
+    - `getLeaderboard()` for player rankings
+- Observability stack:
+  - Created Prometheus-compatible metrics system in `apps/server/src/metrics.ts`:
+    - Counters, gauges, and histograms for metrics collection.
+    - HTTP request tracking (duration, count, in-flight).
+    - WebSocket metrics (connections, messages).
+    - Challenge metrics (created, resolved, active, duration).
+    - Escrow metrics (locks, resolves, refunds, value locked).
+    - System metrics (memory, CPU, uptime).
+    - Database metrics (query duration, errors).
+  - Added metrics endpoints:
+    - `GET /metrics` - Prometheus format
+    - `GET /metrics.json` - JSON format
+  - Added new routes:
+    - `GET /migrations/status` - Migration status (internal auth)
+    - `GET /leaderboard` - Player leaderboard
+  - Added audit logging to database with `audit_log` table.
+- Validation:
+  - `npm run -w @arena/server typecheck` ✅
+  - `npm run -w @arena/server test` ✅ (31/31 tests passing)
+  - `npm run build` ✅ (all workspaces)
+
+- 2026-02-17: Performance, Testing, and Frontend Polish pass (items 7, 8, 9).
+- Performance Optimizations:
+  - Added caching middleware in `apps/web/src/middleware/cache.ts`:
+    - Long-term caching for static assets (1 year, immutable).
+    - ETag support for cache validation.
+    - 304 Not Modified responses for fresh content.
+    - Cacheable API response helper.
+- Testing Improvements:
+  - Added load testing script `scripts/load-test.ts`:
+    - Configurable virtual users, duration, ramp-up.
+    - Simulates user journeys (health, presence, challenges).
+    - Reports response times (min, max, avg, p50, p95, p99).
+    - Per-endpoint statistics and error summaries.
+    - Exit codes based on failure rate threshold.
+  - npm scripts: `npm run load-test`, `npm run load-test:heavy`.
+- Frontend Polish:
+  - Added PWA manifest `apps/web/public/manifest.json`:
+    - App name, icons, theme colors.
+    - Shortcuts to Play and Dashboard.
+  - Added offline support:
+    - Service worker `apps/web/public/sw-offline.js`:
+      - Cache-first for static assets.
+      - Network-first for HTML and API.
+      - Offline page fallback.
+    - Offline page `apps/web/public/offline.html`:
+      - User-friendly offline message.
+      - Retry button with network status detection.
+      - Auto-reload when back online.
+  - Added error boundary system `apps/web/public/js/error-boundary.js`:
+    - Global error and promise rejection handling.
+    - User-friendly error toast notifications.
+    - Retry and dismiss actions.
+    - Error logging to server.

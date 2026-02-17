@@ -6,6 +6,8 @@
  * - Improved walking animation
  * - Subtle idle animations
  */
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 export const AVATAR_GROUND_OFFSET = -0.7;
 
@@ -356,6 +358,46 @@ export function animateAvatar(parts, speed, t, phaseOffset = 0) {
 }
 
 export function createAvatarSystem({ THREE, scene }) {
+  const npcLoader = new GLTFLoader();
+  const npcPrefabCache = new Map();
+  const clock = new THREE.Clock();
+  const NPC_MODEL_CONFIGS = [
+    { file: 'anime_girl_mia_ter_excited_preview.glb', targetHeight: 1.72, yawOffset: 0 },
+    { file: 'arab_man.glb', targetHeight: 1.74, yawOffset: 0 },
+    { file: 'mordecai_-_fortnite_skin.glb', targetHeight: 1.68, yawOffset: 0 },
+    { file: 'neutral_idle_fbi.glb', targetHeight: 1.72, yawOffset: 0 },
+    { file: 'obelix.glb', targetHeight: 1.62, yawOffset: 0 },
+    { file: 'ophelia_ramirez_life_and_times_of_juniper_lee.glb', targetHeight: 1.7, yawOffset: 0 },
+    { file: 'rigby_-_fortnite_sidekick.glb', targetHeight: 1.66, yawOffset: 0 },
+    { file: 'spyro_reignited_trilogy_gavin.glb', targetHeight: 1.7, yawOffset: 0 }
+  ];
+
+  function isNpcModelEligible(player) {
+    if (!player || player.role !== 'agent') return false;
+    const id = String(player.id || '').trim();
+    if (!id) return false;
+    // Keep synthetic/system entities on procedural fallback.
+    if (id === 'system_house') return false;
+    return true;
+  }
+
+  function npcModelConfigFor(playerId) {
+    let hash = 0;
+    for (let i = 0; i < playerId.length; i += 1) {
+      hash = (hash * 31 + playerId.charCodeAt(i)) >>> 0;
+    }
+    return NPC_MODEL_CONFIGS[hash % NPC_MODEL_CONFIGS.length] || NPC_MODEL_CONFIGS[0];
+  }
+
+  async function loadNpcPrefab(url) {
+    if (npcPrefabCache.has(url)) {
+      return npcPrefabCache.get(url);
+    }
+    const promise = npcLoader.loadAsync(url).then((gltf) => gltf).catch(() => null);
+    npcPrefabCache.set(url, promise);
+    return promise;
+  }
+
   const localAvatarParts = createAvatar(THREE, COLORS.local, 'You', true);
   scene.add(localAvatarParts.avatar);
   const remoteAvatars = new Map();
@@ -367,19 +409,84 @@ export function createAvatarSystem({ THREE, scene }) {
       let remote = remoteAvatars.get(player.id);
       if (!remote) {
         const colorScheme = player.role === 'agent' ? COLORS.agent : COLORS.human;
-        remote = createAvatar(THREE, colorScheme, player.displayName, false);
+        remote = {
+          ...createAvatar(THREE, colorScheme, player.displayName, false),
+          proceduralAvatar: null,
+          glbRoot: null,
+          glbAnchor: null,
+          glbYawOffset: 0,
+          mixer: null
+        };
+        remote.proceduralAvatar = remote.avatar;
         remote.avatar.position.y = 1.2;
         remoteAvatars.set(player.id, remote);
         scene.add(remote.avatar);
+
+        if (isNpcModelEligible(player)) {
+          const cfg = npcModelConfigFor(player.id);
+          const url = `/assets/characters/${cfg.file}`;
+          void loadNpcPrefab(url).then((gltf) => {
+            const active = remoteAvatars.get(player.id);
+            if (!active || !gltf || active.glbRoot) return;
+            const root = cloneSkeleton(gltf.scene);
+            const preBox = new THREE.Box3().setFromObject(root);
+            const preSize = preBox.getSize(new THREE.Vector3());
+            const rawHeight = Math.max(0.0001, preSize.y || 1);
+            const scale = (Number(cfg.targetHeight) || 1.7) / rawHeight;
+            root.scale.setScalar(scale);
+
+            // Recenter and ground each imported character so mixed-source assets align.
+            const postBox = new THREE.Box3().setFromObject(root);
+            const postCenter = postBox.getCenter(new THREE.Vector3());
+            root.position.x -= postCenter.x;
+            root.position.z -= postCenter.z;
+            root.position.y -= postBox.min.y;
+
+            const anchor = new THREE.Group();
+            anchor.add(root);
+            anchor.rotation.y = Number(cfg.yawOffset) || 0;
+
+            root.traverse((node) => {
+              if (node.isMesh) {
+                node.castShadow = false;
+                node.receiveShadow = true;
+              }
+            });
+            if (active.proceduralAvatar) {
+              scene.remove(active.proceduralAvatar);
+            }
+            active.glbRoot = root;
+            active.glbAnchor = anchor;
+            active.glbYawOffset = Number(cfg.yawOffset) || 0;
+            active.avatar = anchor;
+            scene.add(anchor);
+            if (Array.isArray(gltf.animations) && gltf.animations.length > 0) {
+              const mixer = new THREE.AnimationMixer(anchor);
+              const pickByName = (name) => gltf.animations.find((clip) => String(clip.name || '').toLowerCase() === name) || null;
+              const clip = pickByName('idle') || gltf.animations[0] || null;
+              if (clip) {
+                mixer.clipAction(clip).play();
+              }
+              active.mixer = mixer;
+            }
+          });
+        }
       }
 
       remote.setName(player.displayName);
 
-      // Smooth interpolation
-      const lerpFactor = 0.22;
-      player.displayX += (player.x - player.displayX) * lerpFactor;
-      player.displayY += (player.y - player.displayY) * lerpFactor;
-      player.displayZ += (player.z - player.displayZ) * lerpFactor;
+      // Snap large corrections to avoid visual ghost-through during authoritative pushes.
+      const positionError = Math.hypot(player.x - player.displayX, player.z - player.displayZ);
+      if (positionError > 0.9) {
+        player.displayX = player.x;
+        player.displayY = player.y;
+        player.displayZ = player.z;
+      } else {
+        const lerpFactor = 0.22;
+        player.displayX += (player.x - player.displayX) * lerpFactor;
+        player.displayY += (player.y - player.displayY) * lerpFactor;
+        player.displayZ += (player.z - player.displayZ) * lerpFactor;
+      }
       player.displayYaw += (player.yaw - player.displayYaw) * 0.2;
 
       remote.avatar.position.set(
@@ -387,9 +494,15 @@ export function createAvatarSystem({ THREE, scene }) {
         player.displayY + AVATAR_GROUND_OFFSET, 
         player.displayZ
       );
-      remote.avatar.rotation.y = player.displayYaw;
+      remote.avatar.rotation.y = player.displayYaw + (remote.glbYawOffset || 0);
 
-      animateAvatar(remote, player.speed, performance.now() * 0.004, player.id.length * 0.61);
+      if (remote.glbRoot) {
+        if (remote.mixer) {
+          remote.mixer.update(clock.getDelta());
+        }
+      } else {
+        animateAvatar(remote, player.speed, performance.now() * 0.004, player.id.length * 0.61);
+      }
     }
   }
 

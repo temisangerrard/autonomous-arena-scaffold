@@ -14,12 +14,12 @@ const WORLD_FILENAME_FALLBACK = {
   world: 'train_station_world.glb'
 };
 const WORLD_VERSION_FALLBACK = {
-  train_world: '2026-02-16.1',
-  'train-world': '2026-02-16.1',
-  mega: '2026-02-16.1',
-  plaza: '2026-02-16.1',
-  base: '2026-02-16.1',
-  world: '2026-02-16.1'
+  train_world: '2026-02-17.2',
+  'train-world': '2026-02-17.2',
+  mega: '2026-02-17.2',
+  plaza: '2026-02-17.2',
+  base: '2026-02-17.2',
+  world: '2026-02-17.2'
 };
 
 function normalizeWorldAlias(alias) {

@@ -9,6 +9,8 @@ import type { ChallengeService } from '../ChallengeService.js';
 import type { Database } from '../Database.js';
 import { WORLD_SECTION_SPAWNS } from '../WorldSim.js';
 import type { AdminCommand } from '../DistributedBus.js';
+import { handleMetricsEndpoint, handleMetricsJsonEndpoint } from '../metrics.js';
+import { applySecurityHeaders, handleCors } from '../middleware/security.js';
 
 export type RouteContext = {
   serverInstanceId: string;
@@ -222,6 +224,43 @@ export function createRouter(ctx: RouteContext) {
 
     if (req.url === '/health') {
       handleHealth(req, res);
+      return;
+    }
+
+    // Prometheus metrics endpoint
+    if (req.url === '/metrics') {
+      handleMetricsEndpoint(req, res);
+      return;
+    }
+
+    // JSON metrics endpoint
+    if (req.url === '/metrics.json') {
+      handleMetricsJsonEndpoint(req, res);
+      return;
+    }
+
+    // Database migration status
+    if (req.url === '/migrations/status') {
+      if (!isInternalAuthorized(req, ctx.internalToken)) {
+        res.statusCode = 401;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: false, reason: 'unauthorized_internal' }));
+        return;
+      }
+      const status = await ctx.database.getMigrationStatus();
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: true, ...status }));
+      return;
+    }
+
+    // Leaderboard endpoint
+    if (req.url?.startsWith('/leaderboard')) {
+      const parsed = new URL(req.url ?? '/', 'http://localhost');
+      const limit = Math.max(1, Math.min(100, Number(parsed.searchParams.get('limit') ?? 10)));
+      const sortBy = parsed.searchParams.get('sortBy') === 'totalWon' ? 'totalWon' : 'wins';
+      const leaderboard = await ctx.database.getLeaderboard({ limit, sortBy });
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: true, leaderboard }));
       return;
     }
 

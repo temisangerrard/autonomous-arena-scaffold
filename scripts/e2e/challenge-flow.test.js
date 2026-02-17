@@ -72,6 +72,28 @@ test.describe('Challenge Flow', () => {
     await page.screenshot({ path: 'output/e2e/game-controls.png' });
   });
 
+  test('should expose updated target-cycle hints and keep V in play mode', async ({ page }) => {
+    await ensureAuthenticatedPlay(page);
+    await openPlay(page);
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(2500);
+
+    await page.keyboard.press('?');
+    const hints = page.locator('#control-hints');
+    await expect(hints).toHaveAttribute('aria-hidden', 'false');
+    await expect(hints).toContainText('Tab / V');
+    await expect(hints).not.toContainText('View profile');
+
+    const beforeUrl = page.url();
+    await page.keyboard.press('v');
+    await page.waitForTimeout(250);
+    expect(page.url()).toBe(beforeUrl);
+
+    const state = await page.evaluate(() => JSON.parse(window.render_game_to_text?.() || '{}'));
+    expect(state.mode).toBe('play');
+    await page.screenshot({ path: 'output/e2e/controls-v-target.png' });
+  });
+
   test('should display HUD with game info', async ({ page }) => {
     await ensureAuthenticatedPlay(page);
     await openPlay(page);

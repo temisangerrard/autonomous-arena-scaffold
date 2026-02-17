@@ -1,0 +1,44 @@
+{
+  "name": "Autonomous Arena",
+  "short_name": "Arena",
+  "description": "3D browser arena with autonomous agents and onchain betting",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#ff6b6b",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/img/icon-arena.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/img/icon-arena.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Play",
+      "short_name": "Play",
+      "description": "Start playing in the arena",
+      "url": "/play",
+      "icons": [{ "src": "/img/icon-arena.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View your profile and stats",
+      "url": "/dashboard",
+      "icons": [{ "src": "/img/icon-agent.svg", "sizes": "96x96" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

@@ -233,6 +233,39 @@ async function getIdentityFromReq(req: import('node:http').IncomingMessage): Pro
   return sessionStore.getIdentity(session.sub);
 }
 
+async function reconcileIdentityLink(identity: IdentityRecord): Promise<void> {
+  const subject = externalSubjectFromIdentity(identity);
+  let linkLookupFailed = false;
+  const link = await runtimeSubjectLink(subject).catch(() => {
+    linkLookupFailed = true;
+    return null;
+  });
+  if (!link) {
+    // If canonical lookup is available and no link exists, treat session linkage as stale.
+    // Re-provisioning here rebinds this subject to its own profile/wallet and prevents cross-user leakage.
+    if (!linkLookupFailed) {
+      await ensurePlayerProvisioned(identity);
+      await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+      if (identity.profileId) {
+        await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+      }
+    }
+    return;
+  }
+  const profileChanged = identity.profileId !== link.profileId;
+  const walletChanged = identity.walletId !== link.walletId;
+  if (!profileChanged && !walletChanged) {
+    return;
+  }
+
+  identity.profileId = link.profileId;
+  identity.walletId = link.walletId;
+  await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+  if (identity.profileId) {
+    await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+  }
+}
+
 async function requireRole(
   req: import('node:http').IncomingMessage,
   roles: Role[]
@@ -241,6 +274,7 @@ async function requireRole(
   if (!identity) {
     return { ok: false };
   }
+  await reconcileIdentityLink(identity).catch(() => undefined);
   if (!roles.includes(identity.role)) {
     return { ok: false };
   }
@@ -373,7 +407,19 @@ const chiefService = createChiefService({
 });
 
 async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
-  if (identity.profileId && identity.walletId) {
+  let linkLookupFailed = false;
+  const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => {
+    linkLookupFailed = true;
+    return null;
+  });
+  if (canonicalLink?.profileId && canonicalLink?.walletId) {
+    identity.profileId = canonicalLink.profileId;
+    identity.walletId = canonicalLink.walletId;
+    return;
+  }
+
+  // If canonical lookup is currently unavailable, avoid accidental duplicate provisioning.
+  if (linkLookupFailed && identity.profileId && identity.walletId) {
     return;
   }
 
@@ -733,7 +779,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: 'local_auth_disabled' }, 403);
       return;
     }
-    if (!localAdminUsername || !localAdminPassword) {
+    if (!localAdminPassword) {
       sendJson(res, { ok: false, reason: 'local_auth_misconfigured' }, 500);
       return;
     }
@@ -746,28 +792,41 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (username !== localAdminUsername || password !== localAdminPassword) {
+    const normalizedUsername = username.toLowerCase();
+    const normalizedAdminUsername = localAdminUsername.trim().toLowerCase();
+    const isAdminLogin = normalizedAdminUsername.length > 0 && normalizedUsername === normalizedAdminUsername;
+
+    if (password !== localAdminPassword) {
+      sendJson(res, { ok: false, reason: 'invalid_credentials' }, 401);
+      return;
+    }
+    if (isProduction && !isAdminLogin) {
       sendJson(res, { ok: false, reason: 'invalid_credentials' }, 401);
       return;
     }
 
     const now = Date.now();
-    const sub = `local:${localAdminUsername}`;
+    const sub = `local:${normalizedUsername}`;
     const existing = await sessionStore.getIdentity(sub);
+    const role: Role = isAdminLogin ? 'admin' : 'player';
+    const fallbackDisplayName = isAdminLogin ? 'Administrator' : username;
     const identity: IdentityRecord = existing ?? {
       sub,
-      email: `${localAdminUsername}@local.admin`,
-      name: 'Administrator',
+      email: `${normalizedUsername}@local.user`,
+      name: fallbackDisplayName,
       picture: '',
-      role: 'admin',
+      role,
       profileId: null,
       walletId: null,
       username: null,
-      displayName: 'Administrator',
+      displayName: fallbackDisplayName,
       createdAt: now,
       lastLoginAt: now
     };
-    identity.role = 'admin';
+    identity.email = `${normalizedUsername}@local.user`;
+    identity.name = fallbackDisplayName;
+    identity.displayName = identity.displayName || fallbackDisplayName;
+    identity.role = role;
     identity.lastLoginAt = now;
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
 
@@ -929,6 +988,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
     }
+    await reconcileIdentityLink(identity).catch(() => undefined);
     sendJson(res, { ok: true, user: sanitizeUser(identity) });
     return;
   }
@@ -1342,7 +1402,7 @@ const server = createServer(async (req, res) => {
     }
 
     try {
-      const payload = await runtimePost('/wallets/onchain/prepare-escrow', {
+      const payload = await runtimePost<Record<string, unknown>>('/wallets/onchain/prepare-escrow', {
         amount,
         walletIds: [auth.identity.walletId]
       });
