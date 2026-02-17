@@ -32,6 +32,14 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     maxWager?: number;
     managedBySuperAgent?: boolean;
   }) => { ok: true; botId: string } | { ok: false; reason: string; botId?: string; profileId?: string };
+  getSubjectLinkBySubject: (subject: string) => {
+    subject: string;
+    profileId: string;
+    walletId: string;
+    linkedAt: number;
+    updatedAt: number;
+    continuitySource: 'postgres' | 'runtime-file' | 'memory';
+  } | null;
   schedulePersistState: () => void;
 }) {
   router.get('/profiles', (_req, res) => {
@@ -97,6 +105,21 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
 
     sendJson(res, provisioned);
     deps.schedulePersistState();
+  });
+
+  router.get('/profiles/link', (req, res) => {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    const subject = String(url.searchParams.get('subject') ?? '').trim();
+    if (!subject) {
+      sendJson(res, { ok: false, reason: 'subject_required' }, 400);
+      return;
+    }
+    const link = deps.getSubjectLinkBySubject(subject);
+    if (!link) {
+      sendJson(res, { ok: false, reason: 'subject_link_not_found' }, 404);
+      return;
+    }
+    sendJson(res, { ok: true, link });
   });
 
   router.post('/profiles/:profileId/update', async (req, res, params) => {
@@ -168,4 +191,3 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     deps.schedulePersistState();
   });
 }
-

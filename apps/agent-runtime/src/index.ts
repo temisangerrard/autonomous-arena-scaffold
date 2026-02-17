@@ -43,6 +43,7 @@ import {
   type WalletPolicy
 } from './SuperAgent.js';
 import type { Personality } from './PolicyEngine.js';
+import { RuntimeDatabase, type SubjectLinkRecord } from './RuntimeDatabase.js';
 
 loadEnvFromFile();
 
@@ -115,6 +116,10 @@ const onchainProvider = onchainRpcUrl ? new JsonRpcProvider(onchainRpcUrl) : nul
 const gasFunderPrivateKey = process.env.GAS_FUNDING_PRIVATE_KEY || process.env.ESCROW_RESOLVER_PRIVATE_KEY || '';
 const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
 const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
+const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
+const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
+  ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
+  : process.env.NODE_ENV !== 'production';
 
 function startupDiagnostics() {
   console.log('[agent-runtime] startup diagnostics', {
@@ -147,7 +152,8 @@ const wallets = new Map<string, WalletRecord>();
 const escrowLocks = new Map<string, EscrowLockRecord>();
 const escrowSettlements: EscrowSettlementRecord[] = [];
 const backgroundBotIds = new Set<string>();
-const subjectToProfileId = new Map<string, string>();
+const subjectLinks = new Map<string, SubjectLinkRecord>();
+const runtimeDb = new RuntimeDatabase();
 
 type HouseLedgerEntry = {
   at: number;
@@ -206,7 +212,14 @@ type PersistedRuntimeState = {
     dayStamp: string;
     tokensToday: number;
   };
-  subjectLinks: Array<{ subject: string; profileId: string }>;
+  subjectLinks: Array<{
+    subject: string;
+    profileId: string;
+    walletId?: string;
+    linkedAt?: number;
+    updatedAt?: number;
+    continuitySource?: 'postgres' | 'runtime-file' | 'memory';
+  }>;
   profiles: Profile[];
   wallets: WalletRecord[];
   ownerBots: Array<{
@@ -1603,16 +1616,23 @@ function provisionProfileForSubject(params: {
     return { ok: false as const, reason: 'external_subject_required' };
   }
 
-  const linkedProfileId = subjectToProfileId.get(subject);
-  if (linkedProfileId) {
-    const linked = profiles.get(linkedProfileId);
+  const linkedState = subjectLinks.get(subject);
+  if (linkedState?.profileId) {
+    const linked = profiles.get(linkedState.profileId);
     if (linked) {
+      linkedState.walletId = linked.walletId;
+      linkedState.updatedAt = Date.now();
       return {
         ok: true as const,
         created: false as const,
         profile: linked,
         wallet: walletSummary(wallets.get(linked.walletId) ?? null),
-        botId: linked.ownedBotIds[0] ?? null
+        botId: linked.ownedBotIds[0] ?? null,
+        continuity: {
+          source: linkedState.continuitySource,
+          linkedAt: linkedState.linkedAt,
+          lastVerifiedAt: linkedState.updatedAt
+        }
       };
     }
   }
@@ -1632,12 +1652,33 @@ function provisionProfileForSubject(params: {
     return created;
   }
 
-  subjectToProfileId.set(subject, created.profile.id);
+  const now = Date.now();
+  subjectLinks.set(subject, {
+    subject,
+    profileId: created.profile.id,
+    walletId: created.profile.walletId,
+    linkedAt: now,
+    updatedAt: now,
+    continuitySource: runtimeDb.connected ? 'postgres' : 'runtime-file'
+  });
   schedulePersistState();
   return {
     ...created,
-    created: true as const
+    created: true as const,
+    continuity: {
+      source: runtimeDb.connected ? 'postgres' : 'runtime-file',
+      linkedAt: now,
+      lastVerifiedAt: now
+    }
   };
+}
+
+function getSubjectLinkBySubject(subject: string): SubjectLinkRecord | null {
+  const key = String(subject || '').trim();
+  if (!key) {
+    return null;
+  }
+  return subjectLinks.get(key) ?? null;
 }
 
 function createOwnerBotForProfile(profile: Profile, body: {
@@ -1697,9 +1738,11 @@ function ensureSeedBalances(): void {
       continue;
     }
     if (record.ownerProfileId) {
-      const floor = userSeedBalance;
-      if (wallet.balance < floor) {
-        wallet.balance = floor;
+      if (userWalletAutoFloor) {
+        const floor = userSeedBalance;
+        if (wallet.balance < floor) {
+          wallet.balance = floor;
+        }
       }
       continue;
     }
@@ -1740,7 +1783,14 @@ function buildPersistedState(): PersistedRuntimeState {
     superAgentMemory: superAgentMemory.slice(-80),
     superAgentEthSkills: superAgentEthSkills.slice(0, 40),
     superAgentLlmUsage: { ...superAgentLlmUsage },
-    subjectLinks: [...subjectToProfileId.entries()].map(([subject, profileId]) => ({ subject, profileId })),
+    subjectLinks: [...subjectLinks.values()].map((entry) => ({
+      subject: entry.subject,
+      profileId: entry.profileId,
+      walletId: entry.walletId,
+      linkedAt: entry.linkedAt,
+      updatedAt: entry.updatedAt,
+      continuitySource: entry.continuitySource
+    })),
     profiles: [...profiles.values()],
     wallets: [...wallets.values()],
     ownerBots,
@@ -1753,9 +1803,26 @@ function buildPersistedState(): PersistedRuntimeState {
 }
 
 async function persistRuntimeState(): Promise<void> {
+  const state = buildPersistedState();
+  if (runtimeDb.connected) {
+    await runtimeDb.saveState({
+      subjectLinks: state.subjectLinks.map((entry) => ({
+        subject: String(entry.subject || '').trim(),
+        profileId: String(entry.profileId || '').trim(),
+        walletId: String(entry.walletId || '').trim(),
+        linkedAt: Number(entry.linkedAt || 0) || Date.now(),
+        updatedAt: Number(entry.updatedAt || 0) || Date.now(),
+        continuitySource: 'postgres'
+      })),
+      profiles: state.profiles,
+      wallets: state.wallets,
+      ownerBots: state.ownerBots,
+      counters: state.counters
+    });
+  }
   const dir = path.dirname(runtimeStateFile);
   await mkdir(dir, { recursive: true });
-  await writeFile(runtimeStateFile, JSON.stringify(buildPersistedState(), null, 2), 'utf8');
+  await writeFile(runtimeStateFile, JSON.stringify(state, null, 2), 'utf8');
 }
 
 function schedulePersistState(): void {
@@ -1778,68 +1845,123 @@ async function loadPersistedState(): Promise<void> {
     if (!data || data.version !== 1) {
       return;
     }
-
-    if (data.superAgentConfig) {
-      superAgentConfig.id = data.superAgentConfig.id || superAgentConfig.id;
-      superAgentConfig.mode = data.superAgentConfig.mode || superAgentConfig.mode;
-      superAgentConfig.challengeEnabled = Boolean(data.superAgentConfig.challengeEnabled);
-      superAgentConfig.defaultChallengeCooldownMs = Math.max(1200, Number(data.superAgentConfig.defaultChallengeCooldownMs || superAgentConfig.defaultChallengeCooldownMs));
-      superAgentConfig.workerTargetPreference = data.superAgentConfig.workerTargetPreference || superAgentConfig.workerTargetPreference;
-      if (data.superAgentConfig.llmPolicy) {
-        superAgentConfig.llmPolicy = { ...superAgentConfig.llmPolicy, ...data.superAgentConfig.llmPolicy, enabled: true };
-      }
-      if (data.superAgentConfig.walletPolicy) {
-        superAgentConfig.walletPolicy = { ...superAgentConfig.walletPolicy, ...data.superAgentConfig.walletPolicy };
-      }
-    }
-
-    superAgentMemory.splice(0, superAgentMemory.length, ...(data.superAgentMemory || []).slice(-80));
-    superAgentEthSkills.splice(0, superAgentEthSkills.length, ...(data.superAgentEthSkills || []).slice(0, 40));
-    if (data.superAgentLlmUsage) {
-      superAgentLlmUsage.hourStamp = data.superAgentLlmUsage.hourStamp || '';
-      superAgentLlmUsage.requestsThisHour = Number(data.superAgentLlmUsage.requestsThisHour || 0);
-      superAgentLlmUsage.dayStamp = data.superAgentLlmUsage.dayStamp || '';
-      superAgentLlmUsage.tokensToday = Number(data.superAgentLlmUsage.tokensToday || 0);
-    }
-
-    subjectToProfileId.clear();
-    for (const link of data.subjectLinks || []) {
-      if (link?.subject && link?.profileId) {
-        subjectToProfileId.set(link.subject, link.profileId);
-      }
-    }
-
-    profiles.clear();
-    for (const profile of data.profiles || []) {
-      profiles.set(profile.id, profile);
-      if (profile.displayName) {
-        usedDisplayNames.add(profile.displayName);
-      }
-    }
-
-    wallets.clear();
-    for (const wallet of data.wallets || []) {
-      wallets.set(wallet.id, wallet);
-    }
-
-    for (const entry of data.ownerBots || []) {
-      if (!entry?.record?.id || !entry?.behavior) {
-        continue;
-      }
-      if (entry.record.displayName) {
-        usedDisplayNames.add(entry.record.displayName);
-      }
-      registerBot(entry.record.id, entry.behavior, entry.record);
-    }
-
-    profileCounter = Math.max(1, Number(data.counters?.profileCounter || profileCounter));
-    walletCounter = Math.max(1, Number(data.counters?.walletCounter || walletCounter));
-    backgroundCounter = Math.max(1, Number(data.counters?.backgroundCounter || backgroundCounter));
+    applyPersistedState(data, 'runtime-file');
   } catch {
     // ignore invalid persisted state files
   }
 }
+
+function applyPersistedState(data: PersistedRuntimeState, defaultSource: SubjectLinkRecord['continuitySource']): void {
+  if (!data || data.version !== 1) {
+    return;
+  }
+
+  if (data.superAgentConfig) {
+    superAgentConfig.id = data.superAgentConfig.id || superAgentConfig.id;
+    superAgentConfig.mode = data.superAgentConfig.mode || superAgentConfig.mode;
+    superAgentConfig.challengeEnabled = Boolean(data.superAgentConfig.challengeEnabled);
+    superAgentConfig.defaultChallengeCooldownMs = Math.max(1200, Number(data.superAgentConfig.defaultChallengeCooldownMs || superAgentConfig.defaultChallengeCooldownMs));
+    superAgentConfig.workerTargetPreference = data.superAgentConfig.workerTargetPreference || superAgentConfig.workerTargetPreference;
+    if (data.superAgentConfig.llmPolicy) {
+      superAgentConfig.llmPolicy = { ...superAgentConfig.llmPolicy, ...data.superAgentConfig.llmPolicy, enabled: true };
+    }
+    if (data.superAgentConfig.walletPolicy) {
+      superAgentConfig.walletPolicy = { ...superAgentConfig.walletPolicy, ...data.superAgentConfig.walletPolicy };
+    }
+  }
+
+  superAgentMemory.splice(0, superAgentMemory.length, ...(data.superAgentMemory || []).slice(-80));
+  superAgentEthSkills.splice(0, superAgentEthSkills.length, ...(data.superAgentEthSkills || []).slice(0, 40));
+  if (data.superAgentLlmUsage) {
+    superAgentLlmUsage.hourStamp = data.superAgentLlmUsage.hourStamp || '';
+    superAgentLlmUsage.requestsThisHour = Number(data.superAgentLlmUsage.requestsThisHour || 0);
+    superAgentLlmUsage.dayStamp = data.superAgentLlmUsage.dayStamp || '';
+    superAgentLlmUsage.tokensToday = Number(data.superAgentLlmUsage.tokensToday || 0);
+  }
+
+  for (const bot of bots.values()) {
+    bot.stop();
+  }
+  bots.clear();
+  botRegistry.clear();
+
+  profiles.clear();
+  for (const profile of data.profiles || []) {
+    profiles.set(profile.id, profile);
+    if (profile.displayName) {
+      usedDisplayNames.add(profile.displayName);
+    }
+  }
+
+  wallets.clear();
+  for (const wallet of data.wallets || []) {
+    wallets.set(wallet.id, wallet);
+  }
+
+  subjectLinks.clear();
+  for (const link of data.subjectLinks || []) {
+    if (link?.subject && link?.profileId) {
+      const profileId = String(link.profileId).trim();
+      const walletId = String(link.walletId ?? '').trim()
+        || profiles.get(profileId)?.walletId
+        || '';
+      const linkedAt = Number(link.linkedAt || Date.now());
+      subjectLinks.set(String(link.subject).trim(), {
+        subject: String(link.subject).trim(),
+        profileId,
+        walletId,
+        linkedAt: Number.isFinite(linkedAt) ? linkedAt : Date.now(),
+        updatedAt: Number(link.updatedAt || linkedAt || Date.now()),
+        continuitySource: link.continuitySource === 'postgres' ? 'postgres' : defaultSource
+      });
+    }
+  }
+
+  for (const entry of data.ownerBots || []) {
+    if (!entry?.record?.id || !entry?.behavior) {
+      continue;
+    }
+    if (entry.record.displayName) {
+      usedDisplayNames.add(entry.record.displayName);
+    }
+    registerBot(entry.record.id, entry.behavior, entry.record);
+  }
+
+  profileCounter = Math.max(1, Number(data.counters?.profileCounter || profileCounter));
+  walletCounter = Math.max(1, Number(data.counters?.walletCounter || walletCounter));
+  backgroundCounter = Math.max(1, Number(data.counters?.backgroundCounter || backgroundCounter));
+}
 await loadPersistedState();
+await runtimeDb.connect(runtimeDatabaseUrl);
+const dbState = await runtimeDb.loadState().catch(() => null);
+if (dbState) {
+  const data: PersistedRuntimeState = {
+    version: 1,
+    savedAt: Date.now(),
+    superAgentConfig: {
+      id: superAgentConfig.id,
+      mode: superAgentConfig.mode,
+      challengeEnabled: superAgentConfig.challengeEnabled,
+      defaultChallengeCooldownMs: superAgentConfig.defaultChallengeCooldownMs,
+      workerTargetPreference: superAgentConfig.workerTargetPreference,
+      llmPolicy: superAgentConfig.llmPolicy,
+      walletPolicy: superAgentConfig.walletPolicy
+    },
+    superAgentMemory: superAgentMemory.slice(-80),
+    superAgentEthSkills: superAgentEthSkills.slice(0, 40),
+    superAgentLlmUsage: { ...superAgentLlmUsage },
+    subjectLinks: dbState.subjectLinks,
+    profiles: dbState.profiles,
+    wallets: dbState.wallets,
+    ownerBots: dbState.ownerBots,
+    counters: dbState.counters
+  };
+  applyPersistedState(data, 'postgres');
+} else {
+  if (runtimeDb.connected) {
+    await persistRuntimeState().catch(() => undefined);
+  }
+}
 houseBankWallet();
 reconcileWalletAddressesFromKeys();
 void syncEthSkillsKnowledge(false).catch(() => undefined);
@@ -1917,6 +2039,7 @@ registerRuntimeRoutes(router, {
     publicProfiles,
     createProfileWithBot,
     provisionProfileForSubject,
+    getSubjectLinkBySubject,
     createOwnerBotForProfile,
     schedulePersistState
   },

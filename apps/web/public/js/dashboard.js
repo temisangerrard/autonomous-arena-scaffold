@@ -1,5 +1,6 @@
 const statusLine = document.getElementById('dashboard-status');
 const playLink = document.getElementById('dashboard-enter-play');
+const adminToolsNote = document.getElementById('admin-tools-note');
 
 const meEmail = document.getElementById('me-email');
 const meRole = document.getElementById('me-role');
@@ -212,6 +213,11 @@ function renderContext() {
 
   if (meEmail) meEmail.textContent = user?.email || '-';
   if (meRole) meRole.textContent = user?.role || '-';
+  if (adminToolsNote) {
+    adminToolsNote.textContent = user?.role === 'admin'
+      ? 'Admin tools are available via Admin and Users pages.'
+      : 'Admin tools unavailable for this account.';
+  }
   if (meProfile) meProfile.textContent = profile?.displayName ? `${profile.displayName} (@${profile.username})` : '-';
   if (meWallet) meWallet.textContent = walletId;
   if (meWalletAddress) meWalletAddress.textContent = walletAddress;

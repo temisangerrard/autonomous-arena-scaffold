@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
@@ -86,6 +86,13 @@ if (isProduction && !internalToken) {
 if (isProduction && !redisUrl) {
   log.fatal('REDIS_URL must be set in production for auth session persistence. Refusing to start.');
   process.exit(1);
+}
+if (isProduction && adminEmails.size === 0) {
+  log.fatal('ADMIN_EMAILS must be set in production. Refusing to start.');
+  process.exit(1);
+}
+if (!isProduction && adminEmails.size === 0) {
+  log.warn('ADMIN_EMAILS is empty. No Google account can access /admin or /users.');
 }
 if (isProduction && googleClientId && !process.env.GOOGLE_NONCE_SECRET?.trim() && !wsAuthSecret && !internalToken) {
   log.fatal('GOOGLE_NONCE_SECRET (or GAME_WS_AUTH_SECRET / INTERNAL_SERVICE_TOKEN) must be set in production when GOOGLE_CLIENT_ID is enabled.');
@@ -243,6 +250,56 @@ async function runtimeProfiles(): Promise<PlayerProfile[]> {
   return payload.profiles ?? [];
 }
 
+function externalSubjectFromIdentity(identity: IdentityRecord): string {
+  return externalSubjectFromSub(identity.sub);
+}
+
+function externalSubjectFromSub(sub: string): string {
+  const normalized = String(sub || '').trim();
+  return normalized.includes(':') ? normalized : `google:${normalized}`;
+}
+
+function subjectHashForAdmin(subject: string): string {
+  const normalized = String(subject || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  return createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+}
+
+async function runtimeSubjectLink(subject: string): Promise<{
+  profileId: string;
+  walletId: string;
+  linkedAt: number;
+  updatedAt: number;
+  continuitySource: string;
+} | null> {
+  const normalized = String(subject || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  const payload = await runtimeGet<{
+    ok?: boolean;
+    link?: {
+      profileId?: string;
+      walletId?: string;
+      linkedAt?: number;
+      updatedAt?: number;
+      continuitySource?: string;
+    };
+  }>(`/profiles/link?subject=${encodeURIComponent(normalized)}`).catch(() => null);
+  if (!payload?.ok || !payload.link?.profileId || !payload.link?.walletId) {
+    return null;
+  }
+  return {
+    profileId: String(payload.link.profileId),
+    walletId: String(payload.link.walletId),
+    linkedAt: Number(payload.link.linkedAt || 0),
+    updatedAt: Number(payload.link.updatedAt || 0),
+    continuitySource: String(payload.link.continuitySource || 'unknown')
+  };
+}
+
 async function serverGet<T>(pathname: string): Promise<T> {
   const response = await fetch(`${serverBase}${pathname}`, {
     headers: internalToken ? { 'x-internal-token': internalToken } : undefined
@@ -283,7 +340,7 @@ async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> 
     return;
   }
 
-  const externalSubject = identity.sub.includes(':') ? identity.sub : `google:${identity.sub}`;
+  const externalSubject = externalSubjectFromIdentity(identity);
 
   const created = await runtimePost<{
     ok?: boolean;
@@ -942,6 +999,41 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/player/identity-wallet') {
+    const auth = await requireRole(req, ['player', 'admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+
+    const identity = auth.identity;
+    if (!identity.profileId || !identity.walletId) {
+      try {
+        await ensurePlayerProvisioned(identity);
+        await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+      } catch {
+        sendJson(res, { ok: false, reason: 'provision_failed' }, 503);
+        return;
+      }
+    }
+
+    const link = await runtimeSubjectLink(externalSubjectFromIdentity(identity));
+    const profiles = await runtimeProfiles().catch(() => []);
+    const profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
+    sendJson(res, {
+      ok: true,
+      sub: identity.sub,
+      email: identity.email,
+      profileId: identity.profileId,
+      walletId: identity.walletId,
+      walletAddress: profile?.wallet?.address ?? null,
+      continuitySource: link?.continuitySource ?? 'web-session-store',
+      linkedAt: link?.linkedAt || identity.createdAt,
+      lastVerifiedAt: Date.now()
+    });
+    return;
+  }
+
   if (pathname === '/api/player/directory') {
     const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {
@@ -1480,9 +1572,12 @@ const server = createServer(async (req, res) => {
         }
       }
 
-      const users = profiles.map((profile) => {
+      const users = await Promise.all(profiles.map(async (profile) => {
         const playerId = `u_${profile.id}`;
         const presence = presenceByPlayerId.get(playerId) ?? null;
+        const subs = await sessionStore.listSubsForProfile(profile.id).catch(() => []);
+        const firstSub = String(subs[0] || '').trim();
+        const continuity = firstSub ? await runtimeSubjectLink(externalSubjectFromSub(firstSub)).catch(() => null) : null;
         return {
           profileId: profile.id,
           playerId,
@@ -1495,9 +1590,11 @@ const server = createServer(async (req, res) => {
           serverId: presence?.serverId ?? null,
           x: presence?.x ?? null,
           z: presence?.z ?? null,
-          lastSeen: presence?.updatedAt ?? null
+          lastSeen: presence?.updatedAt ?? null,
+          subjectHash: firstSub ? subjectHashForAdmin(firstSub) : null,
+          continuitySource: continuity?.continuitySource ?? null
         };
-      });
+      }));
 
       sendJson(res, { ok: true, users });
     } catch {

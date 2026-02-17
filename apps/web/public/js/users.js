@@ -60,6 +60,12 @@ function render(users) {
         </div>
       </td>
       <td>
+        <div class="mono">${escapeHtml(user.subjectHash || '-')}</div>
+        <div class="mono" style="color:var(--text-secondary); margin-top:6px;">
+          ${escapeHtml(user.continuitySource || 'unknown')}
+        </div>
+      </td>
+      <td>
         <div class="mono">${escapeHtml(user.walletId || '-')}</div>
         <div class="mono" style="color:var(--text-secondary);">${escapeHtml(user.walletAddress || '')}</div>
         <div style="margin-top:6px;"><span class="pill">Balance ${walletBalance.toFixed(2)}</span></div>
@@ -205,4 +211,3 @@ refreshBtn?.addEventListener('click', () => {
 
 void refresh();
 setInterval(() => void refresh().catch(() => undefined), 15000);
-

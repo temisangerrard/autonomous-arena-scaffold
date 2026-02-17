@@ -83,6 +83,7 @@ Local scaffold admin auth (dev-only escape hatch):
 - set `LOCAL_AUTH_ENABLED=true` only in local dev
 - set `ADMIN_USERNAME` + `ADMIN_PASSWORD` (do not ship defaults)
 - set `ADMIN_EMAILS` to promote Google accounts to admin
+- production requires `ADMIN_EMAILS` (startup fails if empty)
 
 WebSocket auth:
 - set `GAME_WS_AUTH_SECRET` on web + server + agent-runtime to require signed `/ws` connections
@@ -91,6 +92,14 @@ Web auth/session persistence:
 - file-backed state at `WEB_STATE_FILE` (default `output/web-auth-state.json`, resolved from web process cwd)
 - keeps active sessions/identities through local restarts in scaffold mode
 - pass-through `clientId` is now used on `/play` websocket to keep the same in-world player id across reconnects
+
+Runtime continuity persistence:
+- set `RUNTIME_DATABASE_URL` (or `DATABASE_URL`) for canonical subject/profile/wallet continuity in Postgres
+- if Postgres is unavailable, runtime falls back to `AGENT_RUNTIME_STATE_FILE`
+
+Owner wallet floor behavior:
+- `USER_WALLET_AUTO_FLOOR=true` applies the owner wallet floor in development
+- in production the default is `false` (balances change only from explicit tx/onchain sync unless you force-enable it)
 
 Multiplayer shared presence (new scaffold):
 - set `REDIS_URL` to enable Redis-backed presence sync across server instances
