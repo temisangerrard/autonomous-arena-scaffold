@@ -1,4 +1,4 @@
-import { THREE, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene } from '../../world-common.js';
+import { THREE, fitCameraToWorld, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene } from '../../world-common.js';
 import { getDom } from '../dom.js';
 import { WORLD_BOUND, createInitialState } from '../state.js';
 import { createToaster } from '../ui/toast.js';
@@ -1124,6 +1124,11 @@ async function loadMainWorld() {
     }
     dispatch({ type: 'WORLD_LOAD_STAGE_SET', stage: 'processing', message: 'Processing world data…' });
     state.worldLoaded = true;
+    // When websocket auth/session is still negotiating and local player is not
+    // available yet, frame the world so users don't see a blank-looking camera.
+    if (!state.playerId && worldRoot) {
+      fitCameraToWorld(camera, new THREE.Vector3(), worldRoot);
+    }
     setupWorldNpcStations();
     if (worldLoadingText) {
       worldLoadingText.textContent = 'Entering world…';
