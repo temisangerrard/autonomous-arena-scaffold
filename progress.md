@@ -1,5 +1,18 @@
 Original prompt: yes there's a file called train world or so , thats the base world we will use so we can scaffold that in so we start seeing the game, dont forget various entry points required
 
+- 2026-02-18: World-load verification + manual redeploy completed.
+  - Local reproduction check:
+    - ran full Playwright E2E suite (`node scripts/run-e2e.js`)
+    - world load/exploration tests passed; no local regression reproduced.
+  - Manual Cloud Run redeploy from local workspace:
+    - `arena-server` -> revision `arena-server-00029-f26` (100% traffic)
+    - `arena-web-api` -> revision `arena-web-api-00037-wk6` (100% traffic)
+    - `arena-runtime` -> revision `arena-runtime-00020-q64` (100% traffic)
+  - Post-deploy checks:
+    - `/health` OK on web/server/runtime
+    - `/api/worlds` returns `train_world` alias map
+    - `/assets/world/train_world.glb` returns `302` to GCS world asset URL.
+
 - 2026-02-18: Phase 4 shipped for GLB world hosts + baked NPC interaction points.
   - Added reusable character GLB pool + deterministic id->model mapping in `apps/web/public/js/play/avatars.js`.
   - Added 8 client-managed world host NPCs with fixed roles in `apps/web/public/js/play/runtime/world-npc-hosts.js`:
