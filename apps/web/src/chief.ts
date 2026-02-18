@@ -150,7 +150,7 @@ function detectIntent(message: string): ChiefIntent {
   if (/\b(personality|target|mode|cooldown|wager|bot)\b/.test(normalized)) {
     return 'bot_tune';
   }
-  if (/\b(fund|withdraw|cash out|transfer|send)\b/.test(normalized)) {
+  if (/\b(fund|withdraw|cash out|transfer|send|gas|escrow)\b/.test(normalized)) {
     return 'wallet_action';
   }
   if (/\b(user|player|logout|teleport|credit|debit|inspect)\b/.test(normalized)) {
@@ -287,7 +287,7 @@ export function createChiefService(deps: ChiefDeps) {
     if (reply) {
       return reply;
     }
-    return 'I can always answer status and execute bot/wallet commands. Try: "status" or "set personality aggressive".';
+    return 'I can always answer status and execute bot/wallet commands. Try: "status", "fix gas", or "set personality aggressive".';
   }
 
   async function buildPlans(
@@ -316,6 +316,25 @@ export function createChiefService(deps: ChiefDeps) {
     }
 
     if (intent === 'wallet_action') {
+      if (/\b(fix|top\s?up|prepare)\s+gas\b|\bgas\s+(low|topup|fix)\b|\bprepare escrow\b/.test(normalized) && identity.walletId) {
+        plans.push({
+          tool: 'wallet.gas.prepare',
+          sensitive: false,
+          summary: `Prepare gas + approvals for wallet ${identity.walletId}.`,
+          execute: async () => {
+            const payload = await deps.runtimePost<{
+              ok?: boolean;
+              results?: Array<{ walletId?: string; ok?: boolean; reason?: string }>;
+            }>('/wallets/onchain/prepare-escrow', { walletIds: [identity.walletId], amount: 1 });
+            const status = payload.results?.[0];
+            if (status?.ok) {
+              return { summary: `Wallet gas/approval prepared for ${identity.walletId}.` };
+            }
+            return { summary: `Gas prepare attempted for ${identity.walletId}; status=${status?.reason ?? 'unknown'}.` };
+          }
+        });
+      }
+
       const fundMatch = normalized.match(/\bfund\s+(\d+(?:\.\d+)?)\b/);
       if (fundMatch?.[1] && identity.walletId) {
         const amount = Math.max(0, Number(fundMatch[1]));

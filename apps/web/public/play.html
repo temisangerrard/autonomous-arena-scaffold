@@ -182,11 +182,11 @@
       top: 16px;
       left: 16px;
       right: 16px;
-      height: 48px;
-      padding: 0 12px;
+      min-height: 58px;
+      padding: 10px 12px;
       border-radius: 12px;
-      background: rgba(20, 18, 14, 0.85);
-      border: 1px solid rgba(255, 203, 164, 0.25);
+      background: rgba(20, 18, 14, 0.88);
+      border: 1px solid rgba(255, 212, 153, 0.34);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
       color: #f8f5ef;
       font: 12px/1.3 'Inter', 'SF Pro Display', sans-serif;
@@ -229,50 +229,83 @@
     .topbar-pills {
       display: flex;
       gap: 8px;
+      align-items: center;
     }
 
     .topbar-pill {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
       border-radius: 999px;
-      padding: 5px 10px;
-      font: 600 11px/1 'JetBrains Mono', monospace;
+      padding: 7px 11px;
+      font: 700 11px/1 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
       transition: all 0.2s ease;
     }
 
     .topbar-pill.wallet {
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.4);
-      color: #86efac;
+      background: rgba(212, 168, 75, 0.16);
+      border: 1px solid rgba(212, 168, 75, 0.48);
+      color: #f4d684;
+      font-size: 16px;
+      line-height: 1;
+      min-width: 84px;
+      justify-content: center;
     }
     .topbar-pill.wallet:hover {
-      background: rgba(34, 197, 94, 0.25);
+      background: rgba(212, 168, 75, 0.24);
     }
 
     .topbar-pill.streak {
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid rgba(245, 158, 11, 0.4);
-      color: #fcd34d;
+      background: rgba(255, 233, 175, 0.14);
+      border: 1px solid rgba(255, 233, 175, 0.34);
+      color: #f9e2ac;
     }
     .topbar-pill.streak:hover {
-      background: rgba(245, 158, 11, 0.25);
+      background: rgba(255, 233, 175, 0.2);
+    }
+
+    .topbar-pill.bot {
+      background: rgba(80, 185, 122, 0.16);
+      border: 1px solid rgba(80, 185, 122, 0.38);
+      color: #bcebcf;
+    }
+    .topbar-pill.bot.manual {
+      background: rgba(230, 166, 69, 0.16);
+      border-color: rgba(230, 166, 69, 0.45);
+      color: #ffdca6;
+    }
+    .topbar-pill__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.95;
+      box-shadow: 0 0 8px rgba(154, 255, 200, 0.5);
+      flex: none;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .menu-ghost {
-      border-radius: 10px;
-      border: 1px solid rgba(255, 203, 164, 0.3);
-      background: rgba(255, 255, 255, 0.05);
-      color: #f6d8be;
-      width: 40px;
-      height: 32px;
-      font: 700 18px/1 'Inter', sans-serif;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 214, 171, 0.44);
+      background: rgba(255, 239, 217, 0.1);
+      color: #ffe6bf;
+      width: 46px;
+      height: 38px;
+      font: 700 20px/1 'Inter', sans-serif;
       cursor: pointer;
       transition: all 0.2s ease;
     }
     .menu-ghost:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 203, 164, 0.5);
+      background: rgba(255, 239, 217, 0.18);
+      border-color: rgba(255, 214, 171, 0.64);
     }
     .menu-ghost:focus-visible {
       outline: 2px solid var(--ui-gold);
@@ -282,7 +315,7 @@
     .menu-pop {
       position: fixed;
       right: 16px;
-      top: 72px;
+      top: 84px;
       width: 180px;
       border-radius: 12px;
       border: 1px solid rgba(255, 203, 164, 0.35);
@@ -552,8 +585,8 @@
     }
 
     .world-map-title {
-      font: 600 11px/1 var(--font-mono);
-      color: #a89870;
+      font: 700 11px/1 var(--font-mono);
+      color: #dbc798;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       margin-bottom: 8px;
@@ -565,10 +598,16 @@
     .map-legend {
       display: flex;
       gap: 10px;
-      font: 600 10px/1 var(--font-mono);
-      color: #a89870;
+      font: 700 10px/1.1 var(--font-mono);
+      color: #d2be92;
       margin-top: 8px;
       flex-wrap: wrap;
+    }
+
+    #map-coords {
+      color: #f2ddad;
+      font-size: 11px;
+      letter-spacing: 0.05em;
     }
 
     .map-dot {
@@ -642,9 +681,19 @@
       display: none;
       backdrop-filter: blur(12px);
     }
+    body.interaction-focus::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: rgba(22, 16, 8, 0.24);
+      backdrop-filter: blur(6px);
+      z-index: 52;
+      pointer-events: none;
+    }
     .interaction-card.open {
       display: block;
       animation: slide-up 0.25s ease-out;
+      z-index: 55;
     }
     @keyframes slide-up {
       from { opacity: 0; transform: translateX(-50%) translateY(20px); }
@@ -656,6 +705,25 @@
       align-items: center;
       justify-content: space-between;
       padding: 14px 16px 10px;
+    }
+    .interaction-card__head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .interaction-card__help {
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      background: rgba(255, 255, 255, 0.75);
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #5a3f16;
+      font: 700 14px/1 'JetBrains Mono', monospace;
+      transition: all 0.2s ease;
+    }
+    .interaction-card__help:hover {
+      background: rgba(255, 255, 255, 0.95);
     }
 
     .interaction-card__title {
@@ -690,13 +758,22 @@
       gap: 12px;
     }
 
+    .interaction-help {
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      background: rgba(255, 251, 242, 0.8);
+      border-radius: 12px;
+      padding: 10px 11px;
+      color: #5f4a25;
+      font: 600 12px/1.4 'IBM Plex Sans', sans-serif;
+    }
+
     .station-ui {
       border: 1px solid rgba(198, 152, 49, 0.25);
       background: rgba(255, 255, 255, 0.72);
       border-radius: 12px;
-      padding: 12px;
+      padding: 13px;
       display: grid;
-      gap: 10px;
+      gap: 12px;
     }
 
     .station-ui__title {
@@ -730,6 +807,23 @@
     .station-ui__meta {
       font: 600 12px/1.35 'IBM Plex Sans', sans-serif;
       color: rgba(44, 33, 18, 0.9);
+      border-radius: 10px;
+      border: 1px solid rgba(198, 152, 49, 0.22);
+      background: rgba(255, 255, 255, 0.62);
+      padding: 10px 11px;
+    }
+
+    .station-ui__meta--warning {
+      border-color: rgba(200, 129, 41, 0.58);
+      background: rgba(255, 233, 186, 0.82);
+      color: #5f3f08;
+      font-weight: 700;
+    }
+
+    .station-ui__meta--success {
+      border-color: rgba(66, 150, 97, 0.48);
+      background: rgba(212, 244, 214, 0.78);
+      color: #184828;
     }
 
     .interaction-row {
@@ -773,11 +867,11 @@
 
     .btn-gold {
       height: 40px;
-      border-radius: 12px;
+      border-radius: 8px;
       border: 1px solid rgba(153, 113, 18, 0.5);
       background: linear-gradient(180deg, #e8c860 0%, #d4a830 100%);
       color: #241a07;
-      font: 800 13px/1 var(--font-mono);
+      font: 900 13px/1 var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       cursor: pointer;
@@ -1048,7 +1142,7 @@
       pointer-events: none;
     }
     .toast {
-      padding: 12px 16px;
+      padding: 10px 10px 10px 14px;
       border-radius: 12px;
       background: rgba(20, 18, 14, 0.95);
       border: 1px solid rgba(255, 203, 164, 0.3);
@@ -1058,7 +1152,10 @@
       backdrop-filter: blur(10px);
       animation: toast-in 0.3s ease-out;
       pointer-events: auto;
-      max-width: 280px;
+      max-width: min(360px, calc(100vw - 28px));
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
     }
     .toast--success { border-left: 4px solid var(--ui-success); }
     .toast--error { border-left: 4px solid var(--ui-error); }
@@ -1070,6 +1167,32 @@
     }
     .toast-exit {
       animation: toast-out 0.3s ease-in forwards;
+    }
+    .toast__body {
+      flex: 1;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      padding-top: 1px;
+    }
+    .toast__dismiss {
+      border: 1px solid rgba(255, 203, 164, 0.35);
+      background: rgba(255, 255, 255, 0.06);
+      color: #f9dfb7;
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      cursor: pointer;
+      font: 700 16px/1 'Inter', sans-serif;
+      line-height: 1;
+      padding: 0;
+      flex: none;
+    }
+    .toast__dismiss:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .toast__dismiss:focus-visible {
+      outline: 2px solid var(--ui-gold);
+      outline-offset: 1px;
     }
     @keyframes toast-out {
       from { opacity: 1; transform: translateX(0); }
@@ -1257,14 +1380,23 @@
         top: 10px;
         left: 10px;
         right: 10px;
-        height: 44px;
+        min-height: 46px;
         padding: 0 10px;
       }
       .topbar-left {
         gap: 8px;
       }
-      .topbar-pills {
+      .topbar-right .topbar-pill.streak,
+      .topbar-right .topbar-pill.bot {
         display: none;
+      }
+      .topbar-pill.wallet {
+        min-width: auto;
+        font-size: 13px;
+      }
+      .menu-ghost {
+        width: 42px;
+        height: 34px;
       }
       .world-map-panel {
         right: 10px;
@@ -1559,11 +1691,14 @@
       <i class="topbar-avatar" aria-hidden="true"></i>
       <span id="topbar-name" class="topbar-name">Loading...</span>
       <div class="topbar-pills">
-        <span id="topbar-wallet" class="topbar-pill wallet" title="Wallet balance">$0</span>
-        <span id="topbar-streak" class="topbar-pill streak" title="Win streak">🔥 0</span>
+        <span id="topbar-wallet" class="topbar-pill wallet" title="Wallet balance">$0.00</span>
       </div>
     </div>
-    <button id="topbar-menu" class="menu-ghost" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="topbar-menu-pop">☰</button>
+    <div class="topbar-right">
+      <span id="topbar-streak" class="topbar-pill streak" title="Win streak">Streak 0</span>
+      <span id="topbar-bot" class="topbar-pill bot" title="Bot mode"><i class="topbar-pill__dot" aria-hidden="true"></i>Bot: Auto</span>
+      <button id="topbar-menu" class="menu-ghost" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="topbar-menu-pop">☰</button>
+    </div>
   </header>
 
   <!-- Menu Dropdown -->
@@ -1580,9 +1715,15 @@
   <section id="interaction-card" class="interaction-card" aria-hidden="true" role="dialog" aria-labelledby="interaction-title">
     <div class="interaction-card__head">
       <div class="interaction-card__title" id="interaction-title">Challenge</div>
-      <button id="interaction-close" class="interaction-card__close" type="button" aria-label="Close">×</button>
+      <div class="interaction-card__head-actions">
+        <button id="interaction-help-toggle" class="interaction-card__help" type="button" aria-label="Toggle contextual help" aria-expanded="false">?</button>
+        <button id="interaction-close" class="interaction-card__close" type="button" aria-label="Close">×</button>
+      </div>
     </div>
     <div class="interaction-card__body">
+      <div id="interaction-help" class="interaction-help" hidden>
+        Visit nearby dealer stations to start rounds. Press <strong>E</strong> to interact, <strong>Esc</strong> to close panel.
+      </div>
       <div id="station-ui" class="station-ui" aria-live="polite"></div>
       <div id="interaction-npc-info" class="station-ui" hidden>
         <div class="station-ui__title">Local Guide</div>
@@ -1595,7 +1736,7 @@
   <aside class="world-map-panel" aria-label="Arena minimap">
     <div class="world-map-title">
       <span>Map</span>
-      <span id="map-coords">x:0 z:0</span>
+      <span id="map-coords">X:0 Z:0</span>
     </div>
     <canvas id="world-map" width="220" height="170" aria-label="World map showing player positions"></canvas>
     <div class="map-legend">

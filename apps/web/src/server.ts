@@ -52,6 +52,7 @@ const adminEmails = new Set(
 const localAdminUsername = process.env.ADMIN_USERNAME ?? '';
 const localAdminPassword = process.env.ADMIN_PASSWORD ?? '';
 const localAuthEnabled = (process.env.LOCAL_AUTH_ENABLED ?? 'false') === 'true';
+const adminUiLegacyDefault = String(process.env.ADMIN_UI_DEFAULT ?? '').trim().toLowerCase() === 'legacy';
 const isProduction = process.env.NODE_ENV === 'production';
 const escrowApprovalChainIdRaw = Number(
   process.env.ESCROW_APPROVAL_CHAIN_ID
@@ -604,7 +605,12 @@ function wsAuthForIdentity(identity: IdentityRecord): string | null {
   });
 }
 
-function htmlRouteToFile(pathname: string, identity: IdentityRecord | null, res: import('node:http').ServerResponse): string | null {
+function htmlRouteToFile(
+  pathname: string,
+  identity: IdentityRecord | null,
+  res: import('node:http').ServerResponse,
+  requestUrl: URL
+): string | null {
 
   if (pathname === '/welcome') {
     if (identity) {
@@ -646,7 +652,7 @@ function htmlRouteToFile(pathname: string, identity: IdentityRecord | null, res:
     return path.join(publicDir, 'dashboard.html');
   }
 
-  if (pathname === '/admin' || pathname === '/agents') {
+  if (pathname === '/admin') {
     if (!identity) {
       redirect(res, '/welcome');
       return null;
@@ -655,7 +661,21 @@ function htmlRouteToFile(pathname: string, identity: IdentityRecord | null, res:
       redirect(res, '/dashboard');
       return null;
     }
-    return path.join(publicDir, 'agents.html');
+    const forceLegacy = requestUrl.searchParams.get('legacy') === '1';
+    const useLegacy = forceLegacy || adminUiLegacyDefault;
+    return path.join(publicDir, useLegacy ? 'agents-legacy.html' : 'agents.html');
+  }
+
+  if (pathname === '/agents') {
+    if (!identity) {
+      redirect(res, '/welcome');
+      return null;
+    }
+    if (identity.role !== 'admin') {
+      redirect(res, '/dashboard');
+      return null;
+    }
+    return path.join(publicDir, 'agents-legacy.html');
   }
 
   if (pathname === '/users') {
@@ -1142,9 +1162,9 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/player/directory') {
-    const auth = await requireRole(req, ['player', 'admin']);
+    const auth = await requireRole(req, ['admin']);
     if (!auth.ok) {
-      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
       return;
     }
 
@@ -1918,7 +1938,7 @@ const server = createServer(async (req, res) => {
   }
 
   const identity = await getIdentityFromReq(req);
-  const htmlFile = htmlRouteToFile(pathname, identity, res);
+  const htmlFile = htmlRouteToFile(pathname, identity, res, requestUrl);
   if (htmlFile) {
     await sendFile(res, htmlFile, 'text/html; charset=utf-8');
     return;

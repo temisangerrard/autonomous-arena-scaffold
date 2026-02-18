@@ -1,6 +1,6 @@
 export function renderTopHud(state, dom) {
-  const { hud, topbarName, topbarWallet, topbarStreak } = dom;
-  if (!hud || !topbarName || !topbarWallet || !topbarStreak) {
+  const { hud, topbarName, topbarWallet, topbarStreak, topbarBot } = dom;
+  if (!hud || !topbarName || !topbarWallet || !topbarStreak || !topbarBot) {
     return;
   }
   const me = state.playerId ? state.players.get(state.playerId) : null;
@@ -9,8 +9,10 @@ export function renderTopHud(state, dom) {
     ? `$${Number(state.walletBalance).toFixed(2)}`
     : '$—';
   const approvalMode = String(state.escrowApproval?.mode || 'manual');
-  const modeLabel = approvalMode === 'auto' ? 'Auto Approval' : 'Manual Approval';
-  topbarStreak.textContent = `Streak ${state.streak} · ${modeLabel}`;
+  const modeLabel = approvalMode === 'auto' ? 'AUTO' : 'MANUAL';
+  topbarStreak.textContent = `Streak ${state.streak}`;
+  topbarBot.textContent = `Bot: ${modeLabel}`;
+  topbarBot.classList.toggle('manual', approvalMode !== 'auto');
 }
 
 export function renderNextActionLine(state, el, labelFor) {

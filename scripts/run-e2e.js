@@ -124,7 +124,7 @@ async function main() {
         PORT: String(RUNTIME_PORT),
         GAME_WS_URL: `ws://localhost:${SERVER_PORT}/ws`,
         GAME_WS_AUTH_SECRET,
-        BOT_COUNT: '12',
+        BOT_COUNT: process.env.E2E_BOT_COUNT || '0',
         WALLET_SKILLS_ENABLED: 'true'
       },
       RUNTIME_PORT,

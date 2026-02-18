@@ -39,6 +39,91 @@ const COLORS = {
   }
 };
 
+export const CHARACTER_MODEL_CONFIGS = [
+  { file: 'anime_girl_mia_ter_excited_preview.glb', targetHeight: 1.72, yawOffset: 0 },
+  { file: 'arab_man.glb', targetHeight: 1.74, yawOffset: 0 },
+  { file: 'mordecai_-_fortnite_skin.glb', targetHeight: 1.68, yawOffset: 0 },
+  { file: 'neutral_idle_fbi.glb', targetHeight: 1.72, yawOffset: 0 },
+  { file: 'obelix.glb', targetHeight: 1.62, yawOffset: 0 },
+  { file: 'ophelia_ramirez_life_and_times_of_juniper_lee.glb', targetHeight: 1.7, yawOffset: 0 },
+  { file: 'rigby_-_fortnite_sidekick.glb', targetHeight: 1.66, yawOffset: 0 },
+  { file: 'spyro_reignited_trilogy_gavin.glb', targetHeight: 1.7, yawOffset: 0 }
+];
+
+export function hashIdToCharacterIndex(id, modulo = CHARACTER_MODEL_CONFIGS.length) {
+  const raw = String(id || '');
+  const size = Math.max(1, Number(modulo || 1));
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+  }
+  return hash % size;
+}
+
+export function characterModelConfigForId(id) {
+  return CHARACTER_MODEL_CONFIGS[hashIdToCharacterIndex(id)] || CHARACTER_MODEL_CONFIGS[0];
+}
+
+export function createCharacterGlbPool(THREE) {
+  const loader = new GLTFLoader();
+  const prefabCache = new Map();
+
+  async function loadPrefab(url) {
+    if (prefabCache.has(url)) {
+      return prefabCache.get(url);
+    }
+    const promise = loader.loadAsync(url).then((gltf) => gltf).catch(() => null);
+    prefabCache.set(url, promise);
+    return promise;
+  }
+
+  async function instantiateById(entityId, configOverride = null) {
+    const cfg = configOverride || characterModelConfigForId(entityId);
+    const url = `/assets/characters/${cfg.file}`;
+    const gltf = await loadPrefab(url);
+    if (!gltf) {
+      return null;
+    }
+
+    const root = cloneSkeleton(gltf.scene);
+    const preBox = new THREE.Box3().setFromObject(root);
+    const preSize = preBox.getSize(new THREE.Vector3());
+    const rawHeight = Math.max(0.0001, preSize.y || 1);
+    const scale = (Number(cfg.targetHeight) || 1.7) / rawHeight;
+    root.scale.setScalar(scale);
+
+    const postBox = new THREE.Box3().setFromObject(root);
+    const postCenter = postBox.getCenter(new THREE.Vector3());
+    root.position.x -= postCenter.x;
+    root.position.z -= postCenter.z;
+    root.position.y -= postBox.min.y;
+
+    const anchor = new THREE.Group();
+    anchor.add(root);
+    anchor.rotation.y = Number(cfg.yawOffset) || 0;
+
+    root.traverse((node) => {
+      if (node.isMesh) {
+        node.castShadow = false;
+        node.receiveShadow = true;
+      }
+    });
+
+    return {
+      gltf,
+      root,
+      anchor,
+      yawOffset: Number(cfg.yawOffset) || 0
+    };
+  }
+
+  return {
+    loadPrefab,
+    instantiateById,
+    configForId: characterModelConfigForId
+  };
+}
+
 function createNameTag(THREE, initialText) {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
@@ -313,6 +398,16 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
   };
 }
 
+export function createProceduralAvatar(THREE, role, initialName, isLocal = false) {
+  const normalizedRole = String(role || '').toLowerCase();
+  const colorScheme = isLocal
+    ? COLORS.local
+    : normalizedRole === 'agent'
+      ? COLORS.agent
+      : COLORS.human;
+  return createAvatar(THREE, colorScheme, initialName, isLocal);
+}
+
 export function animateAvatar(parts, speed, t, phaseOffset = 0) {
   const gait = Math.min(1, speed / 4.5);
   const phase = t * 7 + phaseOffset;
@@ -358,22 +453,11 @@ export function animateAvatar(parts, speed, t, phaseOffset = 0) {
 }
 
 export function createAvatarSystem({ THREE, scene }) {
-  const npcLoader = new GLTFLoader();
-  const npcPrefabCache = new Map();
+  const glbPool = createCharacterGlbPool(THREE);
   const clock = new THREE.Clock();
-  const NPC_MODEL_CONFIGS = [
-    { file: 'anime_girl_mia_ter_excited_preview.glb', targetHeight: 1.72, yawOffset: 0 },
-    { file: 'arab_man.glb', targetHeight: 1.74, yawOffset: 0 },
-    { file: 'mordecai_-_fortnite_skin.glb', targetHeight: 1.68, yawOffset: 0 },
-    { file: 'neutral_idle_fbi.glb', targetHeight: 1.72, yawOffset: 0 },
-    { file: 'obelix.glb', targetHeight: 1.62, yawOffset: 0 },
-    { file: 'ophelia_ramirez_life_and_times_of_juniper_lee.glb', targetHeight: 1.7, yawOffset: 0 },
-    { file: 'rigby_-_fortnite_sidekick.glb', targetHeight: 1.66, yawOffset: 0 },
-    { file: 'spyro_reignited_trilogy_gavin.glb', targetHeight: 1.7, yawOffset: 0 }
-  ];
 
   function isNpcModelEligible(player) {
-    if (!player || player.role !== 'agent') return false;
+    if (!player) return false;
     const id = String(player.id || '').trim();
     if (!id) return false;
     // Keep synthetic/system entities on procedural fallback.
@@ -381,24 +465,7 @@ export function createAvatarSystem({ THREE, scene }) {
     return true;
   }
 
-  function npcModelConfigFor(playerId) {
-    let hash = 0;
-    for (let i = 0; i < playerId.length; i += 1) {
-      hash = (hash * 31 + playerId.charCodeAt(i)) >>> 0;
-    }
-    return NPC_MODEL_CONFIGS[hash % NPC_MODEL_CONFIGS.length] || NPC_MODEL_CONFIGS[0];
-  }
-
-  async function loadNpcPrefab(url) {
-    if (npcPrefabCache.has(url)) {
-      return npcPrefabCache.get(url);
-    }
-    const promise = npcLoader.loadAsync(url).then((gltf) => gltf).catch(() => null);
-    npcPrefabCache.set(url, promise);
-    return promise;
-  }
-
-  const localAvatarParts = createAvatar(THREE, COLORS.local, 'You', true);
+  const localAvatarParts = createProceduralAvatar(THREE, 'local', 'You', true);
   scene.add(localAvatarParts.avatar);
   const remoteAvatars = new Map();
 
@@ -408,9 +475,8 @@ export function createAvatarSystem({ THREE, scene }) {
 
       let remote = remoteAvatars.get(player.id);
       if (!remote) {
-        const colorScheme = player.role === 'agent' ? COLORS.agent : COLORS.human;
         remote = {
-          ...createAvatar(THREE, colorScheme, player.displayName, false),
+          ...createProceduralAvatar(THREE, player.role, player.displayName, false),
           proceduralAvatar: null,
           glbRoot: null,
           glbAnchor: null,
@@ -423,47 +489,21 @@ export function createAvatarSystem({ THREE, scene }) {
         scene.add(remote.avatar);
 
         if (isNpcModelEligible(player)) {
-          const cfg = npcModelConfigFor(player.id);
-          const url = `/assets/characters/${cfg.file}`;
-          void loadNpcPrefab(url).then((gltf) => {
+          void glbPool.instantiateById(player.id).then((loaded) => {
             const active = remoteAvatars.get(player.id);
-            if (!active || !gltf || active.glbRoot) return;
-            const root = cloneSkeleton(gltf.scene);
-            const preBox = new THREE.Box3().setFromObject(root);
-            const preSize = preBox.getSize(new THREE.Vector3());
-            const rawHeight = Math.max(0.0001, preSize.y || 1);
-            const scale = (Number(cfg.targetHeight) || 1.7) / rawHeight;
-            root.scale.setScalar(scale);
-
-            // Recenter and ground each imported character so mixed-source assets align.
-            const postBox = new THREE.Box3().setFromObject(root);
-            const postCenter = postBox.getCenter(new THREE.Vector3());
-            root.position.x -= postCenter.x;
-            root.position.z -= postCenter.z;
-            root.position.y -= postBox.min.y;
-
-            const anchor = new THREE.Group();
-            anchor.add(root);
-            anchor.rotation.y = Number(cfg.yawOffset) || 0;
-
-            root.traverse((node) => {
-              if (node.isMesh) {
-                node.castShadow = false;
-                node.receiveShadow = true;
-              }
-            });
+            if (!active || !loaded || active.glbRoot) return;
             if (active.proceduralAvatar) {
               scene.remove(active.proceduralAvatar);
             }
-            active.glbRoot = root;
-            active.glbAnchor = anchor;
-            active.glbYawOffset = Number(cfg.yawOffset) || 0;
-            active.avatar = anchor;
-            scene.add(anchor);
-            if (Array.isArray(gltf.animations) && gltf.animations.length > 0) {
-              const mixer = new THREE.AnimationMixer(anchor);
-              const pickByName = (name) => gltf.animations.find((clip) => String(clip.name || '').toLowerCase() === name) || null;
-              const clip = pickByName('idle') || gltf.animations[0] || null;
+            active.glbRoot = loaded.root;
+            active.glbAnchor = loaded.anchor;
+            active.glbYawOffset = loaded.yawOffset || 0;
+            active.avatar = loaded.anchor;
+            scene.add(loaded.anchor);
+            if (Array.isArray(loaded.gltf.animations) && loaded.gltf.animations.length > 0) {
+              const mixer = new THREE.AnimationMixer(loaded.anchor);
+              const pickByName = (name) => loaded.gltf.animations.find((clip) => String(clip.name || '').toLowerCase() === name) || null;
+              const clip = pickByName('idle') || loaded.gltf.animations[0] || null;
               if (clip) {
                 mixer.clipAction(clip).play();
               }

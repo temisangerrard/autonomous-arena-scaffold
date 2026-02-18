@@ -116,6 +116,7 @@ const onchainProvider = onchainRpcUrl ? new JsonRpcProvider(onchainRpcUrl) : nul
 const gasFunderPrivateKey = process.env.GAS_FUNDING_PRIVATE_KEY || process.env.ESCROW_RESOLVER_PRIVATE_KEY || '';
 const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
 const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
+const walletGasTopupMaxEth = process.env.WALLET_GAS_TOPUP_MAX_ETH ?? '0.02';
 const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
 const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
   ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
@@ -1211,17 +1212,63 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     if (onchainProvider) {
       currentNative = await onchainProvider.getBalance(owner);
     }
-    if (onchainProvider && gasFunderPrivateKey) {
+    if (onchainProvider) {
       const minNative = parseEther(minWalletGasEth);
-      if (currentNative < minNative) {
+      let targetNative = minNative;
+      try {
+        const feeData = await onchainProvider.getFeeData();
+        const approveGasEstimate = await (token as unknown as {
+          approve: { estimateGas: (spender: string, value: bigint) => Promise<bigint> };
+        }).approve.estimateGas(onchainEscrowAddress, required);
+        const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? parseUnits('2', 'gwei');
+        const estimatedApproveNative = approveGasEstimate * gasPrice * 2n;
+        if (estimatedApproveNative > targetNative) {
+          targetNative = estimatedApproveNative;
+        }
+      } catch {
+        // Keep minNative target if gas estimation is unavailable.
+      }
+
+      if (currentNative < targetNative) {
+        if (!gasFunderPrivateKey) {
+          return {
+            ok: false,
+            reason: 'gas_topup_unavailable:gas_funder_missing',
+            walletId,
+            address: owner,
+            allowance: formatUnits(allowance, onchainTokenDecimals),
+            balance: formatUnits(balance, onchainTokenDecimals),
+            nativeBalanceEth: formatEther(currentNative)
+          };
+        }
         try {
           await attemptTwice(async () => {
             const gasFunder = new Wallet(gasFunderPrivateKey, onchainProvider);
-            const topup = parseEther(walletGasTopupEth);
+            const defaultTopup = parseEther(walletGasTopupEth);
+            const maxTopup = parseEther(walletGasTopupMaxEth);
+            const needed = targetNative > currentNative ? targetNative - currentNative : 0n;
+            let topup = needed > defaultTopup ? needed : defaultTopup;
+            if (topup > maxTopup) {
+              topup = maxTopup;
+            }
+            if (topup <= 0n) {
+              return;
+            }
             const topupTx = await gasFunder.sendTransaction({ to: owner, value: topup });
             await topupTx.wait();
           });
           currentNative = await onchainProvider.getBalance(owner);
+          if (currentNative < minNative) {
+            return {
+              ok: false,
+              reason: 'gas_topup_insufficient_after_topup',
+              walletId,
+              address: owner,
+              allowance: formatUnits(allowance, onchainTokenDecimals),
+              balance: formatUnits(balance, onchainTokenDecimals),
+              nativeBalanceEth: formatEther(currentNative)
+            };
+          }
         } catch (error) {
           return {
             ok: false,
@@ -1965,7 +2012,9 @@ if (dbState) {
 houseBankWallet();
 reconcileWalletAddressesFromKeys();
 void syncEthSkillsKnowledge(false).catch(() => undefined);
-const initialBotCount = Math.max(8, Number(process.env.BOT_COUNT ?? 8));
+// Background NPC bots are disabled by default.
+// Player-owned/provisioned bots remain fully supported.
+const initialBotCount = Math.max(0, Number(process.env.BOT_COUNT ?? 0));
 reconcileBots(initialBotCount);
 ensureSuperAgentExists();
 applySuperAgentDelegation();

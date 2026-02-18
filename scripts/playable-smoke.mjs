@@ -299,7 +299,7 @@ async function main() {
   const runtime = startService('agent-runtime', 'npx', ['tsx', 'apps/agent-runtime/src/index.ts'], {
     PORT: String(RUNTIME_PORT),
     GAME_WS_URL: `ws://localhost:${SERVER_PORT}/ws`,
-    BOT_COUNT: '12',
+    BOT_COUNT: process.env.SMOKE_BOT_COUNT || '0',
     WALLET_SKILLS_ENABLED: 'true'
   });
 
@@ -325,8 +325,8 @@ async function main() {
       throw new Error('Failed to load runtime status');
     }
     const runtimeStatus = await runtimeStatusRes.json();
-    if (!runtimeStatus.backgroundBotCount || runtimeStatus.backgroundBotCount < 8) {
-      throw new Error(`Expected >=8 background bots, got ${runtimeStatus.backgroundBotCount ?? 0}`);
+    if (Number(runtimeStatus.backgroundBotCount || 0) > 0) {
+      throw new Error(`Expected 0 background bots, got ${runtimeStatus.backgroundBotCount ?? 0}`);
     }
 
     const walletPolicyRes = await fetch(`http://localhost:${RUNTIME_PORT}/capabilities/wallet`, {

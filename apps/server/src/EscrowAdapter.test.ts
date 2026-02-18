@@ -57,6 +57,7 @@ describe('EscrowAdapter preflight mapping', () => {
     expect(result.reasonCode).toBe('HOUSE_SIGNER_UNAVAILABLE');
     expect(result.preflight).toEqual({ playerOk: true, houseOk: false });
   });
+
 });
 
 describe('EscrowAdapter onchain error decoding', () => {

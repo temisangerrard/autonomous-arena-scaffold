@@ -1,9 +1,57 @@
 import { WORLD_BOUND } from '../state.js';
 
+const minimapStateByCanvas = new WeakMap();
+
+function mapPointToWorld(canvas, x, y) {
+  return {
+    worldX: (x / canvas.width) * (WORLD_BOUND * 2) - WORLD_BOUND,
+    worldZ: (y / canvas.height) * (WORLD_BOUND * 2) - WORLD_BOUND
+  };
+}
+
+function bindMinimapHover(worldMapCanvas) {
+  if (!(worldMapCanvas instanceof HTMLCanvasElement)) return;
+  if (worldMapCanvas.dataset.hoverBound === '1') return;
+  worldMapCanvas.dataset.hoverBound = '1';
+
+  worldMapCanvas.addEventListener('mousemove', (event) => {
+    const state = minimapStateByCanvas.get(worldMapCanvas);
+    if (!state || !(state.players instanceof Map)) return;
+
+    const rect = worldMapCanvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / Math.max(1, rect.width)) * worldMapCanvas.width;
+    const y = ((event.clientY - rect.top) / Math.max(1, rect.height)) * worldMapCanvas.height;
+    const { worldX, worldZ } = mapPointToWorld(worldMapCanvas, x, y);
+    let nearest = null;
+    let nearestDistance = 7.5;
+
+    for (const player of state.players.values()) {
+      const dx = Number(player.x) - worldX;
+      const dz = Number(player.z) - worldZ;
+      const distance = Math.hypot(dx, dz);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = player;
+      }
+    }
+
+    worldMapCanvas.title = nearest
+      ? String(nearest.displayName || nearest.id || 'Player')
+      : 'Arena minimap';
+  });
+
+  worldMapCanvas.addEventListener('mouseleave', () => {
+    worldMapCanvas.title = 'Arena minimap';
+  });
+}
+
 export function renderMinimap(state, worldMapCanvas, mapCoords) {
   if (!(worldMapCanvas instanceof HTMLCanvasElement)) {
     return;
   }
+  minimapStateByCanvas.set(worldMapCanvas, state);
+  bindMinimapHover(worldMapCanvas);
+
   const ctx = worldMapCanvas.getContext('2d');
   if (!ctx) {
     return;
@@ -36,7 +84,7 @@ export function renderMinimap(state, worldMapCanvas, mapCoords) {
   if (state.playerId) {
     const self = state.players.get(state.playerId);
     if (self && mapCoords) {
-      mapCoords.textContent = `x:${Math.round(self.x)} z:${Math.round(self.z)}`;
+      mapCoords.textContent = `X:${Math.round(self.x)} Z:${Math.round(self.z)}`;
     }
   }
 }

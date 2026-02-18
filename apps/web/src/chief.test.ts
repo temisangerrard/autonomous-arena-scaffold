@@ -138,4 +138,41 @@ describe('chief service', () => {
     expect(result.reply.length).toBeGreaterThan(0);
     expect(runtimePostSpy).toHaveBeenCalledWith('/house/chat', expect.any(Object));
   });
+
+  it('supports player gas-fix action through chief', async () => {
+    const runtimePostSpy = vi.fn();
+    const chief = createChiefService({
+      runtimeGet: async <T>(_path: string): Promise<T> => ({ bots: [], wallets: [] }) as T,
+      runtimePost: async <T>(path: string, body: unknown): Promise<T> => {
+        runtimePostSpy(path, body);
+        if (path === '/wallets/onchain/prepare-escrow') {
+          return {
+            ok: true,
+            results: [{ walletId: 'wallet_1', ok: true }]
+          } as T;
+        }
+        return {} as T;
+      },
+      serverGet: async <T>(_path: string): Promise<T> => ({ recent: [] }) as T,
+      runtimeProfiles: vi.fn(async () => []),
+      purgeSessionsForProfile: vi.fn(async () => 0),
+      log: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+        fatal: vi.fn(),
+        child: vi.fn()
+      }
+    });
+
+    const result = await chief.handleChat({
+      identity: baseIdentity,
+      request: { message: 'fix gas for my wallet' }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.actions.some((entry) => entry.tool === 'wallet.gas.prepare')).toBe(true);
+    expect(runtimePostSpy).toHaveBeenCalledWith('/wallets/onchain/prepare-escrow', { walletIds: ['wallet_1'], amount: 1 });
+  });
 });

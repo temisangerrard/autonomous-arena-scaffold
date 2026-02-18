@@ -170,7 +170,7 @@ export const CODEBASE_CONTEXT = {
       'ESCROW_CONTRACT_ADDRESS': 'Escrow contract address',
       'ESCROW_RESOLVER_PRIVATE_KEY': 'Private key for escrow resolution',
       'OPENROUTER_API_KEY': 'API key for LLM advisory',
-      'BOT_COUNT': 'Number of background NPCs',
+      'BOT_COUNT': 'Number of background NPCs (default 0)',
       'HOUSE_BANK_START_BALANCE': 'Initial house bank tokens',
       'NPC_WALLET_FLOOR': 'Minimum NPC wallet balance',
       'NPC_WALLET_TOPUP_AMOUNT': 'Amount to top up NPCs from house'
@@ -196,7 +196,7 @@ export const CODEBASE_CONTEXT = {
       'mode <balanced|hunter|defensive> - Set worker behavior mode',
       'target <human_only|human_first|any> - Set target preference',
       'cooldown <ms> - Set challenge cooldown',
-      'bot count <n> - Set number of background NPCs',
+      'bot count <n> - Set number of background NPCs (0 recommended)',
       'enable/disable challenges - Toggle challenge system',
       'enable/disable wallet policy - Toggle wallet features',
       'apply delegation - Re-apply worker directives',

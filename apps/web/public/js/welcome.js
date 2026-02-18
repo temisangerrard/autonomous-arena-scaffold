@@ -69,8 +69,8 @@ function renderSignedIn(user) {
   }
   hint.textContent = `Signed in as ${user.name || user.email} (${user.role}).`;
   ctaRoot.innerHTML = `
-    <a class="btn btn--primary" href="${continueTarget(user)}">Continue</a>
-    <a class="btn btn--secondary" href="/play?world=mega">Play Now</a>
+    <a class="btn btn--primary" href="/play?world=mega">Enter Arena</a>
+    <a class="btn btn--secondary" href="${continueTarget(user)}">Open Dashboard</a>
     <button id="welcome-logout" class="btn btn--ghost" type="button">Logout</button>
   `;
   ctaRoot.querySelector('#welcome-logout')?.addEventListener('click', () => {
@@ -85,12 +85,12 @@ function renderSignedOut() {
 
   if (!config.authEnabled || !config.googleClientId) {
     hint.textContent = 'Google sign-in is not configured in this environment.';
-    ctaRoot.innerHTML = '<a class="btn btn--secondary" href="/viewer?world=mega">Explore Viewer</a>';
+    ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><a class="btn btn--secondary" href="/viewer?world=mega">Explore Viewer</a>';
     return;
   }
 
   hint.textContent = 'Sign in with Google to create your player bot and wallet.';
-  ctaRoot.innerHTML = '<div id="google-signin-welcome"></div>';
+  ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><div id="google-signin-welcome"></div>';
   if (window.google?.accounts?.id) {
     void (async () => {
       const noncePayload = await requestJson('/api/auth/google/nonce').catch(() => null);

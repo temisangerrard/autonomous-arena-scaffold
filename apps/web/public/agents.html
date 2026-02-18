@@ -3,329 +3,493 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Operations</title>
+  <title>Admin Command Center</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/runtime-config.js"></script>
   <style>
     body { margin: 0; }
-    .ops {
+    .command {
       min-height: 100vh;
-      padding: 16px;
-      background: radial-gradient(circle at 0 0, rgba(201, 162, 39, 0.22), transparent 40%), var(--bg-primary);
+      background:
+        radial-gradient(1100px 500px at 5% -10%, rgba(255, 198, 61, 0.18), transparent 55%),
+        radial-gradient(900px 500px at 95% -20%, rgba(54, 130, 255, 0.14), transparent 58%),
+        var(--bg-primary);
       color: var(--text-primary);
       font-family: var(--font-primary);
+      padding: 16px;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
     }
-    .ops h1 {
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .title h1 {
+      margin: 0;
       font: 700 30px/1 var(--font-display);
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      margin: 0 0 16px;
-      color: var(--accent-primary);
+      color: #f2c352;
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 12px;
-      margin-bottom: 14px;
+    .title p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      max-width: 860px;
+      font-size: 14px;
+    }
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .btn {
+      border: 1px solid var(--border-medium);
+      background: rgba(255,255,255,0.9);
+      color: var(--text-primary);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font: 600 12px/1.2 var(--font-display);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary {
+      background: linear-gradient(120deg, #2e6fff, #163b8a);
+      color: #fff;
+      border-color: #234a9f;
+    }
+    .btn-gold {
+      background: linear-gradient(120deg, var(--gold-primary), var(--gold-dark));
+      color: #fff;
+      border-color: var(--gold-dark);
+    }
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tabs button {
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(14, 18, 24, 0.64);
+      color: rgba(255,255,255,0.88);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font: 600 12px/1 var(--font-display);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .tabs button.active {
+      background: linear-gradient(120deg, #f5c44c, #b88421);
+      color: #1e1306;
+      border-color: rgba(0,0,0,0.25);
     }
     .panel {
-      border: 1px solid var(--border-gold);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.92);
+      display: none;
+      border-radius: 14px;
+      border: 1px solid var(--border-medium);
+      background: rgba(255,255,255,0.94);
       padding: 12px;
       box-shadow: var(--shadow-sm);
     }
-    .panel h2 {
+    .panel.active { display: block; }
+    .section-title {
       margin: 0 0 10px;
-      font: 600 14px/1.2 var(--font-display);
+      font: 700 16px/1.2 var(--font-display);
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--accent-secondary);
+      color: #7d5714;
     }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-    .row-1 { margin-bottom: 8px; }
+    .grid { display: grid; gap: 10px; }
+    .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+    .kpi {
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,242,235,0.95));
+      padding: 10px;
+    }
+    .kpi .label {
+      font: 11px/1.2 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+    .kpi .value {
+      margin-top: 4px;
+      font: 700 23px/1.1 var(--font-display);
+      color: #1d1408;
+    }
+    .split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+    .card {
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.72);
+      padding: 10px;
+    }
+    .row { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 8px; }
+    .row-3 { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 8px; }
     label {
       display: block;
       font: 11px/1.2 var(--font-mono);
       color: var(--text-secondary);
-      margin-bottom: 3px;
+      margin-bottom: 4px;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
     }
-    input, select, button, textarea {
+    input, select, textarea {
       width: 100%;
+      box-sizing: border-box;
       border-radius: 8px;
       border: 1px solid var(--border-medium);
-      background: var(--bg-card);
+      background: #fff;
       color: var(--text-primary);
       padding: 8px;
-      font: 13px/1.2 var(--font-primary);
+      font: 13px/1.3 var(--font-primary);
     }
-    button { cursor: pointer; }
-    button.primary { background: linear-gradient(120deg, var(--gold-primary), var(--gold-dark)); color: #fff; border-color: var(--gold-dark); }
-    button.secondary { background: linear-gradient(120deg, #d9c691, var(--gold-light)); border-color: var(--gold-primary); }
+    textarea { resize: vertical; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .chip {
+      border: 1px solid rgba(0,0,0,0.18);
+      border-radius: 999px;
+      background: rgba(0,0,0,0.04);
+      color: var(--text-primary);
+      font: 12px/1 var(--font-primary);
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    .mono { font-family: var(--font-mono); }
     pre {
       margin: 0;
-      max-height: 180px;
+      max-height: 240px;
       overflow: auto;
+      border: 1px solid rgba(0,0,0,0.1);
+      background: rgba(20,20,20,0.94);
+      color: #f4e9d0;
+      border-radius: 10px;
       padding: 10px;
-      border-radius: 8px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-medium);
-      color: var(--text-secondary);
       font: 12px/1.35 var(--font-mono);
       white-space: pre-wrap;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid rgba(0,0,0,0.1); padding: 8px 6px; text-align: left; vertical-align: top; }
+    th { text-transform: uppercase; font: 11px/1.2 var(--font-mono); color: var(--text-secondary); }
+    .table-wrap { overflow: auto; max-height: 420px; border: 1px solid var(--border-light); border-radius: 10px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,0.16);
+      padding: 4px 8px;
+      font: 11px/1 var(--font-mono);
+      background: rgba(255,255,255,0.65);
+      white-space: nowrap;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: #8a8a8a; }
+    .dot.online { background: #169f5f; }
+    .dot.offline { background: #bf453e; }
+    .status {
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.1);
+      background: rgba(255,255,255,0.86);
+      padding: 8px 10px;
+      color: var(--text-secondary);
+      font: 12px/1.3 var(--font-mono);
+    }
+    .danger { color: #b12828; }
+    .activity { display: grid; gap: 8px; max-height: 520px; overflow: auto; }
+    .event {
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.74);
+      padding: 8px 10px;
       font-size: 12px;
     }
-    th, td {
-      border-bottom: 1px solid var(--border-light);
-      padding: 8px 6px;
-      text-align: left;
-      vertical-align: middle;
+    .event .meta { color: var(--text-secondary); font: 11px/1.2 var(--font-mono); margin-bottom: 4px; }
+
+    @media (max-width: 1100px) {
+      .split { grid-template-columns: 1fr; }
     }
-    th { color: var(--text-secondary); font-weight: 600; text-transform: uppercase; font-size: 11px; }
-    .table-wrap { max-height: 300px; overflow: auto; }
-    .actions { display: flex; gap: 6px; }
-    .actions button { width: auto; padding: 6px 10px; font-size: 11px; }
   </style>
 </head>
 <body>
-  <main class="ops">
-    <h1>Agent Operations</h1>
+  <main class="command">
+    <header class="top">
+      <div class="title">
+        <h1>Admin Command Center</h1>
+        <p>Operate super agent, fleet, treasury, and users from one cockpit. Legacy UI remains available during rollout.</p>
+      </div>
+      <div class="top-actions">
+        <button class="btn btn-primary" id="refresh-all" type="button">Refresh</button>
+        <a class="btn" href="/users">Open Users Page</a>
+        <a class="btn" href="/admin?legacy=1">Switch To Legacy</a>
+      </div>
+    </header>
 
-    <div class="grid">
-      <section class="panel">
-        <h2>Ops Super Agent (admin only)</h2>
-        <div class="row">
-          <div>
-            <label for="super-id">Super agent id</label>
-            <input id="super-id" type="text" value="agent_1">
-          </div>
-          <div>
-            <label for="super-mode">Mode</label>
-            <select id="super-mode">
-              <option value="balanced">balanced</option>
-              <option value="hunter">hunter</option>
-              <option value="defensive">defensive</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label for="super-cooldown">Worker cooldown (ms)</label>
-            <input id="super-cooldown" type="number" min="1200" max="120000" value="9000">
-          </div>
-          <div>
-            <label for="super-target">Worker target preference</label>
-            <select id="super-target">
-              <option value="human_only">human_only</option>
-              <option value="human_first">human_first</option>
-              <option value="any">any</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label><input id="super-challenge-enabled" type="checkbox" checked> Challenges enabled</label>
-          </div>
-          <div>
-            <label><input id="wallet-enabled" type="checkbox"> Wallet skills enabled</label>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label for="wallet-skills">Wallet skills (comma separated)</label>
-            <input id="wallet-skills" type="text" value="authenticate-wallet,fund,send-usdc,trade,query-onchain-data,solidity-contract-design,solidity-security-review,evm-gas-optimization">
-          </div>
-          <div>
-            <label for="openrouter-key">OpenRouter API key</label>
-            <input id="openrouter-key" type="password" placeholder="sk-or-v1-...">
-          </div>
-        </div>
-        <div class="actions">
-          <button id="save-super" class="primary">Apply Super Config</button>
-          <button id="save-wallet" class="secondary">Apply Wallet Policy</button>
-          <button id="save-openrouter">Save OpenRouter</button>
-          <button id="sync-ethskills">Sync ETHSkills</button>
-          <button id="apply-delegation">Re-run Delegation</button>
-        </div>
-      </section>
+    <nav class="tabs" aria-label="Admin sections">
+      <button type="button" class="active" data-tab="overview">Overview</button>
+      <button type="button" data-tab="super">Super Agent</button>
+      <button type="button" data-tab="fleet">Fleet</button>
+      <button type="button" data-tab="treasury">Treasury</button>
+      <button type="button" data-tab="users">Users</button>
+      <button type="button" data-tab="activity">Activity</button>
+    </nav>
 
-      <section class="panel">
-        <h2>Create Profile + Bot + Wallet</h2>
-        <div class="row">
-          <div>
-            <label for="new-username">Username</label>
-            <input id="new-username" type="text" placeholder="temi">
-          </div>
-          <div>
-            <label for="new-display-name">Display name</label>
-            <input id="new-display-name" type="text" placeholder="Temisan">
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label for="new-personality">Initial personality</label>
-            <select id="new-personality">
-              <option value="social">social</option>
-              <option value="aggressive">aggressive</option>
-              <option value="conservative">conservative</option>
-            </select>
-          </div>
-          <div>
-            <label for="new-target">Target preference</label>
-            <select id="new-target">
-              <option value="human_only">human_only</option>
-              <option value="human_first">human_first</option>
-              <option value="any">any</option>
-            </select>
-          </div>
-        </div>
-        <div class="actions">
-          <button id="create-profile" class="primary">Create Profile Bundle</button>
-          <button id="refresh-all">Refresh</button>
-        </div>
-      </section>
+    <section id="status-bar" class="status">Loading admin command center...</section>
 
-      <section class="panel">
-        <h2>Background Bots</h2>
-        <div class="row">
-          <div>
-            <label for="bg-count">Background bot count</label>
-            <input id="bg-count" type="number" min="0" max="60" value="8">
-          </div>
-          <div style="align-self:end">
-            <button id="apply-bg-count">Apply Count</button>
-          </div>
-        </div>
-        <pre id="status-summary">Loading...</pre>
-      </section>
+    <section id="panel-overview" class="panel active">
+      <h2 class="section-title">Operational Scope</h2>
+      <div id="overview-kpis" class="grid kpi-grid"></div>
+      <div class="split" style="margin-top:10px;">
+        <article class="card">
+          <h3 class="section-title" style="font-size:13px; margin-bottom:8px;">Runtime Snapshot</h3>
+          <pre id="runtime-snapshot">Loading...</pre>
+        </article>
+        <article class="card">
+          <h3 class="section-title" style="font-size:13px; margin-bottom:8px;">Recent Incidents</h3>
+          <pre id="overview-incidents">Loading...</pre>
+        </article>
+      </div>
+    </section>
 
-      <section class="panel">
-        <h2>House Bank</h2>
-        <div class="row">
-          <div>
-            <label>House wallet</label>
-            <input id="house-wallet-id" type="text" readonly value="-">
+    <section id="panel-super" class="panel">
+      <div class="split">
+        <article class="card">
+          <h2 class="section-title">Guided Ops Cockpit</h2>
+          <div class="chips" id="super-chips"></div>
+          <div class="row">
+            <div>
+              <label for="super-id">Super Agent Id</label>
+              <input id="super-id" type="text" value="agent_1">
+            </div>
+            <div>
+              <label for="super-mode">Mode</label>
+              <select id="super-mode">
+                <option value="balanced">balanced</option>
+                <option value="hunter">hunter</option>
+                <option value="defensive">defensive</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label>House balance</label>
-            <input id="house-balance" type="text" readonly value="-">
+          <div class="row-3">
+            <div>
+              <label for="super-cooldown">Worker Cooldown (ms)</label>
+              <input id="super-cooldown" type="number" min="1200" max="120000" value="9000">
+            </div>
+            <div>
+              <label for="super-target">Target Preference</label>
+              <select id="super-target">
+                <option value="human_only">human_only</option>
+                <option value="human_first">human_first</option>
+                <option value="any">any</option>
+              </select>
+            </div>
+            <div>
+              <label for="bg-count">Background Bot Count</label>
+              <input id="bg-count" type="number" min="0" max="120" value="8">
+            </div>
           </div>
-        </div>
-        <div class="row">
-          <div>
-            <label for="house-npc-floor">NPC wallet floor</label>
-            <input id="house-npc-floor" type="number" min="0" step="1" value="40">
+          <div class="row">
+            <label><input id="super-challenge-enabled" type="checkbox" checked> Challenges Enabled</label>
+            <label><input id="wallet-enabled" type="checkbox"> Wallet Skills Enabled</label>
           </div>
-          <div>
-            <label for="house-npc-topup">NPC topup amount</label>
-            <input id="house-npc-topup" type="number" min="0" step="1" value="20">
+          <div class="row">
+            <div>
+              <label for="wallet-skills">Wallet Skills (comma separated)</label>
+              <input id="wallet-skills" type="text">
+            </div>
+            <div>
+              <label for="openrouter-key">OpenRouter API key</label>
+              <input id="openrouter-key" type="password" placeholder="sk-or-v1-...">
+            </div>
           </div>
-        </div>
-        <div class="row">
-          <div>
-            <label for="house-super-floor">Super agent floor</label>
-            <input id="house-super-floor" type="number" min="0" step="1" value="120">
+          <div class="actions">
+            <button id="save-super" type="button" class="btn btn-gold">Apply Super Config</button>
+            <button id="save-wallet" type="button" class="btn">Apply Wallet Policy</button>
+            <button id="save-openrouter" type="button" class="btn">Save OpenRouter Key</button>
+            <button id="sync-ethskills" type="button" class="btn">Sync ETHSkills</button>
+            <button id="apply-delegation" type="button" class="btn">Run Delegation</button>
+            <button id="apply-bg-count" type="button" class="btn">Reconcile Bot Count</button>
           </div>
-          <div style="align-self:end">
-            <button id="house-apply" class="secondary">Apply House Policy</button>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label for="house-refill-amount">Refill house amount</label>
-            <input id="house-refill-amount" type="number" min="1" step="1" value="200">
-          </div>
-          <div style="align-self:end">
-            <button id="house-refill" class="primary">Refill</button>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label for="house-transfer-wallet">Transfer to walletId</label>
-            <input id="house-transfer-wallet" type="text" placeholder="wallet_123">
-          </div>
-          <div>
-            <label for="house-transfer-amount">Amount</label>
-            <input id="house-transfer-amount" type="number" min="1" step="1" value="20">
-          </div>
-        </div>
-        <div class="actions">
-          <button id="house-transfer" class="primary">Transfer</button>
-        </div>
-        <pre id="house-ledger">Loading house ledger...</pre>
-      </section>
-    </div>
+        </article>
 
-    <section class="panel" style="margin-bottom: 12px;">
-      <h2>Profiles</h2>
+        <article class="card">
+          <h2 class="section-title">Ops Super Agent Console</h2>
+          <label for="super-chat-input">Command</label>
+          <textarea id="super-chat-input" rows="5" placeholder="status | why are games not starting? | rebalance bots"></textarea>
+          <div class="actions" style="margin:8px 0;">
+            <button id="super-chat-send" type="button" class="btn btn-primary">Send Command</button>
+            <button id="super-chat-status" type="button" class="btn">Quick Status</button>
+          </div>
+          <pre id="super-chat-log">Ops Super Agent ready.</pre>
+        </article>
+      </div>
+    </section>
+
+    <section id="panel-fleet" class="panel">
+      <div class="split">
+        <article class="card">
+          <h2 class="section-title">Create Profile Bundle</h2>
+          <div class="row">
+            <div>
+              <label for="new-username">Username</label>
+              <input id="new-username" type="text" placeholder="temi">
+            </div>
+            <div>
+              <label for="new-display-name">Display Name</label>
+              <input id="new-display-name" type="text" placeholder="Temisan">
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="new-personality">Personality</label>
+              <select id="new-personality">
+                <option value="social">social</option>
+                <option value="aggressive">aggressive</option>
+                <option value="conservative">conservative</option>
+              </select>
+            </div>
+            <div>
+              <label for="new-target">Target Preference</label>
+              <select id="new-target">
+                <option value="human_only">human_only</option>
+                <option value="human_first">human_first</option>
+                <option value="any">any</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="create-profile" type="button" class="btn btn-gold">Create Profile</button>
+          </div>
+        </article>
+        <article class="card">
+          <h2 class="section-title">Profiles</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Profile</th><th>Wallet</th><th>Balance</th><th>Bots</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="profiles-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <article class="card" style="margin-top:10px;">
+        <h2 class="section-title">Bots</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Name</th><th>Owner</th><th>Duty</th><th>Section</th><th>Connected</th>
+                <th>Personality</th><th>Target</th><th>Cooldown</th><th>Managed</th><th>Save</th>
+              </tr>
+            </thead>
+            <tbody id="bots-body"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="panel-treasury" class="panel">
+      <div class="split">
+        <article class="card">
+          <h2 class="section-title">House Policy</h2>
+          <div class="row">
+            <div>
+              <label>House Wallet</label>
+              <input id="house-wallet-id" type="text" readonly value="-">
+            </div>
+            <div>
+              <label>House Balance</label>
+              <input id="house-balance" type="text" readonly value="-">
+            </div>
+          </div>
+          <div class="row-3">
+            <div>
+              <label for="house-npc-floor">NPC Wallet Floor</label>
+              <input id="house-npc-floor" type="number" min="0" step="1" value="40">
+            </div>
+            <div>
+              <label for="house-npc-topup">NPC Topup Amount</label>
+              <input id="house-npc-topup" type="number" min="0" step="1" value="20">
+            </div>
+            <div>
+              <label for="house-super-floor">Super Agent Floor</label>
+              <input id="house-super-floor" type="number" min="0" step="1" value="120">
+            </div>
+          </div>
+          <div class="actions">
+            <button id="house-apply" type="button" class="btn btn-gold">Apply House Policy</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2 class="section-title">Refill / Transfer</h2>
+          <div class="row">
+            <div>
+              <label for="house-refill-amount">Refill House Amount</label>
+              <input id="house-refill-amount" type="number" min="1" step="1" value="200">
+            </div>
+            <div style="align-self:end;">
+              <button id="house-refill" type="button" class="btn btn-primary" style="width:100%;">Refill House</button>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="house-transfer-wallet">Transfer To Wallet Id</label>
+              <input id="house-transfer-wallet" type="text" placeholder="wallet_123">
+            </div>
+            <div>
+              <label for="house-transfer-amount">Amount</label>
+              <input id="house-transfer-amount" type="number" min="1" step="1" value="20">
+            </div>
+          </div>
+          <div class="actions">
+            <button id="house-transfer" type="button" class="btn">Transfer</button>
+          </div>
+          <pre id="house-ledger" style="margin-top:10px;">Loading house ledger...</pre>
+        </article>
+      </div>
+    </section>
+
+    <section id="panel-users" class="panel">
+      <h2 class="section-title">User Administration</h2>
       <div class="table-wrap">
-        <table>
+        <table aria-label="User directory">
           <thead>
             <tr>
-              <th>Profile</th>
+              <th>User</th>
+              <th>Identity</th>
               <th>Wallet</th>
-              <th>Balance</th>
-              <th>Bots</th>
-              <th>Actions</th>
+              <th>Presence</th>
+              <th>Ops</th>
             </tr>
           </thead>
-          <tbody id="profiles-body"></tbody>
+          <tbody id="users-body"></tbody>
         </table>
       </div>
     </section>
 
-    <section class="panel" style="margin-bottom: 12px;">
-      <h2>Bots</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Owner</th>
-              <th>Duty</th>
-              <th>Section</th>
-              <th>Connected</th>
-              <th>Personality</th>
-              <th>Target</th>
-              <th>Cooldown</th>
-              <th>Managed</th>
-              <th>Save</th>
-            </tr>
-          </thead>
-          <tbody id="bots-body"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="panel" style="margin-bottom: 12px;">
-      <h2>Ops Super Agent Console (admin only)</h2>
-      <div class="row-1">
-        <label for="super-chat-input">Ask super agent</label>
-        <textarea id="super-chat-input" rows="4" placeholder="status | mode hunter | bot count 16 | why are games not starting?"></textarea>
-      </div>
-      <div class="actions" style="margin-bottom: 8px;">
-        <button id="super-chat-send" class="primary">Send Command</button>
-        <button id="super-chat-status">Quick Status</button>
-      </div>
-      <pre id="super-chat-log">Ops Super Agent console ready.</pre>
-    </section>
-
-    <section class="panel">
-      <h2>Challenge Log</h2>
-      <pre id="challenge-log">Loading challenge logs...</pre>
+    <section id="panel-activity" class="panel">
+      <h2 class="section-title">Unified Activity Timeline</h2>
+      <div id="activity-list" class="activity"></div>
     </section>
   </main>
+
   <script type="module" src="/js/auth-shell.js"></script>
   <script type="module">
-    // Static hosting can serve this page without server-side auth checks.
-    // Hard-gate the UI client-side: only admins may stay on this page.
     (async function () {
       try {
         const res = await fetch('/api/session', { credentials: 'include' });
@@ -334,8 +498,7 @@
           return;
         }
         const payload = await res.json().catch(() => ({}));
-        const role = payload?.user?.role || '';
-        if (role !== 'admin') {
+        if (payload?.user?.role !== 'admin') {
           window.location.href = '/dashboard';
         }
       } catch {

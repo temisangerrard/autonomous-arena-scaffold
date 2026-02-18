@@ -18,6 +18,8 @@ import { renderTopHud, renderNextActionLine } from './hud.js';
 import { renderMinimap } from './minimap.js';
 import { renderQuickstart as renderQuickstartModule } from './quickstart.js';
 import { describeInteractionPhase } from './interactions.js';
+import { createWorldNpcHosts } from './world-npc-hosts.js';
+import { extractBakedNpcStations } from './baked-npc-stations.js';
 import { coinflipGamePlugin } from '../plugins/games/coinflip.js';
 import { rpsGamePlugin } from '../plugins/games/rps.js';
 import { diceDuelGamePlugin } from '../plugins/games/dice-duel.js';
@@ -152,6 +154,7 @@ const {
   topbarName,
   topbarWallet,
   topbarStreak,
+  topbarBot,
   feedPanel,
   challengeStatusLine,
   worldMapCanvas,
@@ -159,6 +162,8 @@ const {
   interactionPrompt,
   interactionCard,
   interactionTitle,
+  interactionHelpToggle,
+  interactionHelp,
   interactionClose,
   stationUi,
   interactionNpcInfo,
@@ -230,8 +235,22 @@ const { localAvatarParts, remoteAvatars, syncRemoteAvatars } = createAvatarSyste
 const { syncStations } = createStationSystem({ THREE, scene });
 
 const state = createInitialState();
+let worldRoot = null;
+let npcHosts = null;
+const localStationToProxy = new Map();
+const proxyToLocalStations = new Map();
+
 if (!(state.stations instanceof Map)) {
   state.stations = new Map();
+}
+if (!(state.serverStations instanceof Map)) {
+  state.serverStations = new Map();
+}
+if (!(state.hostStations instanceof Map)) {
+  state.hostStations = new Map();
+}
+if (!(state.bakedStations instanceof Map)) {
+  state.bakedStations = new Map();
 }
 if (!(state.nearbyStationIds instanceof Set)) {
   state.nearbyStationIds = new Set();
@@ -451,6 +470,156 @@ function formatWagerInline(wager) {
   return `${formatUsdAmount(value)} USDC each`;
 }
 
+function copyStationFromPayload(station) {
+  return {
+    id: String(station.id || ''),
+    kind: String(station.kind || ''),
+    displayName: String(station.displayName || station.id || ''),
+    x: Number(station.x || 0),
+    z: Number(station.z || 0),
+    yaw: Number(station.yaw || 0),
+    radius: Number(station.radius || 0),
+    interactionTag: String(station.interactionTag || ''),
+    actions: Array.isArray(station.actions) ? station.actions.map((a) => String(a)) : []
+  };
+}
+
+function nearestServerStationForKind(kind, x, z) {
+  let best = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  const fallbackKind = kind === 'world_interactable' ? 'world_interactable' : '';
+  for (const station of state.serverStations.values()) {
+    if (station.kind !== kind && (!fallbackKind || station.kind !== fallbackKind)) continue;
+    const dist = Math.hypot(Number(station.x || 0) - Number(x || 0), Number(station.z || 0) - Number(z || 0));
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = station;
+    }
+  }
+  if (best || kind === 'world_interactable') return best;
+  for (const station of state.serverStations.values()) {
+    if (station.kind !== 'world_interactable') continue;
+    const dist = Math.hypot(Number(station.x || 0) - Number(x || 0), Number(station.z || 0) - Number(z || 0));
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = station;
+    }
+  }
+  return best;
+}
+
+function rebuildLocalStationProxyIndex() {
+  localStationToProxy.clear();
+  proxyToLocalStations.clear();
+  for (const station of [...state.hostStations.values(), ...state.bakedStations.values()]) {
+    const proxyId = String(station.proxyStationId || '').trim();
+    if (!proxyId) continue;
+    localStationToProxy.set(station.id, proxyId);
+    if (!proxyToLocalStations.has(proxyId)) {
+      proxyToLocalStations.set(proxyId, []);
+    }
+    proxyToLocalStations.get(proxyId).push(station.id);
+  }
+}
+
+function remapLocalStationProxies() {
+  for (const station of [...state.hostStations.values(), ...state.bakedStations.values()]) {
+    const nearest = nearestServerStationForKind(station.kind, station.x, station.z);
+    station.proxyStationId = nearest ? nearest.id : '';
+  }
+  rebuildLocalStationProxyIndex();
+}
+
+function mergeStations() {
+  const merged = new Map();
+  for (const station of state.serverStations.values()) {
+    merged.set(station.id, { ...station, source: 'server' });
+  }
+  for (const station of state.hostStations.values()) {
+    merged.set(station.id, station);
+  }
+  for (const station of state.bakedStations.values()) {
+    merged.set(station.id, station);
+  }
+  state.stations = merged;
+}
+
+function resolveStationIdForSend(stationId) {
+  const id = String(stationId || '');
+  if (!id) return '';
+  return localStationToProxy.get(id) || id;
+}
+
+function resolveIncomingStationId(stationId) {
+  const incomingId = String(stationId || '');
+  if (!incomingId) return '';
+  if (state.stations.has(incomingId)) return incomingId;
+
+  const activeTarget = String(state.ui?.targetId || '');
+  if (activeTarget && localStationToProxy.get(activeTarget) === incomingId) {
+    return activeTarget;
+  }
+  const dealerTarget = String(state.ui?.dealer?.stationId || '');
+  if (dealerTarget && localStationToProxy.get(dealerTarget) === incomingId) {
+    return dealerTarget;
+  }
+  const options = proxyToLocalStations.get(incomingId);
+  if (Array.isArray(options) && options.length > 0) {
+    return options[0];
+  }
+  return incomingId;
+}
+
+function sendStationInteract(station, action, extra = {}) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    showToast('Not connected to server.');
+    return false;
+  }
+  const resolvedStationId = resolveStationIdForSend(station?.id || '');
+  if (!resolvedStationId) {
+    showToast('Station unavailable.');
+    return false;
+  }
+  socket.send(
+    JSON.stringify({
+      type: 'station_interact',
+      stationId: resolvedStationId,
+      action,
+      ...extra
+    })
+  );
+  return true;
+}
+
+function renderGuideStationDetail(station, mode) {
+  const local = station?.localInteraction || null;
+  if (!local) return false;
+  if (mode === 'inspect') {
+    state.ui.world.stationId = station.id;
+    state.ui.world.interactionTag = String(station.interactionTag || '');
+    state.ui.world.title = String(local.title || station.displayName || 'World Interaction');
+    state.ui.world.detail = String(local.inspect || 'Interaction ready.');
+    state.ui.world.actionLabel = String(local.useLabel || 'Use');
+    return true;
+  }
+  if (mode === 'use') {
+    state.ui.world.stationId = station.id;
+    state.ui.world.interactionTag = String(station.interactionTag || '');
+    state.ui.world.title = String(local.title || station.displayName || 'World Interaction');
+    state.ui.world.detail = String(local.use || 'Interaction complete.');
+    state.ui.world.actionLabel = 'Used';
+    return true;
+  }
+  return false;
+}
+
+function setStationStatus(statusEl, text, tone = 'neutral') {
+  if (!statusEl) return;
+  statusEl.textContent = text;
+  statusEl.classList.toggle('station-ui__meta--warning', tone === 'warning');
+  statusEl.classList.toggle('station-ui__meta--success', tone === 'success');
+}
+
 function scheduleConnectRetry(message) {
   if (connectRetryTimer) {
     return;
@@ -622,24 +791,16 @@ async function connectSocket() {
       for (const station of payload.stations) {
         if (!station || typeof station.id !== 'string') continue;
         stationSeen.add(station.id);
-        state.stations.set(station.id, {
-          id: station.id,
-          kind: String(station.kind || ''),
-          displayName: String(station.displayName || station.id),
-          x: Number(station.x || 0),
-          z: Number(station.z || 0),
-          yaw: Number(station.yaw || 0),
-          radius: Number(station.radius || 0),
-          interactionTag: String(station.interactionTag || ''),
-          actions: Array.isArray(station.actions) ? station.actions.map((a) => String(a)) : []
-        });
+        state.serverStations.set(station.id, copyStationFromPayload(station));
       }
     }
-    for (const id of [...state.stations.keys()]) {
+    for (const id of [...state.serverStations.keys()]) {
       if (!stationSeen.has(id)) {
-        state.stations.delete(id);
+        state.serverStations.delete(id);
       }
     }
+    remapLocalStationProxies();
+    mergeStations();
 
     for (const id of [...state.players.keys()]) {
       if (!seen.has(id)) {
@@ -677,6 +838,7 @@ async function connectSocket() {
   }
 
   if (payload.type === 'station_ui' && typeof payload.stationId === 'string') {
+    const localStationId = resolveIncomingStationId(payload.stationId);
     const view = payload.view || {};
     const ok = Boolean(view.ok);
     const reason = String(view.reason || '');
@@ -689,11 +851,11 @@ async function connectSocket() {
         }
       : null;
     const stateName = String(view.state || '');
-    const station = state.stations instanceof Map ? state.stations.get(payload.stationId) : null;
+    const station = state.stations instanceof Map ? state.stations.get(localStationId) : null;
     if (station?.kind === 'world_interactable') {
       const method = String(view.method || '');
       const useLabel = String(view.reasonText || 'Use');
-      state.ui.world.stationId = payload.stationId;
+      state.ui.world.stationId = localStationId || payload.stationId;
       state.ui.world.interactionTag = String(view.reasonCode || station.interactionTag || '');
       state.ui.world.title = station.displayName || 'World Interaction';
       state.ui.world.detail = method || useLabel || 'Interaction ready.';
@@ -704,7 +866,7 @@ async function connectSocket() {
       return;
     }
     if (!ok || stateName === 'dealer_error') {
-      const resolvedReasonText = reasonText || dealerReasonLabel(reason, reasonCode);
+      const resolvedReasonText = reasonText || dealerReasonLabel(reason, reasonCode) || 'Station request failed. Please retry.';
       state.ui.dealer.state = 'error';
       state.ui.dealer.reason = reason || 'request_failed';
       state.ui.dealer.reasonCode = reasonCode;
@@ -712,14 +874,14 @@ async function connectSocket() {
       state.ui.dealer.preflight = preflight;
       addFeedEvent(
         'system',
-        `Station ${labelFor(payload.stationId)}: ${resolvedReasonText || reason || 'request_failed'}${reasonCode ? ` [${reasonCode}]` : ''}`
+        `Station ${labelFor(localStationId || payload.stationId)}: ${resolvedReasonText}`
       );
-      showToast(resolvedReasonText || `Station error: ${reason || 'request_failed'}`);
+      showToast(resolvedReasonText, 'warning');
       return;
     }
     if (stateName === 'dealer_ready' || stateName === 'dealer_ready_rps' || stateName === 'dealer_ready_dice') {
       state.quickstart.challengeSent = true;
-      state.ui.dealer.stationId = payload.stationId;
+      state.ui.dealer.stationId = localStationId || payload.stationId;
       state.ui.dealer.state = 'ready';
       state.ui.dealer.gameType =
         stateName === 'dealer_ready_rps' ? 'rps' : stateName === 'dealer_ready_dice' ? 'dice_duel' : 'coinflip';
@@ -845,6 +1007,36 @@ async function connectSocket() {
 void connectSocket();
 
 
+function setupWorldNpcStations() {
+  if (!worldRoot) return;
+  if (npcHosts) {
+    npcHosts.dispose();
+    npcHosts = null;
+  }
+  npcHosts = createWorldNpcHosts({ THREE, scene });
+  state.hostStations = new Map(npcHosts.hostStations);
+  state.bakedStations = extractBakedNpcStations({ THREE, worldRoot });
+  for (const baked of state.bakedStations.values()) {
+    let nearestHost = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const host of state.hostStations.values()) {
+      const dist = Math.hypot(Number(host.x || 0) - Number(baked.x || 0), Number(host.z || 0) - Number(baked.z || 0));
+      if (dist < nearestDistance) {
+        nearestDistance = dist;
+        nearestHost = host;
+      }
+    }
+    if (nearestHost) {
+      baked.hostRole = baked.hostRole || nearestHost.hostRole || '';
+      if (baked.kind === 'world_interactable' && nearestHost.localInteraction) {
+        baked.localInteraction = { ...nearestHost.localInteraction };
+      }
+    }
+  }
+  remapLocalStationProxies();
+  mergeStations();
+}
+
 async function loadWorldWithFallback() {
   // Ensure `/api/config` has been loaded so `worldAssetBaseUrl` is available.
   // Without this, we can race and fall back to `/assets/world/*.glb` (404 on Netlify).
@@ -864,7 +1056,7 @@ async function loadWorldWithFallback() {
     worldLoadingText.textContent = 'Starting download…';
   }
   try {
-    await loadWorldWithProgress(scene, state.worldAlias, (evt) => {
+    worldRoot = await loadWorldWithProgress(scene, state.worldAlias, (evt) => {
       const loaded = Number(evt?.loaded || 0);
       const total = Number(evt?.total || 0);
       if (worldLoadingBar && total > 0) {
@@ -885,6 +1077,7 @@ async function loadWorldWithFallback() {
       }
     });
     state.worldLoaded = true;
+    setupWorldNpcStations();
     addFeedEvent('system', `World loaded: ${state.worldAlias}`);
     if (worldLoading) {
       worldLoading.classList.remove('open');
@@ -905,7 +1098,7 @@ async function loadWorldWithFallback() {
       if (worldLoadingBar) {
         worldLoadingBar.style.width = '0%';
       }
-      await loadWorldWithProgress(scene, fallbackAlias, (evt) => {
+      worldRoot = await loadWorldWithProgress(scene, fallbackAlias, (evt) => {
         const loaded = Number(evt?.loaded || 0);
         const total = Number(evt?.total || 0);
         if (worldLoadingBar && total > 0) {
@@ -915,6 +1108,7 @@ async function loadWorldWithFallback() {
       });
       state.worldAlias = fallbackAlias;
       state.worldLoaded = true;
+      setupWorldNpcStations();
       addFeedEvent('system', `World loaded: ${fallbackAlias} (fallback)`);
       if (worldLoading) {
         worldLoading.classList.remove('open');
@@ -1039,6 +1233,12 @@ interactionPrompt?.addEventListener('click', () => {
   setInteractOpen(true);
 });
 interactionClose?.addEventListener('click', () => setInteractOpen(false));
+interactionHelpToggle?.addEventListener('click', () => {
+  if (!interactionHelp) return;
+  const nextOpen = interactionHelp.hidden;
+  interactionHelp.hidden = !nextOpen;
+  interactionHelpToggle.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+});
 
 function updateLocalAvatar() {
   if (!state.playerId) {
@@ -1177,6 +1377,20 @@ function renderInteractionCard() {
   }
   const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
   const targetPlayer = state.players.get(targetId);
+  const showHelpToggle = Boolean(station && station.kind !== 'dealer_coinflip' && station.kind !== 'dealer_rps' && station.kind !== 'dealer_dice_duel');
+  if (interactionHelpToggle) {
+    interactionHelpToggle.hidden = !showHelpToggle;
+  }
+  if (interactionHelp) {
+    if (!showHelpToggle) {
+      interactionHelp.hidden = true;
+      interactionHelpToggle?.setAttribute('aria-expanded', 'false');
+    } else if (station?.kind === 'cashier_bank') {
+      interactionHelp.innerHTML = 'Cashier lets you <strong>fund</strong>, <strong>withdraw</strong>, or <strong>transfer</strong>. Use small test amounts first.';
+    } else {
+      interactionHelp.innerHTML = 'This station supports local interactions. Press <strong>Inspect</strong> for context or <strong>Use</strong> for the primary action.';
+    }
+  }
   if (station && state.ui.interactionMode !== 'station') {
     state.ui.interactionMode = 'station';
   }
@@ -1223,43 +1437,29 @@ function renderInteractionCard() {
         const statusEl = document.getElementById('station-status');
 
         function sendStart() {
-          if (!socket || socket.readyState !== WebSocket.OPEN) {
-            showToast('Not connected to server.');
+          if (!sendStationInteract(station, 'coinflip_house_start', {
+            wager: Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)))
+          })) {
             return;
           }
           const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
-          socket.send(JSON.stringify({
-            type: 'station_interact',
-            stationId: station.id,
-            action: 'coinflip_house_start',
-            wager
-          }));
           state.ui.dealer.state = 'preflight';
           state.ui.dealer.wager = wager;
-          if (statusEl) {
-            statusEl.textContent = 'Preflight check... validating player + house wallets. Press Esc to close panel.';
-          }
+          setStationStatus(statusEl, 'Preflight check... validating player + house wallets. Press Esc to close panel.');
           if (startBtn) startBtn.disabled = true;
           if (headsBtn) headsBtn.disabled = true;
           if (tailsBtn) tailsBtn.disabled = true;
         }
 
         function sendPick(pick) {
-          if (!socket || socket.readyState !== WebSocket.OPEN) {
-            showToast('Not connected to server.');
-            return;
-          }
-          socket.send(JSON.stringify({
-            type: 'station_interact',
-            stationId: station.id,
-            action: 'coinflip_house_pick',
+          if (!sendStationInteract(station, 'coinflip_house_pick', {
             pick,
             playerSeed: makePlayerSeed()
-          }));
-          state.ui.dealer.state = 'dealing';
-          if (statusEl) {
-            statusEl.textContent = `Flipping... ${pick.toUpperCase()} selected.`;
+          })) {
+            return;
           }
+          state.ui.dealer.state = 'dealing';
+          setStationStatus(statusEl, `Flipping... ${pick.toUpperCase()} selected.`);
           if (startBtn) startBtn.disabled = true;
           if (headsBtn) headsBtn.disabled = true;
           if (tailsBtn) tailsBtn.disabled = true;
@@ -1274,31 +1474,22 @@ function renderInteractionCard() {
         if (tailsBtn) {
           tailsBtn.onclick = () => sendPick('tails');
         }
-          if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+        if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
           if (pickActions) pickActions.style.display = 'flex';
-          if (statusEl) {
-            statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`;
-          }
+          setStationStatus(statusEl, `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`);
         }
         if (state.ui.dealer.state === 'preflight') {
           if (pickActions) pickActions.style.display = 'none';
-          if (statusEl) {
-            statusEl.textContent = 'Preflight check... (Esc closes panel)';
-          }
+          setStationStatus(statusEl, 'Preflight check... (Esc closes panel)');
         }
         if (state.ui.dealer.state === 'dealing') {
           if (pickActions) pickActions.style.display = 'flex';
-          if (statusEl) {
-            statusEl.textContent = 'Dealing...';
-          }
+          setStationStatus(statusEl, 'Dealing...');
         }
         if (state.ui.dealer.state === 'error') {
           if (pickActions) pickActions.style.display = 'none';
-          if (statusEl) {
-            const msg = state.ui.dealer.reasonText || state.ui.dealer.reason || 'Station request failed.';
-            const code = state.ui.dealer.reasonCode ? ` [${state.ui.dealer.reasonCode}]` : '';
-            statusEl.textContent = `${msg}${code}`;
-          }
+          const msg = state.ui.dealer.reasonText || 'Insufficient gas. Top up ETH, then retry.';
+          setStationStatus(statusEl, msg, 'warning');
           if (startBtn) startBtn.disabled = false;
           if (headsBtn) headsBtn.disabled = false;
           if (tailsBtn) tailsBtn.disabled = false;
@@ -1333,23 +1524,14 @@ function renderInteractionCard() {
 
         if (startBtn) {
           startBtn.onclick = () => {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-              showToast('Not connected to server.');
+            const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
+            if (!sendStationInteract(station, startAction, { wager })) {
               return;
             }
-            const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
-            socket.send(JSON.stringify({
-              type: 'station_interact',
-              stationId: station.id,
-              action: startAction,
-              wager
-            }));
             state.ui.dealer.state = 'preflight';
             state.ui.dealer.wager = wager;
             state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
-            if (statusEl) {
-              statusEl.textContent = 'Preflight check...';
-            }
+            setStationStatus(statusEl, 'Preflight check...');
           };
         }
 
@@ -1361,21 +1543,14 @@ function renderInteractionCard() {
           const btn = document.getElementById(id);
           if (!(btn instanceof HTMLButtonElement)) continue;
           btn.onclick = () => {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-              showToast('Not connected to server.');
-              return;
-            }
-            socket.send(JSON.stringify({
-              type: 'station_interact',
-              stationId: station.id,
-              action: pickAction,
+            if (!sendStationInteract(station, pickAction, {
               pick,
               playerSeed: makePlayerSeed()
-            }));
-            state.ui.dealer.state = 'dealing';
-            if (statusEl) {
-              statusEl.textContent = `Dealing ${gameLabel}...`;
+            })) {
+              return;
             }
+            state.ui.dealer.state = 'dealing';
+            setStationStatus(statusEl, `Dealing ${gameLabel}...`);
           };
         }
 
@@ -1519,40 +1694,34 @@ function renderInteractionCard() {
         const detailEl = document.getElementById('world-interaction-detail');
         if (openBtn) {
           openBtn.onclick = () => {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-              showToast('Not connected to server.');
+            if (renderGuideStationDetail(station, 'inspect')) {
               return;
             }
-            socket.send(JSON.stringify({
-              type: 'station_interact',
-              stationId: station.id,
-              action: 'interact_open'
-            }));
+            void sendStationInteract(station, 'interact_open');
           };
         }
         if (useBtn) {
           useBtn.onclick = () => {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-              showToast('Not connected to server.');
+            if (renderGuideStationDetail(station, 'use')) {
+              if (detailEl) {
+                detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
+              }
               return;
             }
-            socket.send(JSON.stringify({
-              type: 'station_interact',
-              stationId: station.id,
-              action: 'interact_use',
+            void sendStationInteract(station, 'interact_use', {
               interactionTag: String(station.interactionTag || '')
-            }));
+            });
             if (detailEl) {
               detailEl.textContent = 'Using interaction...';
             }
           };
         }
-        if (socket && socket.readyState === WebSocket.OPEN && state.ui.world.stationId !== station.id) {
-          socket.send(JSON.stringify({
-            type: 'station_interact',
-            stationId: station.id,
-            action: 'interact_open'
-          }));
+        if (state.ui.world.stationId !== station.id) {
+          if (!renderGuideStationDetail(station, 'inspect')) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              void sendStationInteract(station, 'interact_open');
+            }
+          }
         }
       } else {
         stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
@@ -1570,41 +1739,33 @@ function renderInteractionCard() {
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'flex';
-        if (statusEl) {
-          statusEl.textContent = `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`;
-        }
+        setStationStatus(statusEl, `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`);
       } else if (state.ui.dealer.state === 'preflight') {
         if (startBtn) startBtn.disabled = true;
         if (headsBtn) headsBtn.disabled = true;
         if (tailsBtn) tailsBtn.disabled = true;
         if (pickActions) pickActions.style.display = 'none';
-        if (statusEl) {
-          statusEl.textContent = 'Preflight check... (Esc closes panel)';
-        }
+        setStationStatus(statusEl, 'Preflight check... (Esc closes panel)');
       } else if (state.ui.dealer.state === 'dealing') {
         if (startBtn) startBtn.disabled = true;
         if (headsBtn) headsBtn.disabled = true;
         if (tailsBtn) tailsBtn.disabled = true;
         if (pickActions) pickActions.style.display = 'flex';
-        if (statusEl) {
-          statusEl.textContent = 'Dealing...';
-        }
+        setStationStatus(statusEl, 'Dealing...');
       } else if (state.ui.dealer.state === 'error') {
         if (startBtn) startBtn.disabled = false;
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'none';
-        if (statusEl) {
-          const msg = state.ui.dealer.reasonText || state.ui.dealer.reason || 'Station request failed.';
-          const code = state.ui.dealer.reasonCode ? ` [${state.ui.dealer.reasonCode}]` : '';
-          statusEl.textContent = `${msg}${code}`;
-        }
+        const msg = state.ui.dealer.reasonText || 'Insufficient gas. Top up ETH, then retry.';
+        setStationStatus(statusEl, msg, 'warning');
       } else if (state.ui.dealer.state === 'reveal') {
         if (startBtn) startBtn.disabled = false;
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'none';
         if (statusEl) {
+          statusEl.classList.remove('station-ui__meta--warning', 'station-ui__meta--success');
           const delta = Number(state.ui.dealer.payoutDelta || 0);
           const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
           renderDealerRevealStatus(statusEl, {
@@ -1780,6 +1941,7 @@ function update(nowMs) {
   updateLocalAvatar();
   movementSystem.send(nowMs);
   syncRemoteAvatars(state, state.playerId);
+  npcHosts?.updateHosts?.();
   applyDisplaySeparation();
   syncStations(state);
   syncNearbyStations();
@@ -1787,7 +1949,7 @@ function update(nowMs) {
   renderMatchSpotlight();
   renderTargetSpotlight();
 
-  renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak });
+  renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak, topbarBot });
   if (featureDirectioningV2) {
     renderNextActionLine(state, challengeStatusLine, labelFor);
   } else if (challengeStatusLine) {
@@ -1946,6 +2108,7 @@ function cycleNearbyTarget(next = true) {
 
 function setInteractOpen(nextOpen) {
   state.ui.interactOpen = Boolean(nextOpen);
+  document.body.classList.toggle('interaction-focus', state.ui.interactOpen);
   if (!interactionCard) {
     return;
   }
@@ -1972,6 +2135,10 @@ function setInteractOpen(nextOpen) {
     state.ui.world.stationId = '';
     state.ui.world.detail = '';
     state.ui.world.actionLabel = 'Use';
+    if (interactionHelp) {
+      interactionHelp.hidden = true;
+      interactionHelpToggle?.setAttribute('aria-expanded', 'false');
+    }
   } else {
     interactionStationRenderKey = '';
     state.ui.interactionMode = 'none';
@@ -1980,6 +2147,10 @@ function setInteractOpen(nextOpen) {
     state.ui.world.stationId = '';
     state.ui.world.detail = '';
     state.ui.world.actionLabel = 'Use';
+    if (interactionHelp) {
+      interactionHelp.hidden = true;
+      interactionHelpToggle?.setAttribute('aria-expanded', 'false');
+    }
     const active = document.activeElement;
     if (active instanceof HTMLElement && interactionCard.contains(active)) {
       active.blur?.();
@@ -2073,10 +2244,15 @@ function sendGameMove(move) {
       : state.ui.dealer.gameType === 'dice_duel'
         ? 'dice_duel_pick'
         : 'coinflip_house_pick';
+    const routedStationId = resolveStationIdForSend(state.ui.dealer.stationId);
+    if (!routedStationId) {
+      showToast('Station unavailable.');
+      return;
+    }
     socket.send(
       JSON.stringify({
         type: 'station_interact',
-        stationId: state.ui.dealer.stationId,
+        stationId: routedStationId,
         action,
         pick: move,
         playerSeed: makePlayerSeed()
@@ -2388,6 +2564,18 @@ function challengeReasonLabel(reason) {
 function dealerReasonLabel(reason, reasonCode) {
   const code = String(reasonCode || '').toUpperCase();
   const raw = String(reason || '').toLowerCase();
+  if (code === 'PLAYER_GAS_LOW' || raw.includes('gas_low')) {
+    return 'Insufficient gas. Top up ETH to continue.';
+  }
+  if (code === 'HOUSE_GAS_LOW') {
+    return 'Dealer is refueling gas. Retry in a moment.';
+  }
+  if (code === 'PLAYER_BALANCE_LOW' || raw.includes('insufficient_balance')) {
+    return 'Insufficient balance for this wager. Lower wager or fund wallet.';
+  }
+  if (code === 'PLAYER_APPROVAL_REQUIRED' || raw.includes('approval')) {
+    return 'Escrow approval required. Approve and retry.';
+  }
   if (code === 'BET_ID_ALREADY_USED' || raw.includes('bet_already_exists')) {
     return 'Escrow id collision detected. Please retry the round.';
   }
@@ -2406,7 +2594,7 @@ function dealerReasonLabel(reason, reasonCode) {
   if (code === 'ONCHAIN_EXECUTION_ERROR') {
     return 'Onchain escrow transaction failed. Retry shortly.';
   }
-  return '';
+  return reason ? 'Station request failed. Please retry.' : '';
 }
 
 function renderInteractionPrompt() {

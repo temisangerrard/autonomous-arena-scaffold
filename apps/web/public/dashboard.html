@@ -6,26 +6,41 @@
   <title>Player Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Crimson+Text:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <script src="/runtime-config.js"></script>
   <style>
     :root {
-      --dash-ink: #1e1e1e;
-      --dash-cream: #fdf5e6;
-      --dash-coral: #ff7f7f;
+      --dash-ink: #141414;
+      --dash-cream: #f6f2e7;
       --dash-gold: #d2a63d;
-      --dash-mint: #cdeee0;
       --dash-lav: #e6e6fa;
       --dash-muted: #8d8577;
-      --dash-border: #e4d8bb;
+      --dash-border: #d8c9a2;
+      --dash-panel: #fffcf4;
+      --dash-elevated: #24211a;
+      --dash-text-primary: #1f1a12;
+      --dash-text-secondary: #7b715f;
+      --dash-mono: 'JetBrains Mono', monospace;
+      --dash-sans: 'Syne', system-ui, sans-serif;
+      --dash-hero-overlay: rgba(31, 22, 10, 0.18);
+      --dash-card-edge: #cfbc8f;
+      --dash-panel-soft: rgba(255, 252, 244, 0.95);
     }
 
     body {
       margin: 0;
-      background: linear-gradient(180deg, #fffaf0 0%, #f8f1df 100%);
-      font-family: 'Crimson Text', serif;
-      color: #2a2217;
+      background: radial-gradient(circle at 15% 8%, #fff8ea 0%, #f8f3e6 42%, #efe8d6 100%);
+      font-family: var(--dash-sans);
+      color: var(--dash-text-primary);
+    }
+
+    .dashboard-app,
+    .dashboard-app button,
+    .dashboard-app input,
+    .dashboard-app select,
+    .dashboard-app textarea {
+      font-family: var(--dash-sans);
     }
 
     .dashboard-app {
@@ -40,7 +55,7 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
-      background: rgba(30, 30, 30, 0.95);
+      background: #121212;
       border-right: 1px solid rgba(255, 255, 255, 0.08);
       padding: 18px 14px;
       box-sizing: border-box;
@@ -62,12 +77,26 @@
       height: 36px;
       border-radius: 50%;
       background: linear-gradient(135deg, #ffc6a6 0%, #ff7f7f 100%);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.26);
+      position: relative;
+    }
+
+    .player-chip__avatar::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1px solid #121212;
+      background: #22c55e;
+      position: absolute;
+      right: 0;
+      bottom: 0;
     }
 
     .player-chip__name {
       color: #fff5dd;
-      font: 700 15px/1.1 'Cormorant Garamond', serif;
+      font-size: 15px;
+      font-weight: 700;
       letter-spacing: 0.02em;
       white-space: nowrap;
       overflow: hidden;
@@ -76,7 +105,8 @@
 
     .player-chip__handle {
       color: #bbb;
-      font: 600 11px/1.1 'Crimson Text', serif;
+      font-size: 11px;
+      font-weight: 600;
       letter-spacing: 0.02em;
       margin-top: 2px;
       white-space: nowrap;
@@ -84,21 +114,30 @@
       text-overflow: ellipsis;
     }
 
-    .wallet-pill {
-      margin: 0 0 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 215, 122, 0.35);
-      background: rgba(255, 212, 112, 0.15);
-      color: #ffe8a8;
-      padding: 7px 10px;
-      font: 700 12px/1 'Crimson Text', serif;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .sidebar-balance {
+      margin: 0 0 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(210, 166, 61, 0.25);
+      background: rgba(210, 166, 61, 0.08);
+      padding: 8px 10px;
+    }
+
+    .sidebar-balance__label {
+      display: block;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #a69b84;
+      margin-bottom: 6px;
+    }
+
+    .sidebar-balance__value {
+      color: #e9bf67;
+      font-family: var(--dash-mono);
+      font-size: 14px;
+      font-weight: 700;
     }
 
     .sidebar-nav {
@@ -108,28 +147,40 @@
 
     .sidebar-nav button {
       width: 100%;
-      height: 40px;
+      height: 42px;
       border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.1);
       background: transparent;
-      color: #999;
+      color: #a8a095;
       text-align: left;
       padding: 0 10px;
-      font: 700 12px/1 'Crimson Text', serif;
-      letter-spacing: 0.08em;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-left: 2px solid transparent;
     }
 
     .sidebar-nav button:hover {
       border-color: rgba(255, 255, 255, 0.28);
-      color: #ece7dd;
+      color: #f0e6d4;
     }
 
     .sidebar-nav button.active {
-      background: var(--dash-coral);
-      border-color: transparent;
-      color: #fff;
+      border-left-color: var(--dash-gold);
+      background: var(--dash-elevated);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: #fff8ea;
+    }
+
+    .nav-icon {
+      width: 18px;
+      text-align: center;
+      opacity: 0.9;
     }
 
     .sidebar-actions {
@@ -144,8 +195,8 @@
     }
 
     .dashboard-content {
-      background: var(--dash-cream);
-      padding: 30px;
+      background: transparent;
+      padding: 24px 28px;
       box-sizing: border-box;
     }
 
@@ -153,33 +204,56 @@
       max-width: 1200px;
       margin: 0 auto;
       display: grid;
-      gap: 16px;
+      gap: 12px;
     }
 
     .hero-card {
-      background: #fff;
-      border: 2px solid var(--dash-border);
+      background:
+        linear-gradient(145deg, var(--dash-hero-overlay) 0%, rgba(255, 255, 255, 0) 45%),
+        var(--dash-panel-soft);
+      border: 1px solid var(--dash-card-edge);
       border-radius: 14px;
-      padding: 18px;
-      box-shadow: 0 6px 24px rgba(41, 30, 9, 0.08);
+      padding: 16px 18px;
+      box-shadow: 0 10px 26px rgba(41, 30, 9, 0.1);
+    }
+
+    .hero-card__kicker {
+      margin: 0 0 6px;
+      font: 700 11px/1 var(--dash-mono);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #8f6f1d;
     }
 
     .hero-card h1 {
       margin: 0;
-      font: 700 40px/1 'Cormorant Garamond', serif;
-      color: #2c2418;
+      font-family: var(--dash-sans);
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--dash-text-primary);
     }
 
     .hero-card p {
-      margin: 6px 0 0;
-      color: #6f6554;
-      font: 600 16px/1.4 'Crimson Text', serif;
+      margin: 8px 0 0;
+      color: #5f5546;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.45;
     }
 
     .status-line {
-      margin-top: 10px;
-      color: #795b18;
-      font: 700 14px/1.2 'Crimson Text', serif;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .dash-view { display: none; }
@@ -188,20 +262,22 @@
     .card-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
+      gap: 12px;
     }
 
     .panel {
-      background: #fff;
-      border: 2px solid var(--dash-lav);
+      background: var(--dash-panel-soft);
+      border: 1px solid var(--dash-card-edge);
       border-radius: 12px;
-      padding: 14px;
+      padding: 13px;
     }
 
     .panel h2 {
       margin: 0 0 10px;
-      font: 700 24px/1.1 'Cormorant Garamond', serif;
-      color: #2a2114;
+      font-size: 19px;
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--dash-text-primary);
     }
 
     .muted { color: var(--dash-muted); }
@@ -251,13 +327,16 @@
 
     .bot-name {
       margin: 0;
-      font: 700 21px/1 'Cormorant Garamond', serif;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
       color: #2b241b;
     }
 
     .bot-sub {
       margin: 3px 0 0;
-      font: 600 12px/1.2 'Crimson Text', serif;
+      font-size: 12px;
+      font-weight: 600;
       color: #756a59;
       word-break: break-word;
     }
@@ -265,7 +344,9 @@
     .badge {
       border-radius: 999px;
       padding: 4px 8px;
-      font: 700 10px/1 'Crimson Text', serif;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
       letter-spacing: 0.06em;
       text-transform: uppercase;
     }
@@ -285,7 +366,9 @@
       background: #fffaf0;
       color: #5f5039;
       padding: 4px 9px;
-      font: 700 11px/1 'Crimson Text', serif;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
     }
 
     .wager-box {
@@ -294,7 +377,9 @@
       background: rgba(241, 212, 128, 0.24);
       color: #6f4e1d;
       padding: 8px;
-      font: 700 13px/1.2 'Crimson Text', serif;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
     }
 
     .input-row {
@@ -305,8 +390,9 @@
 
     .input-row-3 {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: 1fr auto;
       gap: 10px;
+      align-items: end;
     }
 
     .stack { display: grid; gap: 10px; }
@@ -314,7 +400,9 @@
     .label {
       display: block;
       margin-bottom: 5px;
-      font: 700 11px/1 'Crimson Text', serif;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
       letter-spacing: 0.06em;
       text-transform: uppercase;
       color: #6a5b45;
@@ -328,7 +416,9 @@
       background: #fff;
       color: #2f2517;
       padding: 10px 11px;
-      font: 600 15px/1.2 'Crimson Text', serif;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.2;
       min-height: 42px;
     }
 
@@ -346,7 +436,9 @@
       min-height: 40px;
       border: 1px solid transparent;
       padding: 0 14px;
-      font: 700 12px/1 'Crimson Text', serif;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       cursor: pointer;
@@ -361,8 +453,8 @@
     .btn-gold:hover { background: #ba8f2a; }
     .btn-green { background: #22c55e; color: #08230f; }
     .btn-green:hover { background: #18aa4f; }
-    .btn-coral { background: var(--dash-coral); color: #2d1a1a; }
-    .btn-coral:hover { background: #ff6969; }
+    .btn-coral { background: #d2a63d; color: #2a200f; }
+    .btn-coral:hover { background: #ba8f2a; }
     .btn-ghost { border-color: #d2a63d; background: transparent; color: #6a531f; }
     .btn-dark { background: #2a2a2a; color: #efe7d1; border-color: #3b3b3b; }
     .btn-danger-ghost { border-color: #dc2626; color: #b91c1c; background: transparent; }
@@ -385,7 +477,9 @@
     .super-title {
       margin: 0;
       color: #ffd700;
-      font: 700 24px/1 'Cormorant Garamond', serif;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1;
     }
 
     .ready {
@@ -393,7 +487,9 @@
       padding: 3px 8px;
       background: rgba(34, 197, 94, 0.2);
       color: #9af2bc;
-      font: 700 11px/1 'Crimson Text', serif;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
@@ -412,7 +508,9 @@
       color: #9fe4c8;
       min-height: 34px;
       padding: 0 10px;
-      font: 700 11px/1 'Crimson Text', serif;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       cursor: pointer;
@@ -429,21 +527,28 @@
       max-height: 260px;
       overflow: auto;
       white-space: pre-wrap;
-      font: 600 13px/1.4 'Crimson Text', serif;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
     }
 
     .balance-label {
-      color: #8a7f6a;
-      font: 700 12px/1 'Crimson Text', serif;
+      color: var(--dash-text-secondary);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       margin-bottom: 6px;
     }
 
     .balance-value {
-      color: #22c55e;
-      font: 700 36px/1 'Cormorant Garamond', serif;
-      margin: 0 0 10px;
+      color: #fff;
+      font-family: var(--dash-mono);
+      font-size: 38px;
+      font-weight: 700;
+      line-height: 1;
+      margin: 0;
     }
 
     .wallet-id-row {
@@ -465,7 +570,9 @@
     .danger-zone h3 {
       margin: 0 0 8px;
       color: #b91c1c;
-      font: 700 18px/1.1 'Cormorant Garamond', serif;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.1;
     }
 
     .modal-backdrop {
@@ -500,7 +607,9 @@
 
     .modal h3 {
       margin: 0;
-      font: 700 24px/1 'Cormorant Garamond', serif;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1;
       color: #2f2519;
     }
 
@@ -511,66 +620,73 @@
       border-radius: 8px;
       min-height: 34px;
       padding: 0 10px;
-      font: 700 11px/1 'Crimson Text', serif;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       cursor: pointer;
     }
 
     .mono {
-      font-family: 'Courier New', monospace;
+      font-family: var(--dash-mono);
       font-size: 12px;
       word-break: break-all;
     }
 
     /* Wallet Hero Styles */
     .wallet-hero {
-      background: linear-gradient(135deg, #fff 0%, #fdf8f0 100%);
+      background: linear-gradient(145deg, #181512 0%, #1e1a15 100%);
+      border-color: #31271a;
+      color: #f5ead1;
     }
 
     .wallet-hero__head {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: flex-start;
       gap: 20px;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
     }
 
     .gas-indicator {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      border-radius: 10px;
-      border: 1px solid #2a2a4a;
+      gap: 8px;
+      padding: 0;
+      background: transparent;
+      border: 0;
     }
 
     .gas-indicator__icon {
-      font-size: 24px;
+      font-size: 14px;
     }
 
     .gas-indicator__label {
-      color: #888;
-      font: 700 10px/1 'Crimson Text', serif;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+      color: #b7a78e;
+      font-family: var(--dash-mono);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.2;
     }
 
     .gas-indicator__value {
-      color: #4ade80;
-      font: 700 16px/1 'Cormorant Garamond', serif;
+      color: #d5c9b0;
+      font-family: var(--dash-mono);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.2;
     }
 
     .wallet-actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
-      margin-bottom: 16px;
+      margin: 14px 0;
       padding: 14px;
-      background: rgba(255, 255, 255, 0.5);
+      background: rgba(255, 255, 255, 0.03);
       border-radius: 10px;
-      border: 1px solid #e4d8bb;
+      border: 1px solid rgba(210, 166, 61, 0.25);
     }
 
     .wallet-action-group {
@@ -580,7 +696,97 @@
 
     .wallet-ids {
       padding-top: 12px;
-      border-top: 1px solid #e4d8bb;
+      border-top: 1px solid rgba(210, 166, 61, 0.3);
+    }
+
+    .wallet-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 0 0 10px;
+    }
+
+    .wallet-tab {
+      border-radius: 999px;
+      border: 1px solid rgba(210, 166, 61, 0.45);
+      color: #c7b89c;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 7px 12px;
+      min-height: 40px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .wallet-tab.active {
+      background: #d2a63d;
+      color: #1b150d;
+      border-color: transparent;
+    }
+
+    .wallet-pane {
+      display: none;
+    }
+
+    .wallet-pane.active {
+      display: block;
+    }
+
+    .balance-stat__meta {
+      color: #b9aa8e;
+      margin-top: 8px;
+      font-family: var(--dash-mono);
+      font-size: 12px;
+    }
+
+    .balance-underline {
+      margin-top: 10px;
+      width: 100%;
+      max-width: 340px;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(210, 166, 61, 1) 0%, rgba(210, 166, 61, 0) 100%);
+    }
+
+    .wallet-code {
+      border-radius: 10px;
+      border: 1px solid rgba(210, 166, 61, 0.25);
+      background: rgba(12, 10, 8, 0.55);
+      color: #efe6d2;
+      padding: 10px 11px;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+    }
+
+    .wallet-transfer-hint {
+      color: #b9aa8e;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    .escrow-empty {
+      padding: 18px 12px;
+      border: 1px dashed #d6c39b;
+      border-radius: 10px;
+      text-align: center;
+      color: #6e634f;
+    }
+
+    .escrow-empty strong {
+      display: block;
+      margin-top: 8px;
+      color: #463827;
+    }
+
+    .escrow-empty a {
+      margin-top: 10px;
+      display: inline-block;
+      color: #8a6a1d;
+      font-size: 13px;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(138, 106, 29, 0.35);
     }
 
     /* Transaction History Styles */
@@ -622,18 +828,26 @@
     }
 
     .tx-type {
-      font: 700 13px/1.2 'Crimson Text', serif;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
       color: #2a2114;
     }
 
     .tx-time {
-      font: 600 11px/1.2 'Crimson Text', serif;
+      font-family: var(--dash-mono);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.2;
       color: #8d8577;
       margin-top: 2px;
     }
 
     .tx-amount {
-      font: 700 14px/1 'Cormorant Garamond', serif;
+      font-family: var(--dash-mono);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
       text-align: right;
     }
 
@@ -644,8 +858,8 @@
       .dashboard-app { grid-template-columns: 60px minmax(0, 1fr); }
       .dashboard-sidebar { padding: 10px 8px; }
       .player-chip,
-      .wallet-pill,
-      .sidebar-nav button span,
+      .sidebar-balance,
+      .sidebar-nav button span:not(.nav-icon),
       .sidebar-actions .btn span { display: none; }
       .sidebar-nav button,
       .sidebar-actions .btn {
@@ -653,10 +867,11 @@
         justify-content: center;
       }
       .sidebar-nav button::before { font-size: 16px; }
-      .sidebar-nav button[data-view="bots"]::before { content: "◈"; }
-      .sidebar-nav button[data-view="wallet"]::before { content: "◆"; }
-      .sidebar-nav button[data-view="settings"]::before { content: "⚙"; }
-      .sidebar-nav button[data-view="super"]::before { content: "✦"; }
+      .nav-icon { display: inline; }
+      #dashboard-enter-play::before {
+        content: "▶";
+        font-size: 16px;
+      }
       .card-grid,
       .bot-grid { grid-template-columns: 1fr; }
       .input-row,
@@ -682,7 +897,7 @@
         padding: 8px;
       }
       .player-chip,
-      .wallet-pill { display: none; }
+      .sidebar-balance { display: none; }
       .sidebar-nav,
       .sidebar-actions {
         display: contents;
@@ -692,10 +907,19 @@
         min-height: 44px;
         border-radius: 10px;
       }
+      .sidebar-actions .btn span { display: inline; }
+      #dashboard-enter-play::before { content: none; }
       .dashboard-content {
-        padding: 20px 14px 88px;
+        padding: 18px 14px 88px;
       }
-      .hero-card h1 { font-size: 32px; }
+      .hero-card h1 { font-size: 25px; }
+      .wallet-actions { grid-template-columns: 1fr; }
+      .wallet-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .wallet-tab { border-radius: 10px; min-height: 42px; }
+      .wallet-id-row { grid-template-columns: 1fr; }
+      .wallet-id-row button { width: 100%; }
+      .tx-item { grid-template-columns: 1fr; gap: 8px; }
+      .tx-amount { text-align: left; }
     }
   </style>
 </head>
@@ -709,13 +933,16 @@
           <div class="player-chip__handle" id="sidebar-handle">@player</div>
         </div>
       </div>
-      <div class="wallet-pill" id="sidebar-wallet">◆ 0.00</div>
+      <div class="sidebar-balance">
+        <span class="sidebar-balance__label">Balance</span>
+        <span class="sidebar-balance__value" id="sidebar-wallet">0.00</span>
+      </div>
 
       <nav class="sidebar-nav">
-        <button type="button" data-view="bots" class="active"><span>My Bots</span></button>
-        <button type="button" data-view="wallet"><span>Wallet</span></button>
-        <button type="button" data-view="settings"><span>Settings</span></button>
-        <button type="button" data-view="super"><span>Chief Of Staff</span></button>
+        <button type="button" data-view="bots" class="active"><span class="nav-icon">🤖</span><span>My Bots</span></button>
+        <button type="button" data-view="wallet"><span class="nav-icon">💼</span><span>Wallet</span></button>
+        <button type="button" data-view="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
+        <button type="button" data-view="super"><span class="nav-icon">✦</span><span>Chief Of Staff</span></button>
       </nav>
 
       <div class="sidebar-actions">
@@ -726,10 +953,10 @@
     <section class="dashboard-content">
       <div class="content-inner">
         <section class="hero-card">
-          <h1>Player Command Center</h1>
-          <p>Manage bots, tune strategy, fund wallet, and keep your autonomous agents active while you are offline.</p>
-          <div id="dashboard-status" class="status-line">Loading player context...</div>
-          <p id="admin-tools-note" class="muted" style="margin:6px 0 0;"></p>
+          <p class="hero-card__kicker">Train World Arena</p>
+          <h1>Command Center</h1>
+          <p>Run your bot economy with clear controls for strategy, wallet actions, and autonomous play continuity.</p>
+          <div id="dashboard-status" class="status-line" aria-live="polite"></div>
         </section>
 
         <section id="view-bots" class="dash-view active">
@@ -771,86 +998,102 @@
         </section>
 
         <section id="view-wallet" class="dash-view">
-          <div class="card-grid" style="margin-bottom:14px;">
+          <div style="margin-bottom:14px;">
             <article class="panel wallet-hero">
-              <div class="wallet-hero__head">
-                <div>
-                  <h2>Wallet</h2>
-                  <div class="balance-label">Available Balance</div>
-                  <p class="balance-value">◆ <span id="wallet-balance">0.00</span></p>
-                  <p id="wallet-balance-note" class="muted" style="margin:-6px 0 0;"></p>
+              <h2>Wallet</h2>
+              <div class="wallet-tabs" role="tablist" aria-label="Wallet sections">
+                <button class="wallet-tab active" type="button" data-wallet-tab="overview">Overview</button>
+                <button class="wallet-tab" type="button" data-wallet-tab="fund">Fund</button>
+                <button class="wallet-tab" type="button" data-wallet-tab="withdraw">Withdraw</button>
+                <button class="wallet-tab" type="button" data-wallet-tab="transfer">Transfer</button>
+              </div>
+
+              <section class="wallet-pane active" data-wallet-pane="overview">
+                <div class="wallet-hero__head">
+                  <div>
+                    <div class="balance-label">Available Balance</div>
+                    <p class="balance-value"><span id="wallet-balance">0.0000</span></p>
+                    <div class="balance-stat__meta" id="wallet-balance-note">mUSDC</div>
+                    <div class="balance-underline"></div>
+                  </div>
                 </div>
                 <div class="gas-indicator" id="gas-indicator" style="display:none;">
                   <div class="gas-indicator__icon">⛽</div>
-                  <div>
-                    <div class="gas-indicator__label">Gas (ETH)</div>
-                    <div class="gas-indicator__value" id="gas-balance">0.00000</div>
+                  <div class="gas-indicator__label">Gas:</div>
+                  <div class="gas-indicator__value"><span id="gas-balance">0.00000</span> ETH</div>
+                </div>
+                <div class="wallet-ids">
+                  <div class="wallet-id-row">
+                    <div>
+                      <span class="muted" style="font-size:11px;">Wallet ID</span>
+                      <div class="wallet-code mono" id="me-wallet" style="margin-top:4px;">-</div>
+                    </div>
+                    <button id="copy-wallet" class="btn-ghost" type="button">Copy</button>
+                  </div>
+                  <div class="wallet-id-row" style="margin-top:8px;">
+                    <div>
+                      <span class="muted" style="font-size:11px;">Address</span>
+                      <div class="wallet-code mono" id="me-wallet-address" style="margin-top:4px;">-</div>
+                    </div>
+                    <button id="copy-wallet-address" class="btn-ghost" type="button">Copy</button>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div class="wallet-actions">
-                <div class="wallet-action-group">
-                  <label class="label" for="wallet-fund-amount">Add Funds</label>
-                  <div class="input-row-3">
-                    <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10" placeholder="Amount">
-                    <button id="wallet-fund" class="btn-green" type="button">+ Fund</button>
+              <section class="wallet-pane" data-wallet-pane="fund">
+                <div class="wallet-actions">
+                  <div class="wallet-action-group">
+                    <label class="label" for="wallet-fund-amount">Add Funds (mUSDC)</label>
+                    <div class="input-row-3">
+                      <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10" placeholder="Amount">
+                      <button id="wallet-fund" class="btn-gold" type="button">Fund</button>
+                    </div>
                   </div>
                 </div>
-                <div class="wallet-action-group">
-                  <label class="label" for="wallet-withdraw-amount">Withdraw</label>
-                  <div class="input-row-3">
-                    <input id="wallet-withdraw-amount" class="field" type="number" min="1" step="1" value="5" placeholder="Amount">
-                    <button id="wallet-withdraw" class="btn-ghost" type="button">− Withdraw</button>
-                  </div>
-                </div>
-              </div>
+              </section>
 
-              <div class="wallet-ids">
-                <div class="wallet-id-row">
-                  <div>
-                    <span class="muted" style="font-size:11px;">Wallet ID</span>
-                    <div class="field mono" id="me-wallet" style="margin-top:4px;">-</div>
+              <section class="wallet-pane" data-wallet-pane="withdraw">
+                <div class="wallet-actions">
+                  <div class="wallet-action-group">
+                    <label class="label" for="wallet-withdraw-amount">Withdraw (mUSDC)</label>
+                    <div class="input-row-3">
+                      <input id="wallet-withdraw-amount" class="field" type="number" min="1" step="1" value="5" placeholder="Amount">
+                      <button id="wallet-withdraw" class="btn-ghost" type="button">Withdraw</button>
+                    </div>
                   </div>
-                  <button id="copy-wallet" class="btn-ghost" type="button">Copy</button>
                 </div>
-                <div class="wallet-id-row" style="margin-top:8px;">
-                  <div>
-                    <span class="muted" style="font-size:11px;">Address</span>
-                    <div class="field mono" id="me-wallet-address" style="margin-top:4px;">-</div>
-                  </div>
-                  <button id="copy-wallet-address" class="btn-ghost" type="button">Copy</button>
-                </div>
-              </div>
-            </article>
+              </section>
 
-            <article class="panel">
-              <h2>Transfer</h2>
-              <div class="stack">
-                <div>
-                  <label class="label" for="wallet-transfer-target">Player</label>
-                  <select id="wallet-transfer-target" class="field">
-                    <option value="">Select a player</option>
-                  </select>
+              <section class="wallet-pane" data-wallet-pane="transfer">
+                <div class="stack">
+                  <div>
+                    <label class="label" for="wallet-transfer-target">Player</label>
+                    <select id="wallet-transfer-target" class="field">
+                      <option value="">Select a player</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="label" for="wallet-transfer-wallet-id">Or Wallet ID</label>
+                    <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="Paste wallet id">
+                  </div>
+                  <div>
+                    <label class="label" for="wallet-transfer-amount">Amount (mUSDC)</label>
+                    <div class="input-row-3">
+                      <input id="wallet-transfer-amount" class="field" type="number" min="1" step="1" value="2">
+                      <button id="wallet-transfer" class="btn-gold" type="button">Send</button>
+                    </div>
+                    <p class="wallet-transfer-hint">Transfer to another player wallet. Use a player selection or paste a wallet ID.</p>
+                  </div>
                 </div>
-                <div>
-                  <label class="label" for="wallet-transfer-wallet-id">Or Wallet ID</label>
-                  <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="Paste wallet id">
-                </div>
-                <div class="input-row-3">
-                  <input id="wallet-transfer-amount" class="field" type="number" min="1" step="1" value="2">
-                  <div></div>
-                  <button id="wallet-transfer" class="btn-coral" type="button">Send</button>
-                </div>
-              </div>
+              </section>
             </article>
           </div>
 
           <article class="panel">
             <h2>Escrow Activity</h2>
-            <pre id="escrow-history" style="margin:0;max-height:280px;overflow:auto;">Loading escrow activity...</pre>
+            <div id="escrow-history" class="tx-history muted">Loading escrow activity...</div>
           </article>
-          <article class="panel" style="margin-top:14px;">
+          <article id="wallet-player-directory-panel" class="panel" style="margin-top:14px;">
             <h2>Player Wallet Directory</h2>
             <div id="wallet-player-list" class="stack muted">Loading players...</div>
           </article>

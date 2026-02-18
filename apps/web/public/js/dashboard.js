@@ -1,6 +1,5 @@
 const statusLine = document.getElementById('dashboard-status');
 const playLink = document.getElementById('dashboard-enter-play');
-const adminToolsNote = document.getElementById('admin-tools-note');
 
 const meEmail = document.getElementById('me-email');
 const meRole = document.getElementById('me-role');
@@ -31,6 +30,7 @@ const walletTransferWalletId = document.getElementById('wallet-transfer-wallet-i
 const walletTransferAmount = document.getElementById('wallet-transfer-amount');
 const walletTransfer = document.getElementById('wallet-transfer');
 const walletPlayerList = document.getElementById('wallet-player-list');
+const walletPlayerDirectoryPanel = document.getElementById('wallet-player-directory-panel');
 
 const botPersonality = document.getElementById('bot-personality');
 const botTarget = document.getElementById('bot-target');
@@ -65,6 +65,8 @@ const botModalSub = document.getElementById('bot-modal-sub');
 const sidebarButtons = [...document.querySelectorAll('.sidebar-nav [data-view]')];
 const views = [...document.querySelectorAll('.dash-view')];
 const quickCommandButtons = [...document.querySelectorAll('[data-quick-cmd]')];
+const walletTabButtons = [...document.querySelectorAll('[data-wallet-tab]')];
+const walletPanes = [...document.querySelectorAll('[data-wallet-pane]')];
 
 let playerCtx = null;
 let bootstrapCtx = null;
@@ -93,6 +95,15 @@ function setView(nextView) {
   }
   for (const view of views) {
     view.classList.toggle('active', view.id === `view-${nextView}`);
+  }
+}
+
+function setWalletTab(nextTab) {
+  for (const button of walletTabButtons) {
+    button.classList.toggle('active', button.getAttribute('data-wallet-tab') === nextTab);
+  }
+  for (const pane of walletPanes) {
+    pane.classList.toggle('active', pane.getAttribute('data-wallet-pane') === nextTab);
   }
 }
 
@@ -213,19 +224,12 @@ function renderContext() {
 
   if (meEmail) meEmail.textContent = user?.email || '-';
   if (meRole) meRole.textContent = user?.role || '-';
-  if (adminToolsNote) {
-    adminToolsNote.textContent = user?.role === 'admin'
-      ? 'Admin tools are available via Admin and Users pages.'
-      : 'Admin tools unavailable for this account.';
-  }
   if (meProfile) meProfile.textContent = profile?.displayName ? `${profile.displayName} (@${profile.username})` : '-';
   if (meWallet) meWallet.textContent = walletId;
   if (meWalletAddress) meWalletAddress.textContent = walletAddress;
   if (walletBalance) walletBalance.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(4) : '—';
   if (walletBalanceNote) {
-    walletBalanceNote.textContent = onchainMode
-      ? `${tokenSymbol} onchain`
-      : 'Onchain unavailable';
+    walletBalanceNote.textContent = onchainMode ? tokenSymbol : 'mUSDC';
   }
 
   // Show gas indicator for onchain wallets
@@ -242,7 +246,7 @@ function renderContext() {
 
   if (sidebarName) sidebarName.textContent = profile?.displayName || user?.name || 'Player';
   if (sidebarHandle) sidebarHandle.textContent = `@${profile?.username || 'player'}`;
-  if (sidebarWallet) sidebarWallet.textContent = hasOnchainBalance ? `◆ ${Number(tokenBalance).toFixed(2)}` : '◆ —';
+  if (sidebarWallet) sidebarWallet.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(2) : '—';
 
   if (profileDisplayName) profileDisplayName.value = profile?.displayName || '';
   if (profileUsername) profileUsername.value = profile?.username || '';
@@ -259,9 +263,10 @@ function renderContext() {
   }
 
   if (walletTransferTarget) {
-    walletTransferTarget.innerHTML = ['<option value="">Select a player</option>']
+    const canSeeDirectory = String(playerCtx?.user?.role || '') === 'admin';
+    walletTransferTarget.innerHTML = [canSeeDirectory ? '<option value="">Select a player</option>' : '<option value="">Enter wallet id manually</option>']
       .concat(
-        playerDirectory.map((entry) => {
+        (canSeeDirectory ? playerDirectory : []).map((entry) => {
           const shortAddress = entry.walletAddress ? `${String(entry.walletAddress).slice(0, 8)}...${String(entry.walletAddress).slice(-6)}` : '';
           const label = `${escapeHtml(entry.displayName || entry.username)} (@${escapeHtml(entry.username)})${shortAddress ? ` · ${escapeHtml(shortAddress)}` : ''}`;
           return `<option value="${escapeHtml(entry.walletId)}">${label}</option>`;
@@ -271,7 +276,10 @@ function renderContext() {
   }
 
   if (walletPlayerList) {
-    if (!playerDirectory.length) {
+    const canSeeDirectory = String(playerCtx?.user?.role || '') === 'admin';
+    if (!canSeeDirectory) {
+      walletPlayerList.innerHTML = '';
+    } else if (!playerDirectory.length) {
       walletPlayerList.innerHTML = '<div>No other players found yet.</div>';
     } else {
       walletPlayerList.innerHTML = playerDirectory
@@ -281,6 +289,11 @@ function renderContext() {
         })
         .join('');
     }
+  }
+
+  if (walletPlayerDirectoryPanel) {
+    const canSeeDirectory = String(playerCtx?.user?.role || '') === 'admin';
+    walletPlayerDirectoryPanel.style.display = canSeeDirectory ? '' : 'none';
   }
 
   if (onboardingList) {
@@ -312,19 +325,19 @@ function renderEscrowHistory(entries, errorMessage = '') {
   }
   if (errorMessage) {
     if (errorMessage.includes('escrow_history_unavailable')) {
-      escrowHistory.textContent = 'Onchain escrow activity is temporarily unavailable.';
+      escrowHistory.innerHTML = '<div class="escrow-empty"><div>⚠</div><strong>Escrow activity is unavailable right now</strong></div>';
       return;
     }
-    escrowHistory.textContent = 'Failed to load escrow activity.';
+    escrowHistory.innerHTML = '<div class="escrow-empty"><div>⚠</div><strong>Failed to load escrow activity</strong></div>';
     return;
   }
   if (!Array.isArray(entries) || entries.length === 0) {
-    escrowHistory.textContent = 'No escrow activity yet.';
+    escrowHistory.innerHTML = '<div class="escrow-empty"><div>🧾</div><strong>No wagers in escrow</strong><a href="/play?world=mega">→ Enter Arena to start playing</a></div>';
     return;
   }
-  escrowHistory.textContent = entries
+  escrowHistory.innerHTML = entries
     .map((entry) => {
-      const at = entry?.at ? new Date(Number(entry.at)).toLocaleTimeString() : '--:--:--';
+      const at = entry?.at ? new Date(Number(entry.at)).toLocaleString() : '--';
       const outcome = String(entry?.outcome || entry?.phase || 'unknown');
       const challengeId = String(entry?.challengeId || 'n/a');
       const amountValue = Number(entry?.amount ?? entry?.wager ?? 0);
@@ -332,21 +345,32 @@ function renderEscrowHistory(entries, errorMessage = '') {
       const payoutValue = Number(entry?.payout ?? 0);
       const payout = Number.isFinite(payoutValue) ? payoutValue.toFixed(2) : '0.00';
       const ok = entry?.ok === false ? 'failed' : 'ok';
-      const reason = entry?.reason ? ` reason=${String(entry.reason)}` : '';
       const txHash = String(entry?.txHash || '');
       const shortTx = txHash ? `${txHash.slice(0, 10)}...${txHash.slice(-8)}` : 'n/a';
-      return `${at} ${outcome} ${ok} ${challengeId} amount=${amount} payout=${payout} tx=${shortTx}${reason}`;
+      const signClass = payoutValue > 0 ? 'positive' : 'negative';
+      const emoji = payoutValue > 0 ? '↗' : '↘';
+      return `<div class="tx-item">
+        <div class="tx-icon ${ok === 'ok' ? 'in' : 'out'}">${emoji}</div>
+        <div class="tx-details">
+          <div class="tx-type">${escapeHtml(outcome)} · ${escapeHtml(challengeId)}</div>
+          <div class="tx-time">${escapeHtml(at)} · tx ${escapeHtml(shortTx)}</div>
+        </div>
+        <div class="tx-amount ${signClass}">${escapeHtml(amount)} / ${escapeHtml(payout)}</div>
+      </div>`;
     })
-    .join('\n');
+    .join('');
 }
 
 async function refreshContext() {
-  const [ctx, bootstrap, directory, walletSummary] = await Promise.all([
+  const [ctx, bootstrap, walletSummary] = await Promise.all([
     api('/api/player/me'),
     api('/api/player/bootstrap?world=mega'),
-    api('/api/player/directory').catch(() => ({ players: [] })),
     api('/api/player/wallet/summary').catch(() => null)
   ]);
+  const canSeeDirectory = String(ctx?.user?.role || '') === 'admin';
+  const directory = canSeeDirectory
+    ? await api('/api/player/directory').catch(() => ({ players: [] }))
+    : { players: [] };
   let escrowEntries = [];
   let escrowError = '';
   try {
@@ -734,10 +758,18 @@ for (const button of sidebarButtons) {
   });
 }
 
+for (const button of walletTabButtons) {
+  button.addEventListener('click', () => {
+    const tab = String(button.getAttribute('data-wallet-tab') || 'overview');
+    setWalletTab(tab);
+  });
+}
+
 (async function init() {
   try {
+    setWalletTab('overview');
     await refreshContext();
-    setStatus('Player context loaded.');
+    setStatus('');
   } catch (error) {
     setStatus(`Unable to load player context: ${String(error.message || error)}`);
   }

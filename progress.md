@@ -1,5 +1,29 @@
 Original prompt: yes there's a file called train world or so , thats the base world we will use so we can scaffold that in so we start seeing the game, dont forget various entry points required
 
+- 2026-02-18: Phase 4 shipped for GLB world hosts + baked NPC interaction points.
+  - Added reusable character GLB pool + deterministic id->model mapping in `apps/web/public/js/play/avatars.js`.
+  - Added 8 client-managed world host NPCs with fixed roles in `apps/web/public/js/play/runtime/world-npc-hosts.js`:
+    - `npc_host_guide`, `npc_host_cashier`, `npc_host_coinflip_a`, `npc_host_coinflip_b`,
+      `npc_host_rps_a`, `npc_host_rps_b`, `npc_host_dice`, `npc_host_info`.
+  - Added baked NPC scanner in `apps/web/public/js/play/runtime/baked-npc-stations.js` (npc-name detection + dedupe + station kind inference).
+  - Runtime station model now merges `serverStations`, `hostStations`, and `bakedStations` in play state.
+  - Added local station proxy routing (host/baked -> nearest compatible server station) so no server station catalog changes were required.
+  - Added guide/info local interaction copy:
+    - Welcome guide explains exploring stations, challenge loops, and USDC stake/win flow.
+    - Explorer/info host highlights live games and “cards/other modes coming soon”.
+  - Live verification run completed with Playwright + local services:
+    - confirmed host count = 8 and required role distribution
+    - confirmed guide/info copy content
+    - confirmed deterministic avatar hash mapping
+    - confirmed baked NPC extraction and kind mapping behavior
+    - screenshot: `output/e2e/npc-hosts-live-smoke.png`.
+- 2026-02-18: Disabled autonomous background bots by default; player-provisioned bots remain.
+  - Runtime startup default changed to `BOT_COUNT=0` (`apps/agent-runtime/src/index.ts`).
+  - Updated test harness defaults:
+    - `scripts/run-e2e.js` now uses `E2E_BOT_COUNT` or `0`.
+    - `scripts/playable-smoke.mjs` now uses `SMOKE_BOT_COUNT` or `0` and asserts background bot count is zero.
+  - Updated runtime codebase context docs to reflect `BOT_COUNT` default `0`.
+
 - 2026-02-13: Started web scaffold work to integrate train world GLB as base world.
 - Plan: add `/`, `/play`, `/viewer`, and world asset aliases so world loads immediately.
 - Added world alias resolver and new web routes: `/`, `/play`, `/viewer`, `/api/worlds`, `/assets/world/:alias.glb`.
@@ -842,3 +866,11 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - User-friendly error toast notifications.
     - Retry and dismiss actions.
     - Error logging to server.
+
+## 2026-02-18 Play UI cleanup (warm palette pass)
+- Refactored `/play` HUD hierarchy: split streak and bot mode into separate chips, emphasized wallet balance, and strengthened menu button discoverability.
+- Updated interaction card structure with contextual help toggle (`?`), clearer status area treatment, and backdrop focus dim/blur when card is open.
+- Normalized dealer errors to plain-language player copy only; removed raw reason-code rendering in player-facing status lines.
+- Enhanced toast system with wrapped content, explicit dismiss button, and maintained 4s auto-dismiss default.
+- Improved minimap legibility (coords typography/contrast) and added lightweight hover name tooltips on nearby player dots.
+- Build check passed: `npm run -w @arena/web build`.

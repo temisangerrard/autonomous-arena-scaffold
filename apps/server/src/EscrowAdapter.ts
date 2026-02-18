@@ -323,7 +323,7 @@ export class EscrowAdapter {
         : 'House cannot cover this wager right now.';
     }
 
-    return {
+    const result: EscrowPreflightResult = {
       ok: false,
       reason,
       reasonCode,
@@ -334,6 +334,7 @@ export class EscrowAdapter {
       },
       raw: params.raw
     };
+    return result;
   }
 
   private async resolveOnchain(params: ResolveParams): Promise<EscrowResult> {

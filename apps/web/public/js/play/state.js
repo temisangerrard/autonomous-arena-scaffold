@@ -10,6 +10,9 @@ export function createInitialState() {
     playerId: null,
     tick: 0,
     players: new Map(),
+    serverStations: new Map(),
+    hostStations: new Map(),
+    bakedStations: new Map(),
     stations: new Map(),
     input: {
       forward: false,
