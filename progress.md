@@ -928,3 +928,13 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/web typecheck` ✅
     - `npm run -w @arena/web test` ✅ (16/16)
   - Remaining operational blocker (not code): ensure valid `wsAuth` token reaches websocket connection path; align auth secret and ws token wiring across deployed web/server.
+- 2026-02-18: Production websocket auth unblocked for player control bootstrap.
+  - Cloud Run env parity check showed `GAME_WS_AUTH_SECRET` present but empty on both `arena-web-api` and `arena-server`.
+  - Applied shared non-empty `GAME_WS_AUTH_SECRET` to both services:
+    - `arena-web-api` -> revision `arena-web-api-00038-l4m` (100% traffic)
+    - `arena-server` -> revision `arena-server-00030-cfw` (100% traffic)
+  - Post-fix authenticated production probe:
+    - websocket now reaches connected state (`wsConnected=true`) with player id populated.
+    - movement state delta observed after input burst (`moveDistance ~2.23`).
+  - Web deploy status for camera/movement hardening commit `353cae2`:
+    - GitHub `Netlify Deploy` workflow completed `success`.
