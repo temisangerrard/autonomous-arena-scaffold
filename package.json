@@ -22,7 +22,8 @@
     "migrate:rollback": "npx tsx scripts/migrate.ts rollback",
     "migrate:reset": "npx tsx scripts/migrate.ts reset",
     "load-test": "npx tsx scripts/load-test.ts",
-    "load-test:heavy": "LOAD_TEST_VIRTUAL_USERS=50 LOAD_TEST_DURATION=60 npx tsx scripts/load-test.ts"
+    "load-test:heavy": "LOAD_TEST_VIRTUAL_USERS=50 LOAD_TEST_DURATION=60 npx tsx scripts/load-test.ts",
+    "ops:runtime-sponsorship": "node scripts/check-runtime-sponsorship.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",

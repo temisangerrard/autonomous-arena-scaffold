@@ -747,6 +747,41 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/ops/runtime-sponsorship' && req.method === 'GET') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    try {
+      const runtime = await runtimeGet<{
+        wsAuthMismatchLikely?: boolean;
+        connectedBotCount?: number;
+        configuredBotCount?: number;
+        house?: { wallet?: { id?: string; balance?: number } };
+        profiles?: Array<{ walletId?: string; id?: string }>;
+      }>('/status');
+      sendJson(res, {
+        ok: true,
+        runtime: {
+          wsAuthMismatchLikely: Boolean(runtime?.wsAuthMismatchLikely),
+          connectedBotCount: Number(runtime?.connectedBotCount || 0),
+          configuredBotCount: Number(runtime?.configuredBotCount || 0),
+          houseWalletId: String(runtime?.house?.wallet?.id || ''),
+          houseWalletBalance: Number(runtime?.house?.wallet?.balance || 0),
+          samplePlayerWalletId: String(runtime?.profiles?.find((entry) => String(entry?.walletId || '').length > 0)?.walletId || '')
+        }
+      });
+    } catch (error) {
+      sendJson(res, {
+        ok: false,
+        reason: 'runtime_unavailable',
+        detail: String((error as Error)?.message || 'unknown')
+      }, 503);
+    }
+    return;
+  }
+
   if (pathname === '/api/worlds') {
     sendJson(res, {
       canonicalAlias: 'mega',

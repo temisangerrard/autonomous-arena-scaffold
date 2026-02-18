@@ -25,13 +25,65 @@ function isNpcLikeName(name) {
     || raw.includes('kiosk');
 }
 
-function inferKind(name) {
+const WORLD_SECTION_SPAWNS = [
+  { x: -80, z: -45 },
+  { x: -25, z: -30 },
+  { x: 25, z: -30 },
+  { x: 80, z: -45 },
+  { x: -80, z: 45 },
+  { x: -25, z: 30 },
+  { x: 25, z: 30 },
+  { x: 80, z: 55 }
+];
+const MAX_BAKED_STATIONS_PER_SECTION = 3;
+const SECTION_KIND_ROTATIONS = [
+  ['dealer_dice_duel', 'world_interactable', 'dealer_coinflip'],
+  ['cashier_bank', 'dealer_coinflip', 'world_interactable'],
+  ['dealer_rps', 'dealer_coinflip', 'world_interactable'],
+  ['cashier_bank', 'world_interactable', 'dealer_rps'],
+  ['world_interactable', 'dealer_dice_duel', 'dealer_coinflip'],
+  ['dealer_rps', 'cashier_bank', 'world_interactable'],
+  ['dealer_coinflip', 'dealer_rps', 'world_interactable'],
+  ['dealer_dice_duel', 'dealer_coinflip', 'world_interactable']
+];
+
+function inferKindFromName(name) {
   const raw = normalizeName(name).toLowerCase();
   if (raw.includes('cashier') || raw.includes('bank')) return 'cashier_bank';
   if (raw.includes('dice') || raw.includes('duel')) return 'dealer_dice_duel';
   if (raw.includes('rps') || raw.includes('rock') || raw.includes('paper') || raw.includes('scissors')) return 'dealer_rps';
   if (raw.includes('coin') || raw.includes('flip')) return 'dealer_coinflip';
-  return 'world_interactable';
+  if (raw.includes('info') || raw.includes('guide') || raw.includes('kiosk')) return 'world_interactable';
+  return null;
+}
+
+export function nearestSectionIndexForPosition(x, z) {
+  let bestIdx = 0;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < WORLD_SECTION_SPAWNS.length; i += 1) {
+    const spawn = WORLD_SECTION_SPAWNS[i];
+    const dist = Math.hypot(Number(spawn?.x || 0) - Number(x || 0), Number(spawn?.z || 0) - Number(z || 0));
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+export function fallbackKindForSection(sectionIndex, slotIndex = 0) {
+  const safeSection = Math.max(0, Math.min(SECTION_KIND_ROTATIONS.length - 1, Number(sectionIndex || 0)));
+  const sequence = SECTION_KIND_ROTATIONS[safeSection] || SECTION_KIND_ROTATIONS[0];
+  const slot = Math.max(0, Number(slotIndex || 0));
+  return sequence[slot % sequence.length] || 'world_interactable';
+}
+
+function labelForKind(kind) {
+  if (kind === 'cashier_bank') return 'Cashier Operator';
+  if (kind === 'dealer_coinflip') return 'Coinflip Dealer';
+  if (kind === 'dealer_rps') return 'RPS Dealer';
+  if (kind === 'dealer_dice_duel') return 'Dice Duel Dealer';
+  return 'Info Host';
 }
 
 function inferRole(kind) {
@@ -63,6 +115,7 @@ export function extractBakedNpcStations({ THREE, worldRoot }) {
   if (!worldRoot || !THREE) return bakedStations;
 
   const seenBuckets = new Set();
+  const sectionSlotCounts = new Map();
   let index = 0;
   worldRoot.traverse((node) => {
     if (!node || !node.isMesh) return;
@@ -73,7 +126,14 @@ export function extractBakedNpcStations({ THREE, worldRoot }) {
     if (seenBuckets.has(bucket)) return;
     seenBuckets.add(bucket);
 
-    const kind = inferKind(node.name);
+    const sectionIndex = nearestSectionIndexForPosition(worldPos.x, worldPos.z);
+    const assignedCount = Number(sectionSlotCounts.get(sectionIndex) || 0);
+    if (assignedCount >= MAX_BAKED_STATIONS_PER_SECTION) {
+      return;
+    }
+    const inferredKind = inferKindFromName(node.name);
+    const kind = inferredKind || fallbackKindForSection(sectionIndex, assignedCount);
+    sectionSlotCounts.set(sectionIndex, assignedCount + 1);
     const role = inferRole(kind);
     const shortName = slugify(node.name) || `npc_${index + 1}`;
     const stationId = `station_baked_npc_${index + 1}`;
@@ -84,7 +144,7 @@ export function extractBakedNpcStations({ THREE, worldRoot }) {
       source: 'baked',
       hostRole: role,
       kind,
-      displayName: `Baked NPC ${index}: ${shortName}`,
+      displayName: `S${sectionIndex + 1} ${labelForKind(kind)} ${assignedCount + 1}: ${shortName}`,
       x: Number(worldPos.x || 0),
       z: Number(worldPos.z || 0),
       yaw: 0,
@@ -94,10 +154,10 @@ export function extractBakedNpcStations({ THREE, worldRoot }) {
       proxyStationId: '',
       localInteraction: kind === 'world_interactable'
         ? {
-            title: 'World NPC',
-            inspect: 'This baked NPC is now active as a world interaction point.',
-            useLabel: 'Talk',
-            use: 'You can challenge nearby players after visiting game hosts.'
+            title: `Section ${sectionIndex + 1} Coordinator`,
+            inspect: 'This host coordinates active games in this section.',
+            useLabel: 'View Jobs',
+            use: 'Coinflip, RPS, and Dice Duel hosts are active nearby. Start at any dealer station.'
           }
         : null
     });

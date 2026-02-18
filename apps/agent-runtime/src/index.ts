@@ -1191,24 +1191,65 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   const owner = signer.address;
   const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
   const required = parseUnits(String(amount), onchainTokenDecimals);
+  const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  let currentNative = 0n;
+  let balance = 0n;
+  let allowance = 0n;
 
   const errorText = (error: unknown, fallback: string): string =>
     String((error as { shortMessage?: string; message?: string }).shortMessage || (error as { message?: string }).message || fallback)
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 140);
-  const attemptTwice = async <T>(fn: () => Promise<T>): Promise<T> => {
-    try {
-      return await fn();
-    } catch {
-      return await fn();
+  const delay = async (ms: number): Promise<void> => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  };
+  const retryCountFor = (reason: string): number => {
+    const match = String(reason || '').match(/retry=(\d+)/);
+    return match ? Number(match[1] || 0) : 0;
+  };
+  const attemptWithRetry = async <T>(fn: () => Promise<T>, label: string, attempts = 3): Promise<T> => {
+    let lastError: unknown = null;
+    for (let i = 0; i < attempts; i += 1) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        if (i < attempts - 1) {
+          const jitter = 120 + Math.floor(Math.random() * 180);
+          await delay(jitter * (i + 1));
+        }
+      }
     }
+    throw new Error(`${label}_retry_exhausted:${errorText(lastError, 'unknown_error')}`);
+  };
+  const fail = (reason: string, extra: {
+    allowance?: bigint;
+    balance?: bigint;
+    native?: bigint;
+  } = {}) => {
+    const allowanceValue = extra.allowance ?? allowance;
+    const balanceValue = extra.balance ?? balance;
+    const nativeValue = extra.native ?? currentNative;
+    console.warn('[runtime] escrow_preflight_failed', {
+      walletId,
+      address: owner,
+      chainId,
+      reason,
+      retryCount: retryCountFor(reason)
+    });
+    return {
+      ok: false,
+      reason,
+      walletId,
+      address: owner,
+      allowance: formatUnits(allowanceValue, onchainTokenDecimals),
+      balance: formatUnits(balanceValue, onchainTokenDecimals),
+      nativeBalanceEth: formatEther(nativeValue)
+    };
   };
 
   try {
-    let currentNative = 0n;
-    let balance = 0n;
-    let allowance = 0n;
     if (onchainProvider) {
       currentNative = await onchainProvider.getBalance(owner);
     }
@@ -1231,18 +1272,10 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
 
       if (currentNative < targetNative) {
         if (!gasFunderPrivateKey) {
-          return {
-            ok: false,
-            reason: 'gas_topup_unavailable:gas_funder_missing',
-            walletId,
-            address: owner,
-            allowance: formatUnits(allowance, onchainTokenDecimals),
-            balance: formatUnits(balance, onchainTokenDecimals),
-            nativeBalanceEth: formatEther(currentNative)
-          };
+          return fail('gas_topup_unavailable:gas_funder_missing', { allowance, balance, native: currentNative });
         }
         try {
-          await attemptTwice(async () => {
+          await attemptWithRetry(async () => {
             const gasFunder = new Wallet(gasFunderPrivateKey, onchainProvider);
             const defaultTopup = parseEther(walletGasTopupEth);
             const maxTopup = parseEther(walletGasTopupMaxEth);
@@ -1256,29 +1289,13 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
             }
             const topupTx = await gasFunder.sendTransaction({ to: owner, value: topup });
             await topupTx.wait();
-          });
+          }, 'gas_topup_failed', 3);
           currentNative = await onchainProvider.getBalance(owner);
           if (currentNative < minNative) {
-            return {
-              ok: false,
-              reason: 'gas_topup_insufficient_after_topup',
-              walletId,
-              address: owner,
-              allowance: formatUnits(allowance, onchainTokenDecimals),
-              balance: formatUnits(balance, onchainTokenDecimals),
-              nativeBalanceEth: formatEther(currentNative)
-            };
+            return fail('gas_topup_insufficient_after_topup:retry=3', { allowance, balance, native: currentNative });
           }
         } catch (error) {
-          return {
-            ok: false,
-            reason: `gas_topup_failed:${errorText(error, 'topup_failed')}`,
-            walletId,
-            address: owner,
-            allowance: formatUnits(allowance, onchainTokenDecimals),
-            balance: formatUnits(balance, onchainTokenDecimals),
-            nativeBalanceEth: formatEther(currentNative)
-          };
+          return fail(`gas_topup_failed:retry=3:${errorText(error, 'topup_failed')}`, { allowance, balance, native: currentNative });
         }
       }
     }
@@ -1288,10 +1305,10 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     let mintFailureReason = '';
     if (balance < required) {
       try {
-        await attemptTwice(async () => {
+        await attemptWithRetry(async () => {
           const mintTx = await token.mint(owner, required - balance);
           await mintTx.wait();
-        });
+        }, 'mint_failed', 2);
         balance = await token.balanceOf(owner) as bigint;
         minted = true;
       } catch (error) {
@@ -1304,49 +1321,28 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     let approved = false;
     if (allowance < required) {
       try {
-        await attemptTwice(async () => {
+        await attemptWithRetry(async () => {
           const approveTx = await token.approve(onchainEscrowAddress, required);
           await approveTx.wait();
-        });
+        }, 'approve_failed', 3);
         allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
         approved = true;
       } catch (error) {
-        return {
-          ok: false,
-          reason: `approve_failed:${errorText(error, 'approve_failed')}`,
-          walletId,
-          address: owner,
-          allowance: formatUnits(allowance, onchainTokenDecimals),
-          balance: formatUnits(balance, onchainTokenDecimals),
-          nativeBalanceEth: formatEther(currentNative)
-        };
+        return fail(`approve_failed:retry=3:${errorText(error, 'approve_failed')}`, { allowance, balance, native: currentNative });
       }
     }
 
     if (allowance < required) {
-      return {
-        ok: false,
-        reason: 'allowance_too_low',
-        walletId,
-        address: owner,
-        allowance: formatUnits(allowance, onchainTokenDecimals),
-        balance: formatUnits(balance, onchainTokenDecimals),
-        nativeBalanceEth: formatEther(currentNative)
-      };
+      return fail('allowance_too_low', { allowance, balance, native: currentNative });
     }
 
     if (balance < required) {
-      return {
-        ok: false,
-        reason: mintFailureReason
+      return fail(
+        mintFailureReason
           ? `mint_failed:${mintFailureReason}`
           : 'insufficient_token_balance',
-        walletId,
-        address: owner,
-        allowance: formatUnits(allowance, onchainTokenDecimals),
-        balance: formatUnits(balance, onchainTokenDecimals),
-        nativeBalanceEth: formatEther(currentNative)
-      };
+        { allowance, balance, native: currentNative }
+      );
     }
 
     return {
@@ -1360,15 +1356,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
       nativeBalanceEth: formatEther(currentNative)
     };
   } catch (error) {
-    return {
-      ok: false,
-      reason: `wallet_prepare_failed:${errorText(error, 'onchain_prepare_failed')}`,
-      walletId,
-      address: owner,
-      allowance: '0',
-      balance: '0',
-      nativeBalanceEth: '0'
-    };
+    return fail(`wallet_prepare_failed:${errorText(error, 'onchain_prepare_failed')}`);
   }
 }
 

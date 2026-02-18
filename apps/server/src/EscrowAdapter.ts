@@ -38,6 +38,8 @@ export type EscrowPreflightReasonCode =
   | 'HOUSE_BALANCE_LOW'
   | 'HOUSE_SIGNER_UNAVAILABLE'
   | 'HOUSE_ALLOWANCE_LOW'
+  | 'INTERNAL_AUTH_FAILED'
+  | 'INTERNAL_TRANSPORT_ERROR'
   | 'RPC_UNAVAILABLE'
   | 'UNKNOWN_PRECHECK_FAILURE';
 
@@ -244,6 +246,7 @@ export class EscrowAdapter {
           'content-type': 'application/json',
           ...(this.internalToken ? { 'x-internal-token': this.internalToken } : {})
         },
+        signal: AbortSignal.timeout(10_000),
         body: JSON.stringify({ walletIds, amount })
       });
       const payload = await response.json().catch(() => null) as { ok?: boolean; reason?: string } | null;
@@ -251,8 +254,9 @@ export class EscrowAdapter {
         return { ok: false, reason: payload?.reason ?? `wallet_prepare_http_${response.status}`, raw: payload as Record<string, unknown> | undefined };
       }
       return { ok: true, raw: payload as Record<string, unknown> };
-    } catch {
-      return { ok: false, reason: 'wallet_prepare_unreachable' };
+    } catch (error) {
+      const timeout = String((error as { name?: string }).name || '').toLowerCase().includes('timeout');
+      return { ok: false, reason: timeout ? 'wallet_prepare_timeout' : 'wallet_prepare_unreachable' };
     }
   }
 
@@ -293,7 +297,17 @@ export class EscrowAdapter {
 
     let reasonCode: EscrowPreflightReasonCode = 'UNKNOWN_PRECHECK_FAILURE';
     let reasonText = 'Escrow precheck failed.';
-    if (
+    if (detail.includes('wallet_prepare_http_401') || detail.includes('wallet_prepare_http_403')) {
+      reasonCode = 'INTERNAL_AUTH_FAILED';
+      reasonText = 'Internal runtime auth failed. Verify INTERNAL_SERVICE_TOKEN parity.';
+    } else if (
+      detail.includes('wallet_prepare_http_5')
+      || detail.includes('wallet_prepare_timeout')
+      || detail.includes('wallet_prepare_unreachable')
+    ) {
+      reasonCode = 'INTERNAL_TRANSPORT_ERROR';
+      reasonText = 'Runtime escrow preparation endpoint is unavailable. Retry shortly.';
+    } else if (
       detail.includes('wallet_prepare_unreachable')
       || detail.includes('onchain_config_missing')
       || detail.includes('rpc')

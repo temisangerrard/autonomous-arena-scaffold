@@ -19,6 +19,7 @@ import { renderMinimap } from './minimap.js';
 import { renderQuickstart as renderQuickstartModule } from './quickstart.js';
 import { describeInteractionPhase } from './interactions.js';
 import { createRuntimeStore } from './store.js';
+import { dealerReasonLabel } from './dealer-reasons.js';
 import { createWorldNpcHosts } from './world-npc-hosts.js';
 import { extractBakedNpcStations } from './baked-npc-stations.js';
 import { coinflipGamePlugin } from '../plugins/games/coinflip.js';
@@ -489,18 +490,8 @@ function copyStationFromPayload(station) {
 function nearestServerStationForKind(kind, x, z) {
   let best = null;
   let bestDist = Number.POSITIVE_INFINITY;
-  const fallbackKind = kind === 'world_interactable' ? 'world_interactable' : '';
   for (const station of state.serverStations.values()) {
-    if (station.kind !== kind && (!fallbackKind || station.kind !== fallbackKind)) continue;
-    const dist = Math.hypot(Number(station.x || 0) - Number(x || 0), Number(station.z || 0) - Number(z || 0));
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = station;
-    }
-  }
-  if (best || kind === 'world_interactable') return best;
-  for (const station of state.serverStations.values()) {
-    if (station.kind !== 'world_interactable') continue;
+    if (station.kind !== kind) continue;
     const dist = Math.hypot(Number(station.x || 0) - Number(x || 0), Number(station.z || 0) - Number(z || 0));
     if (dist < bestDist) {
       bestDist = dist;
@@ -2588,42 +2579,6 @@ function challengeReasonLabel(reason) {
     default:
       return reason ? `Action rejected: ${reason}` : 'Challenge action rejected.';
   }
-}
-
-function dealerReasonLabel(reason, reasonCode) {
-  const code = String(reasonCode || '').toUpperCase();
-  const raw = String(reason || '').toLowerCase();
-  if (code === 'PLAYER_GAS_LOW' || raw.includes('gas_low')) {
-    return 'Insufficient gas. Top up ETH to continue.';
-  }
-  if (code === 'HOUSE_GAS_LOW') {
-    return 'Dealer is refueling gas. Retry in a moment.';
-  }
-  if (code === 'PLAYER_BALANCE_LOW' || raw.includes('insufficient_balance')) {
-    return 'Insufficient balance for this wager. Lower wager or fund wallet.';
-  }
-  if (code === 'PLAYER_APPROVAL_REQUIRED' || raw.includes('approval')) {
-    return 'Escrow approval required. Approve and retry.';
-  }
-  if (code === 'BET_ID_ALREADY_USED' || raw.includes('bet_already_exists')) {
-    return 'Escrow id collision detected. Please retry the round.';
-  }
-  if (code === 'INVALID_WAGER' || raw === 'invalid_amount') {
-    return 'Invalid wager amount. Enter a valid amount and retry.';
-  }
-  if (code === 'INVALID_ESCROW_PARTICIPANTS' || raw === 'invalid_address') {
-    return 'Wallet participants are invalid. Reconnect and retry.';
-  }
-  if (code === 'BET_NOT_LOCKED' || raw === 'bet_not_locked') {
-    return 'Escrow lock is missing for this round. Start a new round.';
-  }
-  if (code === 'WINNER_NOT_PARTICIPANT' || raw === 'winner_not_participant') {
-    return 'Escrow winner wallet is invalid for this round.';
-  }
-  if (code === 'ONCHAIN_EXECUTION_ERROR') {
-    return 'Onchain escrow transaction failed. Retry shortly.';
-  }
-  return reason ? 'Station request failed. Please retry.' : '';
 }
 
 function renderInteractionPrompt() {

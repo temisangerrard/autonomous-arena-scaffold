@@ -58,6 +58,40 @@ describe('EscrowAdapter preflight mapping', () => {
     expect(result.preflight).toEqual({ playerOk: true, houseOk: false });
   });
 
+  it('maps runtime auth failure to INTERNAL_AUTH_FAILED', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ ok: false, reason: 'wallet_prepare_http_401' })
+    })) as unknown as typeof fetch);
+
+    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const result = await adapter.preflightStake({
+      challengerWalletId: 'wallet_player',
+      opponentWalletId: 'wallet_house',
+      amount: 1
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reasonCode).toBe('INTERNAL_AUTH_FAILED');
+  });
+
+  it('maps runtime transport failures to INTERNAL_TRANSPORT_ERROR', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('socket hang up');
+    }) as unknown as typeof fetch);
+
+    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const result = await adapter.preflightStake({
+      challengerWalletId: 'wallet_player',
+      opponentWalletId: 'wallet_house',
+      amount: 1
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reasonCode).toBe('INTERNAL_TRANSPORT_ERROR');
+  });
+
 });
 
 describe('EscrowAdapter onchain error decoding', () => {

@@ -167,6 +167,16 @@ export function createStationRouter(ctx: StationRouterContext) {
         amount: wager
       });
       if (!preflight.ok) {
+        const chainId = Number((preflight.raw as { chain?: { id?: unknown } } | undefined)?.chain?.id ?? Number.NaN);
+        console.warn('[station-router] preflight_failed', {
+          playerId,
+          stationId: station.id,
+          challengerWalletId: playerWalletId,
+          houseWalletId: currentHouseWalletId,
+          reason: preflight.reason || 'wallet_prepare_failed',
+          reasonCode: preflight.reasonCode,
+          chainId: Number.isFinite(chainId) ? chainId : null
+        });
         ctx.sendTo(playerId, {
           type: 'station_ui',
           stationId: station.id,
