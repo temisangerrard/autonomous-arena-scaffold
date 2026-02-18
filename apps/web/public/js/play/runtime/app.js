@@ -390,7 +390,16 @@ async function loadArenaConfig() {
 
 async function resolveWsBaseUrl() {
   const explicit = queryParams.get('ws');
-  if (explicit) return explicit;
+  if (explicit) {
+    const host = String(window.location.hostname || '').toLowerCase();
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    const isTestMode = queryParams.get('test') === '1';
+    // In production, stale ws overrides from bookmarked URLs can force broken
+    // websocket endpoints. Only trust explicit ws override in local/test mode.
+    if (isLocalHost || isTestMode) {
+      return explicit;
+    }
+  }
   const cfg = await loadArenaConfig();
   if (cfg?.gameWsUrl) return String(cfg.gameWsUrl);
 
