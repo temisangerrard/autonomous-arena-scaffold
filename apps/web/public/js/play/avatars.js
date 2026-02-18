@@ -10,6 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 export const AVATAR_GROUND_OFFSET = -0.7;
+export const AVATAR_WORLD_SCALE = 0.82;
 
 // Color palettes
 const COLORS = {
@@ -150,7 +151,7 @@ export function createCharacterGlbPool(THREE) {
     const preBox = new THREE.Box3().setFromObject(root);
     const preSize = preBox.getSize(new THREE.Vector3());
     const rawHeight = Math.max(0.0001, preSize.y || 1);
-    const scale = (Number(cfg.targetHeight) || 1.7) / rawHeight;
+    const scale = ((Number(cfg.targetHeight) || 1.7) * AVATAR_WORLD_SCALE) / rawHeight;
     root.scale.setScalar(scale);
 
     const postBox = new THREE.Box3().setFromObject(root);
@@ -441,6 +442,7 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
     leftLeg, rightLeg, leftFoot, rightFoot,
     nameTag.sprite
   );
+  avatar.scale.setScalar(AVATAR_WORLD_SCALE);
 
   return {
     avatar,

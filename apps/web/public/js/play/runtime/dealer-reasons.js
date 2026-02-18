@@ -4,8 +4,8 @@ export function dealerReasonLabel(reason, reasonCode) {
   if (code === 'PLAYER_GAS_LOW' || raw.includes('gas_low')) {
     return 'Insufficient gas. Top up ETH to continue.';
   }
-  if (code === 'HOUSE_GAS_LOW') {
-    return 'Dealer is refueling gas. Retry in a moment.';
+  if (code === 'HOUSE_GAS_LOW' || raw.includes('gas_topup_failed') || raw.includes('insufficient funds')) {
+    return 'House sponsor wallet is out of Sepolia ETH gas. Top up sponsor wallet, then retry.';
   }
   if (code === 'PLAYER_BALANCE_LOW' || raw.includes('insufficient_balance')) {
     return 'Insufficient balance for this wager. Lower wager or fund wallet.';

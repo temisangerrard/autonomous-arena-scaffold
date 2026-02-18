@@ -938,3 +938,19 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - movement state delta observed after input burst (`moveDistance ~2.23`).
   - Web deploy status for camera/movement hardening commit `353cae2`:
     - GitHub `Netlify Deploy` workflow completed `success`.
+- 2026-02-18: Camera vertical range + avatar scale calibration + gas-error clarity pass.
+  - Camera control:
+    - expanded orbit pitch clamp in `apps/web/public/js/play/input.js` from `[0.1, 0.85]` to `[-0.35, 1.15]`.
+    - switched follow camera math to true pitch-based orbit (sin/cos distance/height) in `apps/web/public/js/play/camera.js` so upward/downward viewing is possible.
+  - Avatar world scale:
+    - added `AVATAR_WORLD_SCALE=0.82` in `apps/web/public/js/play/avatars.js`.
+    - applied scale to both GLB avatars and procedural avatars for better fit in mega world.
+  - Gas failure diagnosis + messaging:
+    - live Cloud Logging shows repeated sponsorship failure reason `gas_topup_failed...insufficient funds` in `arena-runtime`.
+    - mapped house-side gas top-up failures to explicit `HOUSE_GAS_LOW` in `apps/server/src/EscrowAdapter.ts`.
+    - updated dealer UI message in `apps/web/public/js/play/runtime/dealer-reasons.js` to clearly instruct sponsor wallet ETH top-up.
+  - Validation:
+    - `npm run -w @arena/web typecheck` ✅
+    - `npm run -w @arena/web test` ✅
+    - `npm run -w @arena/server typecheck` ✅
+    - `npm run -w @arena/server test` ✅

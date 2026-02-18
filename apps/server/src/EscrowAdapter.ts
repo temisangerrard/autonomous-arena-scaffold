@@ -36,6 +36,7 @@ export type EscrowPreflightReasonCode =
   | 'PLAYER_GAS_LOW'
   | 'PLAYER_SIGNER_UNAVAILABLE'
   | 'HOUSE_BALANCE_LOW'
+  | 'HOUSE_GAS_LOW'
   | 'HOUSE_SIGNER_UNAVAILABLE'
   | 'HOUSE_ALLOWANCE_LOW'
   | 'INTERNAL_AUTH_FAILED'
@@ -325,11 +326,11 @@ export class EscrowAdapter {
       reasonText = isPlayer
         ? `Approval required for ${params.challengerWalletId} before escrow lock.`
         : `House approval required for ${params.opponentWalletId} before escrow lock.`;
-    } else if (detail.includes('gas_topup_failed') || detail.includes('insufficient funds for intrinsic')) {
-      reasonCode = isPlayer ? 'PLAYER_GAS_LOW' : 'RPC_UNAVAILABLE';
+    } else if (detail.includes('gas_topup_failed') || detail.includes('insufficient funds for intrinsic') || detail.includes('insufficient funds')) {
+      reasonCode = isPlayer ? 'PLAYER_GAS_LOW' : 'HOUSE_GAS_LOW';
       reasonText = isPlayer
         ? `Insufficient ETH gas for ${params.challengerWalletId} approval transaction.`
-        : 'Gas top-up failed during escrow preparation.';
+        : `House sponsor wallet is out of ETH gas for ${params.opponentWalletId}.`;
     } else if (detail.includes('insufficient_token_balance') || detail.includes('mint_failed')) {
       reasonCode = isPlayer ? 'PLAYER_BALANCE_LOW' : 'HOUSE_BALANCE_LOW';
       reasonText = isPlayer

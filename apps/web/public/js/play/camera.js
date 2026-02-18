@@ -53,15 +53,18 @@ export function createCameraController({ THREE, camera, state }) {
     const forwardX = Math.sin(yaw);
     const forwardZ = Math.cos(yaw);
     const followDistance = state.cameraDistance;
-    const followHeight = 1.8 + state.cameraPitch * 2.6;
+    const pitch = Number.isFinite(state.cameraPitch) ? state.cameraPitch : 0.27;
+    const horizontalDistance = Math.max(1.0, Math.cos(pitch) * followDistance);
+    const followHeight = 1.35 + Math.sin(pitch) * followDistance;
 
     tmpDesired.set(
-      local.displayX - forwardX * followDistance,
+      local.displayX - forwardX * horizontalDistance,
       localY + AVATAR_GROUND_OFFSET + followHeight,
-      local.displayZ - forwardZ * followDistance
+      local.displayZ - forwardZ * horizontalDistance
     );
     camera.position.lerp(tmpDesired, 0.14);
-    camera.lookAt(local.displayX, localY + AVATAR_GROUND_OFFSET + 1.15, local.displayZ);
+    const lookOffset = 1.1 + Math.sin(pitch) * 0.35;
+    camera.lookAt(local.displayX, localY + AVATAR_GROUND_OFFSET + lookOffset, local.displayZ);
   }
 
   function resetBehindPlayer(local) {

@@ -203,7 +203,8 @@ export function createInputSystem({
       const twoPi = Math.PI * 2;
       state.cameraYaw = ((state.cameraYaw % twoPi) + twoPi) % twoPi;
     }
-    state.cameraPitch = Math.min(0.85, Math.max(0.1, state.cameraPitch - dy * 0.004));
+    // Allow wider vertical orbit range so users can look up/down naturally.
+    state.cameraPitch = Math.min(1.15, Math.max(-0.35, state.cameraPitch - dy * 0.004));
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
