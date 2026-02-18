@@ -974,3 +974,13 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `@arena/server` typecheck + tests ✅
     - `@arena/agent-runtime` typecheck + tests ✅
     - JS syntax checks for changed runtime/script files ✅
+- 2026-02-18: Deploy + production verification for wallet/station/sponsorship patch.
+  - commit `1d3d77c` pushed to `main`.
+  - workflows:
+    - `Netlify Deploy` ✅ (sha `1d3d77c`)
+    - `Deploy Backend (Cloud Run)` ✅ (sha `1d3d77c`)
+  - live revisions:
+    - `arena-runtime-00021-stz` (100%)
+    - `arena-server-00031-k8q` (100%)
+  - runtime `/status` now includes `house.sponsorGas` diagnostics.
+  - current sponsor gas state is red in production (`balanceEth=0.000000`, threshold `0.0003`).
