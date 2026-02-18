@@ -6,6 +6,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
+import { createChiefDbGateway } from './chief/dbGateway.js';
 import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
@@ -97,6 +98,12 @@ const googleNonceSecret =
   || wsAuthSecret
   || internalToken
   || randomBytes(32).toString('hex');
+const chiefCooModeEnabled = process.env.CHIEF_COO_MODE_ENABLED === 'true';
+const chiefDbGatewayEnabled = process.env.CHIEF_DB_GATEWAY_ENABLED === 'true';
+const chiefSkillCatalogRoots = String(process.env.CHIEF_SKILL_ROOTS || '.agents/skills')
+  .split(',')
+  .map((entry) => entry.trim())
+  .filter(Boolean);
 
 // --- Startup secret validation ---
 if (localAuthEnabled && !localAdminPassword) {
@@ -221,6 +228,12 @@ const sessionStore = await createSessionStore({
   isProduction,
   webStateFile
 });
+const chiefDbGateway = chiefDbGatewayEnabled
+  ? await createChiefDbGateway({
+      serverDatabaseUrl: process.env.DATABASE_URL,
+      runtimeDatabaseUrl: process.env.RUNTIME_DATABASE_URL || process.env.DATABASE_URL
+    })
+  : undefined;
 
 async function extractSession(req: import('node:http').IncomingMessage): Promise<SessionRecord | null> {
   const sid = cookieSessionId(req);
@@ -408,7 +421,10 @@ const chiefService = createChiefService({
   serverGet,
   runtimeProfiles,
   purgeSessionsForProfile: (profileId) => sessionStore.purgeSessionsForProfile(profileId),
-  log
+  log,
+  dbGateway: chiefDbGateway,
+  cooModeEnabled: chiefCooModeEnabled,
+  skillCatalogRoots: chiefSkillCatalogRoots
 });
 
 async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
@@ -756,6 +772,38 @@ const server = createServer(async (req, res) => {
       timestamp: new Date().toISOString(),
       ...heartbeat
     }, heartbeat.ok ? 200 : 503);
+    return;
+  }
+
+  if (pathname === '/api/chief/v1/skills' && req.method === 'GET') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const skills = await chiefService.listSkills();
+    sendJson(res, { ok: true, skills });
+    return;
+  }
+
+  if (pathname === '/api/chief/v1/runbooks' && req.method === 'GET') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    sendJson(res, { ok: true, runbooks: chiefService.listRunbooks() });
+    return;
+  }
+
+  if (pathname === '/api/chief/v1/ops/state' && req.method === 'GET') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const state = await chiefService.getOpsState(auth.identity);
+    sendJson(res, { ok: true, state });
     return;
   }
 

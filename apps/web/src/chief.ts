@@ -1,6 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Logger } from './logger.js';
 import type { IdentityRecord, Role } from './sessionStore.js';
+import { loadSkillCatalog } from './chief/skillCatalog.js';
+import { routeSkills, type SkillTraceEntry } from './chief/skillRouter.js';
+import { buildRunbookSelection, listRunbooks, type RunbookSafetyClass } from './chief/runbooks.js';
+import type { ChiefDbGateway } from './chief/dbGateway.js';
 
 export type ChiefMode = 'player' | 'admin';
 export type ChiefIntent =
@@ -37,6 +41,11 @@ export type ChiefChatResponse = {
   confirmToken?: string;
   stateSnapshot?: Record<string, unknown>;
   errors?: Array<{ code: string; message: string }>;
+  selectedSkills?: string[];
+  runbook?: string;
+  skillTrace?: SkillTraceEntry[];
+  safetyClass?: RunbookSafetyClass;
+  requiresInput?: Array<{ key: string; prompt: string; example?: string }>;
 };
 
 export type ChiefMetrics = {
@@ -45,6 +54,12 @@ export type ChiefMetrics = {
   toolExecutions: number;
   confirmationRequests: number;
   confirmationCompletions: number;
+  skillRouteAttempts: number;
+  skillRouteHits: number;
+  skillExecs: number;
+  skillBlocks: number;
+  skillFallbacks: number;
+  llmRouteFallbacks: number;
   failures: Record<string, number>;
 };
 
@@ -115,6 +130,9 @@ type ChiefDeps = {
   runtimeProfiles: () => Promise<PlayerProfile[]>;
   purgeSessionsForProfile: (profileId: string) => Promise<number>;
   log: Logger;
+  dbGateway?: ChiefDbGateway;
+  cooModeEnabled?: boolean;
+  skillCatalogRoots?: string[];
 };
 
 type ChiefToolPlan = {
@@ -131,6 +149,12 @@ type PendingConfirmation = {
   intent: ChiefIntent;
   expiresAt: number;
   plans: ChiefToolPlan[];
+  meta?: {
+    selectedSkills?: string[];
+    runbook?: string;
+    skillTrace?: SkillTraceEntry[];
+    safetyClass?: RunbookSafetyClass;
+  };
 };
 
 const CONFIRM_TTL_MS = 120_000;
@@ -203,6 +227,13 @@ function resolveProfileReference(profiles: PlayerProfile[], ref: string): Player
 }
 
 export function createChiefService(deps: ChiefDeps) {
+  const cooModeEnabled = typeof deps.cooModeEnabled === 'boolean'
+    ? deps.cooModeEnabled
+    : process.env.CHIEF_COO_MODE_ENABLED === 'true';
+  const skillCatalogRoots = deps.skillCatalogRoots?.length
+    ? deps.skillCatalogRoots
+    : [process.env.CHIEF_SKILL_ROOT || '.agents/skills'];
+  const skillCatalogPromise = loadSkillCatalog(skillCatalogRoots).catch(() => []);
   const pendingConfirmations = new Map<string, PendingConfirmation>();
   const metrics: ChiefMetrics = {
     totalRequests: 0,
@@ -210,6 +241,12 @@ export function createChiefService(deps: ChiefDeps) {
     toolExecutions: 0,
     confirmationRequests: 0,
     confirmationCompletions: 0,
+    skillRouteAttempts: 0,
+    skillRouteHits: 0,
+    skillExecs: 0,
+    skillBlocks: 0,
+    skillFallbacks: 0,
+    llmRouteFallbacks: 0,
     failures: {}
   };
 
@@ -566,7 +603,11 @@ export function createChiefService(deps: ChiefDeps) {
     return plans;
   }
 
-  async function executePlans(plans: ChiefToolPlan[]): Promise<{ actions: ChiefActionResult[]; replyParts: string[]; stateSnapshot?: Record<string, unknown> }> {
+  async function executePlans(
+    identity: IdentityRecord,
+    plans: ChiefToolPlan[],
+    context?: { intent?: ChiefIntent; runbook?: string }
+  ): Promise<{ actions: ChiefActionResult[]; replyParts: string[]; stateSnapshot?: Record<string, unknown> }> {
     const actions: ChiefActionResult[] = [];
     const replyParts: string[] = [];
     let stateSnapshot: Record<string, unknown> | undefined;
@@ -582,18 +623,40 @@ export function createChiefService(deps: ChiefDeps) {
         if (result.stateSnapshot) {
           stateSnapshot = result.stateSnapshot;
         }
+        await deps.dbGateway?.writeAudit({
+          actorId: identity.sub,
+          actorType: identity.role === 'admin' ? 'admin' : 'system',
+          action: `chief.${plan.tool}.executed`,
+          resourceType: context?.runbook ? 'runbook' : 'tool',
+          resourceId: context?.runbook ?? plan.tool,
+          metadata: { summary: plan.summary, intent: context?.intent ?? 'unknown' }
+        });
       } catch (error) {
         const message = String((error as Error).message || 'tool_execution_failed');
         incFailure(metrics, `tool_${plan.tool}`);
         actions.push({ tool: plan.tool, status: 'blocked', summary: message });
         replyParts.push(`${plan.tool} failed: ${message}`);
+        await deps.dbGateway?.writeAudit({
+          actorId: identity.sub,
+          actorType: identity.role === 'admin' ? 'admin' : 'system',
+          action: `chief.${plan.tool}.blocked`,
+          resourceType: context?.runbook ? 'runbook' : 'tool',
+          resourceId: context?.runbook ?? plan.tool,
+          metadata: { error: message, intent: context?.intent ?? 'unknown' }
+        });
       }
     }
 
     return { actions, replyParts, stateSnapshot };
   }
 
-  function mintConfirmToken(identity: IdentityRecord, mode: ChiefMode, intent: ChiefIntent, plans: ChiefToolPlan[]): string {
+  function mintConfirmToken(
+    identity: IdentityRecord,
+    mode: ChiefMode,
+    intent: ChiefIntent,
+    plans: ChiefToolPlan[],
+    meta?: PendingConfirmation['meta']
+  ): string {
     const nonce = randomBytes(12).toString('hex');
     const digest = createHash('sha256')
       .update(identity.sub)
@@ -609,7 +672,8 @@ export function createChiefService(deps: ChiefDeps) {
       mode,
       intent,
       expiresAt: Date.now() + CONFIRM_TTL_MS,
-      plans
+      plans,
+      meta
     });
     return token;
   }
@@ -640,7 +704,7 @@ export function createChiefService(deps: ChiefDeps) {
       };
     }
     pendingConfirmations.delete(confirmToken);
-    const executed = await executePlans(pending.plans);
+    const executed = await executePlans(identity, pending.plans, { intent: pending.intent, runbook: pending.meta?.runbook });
     metrics.confirmationCompletions += 1;
     return {
       ok: true,
@@ -649,7 +713,11 @@ export function createChiefService(deps: ChiefDeps) {
       intent: pending.intent,
       actions: executed.actions,
       requiresConfirmation: false,
-      stateSnapshot: executed.stateSnapshot
+      stateSnapshot: executed.stateSnapshot,
+      selectedSkills: pending.meta?.selectedSkills,
+      runbook: pending.meta?.runbook,
+      skillTrace: pending.meta?.skillTrace,
+      safetyClass: pending.meta?.safetyClass
     };
   }
 
@@ -695,12 +763,62 @@ export function createChiefService(deps: ChiefDeps) {
     }
 
     const intent = detectIntent(message);
-    const plans = await buildPlans(mode, intent, message, identity);
+    metrics.skillRouteAttempts += 1;
+    const catalog = await skillCatalogPromise;
+    const routed = routeSkills(message, catalog);
+    let selectedSkills = [...routed.selectedSkills];
+    let skillTrace: SkillTraceEntry[] = [...routed.trace];
+    if (selectedSkills.length > 0) {
+      metrics.skillRouteHits += 1;
+    }
+
+    const runbookSelection = cooModeEnabled
+      ? await buildRunbookSelection({
+          mode,
+          message,
+          identity,
+          runtimeGet: deps.runtimeGet,
+          runtimePost: deps.runtimePost,
+          runtimeProfiles: deps.runtimeProfiles,
+          purgeSessionsForProfile: deps.purgeSessionsForProfile,
+          buildStateSnapshot,
+          dbGateway: deps.dbGateway
+        })
+      : { matched: false, selectedSkills: [], skillTrace: [], safetyClass: 'read_only' as RunbookSafetyClass, plans: [] };
+
+    selectedSkills = [...new Set([...selectedSkills, ...runbookSelection.selectedSkills])];
+    skillTrace = [...skillTrace, ...runbookSelection.skillTrace];
+
+    if (runbookSelection.matched && runbookSelection.requiresInput?.length) {
+      return {
+        ok: true,
+        mode,
+        reply: 'Additional input required before this runbook can execute.',
+        intent,
+        actions: [],
+        requiresConfirmation: false,
+        selectedSkills,
+        runbook: runbookSelection.runbook,
+        skillTrace,
+        safetyClass: runbookSelection.safetyClass,
+        requiresInput: runbookSelection.requiresInput
+      };
+    }
+
+    const plans = runbookSelection.matched ? runbookSelection.plans : await buildPlans(mode, intent, message, identity);
     const sensitivePlans = plans.filter((plan) => plan.sensitive);
+    const safetyClass = runbookSelection.matched
+      ? runbookSelection.safetyClass
+      : (sensitivePlans.length > 0 ? 'mutating' : 'read_only');
 
     if (plans.length > 0 && sensitivePlans.length > 0) {
       metrics.confirmationRequests += 1;
-      const confirmToken = mintConfirmToken(identity, mode, intent, plans);
+      const confirmToken = mintConfirmToken(identity, mode, intent, plans, {
+        selectedSkills,
+        runbook: runbookSelection.runbook,
+        skillTrace,
+        safetyClass
+      });
       const actions = plans.map((plan) => ({ tool: plan.tool, status: 'planned' as const, summary: plan.summary }));
       const reply = [
         'Confirmation required before executing sensitive actions.',
@@ -714,12 +832,19 @@ export function createChiefService(deps: ChiefDeps) {
         intent,
         actions,
         requiresConfirmation: true,
-        confirmToken
+        confirmToken,
+        selectedSkills,
+        runbook: runbookSelection.runbook,
+        skillTrace,
+        safetyClass
       };
     }
 
     if (plans.length > 0) {
-      const executed = await executePlans(plans);
+      if (runbookSelection.matched) {
+        metrics.skillExecs += 1;
+      }
+      const executed = await executePlans(identity, plans, { intent, runbook: runbookSelection.runbook });
       const reply = executed.replyParts.join('\n').trim() || 'Done.';
       if (reply.length > 0) {
         metrics.nonEmptyReplyCount += 1;
@@ -733,11 +858,18 @@ export function createChiefService(deps: ChiefDeps) {
         intent,
         actions: executed.actions,
         requiresConfirmation: false,
-        stateSnapshot: executed.stateSnapshot
+        stateSnapshot: executed.stateSnapshot,
+        selectedSkills,
+        runbook: runbookSelection.runbook,
+        skillTrace,
+        safetyClass
       };
     }
 
     const fallback = await fallbackReply(mode, message, identity);
+    if (selectedSkills.length > 0) {
+      metrics.skillFallbacks += 1;
+    }
     const safeFallback = String(fallback || '').trim() || 'No route matched, but chief is alive. Try "status".';
     if (safeFallback.length > 0) {
       metrics.nonEmptyReplyCount += 1;
@@ -750,7 +882,9 @@ export function createChiefService(deps: ChiefDeps) {
       reply: safeFallback,
       intent,
       actions: [],
-      requiresConfirmation: false
+      requiresConfirmation: false,
+      selectedSkills,
+      skillTrace
     };
   }
 
@@ -790,6 +924,23 @@ export function createChiefService(deps: ChiefDeps) {
   return {
     handleChat,
     heartbeat,
-    metrics: () => ({ ...metrics, failures: { ...metrics.failures } })
+    metrics: () => ({ ...metrics, failures: { ...metrics.failures } }),
+    listSkills: async () => skillCatalogPromise,
+    listRunbooks: () => listRunbooks(),
+    getOpsState: async (identity: IdentityRecord) => {
+      const [snapshot, economy, challengeSummary, runtimeIntegrity] = await Promise.all([
+        buildStateSnapshot(identity),
+        deps.dbGateway?.getEconomySummary(24),
+        deps.dbGateway?.getChallengeOpsSummary(30),
+        deps.dbGateway?.getRuntimeIntegrity()
+      ]);
+      return {
+        ...snapshot,
+        economy: economy ?? null,
+        challengeSummary: challengeSummary ?? null,
+        runtimeIntegrity: runtimeIntegrity ?? null,
+        dbHealth: deps.dbGateway?.health() ?? { server: false, runtime: false }
+      };
+    }
   };
 }

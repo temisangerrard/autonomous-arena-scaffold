@@ -13,6 +13,7 @@
   "dependencies": {
     "@arena/shared": "0.1.0",
     "google-auth-library": "^9.15.1",
+    "pg": "^8.13.1",
     "pino": "^9.6.0",
     "redis": "^4.7.0"
   },
