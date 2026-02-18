@@ -912,3 +912,19 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - `npm run -w @arena/web typecheck` ✅
   - `npm run -w @arena/server typecheck` ✅
   - `npm run -w @arena/web test` ✅
+
+- 2026-02-18: Camera/movement stabilization follow-up after live production repro.
+  - Re-read `progress.md` camera/movement design notes: runtime remains server-authoritative (`/ws` snapshots + camera-relative input). 
+  - Captured live production diagnostics from authenticated browser automation:
+    - `worldLoaded=true` while `wsConnected=false`, `playerId=null` persisted.
+    - repeated websocket auth failures: `HTTP Authentication failed; no valid credentials available`.
+    - this explains bird's-eye fallback camera + no movement/controls (no local player snapshot).
+  - Hardening shipped in web runtime:
+    - snapshot player normalization/clamping for x/y/z/yaw/speed in `apps/web/public/js/play/runtime/app.js`.
+    - local and remote avatar render-Y sanitization and finite-value guards in `apps/web/public/js/play/runtime/app.js` + `apps/web/public/js/play/avatars.js`.
+    - camera finite-value/y-range guards in `apps/web/public/js/play/camera.js`.
+    - replaced disconnected world-load camera framing with ground-level fallback (avoid bird-view lock while ws/player boot is pending) in `apps/web/public/js/play/runtime/app.js`.
+  - Validation:
+    - `npm run -w @arena/web typecheck` ✅
+    - `npm run -w @arena/web test` ✅ (16/16)
+  - Remaining operational blocker (not code): ensure valid `wsAuth` token reaches websocket connection path; align auth secret and ws token wiring across deployed web/server.

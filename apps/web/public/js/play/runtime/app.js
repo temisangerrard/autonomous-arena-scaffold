@@ -1,4 +1,4 @@
-import { THREE, fitCameraToWorld, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene } from '../../world-common.js';
+import { THREE, installResizeHandler, loadWorldWithProgress, makeCamera, makeRenderer, makeScene } from '../../world-common.js';
 import { getDom } from '../dom.js';
 import { WORLD_BOUND, createInitialState } from '../state.js';
 import { createToaster } from '../ui/toast.js';
@@ -240,6 +240,56 @@ const state = store.getState();
 const dispatch = store.dispatch;
 let worldRoot = null;
 let npcHosts = null;
+
+const PLAYER_Y_MIN = -6;
+const PLAYER_Y_MAX = 24;
+const PLAYER_RENDER_Y_MAX = 8;
+const PLAYER_SPEED_MAX = 24;
+
+function asFiniteNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeYaw(yaw, fallback = 0) {
+  const raw = asFiniteNumber(yaw, fallback);
+  const twoPi = Math.PI * 2;
+  return ((raw % twoPi) + twoPi) % twoPi;
+}
+
+function normalizeSnapshotPlayer(player, existing = null) {
+  const prev = existing || {};
+  const x = clampNumber(asFiniteNumber(player?.x, prev.x ?? 0), -WORLD_BOUND, WORLD_BOUND);
+  const z = clampNumber(asFiniteNumber(player?.z, prev.z ?? 0), -WORLD_BOUND, WORLD_BOUND);
+  const y = clampNumber(asFiniteNumber(player?.y, prev.y ?? 0), PLAYER_Y_MIN, PLAYER_Y_MAX);
+  const yaw = normalizeYaw(player?.yaw, prev.yaw ?? 0);
+  const speed = clampNumber(asFiniteNumber(player?.speed, prev.speed ?? 0), 0, PLAYER_SPEED_MAX);
+  return {
+    x,
+    y,
+    z,
+    yaw,
+    speed,
+    role: player?.role ?? prev.role ?? 'human',
+    displayName: player?.displayName ?? prev.displayName ?? player?.id ?? 'Player'
+  };
+}
+
+function sanitizeRenderY(y) {
+  return clampNumber(asFiniteNumber(y, 0), PLAYER_Y_MIN, PLAYER_RENDER_Y_MAX);
+}
+
+function setDisconnectedFallbackCamera() {
+  // Keep a playable-feeling framing while auth/ws is reconnecting.
+  camera.position.set(0, 4.2, 14);
+  camera.lookAt(0, 1.1, 0);
+  state.cameraYaw = 0;
+  state.cameraYawInitialized = false;
+}
 const localStationToProxy = new Map();
 const proxyToLocalStations = new Map();
 
@@ -793,29 +843,30 @@ async function connectSocket() {
     for (const player of payload.players) {
       seen.add(player.id);
       const existing = state.players.get(player.id);
+      const normalized = normalizeSnapshotPlayer(player, existing);
       if (!existing) {
         state.players.set(player.id, {
           id: player.id,
-          x: player.x,
-          y: player.y,
-          z: player.z,
-          yaw: player.yaw,
-          speed: player.speed,
-          role: player.role ?? 'human',
-          displayName: player.displayName ?? player.id,
-          displayX: player.x,
-          displayY: player.y,
-          displayZ: player.z,
-          displayYaw: player.yaw
+          x: normalized.x,
+          y: normalized.y,
+          z: normalized.z,
+          yaw: normalized.yaw,
+          speed: normalized.speed,
+          role: normalized.role,
+          displayName: normalized.displayName,
+          displayX: normalized.x,
+          displayY: normalized.y,
+          displayZ: normalized.z,
+          displayYaw: normalized.yaw
         });
       } else {
-        existing.x = player.x;
-        existing.y = player.y;
-        existing.z = player.z;
-        existing.yaw = player.yaw;
-        existing.speed = player.speed;
-        existing.role = player.role ?? 'human';
-        existing.displayName = player.displayName ?? player.id;
+        existing.x = normalized.x;
+        existing.y = normalized.y;
+        existing.z = normalized.z;
+        existing.yaw = normalized.yaw;
+        existing.speed = normalized.speed;
+        existing.role = normalized.role;
+        existing.displayName = normalized.displayName;
       }
     }
 
@@ -1136,7 +1187,8 @@ async function loadMainWorld() {
     // When websocket auth/session is still negotiating and local player is not
     // available yet, frame the world so users don't see a blank-looking camera.
     if (!state.playerId && worldRoot) {
-      fitCameraToWorld(camera, new THREE.Vector3(), worldRoot);
+      // Avoid a disorienting bird's-eye view when player snapshot is not ready yet.
+      setDisconnectedFallbackCamera();
     }
     setupWorldNpcStations();
     if (worldLoadingText) {
@@ -1287,6 +1339,13 @@ function updateLocalAvatar() {
     return;
   }
 
+  if (!Number.isFinite(local.displayX) || !Number.isFinite(local.displayY) || !Number.isFinite(local.displayZ) || !Number.isFinite(local.displayYaw)) {
+    local.displayX = asFiniteNumber(local.x, 0);
+    local.displayY = asFiniteNumber(local.y, 0);
+    local.displayZ = asFiniteNumber(local.z, 0);
+    local.displayYaw = normalizeYaw(local.yaw, 0);
+  }
+
   const localError = Math.hypot(local.x - local.displayX, local.z - local.displayZ);
   if (localError > 0.9) {
     local.displayX = local.x;
@@ -1299,7 +1358,8 @@ function updateLocalAvatar() {
   }
   local.displayYaw += (local.yaw - local.displayYaw) * 0.32;
 
-  localAvatarParts.avatar.position.set(local.displayX, local.displayY + AVATAR_GROUND_OFFSET, local.displayZ);
+  const renderY = sanitizeRenderY(local.displayY);
+  localAvatarParts.avatar.position.set(local.displayX, renderY + AVATAR_GROUND_OFFSET, local.displayZ);
   localAvatarParts.avatar.rotation.y = local.displayYaw;
 
   animateAvatar(localAvatarParts, local.speed, performance.now() * 0.004);

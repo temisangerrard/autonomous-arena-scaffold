@@ -516,6 +516,8 @@ export function animateAvatar(parts, speed, t, phaseOffset = 0) {
 export function createAvatarSystem({ THREE, scene }) {
   const glbPool = createCharacterGlbPool(THREE);
   const clock = new THREE.Clock();
+  const MIN_RENDER_Y = -6;
+  const MAX_RENDER_Y = 8;
 
   function isNpcModelEligible(player) {
     if (!player) return false;
@@ -575,6 +577,12 @@ export function createAvatarSystem({ THREE, scene }) {
       }
 
       remote.setName(player.displayName);
+      if (!Number.isFinite(player.displayX) || !Number.isFinite(player.displayY) || !Number.isFinite(player.displayZ) || !Number.isFinite(player.displayYaw)) {
+        player.displayX = Number.isFinite(player.x) ? player.x : 0;
+        player.displayY = Number.isFinite(player.y) ? player.y : 0;
+        player.displayZ = Number.isFinite(player.z) ? player.z : 0;
+        player.displayYaw = Number.isFinite(player.yaw) ? player.yaw : 0;
+      }
 
       // Snap large corrections to avoid visual ghost-through during authoritative pushes.
       const positionError = Math.hypot(player.x - player.displayX, player.z - player.displayZ);
@@ -590,11 +598,8 @@ export function createAvatarSystem({ THREE, scene }) {
       }
       player.displayYaw += (player.yaw - player.displayYaw) * 0.2;
 
-      remote.avatar.position.set(
-        player.displayX, 
-        player.displayY + AVATAR_GROUND_OFFSET, 
-        player.displayZ
-      );
+      const renderY = Math.min(MAX_RENDER_Y, Math.max(MIN_RENDER_Y, Number(player.displayY) || 0));
+      remote.avatar.position.set(player.displayX, renderY + AVATAR_GROUND_OFFSET, player.displayZ);
       remote.avatar.rotation.y = player.displayYaw + (remote.glbYawOffset || 0);
 
       if (remote.glbRoot) {

@@ -4,6 +4,8 @@ export function createCameraController({ THREE, camera, state }) {
   const tmpDesired = new THREE.Vector3();
   const tmpDir = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
+  const MIN_Y = -6;
+  const MAX_Y = 8;
 
   // Flattened movement basis derived from the *actual camera direction*.
   const forwardFlat = new THREE.Vector3(0, 0, 1);
@@ -20,8 +22,13 @@ export function createCameraController({ THREE, camera, state }) {
     ensureInitializedFromLocal(local);
 
     if (!local) return;
+    if (!Number.isFinite(local.displayX) || !Number.isFinite(local.displayZ) || !Number.isFinite(local.displayYaw)) {
+      return;
+    }
+    const localY = Math.min(MAX_Y, Math.max(MIN_Y, Number.isFinite(local.displayY) ? local.displayY : 0));
 
     if (inMatch && opponent) {
+      const opponentY = Math.min(MAX_Y, Math.max(MIN_Y, Number.isFinite(opponent.displayY) ? opponent.displayY : localY));
       const cx = (local.displayX + opponent.displayX) * 0.5;
       const cz = (local.displayZ + opponent.displayZ) * 0.5;
       const dx = opponent.displayX - local.displayX;
@@ -34,11 +41,11 @@ export function createCameraController({ THREE, camera, state }) {
 
       tmpDesired.set(
         cx + sideX * 4.2 - nx * 1.1,
-        Math.max(local.displayY, opponent.displayY) + AVATAR_GROUND_OFFSET + 3.3,
+        Math.max(localY, opponentY) + AVATAR_GROUND_OFFSET + 3.3,
         cz + sideZ * 4.2 - nz * 1.1
       );
       camera.position.lerp(tmpDesired, 0.12);
-      camera.lookAt(cx, local.displayY + AVATAR_GROUND_OFFSET + 1.0, cz);
+      camera.lookAt(cx, localY + AVATAR_GROUND_OFFSET + 1.0, cz);
       return;
     }
 
@@ -50,11 +57,11 @@ export function createCameraController({ THREE, camera, state }) {
 
     tmpDesired.set(
       local.displayX - forwardX * followDistance,
-      local.displayY + AVATAR_GROUND_OFFSET + followHeight,
+      localY + AVATAR_GROUND_OFFSET + followHeight,
       local.displayZ - forwardZ * followDistance
     );
     camera.position.lerp(tmpDesired, 0.14);
-    camera.lookAt(local.displayX, local.displayY + AVATAR_GROUND_OFFSET + 1.15, local.displayZ);
+    camera.lookAt(local.displayX, localY + AVATAR_GROUND_OFFSET + 1.15, local.displayZ);
   }
 
   function resetBehindPlayer(local) {
