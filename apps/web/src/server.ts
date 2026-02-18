@@ -208,7 +208,10 @@ type RuntimeStatusPayload = {
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COOKIE_NAME = 'arena_sid';
 const GOOGLE_NONCE_COOKIE = 'arena_google_nonce';
-const GOOGLE_NONCE_TTL_SEC = 5 * 60;
+const googleNonceTtlSecRaw = Number(process.env.GOOGLE_NONCE_TTL_SEC ?? Number.NaN);
+const GOOGLE_NONCE_TTL_SEC = Number.isFinite(googleNonceTtlSecRaw) && googleNonceTtlSecRaw > 0
+  ? Math.max(60, Math.floor(googleNonceTtlSecRaw))
+  : 15 * 60;
 const IDENTITY_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
 const googleAuthClient = new OAuth2Client(googleClientId || undefined);
@@ -944,19 +947,24 @@ const server = createServer(async (req, res) => {
       const cookieNonce = parseCookies(req)[GOOGLE_NONCE_COOKIE] || '';
       const jwtPayload = decodeJwtPayload(credential);
       const jwtNonce = String(jwtPayload?.nonce || '').trim();
-      const nonceToken = verifyGoogleNonceToken(cookieNonce);
+      const cookieNonceToken = verifyGoogleNonceToken(cookieNonce);
+      const jwtNonceToken = verifyGoogleNonceToken(jwtNonce);
       const hasCookieNonce = cookieNonce.length > 0;
       const hasJwtNonce = jwtNonce.length > 0;
       const nonceEqual = hasCookieNonce && hasJwtNonce && cookieNonce === jwtNonce;
-      if (!hasCookieNonce || !hasJwtNonce || !nonceEqual || !nonceToken.valid) {
+      const cookieNonceValid = hasCookieNonce && nonceEqual && cookieNonceToken.valid;
+      const jwtOnlyNonceValid = !hasCookieNonce && hasJwtNonce && jwtNonceToken.valid;
+      if (!cookieNonceValid && !jwtOnlyNonceValid) {
         log.warn(
           {
             reason: 'nonce_mismatch',
             hasCookieNonce,
             hasJwtNonce,
             nonceEqual,
-            nonceTokenValid: nonceToken.valid,
-            nonceExpired: nonceToken.expired
+            nonceTokenValid: cookieNonceToken.valid,
+            nonceExpired: cookieNonceToken.expired,
+            jwtNonceTokenValid: jwtNonceToken.valid,
+            jwtNonceExpired: jwtNonceToken.expired
           },
           'google auth nonce validation failed'
         );
