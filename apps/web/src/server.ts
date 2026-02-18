@@ -2,7 +2,6 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Readable } from 'node:stream';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
@@ -1989,29 +1988,11 @@ const server = createServer(async (req, res) => {
           canonicalFilename,
           fallbackUrl
         },
-        'world asset missing locally; proxying canonical cloud asset'
+        'world asset missing locally; redirecting to canonical cloud asset'
       );
-      try {
-        const upstream = await fetch(fallbackUrl, { redirect: 'follow' });
-        if (!upstream.ok || !upstream.body) {
-          res.statusCode = 404;
-          res.end('Unknown world alias');
-          return;
-        }
-        res.statusCode = 200;
-        res.setHeader('content-type', upstream.headers.get('content-type') || 'model/gltf-binary');
-        res.setHeader('cache-control', upstream.headers.get('cache-control') || 'public, max-age=31536000, immutable');
-        const upstreamLen = upstream.headers.get('content-length');
-        if (upstreamLen) {
-          res.setHeader('content-length', upstreamLen);
-        }
-        await new Promise<void>((resolve, reject) => {
-          Readable.fromWeb(upstream.body as any).pipe(res).on('finish', resolve).on('error', reject);
-        });
-      } catch {
-        res.statusCode = 502;
-        res.end('World upstream unavailable');
-      }
+      res.statusCode = 302;
+      res.setHeader('location', fallbackUrl);
+      res.end();
       return;
     }
     await sendFileCached(req, res, worldPath, 'model/gltf-binary', {
