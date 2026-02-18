@@ -20,7 +20,7 @@ import { renderQuickstart as renderQuickstartModule } from './quickstart.js';
 import { describeInteractionPhase } from './interactions.js';
 import { createRuntimeStore } from './store.js';
 import { dealerReasonLabel } from './dealer-reasons.js';
-import { createWorldNpcHosts } from './world-npc-hosts.js';
+import { HOST_STATION_PROXY_MAP, createWorldNpcHosts } from './world-npc-hosts.js';
 import { extractBakedNpcStations } from './baked-npc-stations.js';
 import { coinflipGamePlugin } from '../plugins/games/coinflip.js';
 import { rpsGamePlugin } from '../plugins/games/rps.js';
@@ -101,43 +101,82 @@ function showResultSplash(text, tone = 'neutral') {
   }, 2100);
 }
 
-async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null) {
-  try {
-    const summary = await apiJson('/api/player/wallet/summary');
-    const after = Number(summary?.onchain?.tokenBalance);
-    const chainId = Number(summary?.onchain?.chainId);
-    dispatch({ type: 'WALLET_SUMMARY_SET', chainId, balance: state.walletBalance });
-    syncEscrowApprovalPolicy();
-    if (Number.isFinite(after)) {
-      dispatch({ type: 'WALLET_SUMMARY_SET', balance: after, chainId: state.walletChainId });
-    } else {
-      dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId });
-    }
-    if (challenge && Number.isFinite(after)) {
-      const settledByOutcome = challenge.winnerId === state.playerId
-        ? Number(challenge.wager || 0)
-        : challenge.winnerId
-          ? -Number(challenge.wager || 0)
-          : 0;
-      const delta = Number.isFinite(settledByOutcome)
-        ? Number(settledByOutcome.toFixed(2))
-        : Number((after - Number(beforeBalance || 0)).toFixed(2));
-      const won = challenge.winnerId === state.playerId;
-      const lost = Boolean(challenge.winnerId && challenge.winnerId !== state.playerId);
-      const toss = challenge.gameType === 'coinflip' && challenge.coinflipResult
-        ? `\nTOSS: ${String(challenge.coinflipResult).toUpperCase()}`
-        : '';
-      if (won) {
-        showResultSplash(`YOU WIN${toss}\n+${Math.abs(delta).toFixed(2)}`, 'win');
-      } else if (lost) {
-        showResultSplash(`YOU LOSE${toss}\n-${Math.abs(delta).toFixed(2)}`, 'loss');
-      } else {
-        showResultSplash(`DRAW${toss}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, 'neutral');
+async function syncWalletSummary(options = {}) {
+  const keepLastOnFailure = options.keepLastOnFailure !== false;
+  if (walletSyncInFlight) {
+    return walletSyncInFlight;
+  }
+  walletSyncInFlight = (async () => {
+    try {
+      const summary = await apiJson('/api/player/wallet/summary');
+      const bal = Number(summary?.onchain?.tokenBalance);
+      const chainId = Number(summary?.onchain?.chainId);
+      const nextBalance = Number.isFinite(bal)
+        ? bal
+        : (keepLastOnFailure ? state.walletBalance : null);
+      dispatch({
+        type: 'WALLET_SUMMARY_SET',
+        chainId: Number.isFinite(chainId) ? chainId : state.walletChainId,
+        balance: nextBalance
+      });
+      syncEscrowApprovalPolicy();
+      walletLastSyncAt = Date.now();
+      return true;
+    } catch (error) {
+      if (!keepLastOnFailure) {
+        dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId });
       }
+      console.warn('wallet summary sync failed', error);
+      return false;
+    } finally {
+      walletSyncInFlight = null;
     }
-  } catch {
-    dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: null });
-    syncEscrowApprovalPolicy();
+  })();
+  return walletSyncInFlight;
+}
+
+function stopWalletSyncScheduler() {
+  if (walletSyncTimer) {
+    window.clearInterval(walletSyncTimer);
+    walletSyncTimer = null;
+  }
+}
+
+function startWalletSyncScheduler() {
+  stopWalletSyncScheduler();
+  void syncWalletSummary({ keepLastOnFailure: true });
+  walletSyncTimer = window.setInterval(() => {
+    if (!state.wsConnected || document.hidden) {
+      return;
+    }
+    void syncWalletSummary({ keepLastOnFailure: true });
+  }, 10_000);
+}
+
+async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null) {
+  const synced = await syncWalletSummary({ keepLastOnFailure: true });
+  const after = Number(state.walletBalance);
+  if (challenge && synced && Number.isFinite(after)) {
+    const settledByOutcome = challenge.winnerId === state.playerId
+      ? Number(challenge.wager || 0)
+      : challenge.winnerId
+        ? -Number(challenge.wager || 0)
+        : 0;
+    const delta = Number.isFinite(settledByOutcome)
+      ? Number(settledByOutcome.toFixed(2))
+      : Number((after - Number(beforeBalance || 0)).toFixed(2));
+    const won = challenge.winnerId === state.playerId;
+    const lost = Boolean(challenge.winnerId && challenge.winnerId !== state.playerId);
+    const toss = challenge.gameType === 'coinflip' && challenge.coinflipResult
+      ? `\nTOSS: ${String(challenge.coinflipResult).toUpperCase()}`
+      : '';
+    if (won) {
+      showResultSplash(`YOU WIN${toss}\n+${Math.abs(delta).toFixed(2)}`, 'win');
+    } else if (lost) {
+      showResultSplash(`YOU LOSE${toss}\n-${Math.abs(delta).toFixed(2)}`, 'loss');
+    } else {
+      showResultSplash(`DRAW${toss}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, 'neutral');
+    }
   }
 }
 
@@ -489,6 +528,9 @@ let presenceTimer = null;
 let connectRetryTimer = null;
 let connectFailureCount = 0;
 let interactionStationRenderKey = '';
+let walletSyncTimer = null;
+let walletSyncInFlight = null;
+let walletLastSyncAt = 0;
 
 function formatUsdAmount(value, options = {}) {
   const amount = Number(value || 0);
@@ -599,7 +641,25 @@ function rebuildLocalStationProxyIndex() {
 }
 
 function remapLocalStationProxies() {
-  for (const station of [...state.hostStations.values(), ...state.bakedStations.values()]) {
+  for (const station of state.hostStations.values()) {
+    const explicitProxyId = HOST_STATION_PROXY_MAP[station.id] || '';
+    if (explicitProxyId) {
+      const target = state.serverStations.get(explicitProxyId) || null;
+      station.proxyStationId = target && target.kind === station.kind ? target.id : '';
+      station.proxyMissing = !station.proxyStationId;
+      if (!station.proxyStationId) {
+        console.warn('host station proxy missing', {
+          hostStationId: station.id,
+          expectedProxyId: explicitProxyId,
+          kind: station.kind
+        });
+      }
+    } else {
+      station.proxyStationId = '';
+      station.proxyMissing = false;
+    }
+  }
+  for (const station of state.bakedStations.values()) {
     const nearest = nearestServerStationForKind(station.kind, station.x, station.z);
     station.proxyStationId = nearest ? nearest.id : '';
   }
@@ -649,6 +709,10 @@ function resolveIncomingStationId(stationId) {
 function sendStationInteract(station, action, extra = {}) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     showToast('Not connected to server.');
+    return false;
+  }
+  if (station?.source === 'host' && station?.proxyMissing) {
+    showToast('Station unavailable right now. Please retry in a moment.');
     return false;
   }
   const resolvedStationId = resolveStationIdForSend(station?.id || '');
@@ -812,6 +876,7 @@ async function connectSocket() {
     presenceTimer = window.setInterval(() => {
       void presence.setPresence('online');
     }, 25_000);
+    startWalletSyncScheduler();
   });
 
   socket.addEventListener('close', () => {
@@ -821,6 +886,7 @@ async function connectSocket() {
       window.clearInterval(presenceTimer);
       presenceTimer = null;
     }
+    stopWalletSyncScheduler();
     scheduleConnectRetry('Connection lost.');
   });
 
@@ -833,6 +899,7 @@ async function connectSocket() {
     if (payload.displayName) {
       localStorage.setItem('arena_last_name', payload.displayName);
     }
+    void syncWalletSummary({ keepLastOnFailure: true });
     return;
   }
 
@@ -1092,6 +1159,17 @@ async function connectSocket() {
 }
 
 void connectSocket();
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.wsConnected) {
+    startWalletSyncScheduler();
+    void syncWalletSummary({ keepLastOnFailure: true });
+    return;
+  }
+  if (document.hidden) {
+    stopWalletSyncScheduler();
+  }
+});
 
 
 function setupWorldNpcStations() {
@@ -1494,7 +1572,9 @@ function renderInteractionCard() {
   if (!station && targetPlayer && state.ui.interactionMode !== 'player') {
     state.ui.interactionMode = 'player';
   }
-  const stationRenderKey = station ? `${station.id}:${station.kind}` : '';
+  const stationRenderKey = station
+    ? `${station.id}:${station.kind}:${station.proxyStationId || ''}:${station.proxyMissing ? 'missing' : 'ready'}`
+    : '';
 
   if (interactionNpcInfo) {
     interactionNpcInfo.hidden = true;
@@ -1509,6 +1589,15 @@ function renderInteractionCard() {
     stationUi.style.display = 'grid';
     if (stationUi && interactionStationRenderKey !== stationRenderKey) {
       interactionStationRenderKey = stationRenderKey;
+      if (station.source === 'host' && station.proxyMissing) {
+        stationUi.innerHTML = `
+          <div class="station-ui__title">${station.displayName || 'Station'}</div>
+          <div class="station-ui__meta station-ui__meta--warning">
+            Station unavailable right now. Server station mapping is missing; retry shortly.
+          </div>
+        `;
+        return;
+      }
       if (station.kind === 'dealer_coinflip') {
         stationUi.innerHTML = `
           <div class="station-ui__title">Dealer: Coinflip</div>
@@ -1700,21 +1789,13 @@ function renderInteractionCard() {
 
         async function refresh() {
           try {
-            const summary = await api('/api/player/wallet/summary');
-            const bal = Number(summary?.onchain?.tokenBalance);
-            const chainId = Number(summary?.onchain?.chainId);
-            dispatch({ type: 'WALLET_SUMMARY_SET', chainId, balance: state.walletBalance });
-            syncEscrowApprovalPolicy();
-            if (!Number.isFinite(bal)) {
+            const ok = await syncWalletSummary({ keepLastOnFailure: true });
+            if (!ok || !Number.isFinite(Number(state.walletBalance))) {
               balanceEl.textContent = 'Balance: unavailable (onchain)';
-              dispatch({ type: 'WALLET_SUMMARY_SET', chainId: state.walletChainId, balance: null });
               return;
             }
-            dispatch({ type: 'WALLET_SUMMARY_SET', chainId: state.walletChainId, balance: bal });
-            balanceEl.textContent = `Balance: ${formatUsdAmount(bal)} USDC`;
+            balanceEl.textContent = `Balance: ${formatUsdAmount(Number(state.walletBalance))} USDC`;
           } catch (err) {
-            dispatch({ type: 'WALLET_SUMMARY_SET', chainId: null, balance: null });
-            syncEscrowApprovalPolicy();
             balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
           }
         }

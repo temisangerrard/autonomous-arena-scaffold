@@ -1,4 +1,4 @@
-const runtimeUrl = String(process.env.RUNTIME_URL || 'http://localhost:4100').replace(/\/+$/, '');
+const runtimeUrl = String(process.env.RUNTIME_URL || 'https://arena-runtime-mfpf3lbsba-uc.a.run.app').replace(/\/+$/, '');
 const internalToken = String(process.env.INTERNAL_SERVICE_TOKEN || '');
 const playerWalletId = String(process.env.PLAYER_WALLET_ID || '');
 const houseWalletId = String(process.env.HOUSE_WALLET_ID || '');
@@ -34,6 +34,28 @@ async function main() {
     `connected=${Number(payload.connectedBotCount || 0)}/${Number(payload.configuredBotCount || 0)}`
   );
 
+  const sponsor = payload?.house?.sponsorGas;
+  if (sponsor && typeof sponsor === 'object') {
+    const sponsorStatus = String(sponsor.status || 'unknown').toLowerCase();
+    const level = sponsorStatus === 'green'
+      ? 'green'
+      : sponsorStatus === 'yellow'
+        ? 'yellow'
+        : sponsorStatus === 'red'
+          ? 'red'
+          : 'yellow';
+    const detail = [
+      `address=${String(sponsor.address || 'missing')}`,
+      `balanceEth=${String(sponsor.balanceEth ?? 'unknown')}`,
+      `thresholdEth=${String(sponsor.thresholdEth ?? 'n/a')}`,
+      `topupEth=${String(sponsor.topupEth ?? 'n/a')}`,
+      sponsor.error ? `error=${String(sponsor.error)}` : ''
+    ].filter(Boolean).join(' ');
+    statusLine(level, 'Sponsor gas status', detail);
+  } else {
+    statusLine('yellow', 'Sponsor gas status unavailable', 'runtime /status has no house.sponsorGas diagnostics');
+  }
+
   const house = payload?.house?.wallet;
   const inferredHouseWalletId = houseWalletId || String(house?.id || '');
   const inferredPlayerWalletId = playerWalletId || String(payload?.profiles?.find((entry) => String(entry?.walletId || '').length > 0)?.walletId || '');
@@ -41,11 +63,7 @@ async function main() {
   statusLine(inferredPlayerWalletId ? 'green' : 'yellow', 'Sample player wallet detected', inferredPlayerWalletId || 'missing');
 
   if (!internalToken || !inferredHouseWalletId || !inferredPlayerWalletId || amount <= 0) {
-    statusLine(
-      'yellow',
-      'Skipping sponsorship dry-check',
-      'Provide INTERNAL_SERVICE_TOKEN + PLAYER_WALLET_ID + HOUSE_WALLET_ID + WAGER to run full check'
-    );
+    statusLine('yellow', 'Skipping sponsorship dry-check', 'Set INTERNAL_SERVICE_TOKEN + PLAYER_WALLET_ID + HOUSE_WALLET_ID (+ optional WAGER)');
     return;
   }
 

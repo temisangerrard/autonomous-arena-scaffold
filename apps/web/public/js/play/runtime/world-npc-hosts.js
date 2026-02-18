@@ -1,15 +1,26 @@
 import { AVATAR_GROUND_OFFSET, createCharacterGlbPool, createProceduralAvatar } from '../avatars.js';
 
+// Keep host positions aligned with server station coordinates to avoid
+// "not_near_station" mismatches for proxied dealer/cashier interactions.
 const WORLD_SECTION_SPAWNS = [
-  { x: -80, z: -45 },
-  { x: -25, z: -30 },
-  { x: 25, z: -30 },
-  { x: 80, z: -45 },
-  { x: -80, z: 45 },
-  { x: -25, z: 30 },
-  { x: 25, z: 30 },
-  { x: 80, z: 55 }
+  { x: -72, z: 41 }, // guide (local interactable)
+  { x: 78, z: -41 }, // cashier -> station_cashier_bank
+  { x: -25, z: -24 }, // coinflip_a -> station_dealer_coinflip_a
+  { x: 25, z: 26 }, // coinflip_b -> station_dealer_coinflip_b
+  { x: 25, z: -24 }, // rps_a -> station_dealer_rps_a
+  { x: -27, z: 34 }, // rps_b -> station_dealer_rps_b
+  { x: -78, z: -37 }, // dice -> station_dealer_dice_a
+  { x: -72, z: 39 } // info (local interactable)
 ];
+
+export const HOST_STATION_PROXY_MAP = {
+  station_npc_host_2: 'station_cashier_bank',
+  station_npc_host_3: 'station_dealer_coinflip_a',
+  station_npc_host_4: 'station_dealer_coinflip_b',
+  station_npc_host_5: 'station_dealer_rps_a',
+  station_npc_host_6: 'station_dealer_rps_b',
+  station_npc_host_7: 'station_dealer_dice_a'
+};
 
 function roleDetails(role) {
   if (role === 'guide') {

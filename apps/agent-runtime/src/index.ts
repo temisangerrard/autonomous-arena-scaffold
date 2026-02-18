@@ -134,6 +134,56 @@ function startupDiagnostics() {
   });
 }
 
+function sponsorWalletAddress(): string {
+  const key = String(gasFunderPrivateKey || '').trim();
+  if (!key) {
+    return '';
+  }
+  try {
+    return addressFromPrivateKeyRaw(key);
+  } catch {
+    return '';
+  }
+}
+
+async function refreshSponsorGasDiagnostics(): Promise<void> {
+  const address = sponsorWalletAddress();
+  sponsorGasDiagnostics.address = address;
+  sponsorGasDiagnostics.thresholdEth = String(minWalletGasEth);
+  sponsorGasDiagnostics.topupEth = String(walletGasTopupEth);
+  if (!address || !onchainProvider) {
+    sponsorGasDiagnostics.balanceEth = null;
+    sponsorGasDiagnostics.status = 'unknown';
+    sponsorGasDiagnostics.lastCheckedAt = Date.now();
+    sponsorGasDiagnostics.error = !address ? 'sponsor_key_missing' : 'rpc_unavailable';
+    return;
+  }
+  try {
+    const [nativeBal, threshold, topup] = await Promise.all([
+      onchainProvider.getBalance(address),
+      Promise.resolve(parseFloat(String(minWalletGasEth || '0'))),
+      Promise.resolve(parseFloat(String(walletGasTopupEth || '0')))
+    ]);
+    const balanceEth = Number.parseFloat(formatEther(nativeBal));
+    const warnThreshold = Math.max(0, threshold + Math.max(0, topup));
+    let status: SponsorGasStatus = 'green';
+    if (!Number.isFinite(balanceEth) || balanceEth < threshold) {
+      status = 'red';
+    } else if (balanceEth < warnThreshold) {
+      status = 'yellow';
+    }
+    sponsorGasDiagnostics.balanceEth = Number.isFinite(balanceEth) ? balanceEth.toFixed(6) : null;
+    sponsorGasDiagnostics.status = status;
+    sponsorGasDiagnostics.lastCheckedAt = Date.now();
+    sponsorGasDiagnostics.error = '';
+  } catch (error) {
+    sponsorGasDiagnostics.balanceEth = null;
+    sponsorGasDiagnostics.status = 'unknown';
+    sponsorGasDiagnostics.lastCheckedAt = Date.now();
+    sponsorGasDiagnostics.error = String((error as Error)?.message || 'balance_check_failed');
+  }
+}
+
 function resolveInternalServiceToken(): string {
   const configured = process.env.INTERNAL_SERVICE_TOKEN?.trim();
   if (configured) {
@@ -164,6 +214,24 @@ type HouseLedgerEntry = {
 };
 
 const houseLedger: HouseLedgerEntry[] = [];
+type SponsorGasStatus = 'green' | 'yellow' | 'red' | 'unknown';
+const sponsorGasDiagnostics: {
+  address: string;
+  balanceEth: string | null;
+  thresholdEth: string;
+  topupEth: string;
+  status: SponsorGasStatus;
+  lastCheckedAt: number | null;
+  error: string;
+} = {
+  address: '',
+  balanceEth: null,
+  thresholdEth: String(minWalletGasEth),
+  topupEth: String(walletGasTopupEth),
+  status: 'unknown',
+  lastCheckedAt: null,
+  error: ''
+};
 
 type OwnerPresenceRecord = {
   until: number;
@@ -760,6 +828,7 @@ function runtimeStatus() {
     wallets: [...wallets.values()].map((wallet) => walletSummary(wallet)),
     house: {
       wallet: walletSummary(house),
+      sponsorGas: { ...sponsorGasDiagnostics },
       npcWalletFloor,
       npcWalletTopupAmount,
       superAgentWalletFloor,
@@ -1999,6 +2068,11 @@ if (dbState) {
 }
 houseBankWallet();
 reconcileWalletAddressesFromKeys();
+void refreshSponsorGasDiagnostics().catch(() => undefined);
+const sponsorGasTimer = setInterval(() => {
+  void refreshSponsorGasDiagnostics().catch(() => undefined);
+}, 60_000);
+sponsorGasTimer.unref();
 void syncEthSkillsKnowledge(false).catch(() => undefined);
 // Background NPC bots are disabled by default.
 // Player-owned/provisioned bots remain fully supported.

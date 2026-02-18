@@ -954,3 +954,23 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/web test` ✅
     - `npm run -w @arena/server typecheck` ✅
     - `npm run -w @arena/server test` ✅
+- 2026-02-18: Implemented `/play` wallet freshness + station proxy determinism + sponsor diagnostics.
+  - Wallet freshness (`apps/web/public/js/play/runtime/app.js`):
+    - added shared `syncWalletSummary()` with in-flight dedupe.
+    - added websocket lifecycle scheduler (poll every 10s while connected).
+    - paused polling when tab hidden; resumes + immediate refresh when tab visible.
+    - event-driven refreshes now use shared sync path and keep last good balance on transient failures.
+  - Station proximity misfire fix:
+    - added explicit host->server proxy mapping in `apps/web/public/js/play/runtime/world-npc-hosts.js` (`HOST_STATION_PROXY_MAP`).
+    - moved host spawn coordinates to align with canonical server station coordinates.
+    - runtime proxy remap now uses explicit mapping for hosts and keeps nearest-kind fallback for baked stations only.
+    - if mapped proxy missing, host marked unavailable and interaction UI/toast shows station unavailable (instead of proximity misfire).
+  - Sponsor gas diagnostics:
+    - runtime now publishes `house.sponsorGas` in `/status` with address, balanceEth, threshold/topup, status (`green|yellow|red|unknown`) in `apps/agent-runtime/src/index.ts`.
+    - runtime refreshes sponsor gas diagnostics every 60s.
+    - `scripts/check-runtime-sponsorship.mjs` now defaults to production runtime URL and reports sponsor gas readiness.
+  - Validation:
+    - `@arena/web` typecheck + tests ✅
+    - `@arena/server` typecheck + tests ✅
+    - `@arena/agent-runtime` typecheck + tests ✅
+    - JS syntax checks for changed runtime/script files ✅
