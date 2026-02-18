@@ -18,6 +18,7 @@ import { renderTopHud, renderNextActionLine } from './hud.js';
 import { renderMinimap } from './minimap.js';
 import { renderQuickstart as renderQuickstartModule } from './quickstart.js';
 import { describeInteractionPhase } from './interactions.js';
+import { createRuntimeStore } from './store.js';
 import { createWorldNpcHosts } from './world-npc-hosts.js';
 import { extractBakedNpcStations } from './baked-npc-stations.js';
 import { coinflipGamePlugin } from '../plugins/games/coinflip.js';
@@ -104,12 +105,12 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
     const summary = await apiJson('/api/player/wallet/summary');
     const after = Number(summary?.onchain?.tokenBalance);
     const chainId = Number(summary?.onchain?.chainId);
-    state.walletChainId = Number.isFinite(chainId) ? chainId : null;
+    dispatch({ type: 'WALLET_SUMMARY_SET', chainId, balance: state.walletBalance });
     syncEscrowApprovalPolicy();
     if (Number.isFinite(after)) {
-      state.walletBalance = after;
+      dispatch({ type: 'WALLET_SUMMARY_SET', balance: after, chainId: state.walletChainId });
     } else {
-      state.walletBalance = null;
+      dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId });
     }
     if (challenge && Number.isFinite(after)) {
       const settledByOutcome = challenge.winnerId === state.playerId
@@ -134,8 +135,7 @@ async function refreshWalletBalanceAndShowDelta(beforeBalance, challenge = null)
       }
     }
   } catch {
-    state.walletBalance = null;
-    state.walletChainId = null;
+    dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: null });
     syncEscrowApprovalPolicy();
   }
 }
@@ -234,7 +234,9 @@ scene.add(targetSpotlight);
 const { localAvatarParts, remoteAvatars, syncRemoteAvatars } = createAvatarSystem({ THREE, scene });
 const { syncStations } = createStationSystem({ THREE, scene });
 
-const state = createInitialState();
+const store = createRuntimeStore(createInitialState());
+const state = store.getState();
+const dispatch = store.dispatch;
 let worldRoot = null;
 let npcHosts = null;
 const localStationToProxy = new Map();
@@ -626,10 +628,13 @@ function scheduleConnectRetry(message) {
   }
   connectFailureCount += 1;
   const delayMs = Math.min(15_000, 600 + Math.pow(2, Math.min(5, connectFailureCount)) * 250);
-  state.challengeStatus = 'none';
-  state.challengeMessage = message
-    ? `${message} Retrying in ${(delayMs / 1000).toFixed(1)}s...`
-    : `Retrying in ${(delayMs / 1000).toFixed(1)}s...`;
+  dispatch({
+    type: 'CHALLENGE_STATUS_SET',
+    status: 'none',
+    message: message
+      ? `${message} Retrying in ${(delayMs / 1000).toFixed(1)}s...`
+      : `Retrying in ${(delayMs / 1000).toFixed(1)}s...`
+  });
   connectRetryTimer = window.setTimeout(() => {
     connectRetryTimer = null;
     void connectSocket();
@@ -684,7 +689,11 @@ async function connectSocket() {
         sessionWsAuth = String(mePayload.wsAuth);
       }
       if (mePayload?.bot && mePayload.bot.connected === false) {
-        state.challengeMessage = 'Offline bot is currently disconnected. Controls still work, but that bot will not appear until runtime reconnects.';
+        dispatch({
+          type: 'CHALLENGE_STATUS_SET',
+          status: state.challengeStatus || 'none',
+          message: 'Offline bot is currently disconnected. Controls still work, but that bot will not appear until runtime reconnects.'
+        });
       }
       // In local/dev environments wsAuth may be intentionally absent when
       // GAME_WS_AUTH_SECRET is not configured. In that mode the server accepts
@@ -719,7 +728,7 @@ async function connectSocket() {
   socketRef.current = socket;
 
   socket.addEventListener('open', () => {
-    state.wsConnected = true;
+    dispatch({ type: 'WS_CONNECTION_SET', connected: true });
     connectFailureCount = 0;
     addFeedEvent('system', 'Connected to game server.');
     void presence.setPresence('online');
@@ -732,7 +741,7 @@ async function connectSocket() {
   });
 
   socket.addEventListener('close', () => {
-    state.wsConnected = false;
+    dispatch({ type: 'WS_CONNECTION_SET', connected: false });
     addFeedEvent('system', 'Disconnected from game server.');
     if (presenceTimer) {
       window.clearInterval(presenceTimer);
@@ -997,8 +1006,11 @@ async function connectSocket() {
       ok
     });
     if (!ok && phase === 'lock') {
-      state.challengeStatus = 'declined';
-      state.challengeMessage = `Escrow lock failed${reason}.`;
+      dispatch({
+        type: 'CHALLENGE_STATUS_SET',
+        status: 'declined',
+        message: `Escrow lock failed${reason}.`
+      });
     }
   }
   });
@@ -1037,7 +1049,7 @@ function setupWorldNpcStations() {
   mergeStations();
 }
 
-async function loadWorldWithFallback() {
+async function loadMainWorld() {
   // Ensure `/api/config` has been loaded so `worldAssetBaseUrl` is available.
   // Without this, we can race and fall back to `/assets/world/*.glb` (404 on Netlify).
   try {
@@ -1053,8 +1065,9 @@ async function loadWorldWithFallback() {
     worldLoadingBar.style.width = '0%';
   }
   if (worldLoadingText) {
-    worldLoadingText.textContent = 'Starting download…';
+    worldLoadingText.textContent = 'Connecting to world server…';
   }
+  dispatch({ type: 'WORLD_LOAD_STAGE_SET', stage: 'connecting', message: 'Connecting to world server…' });
   try {
     worldRoot = await loadWorldWithProgress(scene, state.worldAlias, (evt) => {
       const loaded = Number(evt?.loaded || 0);
@@ -1067,17 +1080,40 @@ async function loadWorldWithFallback() {
         if (total > 0) {
           const mb = (loaded / (1024 * 1024)).toFixed(0);
           const totalMb = (total / (1024 * 1024)).toFixed(0);
-          worldLoadingText.textContent = `Downloading ${mb}/${totalMb} MB…`;
+          worldLoadingText.textContent = `Downloading world ${mb}/${totalMb} MB…`;
+          dispatch({
+            type: 'WORLD_LOAD_STAGE_SET',
+            stage: 'downloading',
+            loaded,
+            total,
+            message: `Downloading world ${mb}/${totalMb} MB…`
+          });
         } else if (loaded > 0) {
           const mb = (loaded / (1024 * 1024)).toFixed(0);
-          worldLoadingText.textContent = `Downloading ${mb} MB…`;
+          worldLoadingText.textContent = `Downloading world ${mb} MB…`;
+          dispatch({
+            type: 'WORLD_LOAD_STAGE_SET',
+            stage: 'downloading',
+            loaded,
+            total,
+            message: `Downloading world ${mb} MB…`
+          });
         } else {
-          worldLoadingText.textContent = 'Downloading…';
+          worldLoadingText.textContent = 'Downloading world…';
+          dispatch({ type: 'WORLD_LOAD_STAGE_SET', stage: 'downloading', loaded, total, message: 'Downloading world…' });
         }
       }
     });
+    if (worldLoadingText) {
+      worldLoadingText.textContent = 'Processing world data…';
+    }
+    dispatch({ type: 'WORLD_LOAD_STAGE_SET', stage: 'processing', message: 'Processing world data…' });
     state.worldLoaded = true;
     setupWorldNpcStations();
+    if (worldLoadingText) {
+      worldLoadingText.textContent = 'Entering world…';
+    }
+    dispatch({ type: 'WORLD_LOADED', message: 'Entering world…' });
     addFeedEvent('system', `World loaded: ${state.worldAlias}`);
     if (worldLoading) {
       worldLoading.classList.remove('open');
@@ -1088,45 +1124,17 @@ async function loadWorldWithFallback() {
     console.error('Failed to load world', err);
   }
 
-  // The mega world is very large and may fail to load behind some CDNs/proxies during scaffold.
-  if (state.worldAlias === 'mega' || state.worldAlias === 'train_world' || state.worldAlias === 'train-world') {
-    try {
-      const fallbackAlias = 'base';
-      if (worldLoadingText) {
-        worldLoadingText.textContent = 'Retrying with fallback world…';
-      }
-      if (worldLoadingBar) {
-        worldLoadingBar.style.width = '0%';
-      }
-      worldRoot = await loadWorldWithProgress(scene, fallbackAlias, (evt) => {
-        const loaded = Number(evt?.loaded || 0);
-        const total = Number(evt?.total || 0);
-        if (worldLoadingBar && total > 0) {
-          const ratio = Math.max(0, Math.min(1, loaded / total));
-          worldLoadingBar.style.width = `${(ratio * 100).toFixed(1)}%`;
-        }
-      });
-      state.worldAlias = fallbackAlias;
-      state.worldLoaded = true;
-      setupWorldNpcStations();
-      addFeedEvent('system', `World loaded: ${fallbackAlias} (fallback)`);
-      if (worldLoading) {
-        worldLoading.classList.remove('open');
-        worldLoading.setAttribute('aria-hidden', 'true');
-      }
-      return;
-    } catch (err) {
-      console.error('Failed to load fallback world', err);
-    }
-  }
-
   addFeedEvent('system', 'Failed to load world asset.');
   if (worldLoadingText) {
     worldLoadingText.textContent = 'World failed to load. Check your network and try refresh.';
   }
+  dispatch({
+    type: 'WORLD_FAILED',
+    message: 'World failed to load. Check your network and try refresh.'
+  });
 }
 
-void loadWorldWithFallback();
+void loadMainWorld();
 
 function resetCameraBehindPlayer() {
   const me = state.playerId ? state.players.get(state.playerId) : null;
@@ -1606,18 +1614,17 @@ function renderInteractionCard() {
             const summary = await api('/api/player/wallet/summary');
             const bal = Number(summary?.onchain?.tokenBalance);
             const chainId = Number(summary?.onchain?.chainId);
-            state.walletChainId = Number.isFinite(chainId) ? chainId : null;
+            dispatch({ type: 'WALLET_SUMMARY_SET', chainId, balance: state.walletBalance });
             syncEscrowApprovalPolicy();
             if (!Number.isFinite(bal)) {
               balanceEl.textContent = 'Balance: unavailable (onchain)';
-              state.walletBalance = null;
+              dispatch({ type: 'WALLET_SUMMARY_SET', chainId: state.walletChainId, balance: null });
               return;
             }
-            state.walletBalance = bal;
+            dispatch({ type: 'WALLET_SUMMARY_SET', chainId: state.walletChainId, balance: bal });
             balanceEl.textContent = `Balance: ${formatUsdAmount(bal)} USDC`;
           } catch (err) {
-            state.walletBalance = null;
-            state.walletChainId = null;
+            dispatch({ type: 'WALLET_SUMMARY_SET', chainId: null, balance: null });
             syncEscrowApprovalPolicy();
             balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
           }
@@ -2427,14 +2434,20 @@ function handleChallenge(payload) {
     state.respondingIncoming = false;
     if (challenge.opponentId === state.playerId) {
       state.incomingChallengeId = challenge.id;
-      state.challengeStatus = 'incoming';
-      state.challengeMessage = `Incoming ${challenge.gameType} challenge from ${labelFor(challenge.challengerId)} (${formatWagerInline(challenge.wager)}).`;
+      dispatch({
+        type: 'CHALLENGE_STATUS_SET',
+        status: 'incoming',
+        message: `Incoming ${challenge.gameType} challenge from ${labelFor(challenge.challengerId)} (${formatWagerInline(challenge.wager)}).`
+      });
     }
 
     if (challenge.challengerId === state.playerId) {
       state.outgoingChallengeId = challenge.id;
-      state.challengeStatus = 'sent';
-      state.challengeMessage = `Challenge created. Waiting for ${labelFor(challenge.opponentId)}.`;
+      dispatch({
+        type: 'CHALLENGE_STATUS_SET',
+        status: 'sent',
+        message: `Challenge created. Waiting for ${labelFor(challenge.opponentId)}.`
+      });
     }
   }
 
@@ -2442,13 +2455,16 @@ function handleChallenge(payload) {
     state.respondingIncoming = false;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
-    state.challengeStatus = 'active';
-    state.challengeMessage = `${challenge.gameType.toUpperCase()} active.`;
+    dispatch({
+      type: 'CHALLENGE_STATUS_SET',
+      status: 'active',
+      message: `${challenge.gameType.toUpperCase()} active.`
+    });
     state.quickstart.matchActive = true;
   }
 
   if (payload.event === 'move_submitted' && challenge) {
-    state.challengeStatus = 'active';
+    dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'active', message: state.challengeMessage || '' });
   }
 
   if (payload.event === 'declined' && challenge) {
@@ -2456,9 +2472,12 @@ function handleChallenge(payload) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
-    state.challengeStatus = 'declined';
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
-    state.challengeMessage = `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`;
+    dispatch({
+      type: 'CHALLENGE_STATUS_SET',
+      status: 'declined',
+      message: `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`
+    });
   }
 
   if (payload.event === 'expired' && challenge) {
@@ -2466,9 +2485,12 @@ function handleChallenge(payload) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
-    state.challengeStatus = 'expired';
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
-    state.challengeMessage = `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`;
+    dispatch({
+      type: 'CHALLENGE_STATUS_SET',
+      status: 'expired',
+      message: `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`
+    });
   }
 
   if (payload.event === 'resolved' && challenge) {
@@ -2477,21 +2499,28 @@ function handleChallenge(payload) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
-    state.challengeStatus = 'resolved';
     const winnerLabel = challenge.winnerId ? labelFor(challenge.winnerId) : 'Draw';
     if (challenge.winnerId === state.playerId) {
       state.streak += 1;
     } else if (challenge.winnerId) {
       state.streak = 0;
     }
-    state.challengeMessage = challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.';
+    dispatch({
+      type: 'CHALLENGE_STATUS_SET',
+      status: 'resolved',
+      message: challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.'
+    });
     state.quickstart.matchResolved = true;
     void refreshWalletBalanceAndShowDelta(beforeBalance, challenge);
   }
 
   if (payload.event === 'invalid' || payload.event === 'busy') {
     state.respondingIncoming = false;
-    state.challengeMessage = challengeReasonLabel(payload.reason);
+    dispatch({
+      type: 'CHALLENGE_STATUS_SET',
+      status: state.challengeStatus || 'none',
+      message: challengeReasonLabel(payload.reason)
+    });
     const approvalStatus = String(payload?.approvalStatus || '');
     if (approvalStatus === 'failed' || isEscrowApprovalReason(payload.reason)) {
       state.ui.challenge.approvalState = 'required';

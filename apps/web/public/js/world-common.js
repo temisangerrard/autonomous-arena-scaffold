@@ -5,13 +5,14 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 export { THREE };
 
 let worldManifestPromise = null;
+const CANONICAL_WORLD_ALIAS = 'mega';
 const WORLD_FILENAME_FALLBACK = {
   train_world: 'train_station_mega_world.glb',
   'train-world': 'train_station_mega_world.glb',
   mega: 'train_station_mega_world.glb',
-  plaza: 'train_station_plaza_expanded.glb',
-  base: 'train_station_world.glb',
-  world: 'train_station_world.glb'
+  plaza: 'train_station_mega_world.glb',
+  base: 'train_station_mega_world.glb',
+  world: 'train_station_mega_world.glb'
 };
 const WORLD_VERSION_FALLBACK = {
   train_world: '2026-02-17.2',
@@ -23,7 +24,12 @@ const WORLD_VERSION_FALLBACK = {
 };
 
 function normalizeWorldAlias(alias) {
-  return String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+  const normalized = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+  if (!normalized || normalized === CANONICAL_WORLD_ALIAS) return CANONICAL_WORLD_ALIAS;
+  if (normalized === 'train_world' || normalized === 'train-world' || normalized === 'base' || normalized === 'plaza' || normalized === 'world') {
+    return CANONICAL_WORLD_ALIAS;
+  }
+  return CANONICAL_WORLD_ALIAS;
 }
 
 async function loadWorldManifest() {
@@ -63,8 +69,8 @@ async function resolveWorldUrl(alias) {
   const manifest = await loadWorldManifest();
   const filenameByAlias = manifest.filenameByAlias || WORLD_FILENAME_FALLBACK;
   const versionByAlias = manifest.versionByAlias || WORLD_VERSION_FALLBACK;
-  const filename = filenameByAlias?.[loaderAlias] || `${loaderAlias}.glb`;
-  const version = String(versionByAlias?.[loaderAlias] || '');
+  const filename = filenameByAlias?.[loaderAlias] || filenameByAlias?.[CANONICAL_WORLD_ALIAS] || `${CANONICAL_WORLD_ALIAS}.glb`;
+  const version = String(versionByAlias?.[loaderAlias] || versionByAlias?.[CANONICAL_WORLD_ALIAS] || '');
 
   let rawUrl = '';
   if (!normalizedBase) {
@@ -83,7 +89,7 @@ async function resolveWorldUrl(alias) {
 
 export function pickWorldAlias() {
   const alias = new URL(window.location.href).searchParams.get('world');
-  return alias || 'train_world';
+  return normalizeWorldAlias(alias || CANONICAL_WORLD_ALIAS);
 }
 
 export function makeRenderer(canvas) {

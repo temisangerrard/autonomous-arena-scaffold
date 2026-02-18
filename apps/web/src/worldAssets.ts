@@ -12,9 +12,9 @@ const WORLD_FILE_BY_ALIAS: Record<string, string> = {
   train_world: 'train_station_mega_world.glb',
   'train-world': 'train_station_mega_world.glb',
   mega: 'train_station_mega_world.glb',
-  plaza: 'train_station_plaza_expanded.glb',
-  base: 'train_station_world.glb',
-  world: 'train_station_world.glb'
+  plaza: 'train_station_mega_world.glb',
+  base: 'train_station_mega_world.glb',
+  world: 'train_station_mega_world.glb'
 };
 
 const WORLD_VERSION_BY_ALIAS: Record<string, string> = {

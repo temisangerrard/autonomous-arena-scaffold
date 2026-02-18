@@ -749,6 +749,8 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/worlds') {
     sendJson(res, {
+      canonicalAlias: 'mega',
+      compatibilityAliases: ['train_world', 'train-world', 'base', 'plaza', 'world'],
       aliases: availableWorldAliases(),
       filenameByAlias: worldFilenameByAlias(),
       versionByAlias: worldVersionByAlias()
@@ -1913,7 +1915,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     await sendFileCached(req, res, worldPath, 'model/gltf-binary', {
-      cacheControl: 'public, max-age=86400'
+      cacheControl: 'public, max-age=31536000, immutable'
     });
     return;
   }

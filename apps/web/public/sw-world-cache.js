@@ -1,7 +1,17 @@
 const CACHE_NAME = 'arena-world-cache-v1';
 const META_URL = 'https://world-cache.local/__meta__';
-const MAX_WORLDS = 2;
+const MAX_WORLDS = 1;
 const WORLD_GCS_HOST = 'storage.googleapis.com';
+const CANONICAL_WORLD_KEY = 'train_station_mega_world.glb';
+
+function normalizeWorldKey(name) {
+  const raw = String(name || '').toLowerCase();
+  if (!raw) return CANONICAL_WORLD_KEY;
+  if (raw === 'mega.glb' || raw === 'train_world.glb' || raw === 'train-world.glb' || raw === 'base.glb' || raw === 'plaza.glb' || raw === 'world.glb' || raw === CANONICAL_WORLD_KEY) {
+    return CANONICAL_WORLD_KEY;
+  }
+  return CANONICAL_WORLD_KEY;
+}
 
 function isWorldRequest(url, selfOrigin) {
   if (!url || !url.pathname || !url.pathname.endsWith('.glb')) {
@@ -19,7 +29,25 @@ function isWorldRequest(url, selfOrigin) {
 function worldKeyFromUrl(url) {
   const path = String(url.pathname || '');
   const name = path.split('/').pop() || '';
-  return name.toLowerCase();
+  return normalizeWorldKey(name);
+}
+
+function canonicalRequestFor(url, request) {
+  const normalized = new URL(url.toString());
+  normalized.searchParams.delete('v');
+  normalized.pathname = `/assets/world/mega.glb`;
+  return new Request(normalized.toString(), {
+    method: 'GET',
+    headers: request.headers,
+    mode: request.mode,
+    credentials: request.credentials,
+    cache: request.cache,
+    redirect: request.redirect,
+    referrer: request.referrer,
+    referrerPolicy: request.referrerPolicy,
+    integrity: request.integrity,
+    keepalive: request.keepalive
+  });
 }
 
 async function readMeta(cache) {
@@ -113,7 +141,8 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     const key = worldKeyFromUrl(url);
-    const cached = await cache.match(request, { ignoreSearch: false });
+    const canonicalRequest = canonicalRequestFor(url, request);
+    const cached = await cache.match(canonicalRequest, { ignoreSearch: false });
 
     if (cached) {
       console.debug('[world-cache] hit', url.toString());
@@ -122,7 +151,7 @@ self.addEventListener('fetch', (event) => {
         try {
           const network = await fetch(request);
           if (network && (network.ok || network.type === 'opaque')) {
-            await cache.put(request, network.clone());
+            await cache.put(canonicalRequest, network.clone());
             await touchKey(cache, key);
             await enforceLimit(cache);
             console.debug('[world-cache] update', url.toString());
@@ -138,7 +167,7 @@ self.addEventListener('fetch', (event) => {
     try {
       const network = await fetch(request);
       if (network && (network.ok || network.type === 'opaque')) {
-        await cache.put(request, network.clone());
+        await cache.put(canonicalRequest, network.clone());
         await touchKey(cache, key);
         await enforceLimit(cache);
       }
