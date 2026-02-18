@@ -8,6 +8,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createHash } from 'node:crypto';
 
 export type CacheConfig = {
   // Max age for static assets (in seconds)
@@ -80,8 +81,7 @@ export function applyCacheHeaders(
  * Create ETag for cache validation
  */
 export function createEtag(content: string | Buffer): string {
-  const crypto = require('crypto');
-  const hash = crypto.createHash('md5');
+  const hash = createHash('md5');
   hash.update(content);
   return `"${hash.digest('hex')}"`;
 }

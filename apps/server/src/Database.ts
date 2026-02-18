@@ -1,5 +1,5 @@
 import { log as rootLog } from './logger.js';
-import { runMigrations, getMigrationStatus, type PgPool, type Migration } from './migrations/index.js';
+import { runMigrations, getMigrationStatus, type PgPool } from './migrations/index.js';
 
 const log = rootLog.child({ module: 'database' });
 

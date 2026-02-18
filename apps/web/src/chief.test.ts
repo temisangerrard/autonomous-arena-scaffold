@@ -29,8 +29,15 @@ describe('chief service', () => {
       }
       return {} as T;
     };
-    const runtimePost = async <T>(_path: string, _body: unknown): Promise<T> => ({}) as T;
-    const serverGet = async <T>(_path: string): Promise<T> => ({ recent: [{ id: 'c1' }] }) as T;
+    const runtimePost = async <T>(path: string, body: unknown): Promise<T> => {
+      void path;
+      void body;
+      return {} as T;
+    };
+    const serverGet = async <T>(path: string): Promise<T> => {
+      void path;
+      return { recent: [{ id: 'c1' }] } as T;
+    };
     const log = {
       info: vi.fn(),
       warn: vi.fn(),
@@ -60,13 +67,19 @@ describe('chief service', () => {
   });
 
   it('requires confirmation for sensitive actions and executes after confirm token', async () => {
-    const runtimeGet = async <T>(_path: string): Promise<T> => ({ bots: [], wallets: [] }) as T;
+    const runtimeGet = async <T>(path: string): Promise<T> => {
+      void path;
+      return { bots: [], wallets: [] } as T;
+    };
     const runtimePostSpy = vi.fn();
-    const runtimePost = async <T>(_path: string, _body: unknown): Promise<T> => {
-      runtimePostSpy(_path, _body);
+    const runtimePost = async <T>(path: string, body: unknown): Promise<T> => {
+      runtimePostSpy(path, body);
       return {} as T;
     };
-    const serverGet = async <T>(_path: string): Promise<T> => ({ recent: [] }) as T;
+    const serverGet = async <T>(path: string): Promise<T> => {
+      void path;
+      return { recent: [] } as T;
+    };
     const log = {
       info: vi.fn(),
       warn: vi.fn(),
@@ -104,13 +117,19 @@ describe('chief service', () => {
   });
 
   it('does not allow admin-only user inspection for player mode', async () => {
-    const runtimeGet = async <T>(_path: string): Promise<T> => ({ bots: [], wallets: [] }) as T;
+    const runtimeGet = async <T>(path: string): Promise<T> => {
+      void path;
+      return { bots: [], wallets: [] } as T;
+    };
     const runtimePostSpy = vi.fn();
-    const runtimePost = async <T>(_path: string, _body: unknown): Promise<T> => {
-      runtimePostSpy(_path, _body);
+    const runtimePost = async <T>(path: string, body: unknown): Promise<T> => {
+      runtimePostSpy(path, body);
       return { reply: '' } as T;
     };
-    const serverGet = async <T>(_path: string): Promise<T> => ({ recent: [] }) as T;
+    const serverGet = async <T>(path: string): Promise<T> => {
+      void path;
+      return { recent: [] } as T;
+    };
     const log = {
       info: vi.fn(),
       warn: vi.fn(),
@@ -142,7 +161,10 @@ describe('chief service', () => {
   it('supports player gas-fix action through chief', async () => {
     const runtimePostSpy = vi.fn();
     const chief = createChiefService({
-      runtimeGet: async <T>(_path: string): Promise<T> => ({ bots: [], wallets: [] }) as T,
+      runtimeGet: async <T>(path: string): Promise<T> => {
+        void path;
+        return { bots: [], wallets: [] } as T;
+      },
       runtimePost: async <T>(path: string, body: unknown): Promise<T> => {
         runtimePostSpy(path, body);
         if (path === '/wallets/onchain/prepare-escrow') {
@@ -153,7 +175,10 @@ describe('chief service', () => {
         }
         return {} as T;
       },
-      serverGet: async <T>(_path: string): Promise<T> => ({ recent: [] }) as T,
+      serverGet: async <T>(path: string): Promise<T> => {
+        void path;
+        return { recent: [] } as T;
+      },
       runtimeProfiles: vi.fn(async () => []),
       purgeSessionsForProfile: vi.fn(async () => 0),
       log: {

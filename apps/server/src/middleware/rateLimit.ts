@@ -56,16 +56,6 @@ function defaultKeyGenerator(req: IncomingMessage): string {
 }
 
 /**
- * Generate key with user ID if available, fallback to IP
- */
-function userAwareKeyGenerator(req: IncomingMessage & { user?: { id?: string } }): string {
-  if (req.user?.id) {
-    return `user:${req.user.id}`;
-  }
-  return defaultKeyGenerator(req);
-}
-
-/**
  * Create rate limit middleware
  */
 export function createRateLimiter(

@@ -10,7 +10,6 @@ import type { Database } from '../Database.js';
 import { WORLD_SECTION_SPAWNS } from '../WorldSim.js';
 import type { AdminCommand } from '../DistributedBus.js';
 import { handleMetricsEndpoint, handleMetricsJsonEndpoint } from '../metrics.js';
-import { applySecurityHeaders, handleCors } from '../middleware/security.js';
 
 export type RouteContext = {
   serverInstanceId: string;
@@ -60,6 +59,7 @@ function isInternalAuthorized(req: IncomingMessage, token: string): boolean {
  * Handle health check endpoint
  */
 export function handleHealth(req: IncomingMessage, res: ServerResponse): void {
+  void req;
   const payload = createHealthStatus();
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify(payload));
@@ -125,6 +125,7 @@ export async function handleChallengesRecent(
  * Handle favicon endpoint
  */
 export function handleFavicon(req: IncomingMessage, res: ServerResponse): void {
+  void req;
   res.statusCode = 204;
   res.end();
 }
@@ -133,6 +134,7 @@ export function handleFavicon(req: IncomingMessage, res: ServerResponse): void {
  * Handle 404 Not Found
  */
 export function handleNotFound(req: IncomingMessage, res: ServerResponse): void {
+  void req;
   res.statusCode = 404;
   res.end('Not Found');
 }

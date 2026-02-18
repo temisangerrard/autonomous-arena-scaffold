@@ -17,7 +17,6 @@ const log = rootLog.child({ module: 'metrics' });
 /**
  * Metric types
  */
-type MetricValue = number;
 type MetricLabels = Record<string, string>;
 
 type CounterMetric = {
@@ -45,8 +44,6 @@ type HistogramMetric = {
   count: number;
   labels: MetricLabels;
 };
-
-type Metric = CounterMetric | GaugeMetric | HistogramMetric;
 
 /**
  * In-memory metrics store
@@ -367,6 +364,7 @@ export function startSystemMetricsCollection(): ReturnType<typeof setInterval> {
  * Handler for /metrics endpoint (Prometheus format)
  */
 export function handleMetricsEndpoint(req: IncomingMessage, res: ServerResponse): void {
+  void req;
   try {
     const prometheusOutput = metrics.exportPrometheus();
     res.statusCode = 200;
@@ -384,6 +382,7 @@ export function handleMetricsEndpoint(req: IncomingMessage, res: ServerResponse)
  * Handler for /metrics.json endpoint (JSON format)
  */
 export function handleMetricsJsonEndpoint(req: IncomingMessage, res: ServerResponse): void {
+  void req;
   try {
     const jsonData = metrics.exportJson();
     res.statusCode = 200;
@@ -401,11 +400,13 @@ export function handleMetricsJsonEndpoint(req: IncomingMessage, res: ServerRespo
  * Record challenge metrics
  */
 export function recordChallengeCreated(gameType: string, wager: number): void {
+  void wager;
   metrics.incrementCounter(METRIC_NAMES.challengesCreated, { game_type: gameType });
   metrics.incrementGauge(METRIC_NAMES.challengesActive, { game_type: gameType });
 }
 
 export function recordChallengeResolved(gameType: string, durationMs: number, wager: number): void {
+  void wager;
   metrics.incrementCounter(METRIC_NAMES.challengesResolved, { game_type: gameType });
   metrics.decrementGauge(METRIC_NAMES.challengesActive, { game_type: gameType });
   metrics.observeHistogram(METRIC_NAMES.challengeDuration, durationMs / 1000, { game_type: gameType });
@@ -440,6 +441,7 @@ export function recordEscrowLock(amount: number): void {
 }
 
 export function recordEscrowResolve(amount: number, fee: number): void {
+  void fee;
   metrics.incrementCounter(METRIC_NAMES.escrowResolvesTotal);
   metrics.decrementGauge(METRIC_NAMES.escrowValueLocked, {}, amount);
 }

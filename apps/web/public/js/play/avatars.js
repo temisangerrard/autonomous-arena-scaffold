@@ -67,17 +67,48 @@ export function characterModelConfigForId(id) {
 export function createCharacterGlbPool(THREE) {
   const loader = new GLTFLoader();
   const prefabCache = new Map();
+  let characterAssetsEnabled = null;
+
+  async function probeCharacterAssets() {
+    if (characterAssetsEnabled != null) {
+      return characterAssetsEnabled;
+    }
+    try {
+      const probe = CHARACTER_MODEL_CONFIGS[0]?.file;
+      if (!probe) {
+        characterAssetsEnabled = false;
+        return characterAssetsEnabled;
+      }
+      const response = await fetch(`/assets/characters/${probe}`, {
+        method: 'HEAD',
+        cache: 'no-store'
+      });
+      characterAssetsEnabled = response.ok;
+    } catch {
+      characterAssetsEnabled = false;
+    }
+    return characterAssetsEnabled;
+  }
 
   async function loadPrefab(url) {
     if (prefabCache.has(url)) {
       return prefabCache.get(url);
     }
-    const promise = loader.loadAsync(url).then((gltf) => gltf).catch(() => null);
+    const promise = loader.loadAsync(url).then((gltf) => gltf).catch((error) => {
+      const status = Number(error?.target?.status || 0);
+      if (status === 404) {
+        characterAssetsEnabled = false;
+      }
+      return null;
+    });
     prefabCache.set(url, promise);
     return promise;
   }
 
   async function instantiateById(entityId, configOverride = null) {
+    if (!(await probeCharacterAssets())) {
+      return null;
+    }
     const cfg = configOverride || characterModelConfigForId(entityId);
     const url = `/assets/characters/${cfg.file}`;
     const gltf = await loadPrefab(url);
