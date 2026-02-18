@@ -6,6 +6,7 @@ export { THREE };
 
 let worldManifestPromise = null;
 const CANONICAL_WORLD_ALIAS = 'mega';
+const CANONICAL_WORLD_BASE_FALLBACK = 'https://storage.googleapis.com/junipalee-arena-assets';
 const WORLD_FILENAME_FALLBACK = {
   train_world: 'train_station_mega_world.glb',
   'train-world': 'train_station_mega_world.glb',
@@ -35,25 +36,26 @@ function normalizeWorldAlias(alias) {
 async function loadWorldManifest() {
   if (worldManifestPromise) return worldManifestPromise;
   worldManifestPromise = (async () => {
-    try {
-      const res = await fetch('/api/worlds', { credentials: 'include' });
-      if (!res.ok) {
+    const fallback = {
+      filenameByAlias: WORLD_FILENAME_FALLBACK,
+      versionByAlias: WORLD_VERSION_FALLBACK
+    };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await fetch('/api/worlds', { credentials: 'include' });
+        if (!res.ok) {
+          continue;
+        }
+        const payload = await res.json();
         return {
-          filenameByAlias: WORLD_FILENAME_FALLBACK,
-          versionByAlias: WORLD_VERSION_FALLBACK
+          filenameByAlias: payload?.filenameByAlias || WORLD_FILENAME_FALLBACK,
+          versionByAlias: payload?.versionByAlias || WORLD_VERSION_FALLBACK
         };
+      } catch {
+        // retry once
       }
-      const payload = await res.json();
-      return {
-        filenameByAlias: payload?.filenameByAlias || WORLD_FILENAME_FALLBACK,
-        versionByAlias: payload?.versionByAlias || WORLD_VERSION_FALLBACK
-      };
-    } catch {
-      return {
-        filenameByAlias: WORLD_FILENAME_FALLBACK,
-        versionByAlias: WORLD_VERSION_FALLBACK
-      };
     }
+    return fallback;
   })();
   return worldManifestPromise;
 }
@@ -62,7 +64,7 @@ async function resolveWorldUrl(alias) {
   const loaderAlias = normalizeWorldAlias(alias);
   const params = new URL(window.location.href).searchParams;
   const configuredBase = window.__ARENA_CONFIG?.worldAssetBaseUrl || window.ARENA_CONFIG?.worldAssetBaseUrl || '';
-  const worldBaseUrl = params.get('worldBase') || configuredBase || '';
+  const worldBaseUrl = params.get('worldBase') || configuredBase || CANONICAL_WORLD_BASE_FALLBACK;
   const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
   const gcsMode = normalizedBase.includes('storage.googleapis.com') || normalizedBase.startsWith('gs://');
 

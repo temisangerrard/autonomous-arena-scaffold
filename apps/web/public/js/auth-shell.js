@@ -1,6 +1,8 @@
 const AUTH_KEY = 'arena_auth_user';
 const CLIENT_KEY = 'arena_google_client_id';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
+let googleShellNoncePromise = null;
+let googleShellInitInFlight = false;
 
 // Test harness can load pages without going through auth.
 // Skip auth-shell behavior (including Google scripts) to avoid noisy console errors.
@@ -179,8 +181,19 @@ function renderGoogleButton(config) {
   }
   void (async () => {
     try {
-      const noncePayload = await fetchJson('/api/auth/google/nonce');
-      const nonce = String(noncePayload?.nonce || '').trim();
+      if (googleShellInitInFlight) {
+        return;
+      }
+      googleShellInitInFlight = true;
+      if (!googleShellNoncePromise) {
+        googleShellNoncePromise = fetchJson('/api/auth/google/nonce')
+          .then((payload) => String(payload?.nonce || '').trim())
+          .catch((error) => {
+            googleShellNoncePromise = null;
+            throw error;
+          });
+      }
+      const nonce = await googleShellNoncePromise;
       if (!nonce) {
         throw new Error('nonce_missing');
       }
@@ -199,6 +212,8 @@ function renderGoogleButton(config) {
       });
     } catch (error) {
       authContainer.innerHTML = `<span class="global-shell__hint">Sign-in setup failed: ${String((error).message || error)}</span>`;
+    } finally {
+      googleShellInitInFlight = false;
     }
   })();
 }

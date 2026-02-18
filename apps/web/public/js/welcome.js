@@ -15,6 +15,8 @@ let config = {
   googleClientId: '',
   localAuthEnabled: true
 };
+let googleWelcomeNoncePromise = null;
+let googleWelcomeInitInFlight = false;
 
 function setStoredUser(user) {
   if (user) {
@@ -93,25 +95,38 @@ function renderSignedOut() {
   ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><div id="google-signin-welcome"></div>';
   if (window.google?.accounts?.id) {
     void (async () => {
-      const noncePayload = await requestJson('/api/auth/google/nonce').catch(() => null);
-      const nonce = String(noncePayload?.nonce || '').trim();
-      if (!nonce) {
-        showAuthError('Sign-in setup failed. Refresh and try again.');
-        return;
-      }
-      window.google.accounts.id.initialize({
-        client_id: config.googleClientId,
-        nonce,
-        callback: (response) => {
-          void handleGoogleCredential(response.credential || '');
+      if (googleWelcomeInitInFlight) return;
+      googleWelcomeInitInFlight = true;
+      try {
+        if (!googleWelcomeNoncePromise) {
+          googleWelcomeNoncePromise = requestJson('/api/auth/google/nonce')
+            .then((payload) => String(payload?.nonce || '').trim())
+            .catch(() => {
+              googleWelcomeNoncePromise = null;
+              return '';
+            });
         }
-      });
-      window.google.accounts.id.renderButton(document.getElementById('google-signin-welcome'), {
-        theme: 'outline',
-        size: 'large',
-        text: 'signin_with',
-        width: 260
-      });
+        const nonce = await googleWelcomeNoncePromise;
+        if (!nonce) {
+          showAuthError('Sign-in setup failed. Refresh and try again.');
+          return;
+        }
+        window.google.accounts.id.initialize({
+          client_id: config.googleClientId,
+          nonce,
+          callback: (response) => {
+            void handleGoogleCredential(response.credential || '');
+          }
+        });
+        window.google.accounts.id.renderButton(document.getElementById('google-signin-welcome'), {
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          width: 260
+        });
+      } finally {
+        googleWelcomeInitInFlight = false;
+      }
     })();
   }
 }

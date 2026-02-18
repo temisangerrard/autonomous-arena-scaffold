@@ -332,34 +332,58 @@ quickstartClose?.addEventListener('click', () => {
 // Netlify cannot reliably proxy WebSockets and doesn't ship large GLBs.
 // Pull infra settings from `/api/config` (proxied to the web-api on Cloud Run).
 let arenaConfigPromise = null;
+const CANONICAL_WORLD_BASE_FALLBACK = 'https://storage.googleapis.com/junipalee-arena-assets';
 async function loadArenaConfig() {
   if (arenaConfigPromise) return arenaConfigPromise;
   arenaConfigPromise = (async () => {
-    try {
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 3500);
-      const cfgRes = await fetch('/api/config', {
-        credentials: 'include',
-        headers: buildSessionHeaders(),
-        signal: controller.signal
-      });
-      window.clearTimeout(timeout);
-      if (!cfgRes.ok) return null;
-      const cfg = await cfgRes.json();
-      if (cfg && typeof cfg === 'object') {
-        window.__ARENA_CONFIG = cfg;
-        // Merge into runtime-config.js (Netlify env driven) so we get
-        // `worldAssetBaseUrl` + `gameWsUrl` without losing origin settings.
-        window.ARENA_CONFIG = {
-          ...(window.ARENA_CONFIG || {}),
-          ...cfg
-        };
-        syncEscrowApprovalPolicy();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 4500);
+        const cfgRes = await fetch('/api/config', {
+          credentials: 'include',
+          headers: buildSessionHeaders(),
+          signal: controller.signal
+        });
+        window.clearTimeout(timeout);
+        if (!cfgRes.ok) {
+          if (attempt === 0) {
+            await new Promise((resolve) => window.setTimeout(resolve, 250));
+            continue;
+          }
+          break;
+        }
+        const cfg = await cfgRes.json();
+        if (cfg && typeof cfg === 'object') {
+          window.__ARENA_CONFIG = cfg;
+          // Merge into runtime-config.js (Netlify env driven) so we get
+          // `worldAssetBaseUrl` + `gameWsUrl` without losing origin settings.
+          window.ARENA_CONFIG = {
+            ...(window.ARENA_CONFIG || {}),
+            ...cfg
+          };
+          syncEscrowApprovalPolicy();
+        }
+        return cfg;
+      } catch {
+        if (attempt === 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, 250));
+          continue;
+        }
       }
-      return cfg;
-    } catch {
-      return null;
     }
+    const fallbackCfg = {
+      worldAssetBaseUrl: CANONICAL_WORLD_BASE_FALLBACK
+    };
+    window.__ARENA_CONFIG = {
+      ...(window.__ARENA_CONFIG || {}),
+      ...fallbackCfg
+    };
+    window.ARENA_CONFIG = {
+      ...(window.ARENA_CONFIG || {}),
+      ...fallbackCfg
+    };
+    return fallbackCfg;
   })();
   return arenaConfigPromise;
 }

@@ -874,3 +874,28 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Enhanced toast system with wrapped content, explicit dismiss button, and maintained 4s auto-dismiss default.
 - Improved minimap legibility (coords typography/contrast) and added lightweight hover name tooltips on nearby player dots.
 - Build check passed: `npm run -w @arena/web build`.
+
+## 2026-02-18 Auth + world reliability hardening (mega-only)
+- Hardened Google auth nonce validation diagnostics in `apps/web/src/server.ts`:
+  - keeps public response `reason=nonce_mismatch`,
+  - adds structured safe booleans in logs (`hasCookieNonce`, `hasJwtNonce`, `nonceEqual`, `nonceTokenValid`, `nonceExpired`).
+- Hardened world asset route fallback in `apps/web/src/server.ts`:
+  - `/assets/world/:alias.glb` still resolves local path first,
+  - on local miss, redirects to canonical cloud world asset (`train_station_mega_world.glb`) using configured/public base URL with version query.
+- Hardened client world URL and manifest loading in `apps/web/public/js/world-common.js`:
+  - retry `/api/worlds` once before fallback mapping,
+  - world base resolution order now includes canonical GCS fallback (`https://storage.googleapis.com/junipalee-arena-assets`).
+- Hardened `/api/config` consumption in `apps/web/public/js/play/runtime/app.js`:
+  - retry once with short backoff and timeout,
+  - on final failure, seeds minimal in-memory config with canonical `worldAssetBaseUrl` so world load continues.
+- Added client guards against duplicate Google initialization races:
+  - `apps/web/public/js/welcome.js`
+  - `apps/web/public/js/auth-shell.js`
+  - nonce request promise is reused per page lifecycle and duplicate in-flight init is blocked.
+- CI/GCP auth plumbing confirmed:
+  - repository secrets set: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`,
+  - backend workflow run `22137917766` shows WIF auth steps succeeding for server/runtime deploy jobs.
+- Local verification:
+  - `npm run -w @arena/web typecheck` ✅
+  - `npm run -w @arena/server typecheck` ✅
+  - `npm run -w @arena/web test` ✅

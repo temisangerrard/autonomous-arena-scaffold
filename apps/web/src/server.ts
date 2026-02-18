@@ -7,7 +7,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { log } from './logger.js';
-import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldVersionByAlias } from './worldAssets.js';
+import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
 import { clearCookie, clearSessionCookie, parseCookies, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setCookie, setSessionCookieWithOptions } from './lib/http.js';
@@ -21,6 +21,7 @@ const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
+const defaultWorldAssetBaseUrl = 'https://storage.googleapis.com/junipalee-arena-assets';
 const allowedAuthOrigins = new Set(
   (process.env.ALLOWED_AUTH_ORIGINS?.trim()
     ? process.env.ALLOWED_AUTH_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)
@@ -514,36 +515,44 @@ function issueGoogleNonceToken(now = Date.now()): string {
   return `${payload}.${sig}`;
 }
 
-function verifyGoogleNonceToken(nonceToken: string, now = Date.now()): boolean {
+function verifyGoogleNonceToken(
+  nonceToken: string,
+  now = Date.now()
+): { valid: boolean; expired: boolean; signatureValid: boolean } {
   const token = String(nonceToken || '').trim();
   const parts = token.split('.');
   if (parts.length !== 3) {
-    return false;
+    return { valid: false, expired: false, signatureValid: false };
   }
   const ts = parts[0] || '';
   const rand = parts[1] || '';
   const sig = parts[2] || '';
   if (!/^\d{13}$/.test(ts) || !/^[a-f0-9]{32}$/.test(rand) || !/^[a-f0-9]{64}$/.test(sig)) {
-    return false;
+    return { valid: false, expired: false, signatureValid: false };
   }
   const issuedAt = Number(ts);
   if (!Number.isFinite(issuedAt)) {
-    return false;
+    return { valid: false, expired: false, signatureValid: false };
   }
   if (issuedAt > now + 30_000) {
-    return false;
+    return { valid: false, expired: false, signatureValid: false };
   }
   if (now - issuedAt > GOOGLE_NONCE_TTL_SEC * 1000) {
-    return false;
+    return { valid: false, expired: true, signatureValid: false };
   }
   const payload = `${ts}.${rand}`;
   const expected = signGoogleNonce(payload);
   const got = Buffer.from(sig, 'utf8');
   const want = Buffer.from(expected, 'utf8');
   if (got.length !== want.length) {
-    return false;
+    return { valid: false, expired: false, signatureValid: false };
   }
-  return timingSafeEqual(got, want);
+  const signatureValid = timingSafeEqual(got, want);
+  return {
+    valid: signatureValid,
+    expired: false,
+    signatureValid
+  };
 }
 
 function isSameOriginRequest(req: import('node:http').IncomingMessage): boolean {
@@ -935,7 +944,22 @@ const server = createServer(async (req, res) => {
       const cookieNonce = parseCookies(req)[GOOGLE_NONCE_COOKIE] || '';
       const jwtPayload = decodeJwtPayload(credential);
       const jwtNonce = String(jwtPayload?.nonce || '').trim();
-      if (!cookieNonce || !jwtNonce || cookieNonce !== jwtNonce || !verifyGoogleNonceToken(cookieNonce)) {
+      const nonceToken = verifyGoogleNonceToken(cookieNonce);
+      const hasCookieNonce = cookieNonce.length > 0;
+      const hasJwtNonce = jwtNonce.length > 0;
+      const nonceEqual = hasCookieNonce && hasJwtNonce && cookieNonce === jwtNonce;
+      if (!hasCookieNonce || !hasJwtNonce || !nonceEqual || !nonceToken.valid) {
+        log.warn(
+          {
+            reason: 'nonce_mismatch',
+            hasCookieNonce,
+            hasJwtNonce,
+            nonceEqual,
+            nonceTokenValid: nonceToken.valid,
+            nonceExpired: nonceToken.expired
+          },
+          'google auth nonce validation failed'
+        );
         clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
         sendJson(res, { ok: false, reason: 'nonce_mismatch' }, 401);
         return;
@@ -1945,8 +1969,30 @@ const server = createServer(async (req, res) => {
     }
     const worldPath = resolveWorldAssetPath(alias);
     if (!worldPath) {
-      res.statusCode = 404;
-      res.end('Unknown world alias');
+      const canonicalFilename = worldFilenameForAlias(alias) || worldFilenameForAlias('mega') || 'train_station_mega_world.glb';
+      const normalizedBase = String(publicWorldAssetBaseUrl || defaultWorldAssetBaseUrl).replace(/\/+$/, '');
+      const gcsMode = normalizedBase.includes('storage.googleapis.com') || normalizedBase.startsWith('gs://');
+      const versionByAlias = worldVersionByAlias();
+      const normalizedAlias = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+      const version = String(versionByAlias[normalizedAlias] || versionByAlias.mega || '');
+      let fallbackUrl = gcsMode
+        ? `${normalizedBase}/world/${canonicalFilename}`
+        : `${normalizedBase}/assets/world/mega.glb`;
+      if (version) {
+        fallbackUrl += `${fallbackUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}`;
+      }
+      log.warn(
+        {
+          reason: 'local_world_missing',
+          alias,
+          canonicalFilename,
+          fallbackUrl
+        },
+        'world asset missing locally; redirecting to canonical cloud asset'
+      );
+      res.statusCode = 302;
+      res.setHeader('location', fallbackUrl);
+      res.end();
       return;
     }
     await sendFileCached(req, res, worldPath, 'model/gltf-binary', {
