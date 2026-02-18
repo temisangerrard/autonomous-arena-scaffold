@@ -4,56 +4,172 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <script src="/runtime-config.js"></script>
   <style>
-    body { margin: 0; }
-    .command {
-      min-height: 100vh;
-      background:
-        radial-gradient(1100px 500px at 5% -10%, rgba(255, 198, 61, 0.18), transparent 55%),
-        radial-gradient(900px 500px at 95% -20%, rgba(54, 130, 255, 0.14), transparent 58%),
-        var(--bg-primary);
-      color: var(--text-primary);
-      font-family: var(--font-primary);
-      padding: 16px;
-      display: grid;
-      grid-template-rows: auto auto 1fr;
-      gap: 12px;
+    :root {
+      --admin-ink: #141414;
+      --admin-gold: #d2a63d;
+      --admin-panel: rgba(255, 252, 244, 0.95);
+      --admin-edge: #cfbc8f;
+      --admin-card: #fffcf4;
+      --admin-muted: #7b715f;
+      --admin-mono: 'JetBrains Mono', monospace;
+      --admin-sans: 'Syne', system-ui, sans-serif;
     }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 15% 8%, #fff8ea 0%, #f8f3e6 42%, #efe8d6 100%);
+      color: var(--text-primary);
+      font-family: var(--admin-sans);
+    }
+
+    .admin-app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+    }
+
+    .admin-sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: #121212;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 18px 14px;
+    }
+
+    .admin-brand {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 12px;
+    }
+
+    .admin-kicker {
+      margin: 0;
+      color: #a69b84;
+      font: 700 10px/1 var(--admin-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .admin-brand h1 {
+      margin: 6px 0 0;
+      color: #fff4dc;
+      font: 700 20px/1.1 var(--admin-sans);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .admin-brand p {
+      margin: 8px 0 0;
+      color: #b8af9f;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .tabs {
+      display: grid;
+      gap: 8px;
+    }
+
+    .tabs button {
+      width: 100%;
+      height: 42px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: transparent;
+      color: #a8a095;
+      text-align: left;
+      padding: 0 10px;
+      font: 700 12px/1 var(--admin-sans);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+    }
+
+    .tabs button:hover {
+      border-color: rgba(255, 255, 255, 0.28);
+      color: #f0e6d4;
+    }
+
+    .tabs button.active {
+      border-left-color: var(--admin-gold);
+      background: #24211a;
+      border-color: rgba(255, 255, 255, 0.14);
+      color: #fff8ea;
+    }
+
+    .sidebar-actions {
+      margin-top: auto;
+      display: grid;
+      gap: 8px;
+    }
+
+    .sidebar-actions .btn {
+      width: 100%;
+    }
+
+    .command {
+      padding: 24px 28px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
     .top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
       flex-wrap: wrap;
+      border: 1px solid var(--admin-edge);
+      border-radius: 14px;
+      background:
+        linear-gradient(145deg, rgba(31, 22, 10, 0.12) 0%, rgba(255, 255, 255, 0) 42%),
+        var(--admin-panel);
+      box-shadow: 0 10px 26px rgba(41, 30, 9, 0.1);
+      padding: 16px 18px;
     }
+
     .title h1 {
       margin: 0;
-      font: 700 30px/1 var(--font-display);
-      letter-spacing: 0.08em;
+      font: 700 30px/1 var(--admin-sans);
+      letter-spacing: 0.02em;
       text-transform: uppercase;
-      color: #f2c352;
+      color: #1f1a12;
     }
+
     .title p {
       margin: 8px 0 0;
-      color: var(--text-secondary);
+      color: #5f5546;
       max-width: 860px;
       font-size: 14px;
+      font-weight: 500;
+      line-height: 1.45;
     }
+
     .top-actions {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
       align-items: center;
     }
+
     .btn {
-      border: 1px solid var(--border-medium);
-      background: rgba(255,255,255,0.9);
-      color: var(--text-primary);
+      border: 1px solid #d4c6a2;
+      background: var(--admin-card);
+      color: #31281a;
       border-radius: 10px;
       padding: 9px 12px;
-      font: 600 12px/1.2 var(--font-display);
+      font: 700 12px/1.2 var(--admin-sans);
       letter-spacing: 0.06em;
       text-transform: uppercase;
       cursor: pointer;
@@ -63,89 +179,78 @@
       justify-content: center;
       gap: 6px;
     }
+
     .btn-primary {
-      background: linear-gradient(120deg, #2e6fff, #163b8a);
+      background: linear-gradient(120deg, #2e6fff, #1f4fa9);
       color: #fff;
-      border-color: #234a9f;
+      border-color: #1f4fa9;
     }
+
     .btn-gold {
       background: linear-gradient(120deg, var(--gold-primary), var(--gold-dark));
       color: #fff;
       border-color: var(--gold-dark);
     }
-    .tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .tabs button {
-      border: 1px solid rgba(255,255,255,0.16);
-      background: rgba(14, 18, 24, 0.64);
-      color: rgba(255,255,255,0.88);
-      border-radius: 999px;
-      padding: 8px 12px;
-      font: 600 12px/1 var(--font-display);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-    .tabs button.active {
-      background: linear-gradient(120deg, #f5c44c, #b88421);
-      color: #1e1306;
-      border-color: rgba(0,0,0,0.25);
-    }
+
     .panel {
       display: none;
-      border-radius: 14px;
-      border: 1px solid var(--border-medium);
-      background: rgba(255,255,255,0.94);
-      padding: 12px;
-      box-shadow: var(--shadow-sm);
+      border-radius: 12px;
+      border: 1px solid var(--admin-edge);
+      background: var(--admin-panel);
+      padding: 13px;
+      box-shadow: 0 10px 24px rgba(41, 30, 9, 0.09);
     }
+
     .panel.active { display: block; }
+
     .section-title {
       margin: 0 0 10px;
-      font: 700 16px/1.2 var(--font-display);
+      font: 700 16px/1.2 var(--admin-sans);
       letter-spacing: 0.06em;
       text-transform: uppercase;
       color: #7d5714;
     }
+
     .grid { display: grid; gap: 10px; }
     .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
     .kpi {
       border-radius: 12px;
-      border: 1px solid rgba(0,0,0,0.08);
-      background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,242,235,0.95));
+      border: 1px solid var(--admin-edge);
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,242,235,0.95));
       padding: 10px;
     }
     .kpi .label {
-      font: 11px/1.2 var(--font-mono);
+      font: 11px/1.2 var(--admin-mono);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--text-secondary);
     }
     .kpi .value {
       margin-top: 4px;
-      font: 700 23px/1.1 var(--font-display);
+      font: 700 23px/1.1 var(--admin-sans);
       color: #1d1408;
     }
+
     .split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
     .card {
-      border: 1px solid var(--border-light);
+      border: 1px solid var(--admin-edge);
       border-radius: 12px;
-      background: rgba(255,255,255,0.72);
+      background: rgba(255,255,255,0.82);
       padding: 10px;
     }
+
     .row { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 8px; }
     .row-3 { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 8px; }
+
     label {
       display: block;
-      font: 11px/1.2 var(--font-mono);
+      font: 11px/1.2 var(--admin-mono);
       color: var(--text-secondary);
       margin-bottom: 4px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
+
     input, select, textarea {
       width: 100%;
       box-sizing: border-box;
@@ -154,97 +259,123 @@
       background: #fff;
       color: var(--text-primary);
       padding: 8px;
-      font: 13px/1.3 var(--font-primary);
+      font: 13px/1.3 var(--admin-sans);
     }
     textarea { resize: vertical; }
+
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
     .chip {
-      border: 1px solid rgba(0,0,0,0.18);
+      border: 1px solid #d9cba9;
       border-radius: 999px;
-      background: rgba(0,0,0,0.04);
-      color: var(--text-primary);
-      font: 12px/1 var(--font-primary);
+      background: #f7f1e5;
+      color: #3a2f1e;
+      font: 700 12px/1 var(--admin-sans);
       padding: 8px 10px;
       cursor: pointer;
     }
-    .mono { font-family: var(--font-mono); }
+
+    .mono { font-family: var(--admin-mono); }
+
     pre {
       margin: 0;
       max-height: 240px;
       overflow: auto;
-      border: 1px solid rgba(0,0,0,0.1);
+      border: 1px solid #2e2a20;
       background: rgba(20,20,20,0.94);
       color: #f4e9d0;
       border-radius: 10px;
       padding: 10px;
-      font: 12px/1.35 var(--font-mono);
+      font: 12px/1.35 var(--admin-mono);
       white-space: pre-wrap;
     }
+
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border-bottom: 1px solid rgba(0,0,0,0.1); padding: 8px 6px; text-align: left; vertical-align: top; }
-    th { text-transform: uppercase; font: 11px/1.2 var(--font-mono); color: var(--text-secondary); }
-    .table-wrap { overflow: auto; max-height: 420px; border: 1px solid var(--border-light); border-radius: 10px; }
+    th, td { border-bottom: 1px solid #e2d8c2; padding: 8px 6px; text-align: left; vertical-align: top; }
+    th { text-transform: uppercase; font: 11px/1.2 var(--admin-mono); color: var(--text-secondary); }
+    .table-wrap { overflow: auto; max-height: 420px; border: 1px solid var(--admin-edge); border-radius: 10px; background: #fffdf7; }
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       border-radius: 999px;
-      border: 1px solid rgba(0,0,0,0.16);
+      border: 1px solid #d5c8aa;
       padding: 4px 8px;
-      font: 11px/1 var(--font-mono);
-      background: rgba(255,255,255,0.65);
+      font: 11px/1 var(--admin-mono);
+      background: rgba(255,255,255,0.9);
       white-space: nowrap;
     }
+
     .dot { width: 8px; height: 8px; border-radius: 999px; background: #8a8a8a; }
     .dot.online { background: #169f5f; }
     .dot.offline { background: #bf453e; }
+
     .status {
       border-radius: 10px;
-      border: 1px solid rgba(0,0,0,0.1);
-      background: rgba(255,255,255,0.86);
+      border: 1px solid var(--admin-edge);
+      background: rgba(255, 252, 244, 0.98);
       padding: 8px 10px;
       color: var(--text-secondary);
-      font: 12px/1.3 var(--font-mono);
+      font: 12px/1.3 var(--admin-mono);
     }
+
     .danger { color: #b12828; }
     .activity { display: grid; gap: 8px; max-height: 520px; overflow: auto; }
     .event {
-      border: 1px solid var(--border-light);
+      border: 1px solid var(--admin-edge);
       border-radius: 10px;
-      background: rgba(255,255,255,0.74);
+      background: rgba(255,255,255,0.84);
       padding: 8px 10px;
       font-size: 12px;
     }
-    .event .meta { color: var(--text-secondary); font: 11px/1.2 var(--font-mono); margin-bottom: 4px; }
+
+    .event .meta { color: var(--text-secondary); font: 11px/1.2 var(--admin-mono); margin-bottom: 4px; }
 
     @media (max-width: 1100px) {
+      .admin-app {
+        grid-template-columns: 1fr;
+      }
+      .admin-sidebar {
+        position: static;
+        height: auto;
+      }
       .split { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <main class="command">
-    <header class="top">
-      <div class="title">
-        <h1>Admin Command Center</h1>
-        <p>Operate super agent, fleet, treasury, and users from one cockpit. Legacy UI remains available during rollout.</p>
+  <main class="admin-app">
+    <aside class="admin-sidebar">
+      <div class="admin-brand">
+        <p class="admin-kicker">Ops Cockpit</p>
+        <h1>Admin Command</h1>
+        <p>Operate super agent, fleet, treasury, and users from one cockpit.</p>
       </div>
-      <div class="top-actions">
+
+      <nav class="tabs" aria-label="Admin sections">
+        <button type="button" class="active" data-tab="overview">Overview</button>
+        <button type="button" data-tab="super">Super Agent</button>
+        <button type="button" data-tab="fleet">Fleet</button>
+        <button type="button" data-tab="treasury">Treasury</button>
+        <button type="button" data-tab="users">Users</button>
+        <button type="button" data-tab="activity">Activity</button>
+      </nav>
+
+      <div class="sidebar-actions">
         <button class="btn btn-primary" id="refresh-all" type="button">Refresh</button>
         <a class="btn" href="/users">Open Users Page</a>
         <a class="btn" href="/admin?legacy=1">Switch To Legacy</a>
       </div>
-    </header>
+    </aside>
 
-    <nav class="tabs" aria-label="Admin sections">
-      <button type="button" class="active" data-tab="overview">Overview</button>
-      <button type="button" data-tab="super">Super Agent</button>
-      <button type="button" data-tab="fleet">Fleet</button>
-      <button type="button" data-tab="treasury">Treasury</button>
-      <button type="button" data-tab="users">Users</button>
-      <button type="button" data-tab="activity">Activity</button>
-    </nav>
+    <section class="command">
+    <header class="top">
+      <div class="title">
+        <h1>Admin Command Center</h1>
+        <p>Live controls for runtime, profiles, treasury operations, and player management with a single source of operational truth.</p>
+      </div>
+      <div class="top-actions"></div>
+    </header>
 
     <section id="status-bar" class="status">Loading admin command center...</section>
 
@@ -485,6 +616,7 @@
     <section id="panel-activity" class="panel">
       <h2 class="section-title">Unified Activity Timeline</h2>
       <div id="activity-list" class="activity"></div>
+    </section>
     </section>
   </main>
 

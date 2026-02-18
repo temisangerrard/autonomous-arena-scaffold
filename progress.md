@@ -1,5 +1,14 @@
 Original prompt: yes there's a file called train world or so , thats the base world we will use so we can scaffold that in so we start seeing the game, dont forget various entry points required
 
+- 2026-02-18: Redesigned admin command center UI to match app dashboard language.
+  - Refactored `/Users/temisan/Downloads/blender implementation/apps/web/public/agents.html` from standalone style system into shared dashboard-style layout:
+    - sticky dark left rail navigation
+    - warm panel/card surfaces and typography aligned with `/dashboard`
+    - retained all existing IDs/data attributes for `agents.js` bindings
+  - Kept behavior unchanged (tab switching, refresh, action buttons, table actions) while modernizing visual structure.
+  - Validation:
+    - `npm run -w @arena/web typecheck` ✅
+
 - 2026-02-18: World-load verification + manual redeploy completed.
   - Local reproduction check:
     - ran full Playwright E2E suite (`node scripts/run-e2e.js`)
