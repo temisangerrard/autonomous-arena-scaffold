@@ -67,26 +67,50 @@ export function characterModelConfigForId(id) {
 export function createCharacterGlbPool(THREE) {
   const loader = new GLTFLoader();
   const prefabCache = new Map();
+  const fileAvailabilityCache = new Map();
   let characterAssetsEnabled = null;
+
+  async function isCharacterFileAvailable(file) {
+    if (!file) return false;
+    if (fileAvailabilityCache.has(file)) {
+      return fileAvailabilityCache.get(file);
+    }
+    try {
+      const response = await fetch(`/assets/characters/${file}`, {
+        method: 'HEAD',
+        cache: 'no-store'
+      });
+      const ok = Boolean(response?.ok);
+      fileAvailabilityCache.set(file, ok);
+      return ok;
+    } catch {
+      fileAvailabilityCache.set(file, false);
+      return false;
+    }
+  }
+
+  async function resolveAvailableConfig(entityId, configOverride = null) {
+    if (configOverride?.file && (await isCharacterFileAvailable(configOverride.file))) {
+      return configOverride;
+    }
+    const preferred = characterModelConfigForId(entityId);
+    if (preferred?.file && (await isCharacterFileAvailable(preferred.file))) {
+      return preferred;
+    }
+    for (const cfg of CHARACTER_MODEL_CONFIGS) {
+      if (await isCharacterFileAvailable(cfg.file)) {
+        return cfg;
+      }
+    }
+    return null;
+  }
 
   async function probeCharacterAssets() {
     if (characterAssetsEnabled != null) {
       return characterAssetsEnabled;
     }
-    try {
-      const probe = CHARACTER_MODEL_CONFIGS[0]?.file;
-      if (!probe) {
-        characterAssetsEnabled = false;
-        return characterAssetsEnabled;
-      }
-      const response = await fetch(`/assets/characters/${probe}`, {
-        method: 'HEAD',
-        cache: 'no-store'
-      });
-      characterAssetsEnabled = response.ok;
-    } catch {
-      characterAssetsEnabled = false;
-    }
+    const available = await resolveAvailableConfig('probe', null);
+    characterAssetsEnabled = Boolean(available);
     return characterAssetsEnabled;
   }
 
@@ -97,6 +121,8 @@ export function createCharacterGlbPool(THREE) {
     const promise = loader.loadAsync(url).then((gltf) => gltf).catch((error) => {
       const status = Number(error?.target?.status || 0);
       if (status === 404) {
+        const file = String(url).split('/').pop();
+        if (file) fileAvailabilityCache.set(file, false);
         characterAssetsEnabled = false;
       }
       return null;
@@ -109,7 +135,11 @@ export function createCharacterGlbPool(THREE) {
     if (!(await probeCharacterAssets())) {
       return null;
     }
-    const cfg = configOverride || characterModelConfigForId(entityId);
+    const cfg = await resolveAvailableConfig(entityId, configOverride);
+    if (!cfg) {
+      characterAssetsEnabled = false;
+      return null;
+    }
     const url = `/assets/characters/${cfg.file}`;
     const gltf = await loadPrefab(url);
     if (!gltf) {
