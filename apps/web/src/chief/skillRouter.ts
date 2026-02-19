@@ -4,6 +4,9 @@ export type SkillTraceEntry = {
   step: string;
   status: 'planned' | 'executed' | 'blocked';
   summary: string;
+  whySelected?: string;
+  whySkipped?: string;
+  whyFallback?: string;
 };
 
 export type SkillRouteResult = {
@@ -65,7 +68,12 @@ export function routeSkills(message: string, skills: SkillDefinition[]): SkillRo
     const matched = matchSkill(message, skill);
     if (matched.hit) {
       selected.push(skill.name);
-      trace.push({ step: `skill.route.${skill.name}`, status: 'planned', summary: matched.reason });
+      trace.push({
+        step: `skill.route.${skill.name}`,
+        status: 'planned',
+        summary: matched.reason,
+        whySelected: matched.reason
+      });
     }
   }
 
@@ -75,7 +83,8 @@ export function routeSkills(message: string, skills: SkillDefinition[]): SkillRo
       trace.push({
         step: 'skill.route.authenticate-wallet',
         status: 'planned',
-        summary: 'Injected authentication prerequisite for wallet-sensitive operation.'
+        summary: 'Injected authentication prerequisite for wallet-sensitive operation.',
+        whySelected: 'Wallet-sensitive action matched and auth prerequisite was missing.'
       });
     }
   }

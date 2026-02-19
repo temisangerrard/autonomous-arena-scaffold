@@ -1,0 +1,55 @@
+    /* ============================================
+       WORLD LOADING
+       ============================================ */
+    .world-loading {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 400;
+      background: radial-gradient(circle at 30% 20%, rgba(253, 248, 237, 0.7), rgba(20, 18, 14, 0.95));
+      backdrop-filter: blur(8px);
+    }
+    .world-loading.open { display: flex; }
+    .world-loading__card {
+      width: min(440px, calc(100vw - 40px));
+      background: rgba(253, 248, 237, 0.98);
+      border: 2px solid rgba(198, 152, 49, 0.45);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(25, 20, 10, 0.3);
+      text-align: center;
+    }
+    .world-loading__icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      animation: spin 2s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .world-loading__title {
+      font: 700 22px/1.1 'Cormorant Garamond', serif;
+      color: #2c2112;
+      margin-bottom: 16px;
+    }
+    .world-loading__bar {
+      height: 8px;
+      background: rgba(0, 0, 0, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(163, 128, 40, 0.2);
+    }
+    .world-loading__fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #e8c860, #d4a830);
+      transition: width 0.15s linear;
+    }
+    .world-loading__text {
+      margin-top: 12px;
+      font: 14px/1.4 'Crimson Text', serif;
+      color: rgba(60, 44, 18, 0.7);
+    }
+

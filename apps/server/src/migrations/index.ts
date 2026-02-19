@@ -159,6 +159,65 @@ export const MIGRATIONS: Migration[] = [
       DROP INDEX IF EXISTS idx_audit_log_actor;
       DROP TABLE IF EXISTS audit_log;
     `
+  },
+  {
+    version: 6,
+    name: 'add_prediction_markets',
+    up: `
+      CREATE TABLE IF NOT EXISTS markets (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        question TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'general',
+        close_at TIMESTAMPTZ NOT NULL,
+        resolve_at TIMESTAMPTZ,
+        status TEXT NOT NULL DEFAULT 'open',
+        oracle_source TEXT NOT NULL DEFAULT 'polymarket_gamma',
+        oracle_market_id TEXT NOT NULL,
+        outcome TEXT,
+        yes_price NUMERIC NOT NULL DEFAULT 0.50,
+        no_price NUMERIC NOT NULL DEFAULT 0.50,
+        raw_json JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS market_positions (
+        id TEXT PRIMARY KEY,
+        market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
+        player_id TEXT NOT NULL,
+        wallet_id TEXT NOT NULL,
+        side TEXT NOT NULL,
+        stake NUMERIC NOT NULL,
+        price NUMERIC NOT NULL,
+        shares NUMERIC NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        escrow_bet_id TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        settled_at TIMESTAMPTZ
+      );
+
+      CREATE TABLE IF NOT EXISTS market_admin_activation (
+        market_id TEXT PRIMARY KEY REFERENCES markets(id) ON DELETE CASCADE,
+        active BOOLEAN NOT NULL DEFAULT false,
+        max_wager NUMERIC NOT NULL DEFAULT 100,
+        house_spread_bps INTEGER NOT NULL DEFAULT 300,
+        updated_by TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_markets_status_close ON markets(status, close_at);
+      CREATE INDEX IF NOT EXISTS idx_market_positions_player_status ON market_positions(player_id, status);
+      CREATE INDEX IF NOT EXISTS idx_market_positions_market_status ON market_positions(market_id, status);
+    `,
+    down: `
+      DROP INDEX IF EXISTS idx_market_positions_market_status;
+      DROP INDEX IF EXISTS idx_market_positions_player_status;
+      DROP INDEX IF EXISTS idx_markets_status_close;
+      DROP TABLE IF EXISTS market_admin_activation;
+      DROP TABLE IF EXISTS market_positions;
+      DROP TABLE IF EXISTS markets;
+    `
   }
 ];
 

@@ -7,7 +7,7 @@
  * - Network-first strategy for API calls
  */
 
-const CACHE_NAME = 'arena-cache-v1';
+const CACHE_NAME = 'arena-cache-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache immediately on install
@@ -70,6 +70,22 @@ self.addEventListener('fetch', (event) => {
         .catch(() => {
           return caches.match(OFFLINE_URL);
         })
+    );
+    return;
+  }
+
+  // Runtime game modules should prefer fresh network content to avoid stale gameplay code.
+  if (url.pathname.startsWith('/js/play/')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }

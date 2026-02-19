@@ -1,0 +1,91 @@
+    /* ============================================
+       WORLD MAP PANEL (Compact by default)
+       ============================================ */
+    .world-map-panel {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: 140px;
+      border-radius: 12px;
+      background: rgba(20, 18, 14, 0.9);
+      border: 2px solid rgba(255, 203, 164, 0.3);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+      padding: 10px;
+      z-index: 50;
+      transition: all 0.25s ease;
+      opacity: 0.9;
+      backdrop-filter: blur(10px);
+    }
+    .world-map-panel:hover {
+      width: 280px;
+      opacity: 1;
+    }
+    .world-map-panel.collapsed {
+      width: 48px;
+      height: 48px;
+      padding: 8px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .world-map-panel.collapsed:hover {
+      width: 48px;
+      height: 48px;
+    }
+    .world-map-panel.mobile-obscured {
+      opacity: 0;
+      transform: translateY(16px) scale(0.92);
+      pointer-events: none;
+    }
+
+    .world-map-title {
+      font: 700 11px/1 var(--font-mono);
+      color: #dbc798;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .map-legend {
+      display: flex;
+      gap: 10px;
+      font: 700 10px/1.1 var(--font-mono);
+      color: #d2be92;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    #map-coords {
+      color: #f2ddad;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+
+    .map-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .map-dot--you {
+      background: #2f6dff;
+    }
+    .map-dot--agent {
+      background: #b4792a;
+    }
+    .map-dot--human {
+      background: #4f8a63;
+    }
+
+    #world-map {
+      width: 100%;
+      height: 120px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 203, 164, 0.25);
+      background: rgba(0, 0, 0, 0.3);
+      display: block;
+    }

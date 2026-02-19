@@ -6,6 +6,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
+import { createChief2Service } from './chief2/index.js';
 import { createChiefDbGateway } from './chief/dbGateway.js';
 import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
@@ -427,6 +428,55 @@ const chiefService = createChiefService({
   skillCatalogRoots: chiefSkillCatalogRoots
 });
 
+const chief2Service = createChief2Service({
+  runtimeGet,
+  runtimePost,
+  serverGet,
+  serverPost,
+  adminActions: {
+    userTeleport: async (params) => {
+      const payload = {
+        playerId: `u_${String(params.profileId || '').trim()}`,
+        ...(typeof params.section === 'number' ? { section: params.section } : {}),
+        ...(typeof params.x === 'number' ? { x: params.x } : {}),
+        ...(typeof params.z === 'number' ? { z: params.z } : {})
+      };
+      return serverPost('/admin/teleport', payload);
+    },
+    userWalletAdjust: async (params) => {
+      const profiles = await runtimeProfiles();
+      const profile = profiles.find((entry) => entry.id === params.profileId);
+      if (!profile) {
+        throw new Error('profile_not_found');
+      }
+      const walletId = profile.wallet?.id ?? profile.walletId;
+      if (!walletId) {
+        throw new Error('wallet_not_found');
+      }
+      if (params.direction === 'credit') {
+        return runtimePost('/house/transfer', {
+          toWalletId: walletId,
+          amount: params.amount,
+          reason: params.reason
+        });
+      }
+      const houseStatus = await runtimeGet<{ house?: { wallet?: { id?: string } } }>('/house/status');
+      const houseWalletId = String(houseStatus?.house?.wallet?.id || '').trim();
+      if (!houseWalletId) {
+        throw new Error('house_wallet_missing');
+      }
+      return runtimePost(`/wallets/${walletId}/transfer`, {
+        toWalletId: houseWalletId,
+        amount: params.amount
+      });
+    },
+    userLogout: async (params) => {
+      return sessionStore.purgeSessionsForProfile(params.profileId);
+    }
+  },
+  log
+});
+
 async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
   let linkLookupFailed = false;
   const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => {
@@ -694,6 +744,18 @@ function htmlRouteToFile(
     return path.join(publicDir, useLegacy ? 'agents-legacy.html' : 'agents.html');
   }
 
+  if (pathname === '/admin/chief') {
+    if (!identity) {
+      redirect(res, '/welcome');
+      return null;
+    }
+    if (identity.role !== 'admin') {
+      redirect(res, '/dashboard');
+      return null;
+    }
+    return path.join(publicDir, 'admin-chief.html');
+  }
+
   if (pathname === '/agents') {
     if (!identity) {
       redirect(res, '/welcome');
@@ -804,6 +866,54 @@ const server = createServer(async (req, res) => {
     }
     const state = await chiefService.getOpsState(auth.identity);
     sendJson(res, { ok: true, state });
+    return;
+  }
+
+  if (pathname === '/api/admin/chief/workspace/bootstrap' && req.method === 'GET') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const payload = await chief2Service.bootstrap();
+    sendJson(res, payload);
+    return;
+  }
+
+  if (pathname === '/api/admin/chief/workspace/incidents' && req.method === 'GET') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const limit = Math.max(1, Math.min(200, Number(requestUrl.searchParams.get('limit') || 80)));
+    sendJson(res, { ok: true, incidents: chief2Service.listIncidents(limit) });
+    return;
+  }
+
+  if (pathname === '/api/admin/chief/workspace/runbooks' && req.method === 'GET') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    sendJson(res, { ok: true, runbooks: chief2Service.listRunbooks() });
+    return;
+  }
+
+  if (pathname === '/api/admin/chief/workspace/command' && req.method === 'POST') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const body = await readJsonBody<{ message?: string; confirmToken?: string; context?: Record<string, unknown> }>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
+      return;
+    }
+    const payload = await chief2Service.command(auth.identity, body);
+    sendJson(res, payload, payload.ok ? 200 : 400);
     return;
   }
 
@@ -1776,7 +1886,8 @@ const server = createServer(async (req, res) => {
       });
       sendJson(res, { ok: true, state, runtime: payload });
     } catch {
-      sendJson(res, { ok: false, reason: 'presence_update_failed' }, 400);
+      // Presence should not hard-fail gameplay when runtime heartbeat is degraded.
+      sendJson(res, { ok: false, state, reason: 'presence_runtime_degraded' }, 202);
     }
     return;
   }
@@ -1809,6 +1920,32 @@ const server = createServer(async (req, res) => {
       /^\/agents\/[^/]+\/config$/i,
       /^\/profiles\/[^/]+\/bots\/create$/i
     ];
+
+    if (subpath === '/markets' && req.method === 'GET') {
+      try {
+        const payload = await serverGet('/admin/markets');
+        sendJson(res, payload);
+      } catch {
+        sendJson(res, { ok: false, reason: 'server_unavailable' }, 400);
+      }
+      return;
+    }
+    if (
+      (subpath === '/markets/sync'
+      || subpath === '/markets/activate'
+      || subpath === '/markets/deactivate'
+      || subpath === '/markets/config')
+      && req.method === 'POST'
+    ) {
+      const body = await readJsonBody<unknown>(req);
+      try {
+        const payload = await serverPost(`/admin${subpath}`, body ?? {});
+        sendJson(res, payload);
+      } catch {
+        sendJson(res, { ok: false, reason: 'server_request_failed' }, 400);
+      }
+      return;
+    }
 
     if (req.method === 'GET') {
       if (!allowGet.has(subpath)) {
@@ -2068,6 +2205,12 @@ const server = createServer(async (req, res) => {
     const ext = path.extname(filePath).toLowerCase();
     const contentType = ext === '.svg' ? 'image/svg+xml' : 'application/octet-stream';
     await sendFile(res, filePath, contentType);
+    return;
+  }
+
+  if (pathname.startsWith('/css/')) {
+    const cssPath = path.join(publicDir, pathname);
+    await sendFile(res, cssPath, 'text/css; charset=utf-8');
     return;
   }
 

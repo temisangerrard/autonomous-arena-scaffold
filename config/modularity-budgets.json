@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "apps/web/public/play.html",
+      "baselineLines": 277,
+      "maxGrowthPct": 20,
+      "warnAtPct": 95,
+      "goal": "Keep as shell markup only and avoid re-inline style debt.",
+      "nextModules": [
+        "apps/web/public/js/play/runtime/templates/*.js"
+      ]
+    },
+    {
+      "path": "apps/web/public/css/play/play-shell.css",
+      "baselineLines": 14,
+      "maxGrowthPct": 50,
+      "warnAtPct": 95,
+      "goal": "Stay import-only entrypoint; module css lives in css/play/*.css.",
+      "nextModules": [
+        "apps/web/public/css/play/*.css"
+      ]
+    },
+    {
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "baselineLines": 1545,
+      "maxGrowthPct": 5,
+      "warnAtPct": 97,
+      "goal": "Gradually extract runtime feature domains into runtime/*.js modules.",
+      "nextModules": [
+        "apps/web/public/js/play/runtime/interaction-shell.js",
+        "apps/web/public/js/play/runtime/feed.js",
+        "apps/web/public/js/play/runtime/challenge-reason.js",
+        "apps/web/public/js/play/runtime/challenge-events.js",
+        "apps/web/public/js/play/runtime/game-moves.js",
+        "apps/web/public/js/play/runtime/dealer-game-type.js",
+        "apps/web/public/js/play/runtime/mobile-controls.js",
+        "apps/web/public/js/play/runtime/network/arena-config.js",
+        "apps/web/public/js/play/runtime/network/*.js",
+        "apps/web/public/js/play/runtime/templates/*.js"
+      ]
+    },
+    {
+      "path": "apps/web/public/js/play/input.js",
+      "baselineLines": 385,
+      "maxGrowthPct": 15,
+      "warnAtPct": 95,
+      "goal": "Keep input map and bindings isolated from rendering logic.",
+      "nextModules": [
+        "apps/web/public/js/play/input/*.js"
+      ]
+    },
+    {
+      "path": "apps/web/public/js/play/challenge.js",
+      "baselineLines": 156,
+      "maxGrowthPct": 20,
+      "warnAtPct": 95,
+      "goal": "Challenge context and flow should remain controller-level only.",
+      "nextModules": [
+        "apps/web/public/js/play/challenge/*.js"
+      ]
+    }
+  ],
+  "boundaryRules": [
+    {
+      "id": "play-html-no-inline-style-block",
+      "path": "apps/web/public/play.html",
+      "mustNotContainRegex": "<style[\\s>]",
+      "message": "Inline <style> blocks are not allowed in play shell.",
+      "severity": "error",
+      "remediation": "Move styles into /apps/web/public/css/play/*.css and import from play-shell.css."
+    },
+    {
+      "id": "play-html-no-inline-style-attrs",
+      "path": "apps/web/public/play.html",
+      "mustNotContainRegex": "style=\"",
+      "message": "Inline style attributes are not allowed in play shell.",
+      "severity": "error",
+      "remediation": "Replace inline style attributes with semantic utility classes in css modules."
+    },
+    {
+      "id": "removed-mobile-target-markup",
+      "path": "apps/web/public/play.html",
+      "mustNotContainRegex": "id=\"mobile-target\"",
+      "message": "Removed mobile target button must not be reintroduced.",
+      "severity": "error",
+      "remediation": "Do not add target/profile quick button back to mobile controls."
+    },
+    {
+      "id": "removed-mobile-target-dom",
+      "path": "apps/web/public/js/play/dom.js",
+      "mustNotContainRegex": "mobileTarget",
+      "message": "Removed mobile target wiring must stay deleted.",
+      "severity": "error",
+      "remediation": "Keep target cycling on keyboard Tab only."
+    },
+    {
+      "id": "removed-mobile-target-input",
+      "path": "apps/web/public/js/play/input.js",
+      "mustNotContainRegex": "mobileTarget",
+      "message": "Input layer must not wire removed mobile target control.",
+      "severity": "error",
+      "remediation": "Do not reintroduce mobile target click handlers."
+    },
+    {
+      "id": "dealer-no-coinflip-default-fallback",
+      "path": "apps/web/public/js/play/state.js",
+      "mustNotContainRegex": "gameType:\\s*'coinflip'",
+      "message": "Dealer gameType must not default to coinflip fallback.",
+      "severity": "error",
+      "remediation": "Use empty dealer gameType and fail closed for unknown contexts."
+    },
+    {
+      "id": "runtime-import-dealer-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./dealer-game-type\\.js'",
+      "message": "Runtime app must consume dealer game-type module.",
+      "severity": "error",
+      "remediation": "Keep dealer game-type parsing/derivation in runtime/dealer-game-type.js."
+    },
+    {
+      "id": "runtime-import-mobile-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./mobile-controls\\.js'",
+      "message": "Runtime app must consume mobile controls module.",
+      "severity": "error",
+      "remediation": "Keep mobile visibility and map hide logic in runtime/mobile-controls.js."
+    },
+    {
+      "id": "runtime-import-network-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./network/socket-runtime\\.js'",
+      "message": "Runtime app must consume socket runtime module.",
+      "severity": "error",
+      "remediation": "Keep websocket connection + message pipeline in runtime/network/socket-runtime.js."
+    },
+    {
+      "id": "runtime-import-game-moves-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./game-moves\\.js'",
+      "message": "Runtime app must consume game move module.",
+      "severity": "error",
+      "remediation": "Keep move routing and validation in runtime/game-moves.js."
+    },
+    {
+      "id": "runtime-import-challenge-events-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./challenge-events\\.js'",
+      "message": "Runtime app must consume challenge events module.",
+      "severity": "error",
+      "remediation": "Keep challenge lifecycle event handling in runtime/challenge-events.js."
+    },
+    {
+      "id": "runtime-import-world-loader-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./world-loader\\.js'",
+      "message": "Runtime app must consume world loader module.",
+      "severity": "error",
+      "remediation": "Keep world loading lifecycle logic in runtime/world-loader.js."
+    },
+    {
+      "id": "runtime-import-world-map-renderer-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./world-map-renderer\\.js'",
+      "message": "Runtime app must consume world map renderer module.",
+      "severity": "error",
+      "remediation": "Keep world map rendering logic in runtime/world-map-renderer.js."
+    },
+    {
+      "id": "runtime-import-feed-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./feed\\.js'",
+      "message": "Runtime app must consume feed module.",
+      "severity": "error",
+      "remediation": "Keep challenge feed rendering in runtime/feed.js."
+    },
+    {
+      "id": "runtime-import-challenge-reason-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./challenge-reason\\.js'",
+      "message": "Runtime app must consume challenge reason module.",
+      "severity": "error",
+      "remediation": "Keep challenge reason mapping in runtime/challenge-reason.js."
+    },
+    {
+      "id": "runtime-import-arena-config-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./network/arena-config\\.js'",
+      "message": "Runtime app must consume arena config module.",
+      "severity": "error",
+      "remediation": "Keep runtime config loading and ws base resolution in runtime/network/arena-config.js."
+    },
+    {
+      "id": "runtime-import-interaction-shell-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "mustContainRegex": "from '\\./interaction-shell\\.js'",
+      "message": "Runtime app must consume interaction shell module.",
+      "severity": "error",
+      "remediation": "Keep interaction open/close and prompt rendering behavior in runtime/interaction-shell.js."
+    }
+  ]
+}

@@ -10,7 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 export const AVATAR_GROUND_OFFSET = -0.7;
-export const AVATAR_WORLD_SCALE = 0.82;
+export const AVATAR_WORLD_SCALE = 1.22;
 
 // Reference world size used to calculate dynamic avatar scaling.
 // Avatars were originally designed for a world of this approximate size.
@@ -24,18 +24,17 @@ const REFERENCE_WORLD_SIZE = 120;
  * @returns {number} Scale factor for avatars
  */
 export function computeAvatarScaleForWorld(worldBox, baseScale = AVATAR_WORLD_SCALE) {
-  if (!worldBox || !worldBox.getSize) {
+  if (!worldBox || !worldBox.min || !worldBox.max) {
     return baseScale;
   }
-  // getSize returns a Vector3-like object with x, y, z
-  const size = { x: 0, y: 0, z: 0 };
-  worldBox.getSize(size);
+  const sizeX = Number(worldBox.max.x) - Number(worldBox.min.x);
+  const sizeZ = Number(worldBox.max.z) - Number(worldBox.min.z);
   // Use the larger of x/z dimensions as the world "footprint"
-  const worldFootprint = Math.max(size.x || 1, size.z || 1);
+  const worldFootprint = Math.max(Number.isFinite(sizeX) ? sizeX : 1, Number.isFinite(sizeZ) ? sizeZ : 1);
   // Scale avatars relative to reference world size
   const scaleFactor = worldFootprint / REFERENCE_WORLD_SIZE;
-  // Clamp to reasonable range (0.5x to 3x of base scale)
-  const clampedFactor = Math.max(0.5, Math.min(3, scaleFactor));
+  // Do not downscale below base; world-derived scaling should only preserve or enlarge avatar presence.
+  const clampedFactor = Math.max(1, Math.min(3, scaleFactor));
   return baseScale * clampedFactor;
 }
 
@@ -581,6 +580,7 @@ export function createAvatarSystem({ THREE, scene, worldScale = AVATAR_WORLD_SCA
           mixer: null
         };
         remote.proceduralAvatar = remote.avatar;
+        remote.proceduralAvatar.scale.setScalar(currentWorldScale);
         remote.avatar.position.y = 1.2;
         remoteAvatars.set(player.id, remote);
         scene.add(remote.avatar);
@@ -597,6 +597,10 @@ export function createAvatarSystem({ THREE, scene, worldScale = AVATAR_WORLD_SCA
             active.glbYawOffset = loaded.yawOffset || 0;
             active.glbRawHeight = loaded.rawHeight || 1;
             active.glbConfig = loaded.config || null;
+            if (active.glbRawHeight > 0 && active.glbConfig) {
+              const scale = ((Number(active.glbConfig.targetHeight) || 1.7) * currentWorldScale) / active.glbRawHeight;
+              active.glbRoot.scale.setScalar(scale);
+            }
             active.avatar = loaded.anchor;
             scene.add(loaded.anchor);
             if (Array.isArray(loaded.gltf.animations) && loaded.gltf.animations.length > 0) {

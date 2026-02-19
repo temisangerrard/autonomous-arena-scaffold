@@ -3,6 +3,45 @@ import { runMigrations, getMigrationStatus, type PgPool } from './migrations/ind
 
 const log = rootLog.child({ module: 'database' });
 
+export type MarketRecord = {
+  id: string;
+  slug: string;
+  question: string;
+  category: string;
+  closeAt: number;
+  resolveAt: number | null;
+  status: 'open' | 'closed' | 'resolved' | 'cancelled';
+  oracleSource: string;
+  oracleMarketId: string;
+  outcome: 'yes' | 'no' | null;
+  yesPrice: number;
+  noPrice: number;
+};
+
+export type MarketActivationRecord = {
+  marketId: string;
+  active: boolean;
+  maxWager: number;
+  houseSpreadBps: number;
+  updatedBy: string | null;
+  updatedAt: number;
+};
+
+export type MarketPositionRecord = {
+  id: string;
+  marketId: string;
+  playerId: string;
+  walletId: string;
+  side: 'yes' | 'no';
+  stake: number;
+  price: number;
+  shares: number;
+  status: 'open' | 'won' | 'lost' | 'voided';
+  escrowBetId: string;
+  createdAt: number;
+  settledAt: number | null;
+};
+
 export class Database {
   private pool: PgPool | null = null;
 
@@ -355,6 +394,297 @@ export class Database {
     } catch (err) {
       log.error({ err, playerId: params.playerId }, 'failed to query escrow events for player');
       return [];
+    }
+  }
+
+  // ─── Prediction Markets ────────────────────────────────
+
+  async upsertMarket(params: {
+    id: string;
+    slug: string;
+    question: string;
+    category: string;
+    closeAt: number;
+    resolveAt?: number | null;
+    status: 'open' | 'closed' | 'resolved' | 'cancelled';
+    oracleSource: string;
+    oracleMarketId: string;
+    outcome?: 'yes' | 'no' | null;
+    yesPrice: number;
+    noPrice: number;
+    rawJson?: object;
+  }): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        `INSERT INTO markets (
+           id, slug, question, category, close_at, resolve_at, status,
+           oracle_source, oracle_market_id, outcome, yes_price, no_price, raw_json, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           slug = EXCLUDED.slug,
+           question = EXCLUDED.question,
+           category = EXCLUDED.category,
+           close_at = EXCLUDED.close_at,
+           resolve_at = EXCLUDED.resolve_at,
+           status = EXCLUDED.status,
+           oracle_source = EXCLUDED.oracle_source,
+           oracle_market_id = EXCLUDED.oracle_market_id,
+           outcome = EXCLUDED.outcome,
+           yes_price = EXCLUDED.yes_price,
+           no_price = EXCLUDED.no_price,
+           raw_json = EXCLUDED.raw_json,
+           updated_at = NOW()`,
+        [
+          params.id,
+          params.slug,
+          params.question,
+          params.category,
+          new Date(params.closeAt).toISOString(),
+          params.resolveAt ? new Date(params.resolveAt).toISOString() : null,
+          params.status,
+          params.oracleSource,
+          params.oracleMarketId,
+          params.outcome ?? null,
+          params.yesPrice,
+          params.noPrice,
+          params.rawJson ? JSON.stringify(params.rawJson) : null
+        ]
+      );
+    } catch (err) {
+      log.error({ err, marketId: params.id }, 'failed to upsert market');
+    }
+  }
+
+  async listMarkets(limit = 200): Promise<MarketRecord[]> {
+    if (!this.pool) return [];
+    try {
+      const safeLimit = Math.max(1, Math.min(1000, Number(limit || 200)));
+      const result = await this.pool.query(
+        `SELECT id, slug, question, category, close_at, resolve_at, status, oracle_source, oracle_market_id, outcome, yes_price, no_price
+         FROM markets
+         ORDER BY close_at ASC
+         LIMIT $1`,
+        [safeLimit]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        slug: String(row.slug),
+        question: String(row.question),
+        category: String(row.category || 'general'),
+        closeAt: new Date(String(row.close_at)).getTime(),
+        resolveAt: row.resolve_at ? new Date(String(row.resolve_at)).getTime() : null,
+        status: String(row.status) as MarketRecord['status'],
+        oracleSource: String(row.oracle_source || 'polymarket_gamma'),
+        oracleMarketId: String(row.oracle_market_id || ''),
+        outcome: row.outcome === 'yes' || row.outcome === 'no' ? row.outcome : null,
+        yesPrice: Number(row.yes_price ?? 0.5),
+        noPrice: Number(row.no_price ?? 0.5)
+      }));
+    } catch (err) {
+      log.error({ err }, 'failed to list markets');
+      return [];
+    }
+  }
+
+  async getMarketById(marketId: string): Promise<MarketRecord | null> {
+    if (!this.pool) return null;
+    try {
+      const result = await this.pool.query(
+        `SELECT id, slug, question, category, close_at, resolve_at, status, oracle_source, oracle_market_id, outcome, yes_price, no_price
+         FROM markets
+         WHERE id = $1
+         LIMIT 1`,
+        [marketId]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        id: String(row.id),
+        slug: String(row.slug),
+        question: String(row.question),
+        category: String(row.category || 'general'),
+        closeAt: new Date(String(row.close_at)).getTime(),
+        resolveAt: row.resolve_at ? new Date(String(row.resolve_at)).getTime() : null,
+        status: String(row.status) as MarketRecord['status'],
+        oracleSource: String(row.oracle_source || 'polymarket_gamma'),
+        oracleMarketId: String(row.oracle_market_id || ''),
+        outcome: row.outcome === 'yes' || row.outcome === 'no' ? row.outcome : null,
+        yesPrice: Number(row.yes_price ?? 0.5),
+        noPrice: Number(row.no_price ?? 0.5)
+      };
+    } catch (err) {
+      log.error({ err, marketId }, 'failed to get market by id');
+      return null;
+    }
+  }
+
+  async setMarketActivation(params: {
+    marketId: string;
+    active: boolean;
+    maxWager: number;
+    houseSpreadBps: number;
+    updatedBy?: string | null;
+  }): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        `INSERT INTO market_admin_activation (market_id, active, max_wager, house_spread_bps, updated_by, updated_at)
+         VALUES ($1,$2,$3,$4,$5,NOW())
+         ON CONFLICT (market_id) DO UPDATE SET
+           active = EXCLUDED.active,
+           max_wager = EXCLUDED.max_wager,
+           house_spread_bps = EXCLUDED.house_spread_bps,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = NOW()`,
+        [
+          params.marketId,
+          params.active,
+          Math.max(1, Number(params.maxWager || 100)),
+          Math.max(0, Math.min(10_000, Math.floor(Number(params.houseSpreadBps || 300)))),
+          params.updatedBy ?? null
+        ]
+      );
+    } catch (err) {
+      log.error({ err, marketId: params.marketId }, 'failed to set market activation');
+    }
+  }
+
+  async listMarketActivations(): Promise<MarketActivationRecord[]> {
+    if (!this.pool) return [];
+    try {
+      const result = await this.pool.query(
+        `SELECT market_id, active, max_wager, house_spread_bps, updated_by, updated_at
+         FROM market_admin_activation
+         ORDER BY updated_at DESC`
+      );
+      return result.rows.map((row) => ({
+        marketId: String(row.market_id),
+        active: Boolean(row.active),
+        maxWager: Number(row.max_wager ?? 100),
+        houseSpreadBps: Number(row.house_spread_bps ?? 300),
+        updatedBy: row.updated_by ? String(row.updated_by) : null,
+        updatedAt: row.updated_at ? new Date(String(row.updated_at)).getTime() : Date.now()
+      }));
+    } catch (err) {
+      log.error({ err }, 'failed to list market activations');
+      return [];
+    }
+  }
+
+  async createMarketPosition(params: {
+    id: string;
+    marketId: string;
+    playerId: string;
+    walletId: string;
+    side: 'yes' | 'no';
+    stake: number;
+    price: number;
+    shares: number;
+    escrowBetId: string;
+  }): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        `INSERT INTO market_positions (
+           id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id, created_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'open',$9,NOW())`,
+        [
+          params.id,
+          params.marketId,
+          params.playerId,
+          params.walletId,
+          params.side,
+          params.stake,
+          params.price,
+          params.shares,
+          params.escrowBetId
+        ]
+      );
+    } catch (err) {
+      log.error({ err, positionId: params.id }, 'failed to create market position');
+      throw err;
+    }
+  }
+
+  async listPlayerMarketPositions(playerId: string, limit = 100): Promise<MarketPositionRecord[]> {
+    if (!this.pool) return [];
+    try {
+      const safeLimit = Math.max(1, Math.min(500, Number(limit || 100)));
+      const result = await this.pool.query(
+        `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id, created_at, settled_at
+         FROM market_positions
+         WHERE player_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [playerId, safeLimit]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        marketId: String(row.market_id),
+        playerId: String(row.player_id),
+        walletId: String(row.wallet_id),
+        side: String(row.side) === 'no' ? 'no' : 'yes',
+        stake: Number(row.stake ?? 0),
+        price: Number(row.price ?? 0.5),
+        shares: Number(row.shares ?? 0),
+        status: String(row.status) as MarketPositionRecord['status'],
+        escrowBetId: String(row.escrow_bet_id || ''),
+        createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
+        settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
+      }));
+    } catch (err) {
+      log.error({ err, playerId }, 'failed to list player market positions');
+      return [];
+    }
+  }
+
+  async listOpenMarketPositions(limit = 500): Promise<MarketPositionRecord[]> {
+    if (!this.pool) return [];
+    try {
+      const safeLimit = Math.max(1, Math.min(5000, Number(limit || 500)));
+      const result = await this.pool.query(
+        `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id, created_at, settled_at
+         FROM market_positions
+         WHERE status = 'open'
+         ORDER BY created_at ASC
+         LIMIT $1`,
+        [safeLimit]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        marketId: String(row.market_id),
+        playerId: String(row.player_id),
+        walletId: String(row.wallet_id),
+        side: String(row.side) === 'no' ? 'no' : 'yes',
+        stake: Number(row.stake ?? 0),
+        price: Number(row.price ?? 0.5),
+        shares: Number(row.shares ?? 0),
+        status: String(row.status) as MarketPositionRecord['status'],
+        escrowBetId: String(row.escrow_bet_id || ''),
+        createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
+        settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
+      }));
+    } catch (err) {
+      log.error({ err }, 'failed to list open market positions');
+      return [];
+    }
+  }
+
+  async settleMarketPosition(params: {
+    positionId: string;
+    status: 'won' | 'lost' | 'voided';
+  }): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        `UPDATE market_positions
+         SET status = $2, settled_at = NOW()
+         WHERE id = $1`,
+        [params.positionId, params.status]
+      );
+    } catch (err) {
+      log.error({ err, positionId: params.positionId }, 'failed to settle market position');
     }
   }
 

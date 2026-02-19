@@ -5,6 +5,8 @@ import { loadSkillCatalog } from './chief/skillCatalog.js';
 import { routeSkills, type SkillTraceEntry } from './chief/skillRouter.js';
 import { buildRunbookSelection, listRunbooks, type RunbookSafetyClass } from './chief/runbooks.js';
 import type { ChiefDbGateway } from './chief/dbGateway.js';
+import { ChiefMemoryStore } from './chief/memory.js';
+import { formatChiefReplyStyle } from './chief/style.js';
 
 export type ChiefMode = 'player' | 'admin';
 export type ChiefIntent =
@@ -46,6 +48,18 @@ export type ChiefChatResponse = {
   skillTrace?: SkillTraceEntry[];
   safetyClass?: RunbookSafetyClass;
   requiresInput?: Array<{ key: string; prompt: string; example?: string }>;
+  executionGraph?: {
+    objective: string;
+    steps: Array<{
+      tool: string;
+      status: 'planned' | 'executed' | 'blocked' | 'fallback';
+      summary: string;
+      attempts?: number;
+      whySelected?: string;
+      whyFallback?: string;
+    }>;
+    stopReason: 'completed' | 'blocked' | 'fallback';
+  };
 };
 
 export type ChiefMetrics = {
@@ -154,6 +168,7 @@ type PendingConfirmation = {
     runbook?: string;
     skillTrace?: SkillTraceEntry[];
     safetyClass?: RunbookSafetyClass;
+    executionGraph?: ChiefChatResponse['executionGraph'];
   };
 };
 
@@ -210,6 +225,24 @@ function summarizeStatus(snapshot: Record<string, unknown>): string {
   ].join('\n');
 }
 
+function decomposeObjective(message: string, intent: ChiefIntent, runbook?: string): string[] {
+  const cleaned = String(message || '').trim();
+  if (!cleaned) {
+    return ['interpret request', 'determine safe execution path', 'return result'];
+  }
+  const segments = cleaned
+    .split(/\b(?:and then|then|and)\b/gi)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (segments.length > 1) {
+    return segments.slice(0, 6);
+  }
+  if (runbook) {
+    return [`runbook ${runbook}`, 'validate prerequisites', 'execute actions', 'summarize outcome'];
+  }
+  return [`handle ${intent}`, 'execute matching actions', 'summarize outcome'];
+}
+
 function normalizeRef(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -234,6 +267,7 @@ export function createChiefService(deps: ChiefDeps) {
     ? deps.skillCatalogRoots
     : [process.env.CHIEF_SKILL_ROOT || '.agents/skills'];
   const skillCatalogPromise = loadSkillCatalog(skillCatalogRoots).catch(() => []);
+  const memory = new ChiefMemoryStore(240);
   const pendingConfirmations = new Map<string, PendingConfirmation>();
   const metrics: ChiefMetrics = {
     totalRequests: 0,
@@ -606,48 +640,92 @@ export function createChiefService(deps: ChiefDeps) {
   async function executePlans(
     identity: IdentityRecord,
     plans: ChiefToolPlan[],
-    context?: { intent?: ChiefIntent; runbook?: string }
-  ): Promise<{ actions: ChiefActionResult[]; replyParts: string[]; stateSnapshot?: Record<string, unknown> }> {
+    context?: { intent?: ChiefIntent; runbook?: string; objective?: string }
+  ): Promise<{
+    actions: ChiefActionResult[];
+    replyParts: string[];
+    stateSnapshot?: Record<string, unknown>;
+    executionGraph: NonNullable<ChiefChatResponse['executionGraph']>;
+  }> {
     const actions: ChiefActionResult[] = [];
     const replyParts: string[] = [];
     let stateSnapshot: Record<string, unknown> | undefined;
+    const objective = String(context?.objective || context?.runbook || context?.intent || 'execute chief plan');
+    const executionGraph: NonNullable<ChiefChatResponse['executionGraph']> = {
+      objective,
+      steps: plans.map((plan) => ({
+        tool: plan.tool,
+        status: 'planned',
+        summary: plan.summary,
+        whySelected: `Selected from ${context?.runbook ? `runbook ${context.runbook}` : `intent ${context?.intent || 'unknown'}`}.`
+      })),
+      stopReason: 'completed'
+    };
 
     for (const plan of plans) {
-      try {
-        const result = await plan.execute();
-        metrics.toolExecutions += 1;
-        actions.push({ tool: plan.tool, status: 'executed', summary: result.summary });
-        if (result.summary) {
-          replyParts.push(result.summary);
+      const step = executionGraph.steps.find((entry) => entry.tool === plan.tool);
+      let lastError = '';
+      let executed = false;
+      const maxAttempts = 2;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const result = await plan.execute();
+          metrics.toolExecutions += 1;
+          actions.push({ tool: plan.tool, status: 'executed', summary: result.summary });
+          if (result.summary) {
+            replyParts.push(result.summary);
+          }
+          if (result.stateSnapshot) {
+            stateSnapshot = result.stateSnapshot;
+          }
+          if (step) {
+            step.status = 'executed';
+            step.summary = result.summary || plan.summary;
+            step.attempts = attempt;
+          }
+          await deps.dbGateway?.writeAudit({
+            actorId: identity.sub,
+            actorType: identity.role === 'admin' ? 'admin' : 'system',
+            action: `chief.${plan.tool}.executed`,
+            resourceType: context?.runbook ? 'runbook' : 'tool',
+            resourceId: context?.runbook ?? plan.tool,
+            metadata: { summary: plan.summary, intent: context?.intent ?? 'unknown', attempts: attempt }
+          });
+          executed = true;
+          break;
+        } catch (error) {
+          lastError = String((error as Error).message || 'tool_execution_failed');
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 120 * attempt));
+          }
         }
-        if (result.stateSnapshot) {
-          stateSnapshot = result.stateSnapshot;
-        }
-        await deps.dbGateway?.writeAudit({
-          actorId: identity.sub,
-          actorType: identity.role === 'admin' ? 'admin' : 'system',
-          action: `chief.${plan.tool}.executed`,
-          resourceType: context?.runbook ? 'runbook' : 'tool',
-          resourceId: context?.runbook ?? plan.tool,
-          metadata: { summary: plan.summary, intent: context?.intent ?? 'unknown' }
-        });
-      } catch (error) {
-        const message = String((error as Error).message || 'tool_execution_failed');
+      }
+      if (!executed) {
         incFailure(metrics, `tool_${plan.tool}`);
-        actions.push({ tool: plan.tool, status: 'blocked', summary: message });
-        replyParts.push(`${plan.tool} failed: ${message}`);
+        actions.push({ tool: plan.tool, status: 'blocked', summary: lastError || 'tool_execution_failed' });
+        replyParts.push(`${plan.tool} failed: ${lastError || 'tool_execution_failed'}`);
+        if (step) {
+          step.status = 'blocked';
+          step.summary = lastError || 'tool_execution_failed';
+          step.attempts = maxAttempts;
+          step.whyFallback = 'Retries exhausted; continuing with remaining plan steps where possible.';
+        }
         await deps.dbGateway?.writeAudit({
           actorId: identity.sub,
           actorType: identity.role === 'admin' ? 'admin' : 'system',
           action: `chief.${plan.tool}.blocked`,
           resourceType: context?.runbook ? 'runbook' : 'tool',
           resourceId: context?.runbook ?? plan.tool,
-          metadata: { error: message, intent: context?.intent ?? 'unknown' }
+          metadata: { error: lastError || 'tool_execution_failed', intent: context?.intent ?? 'unknown' }
         });
       }
     }
 
-    return { actions, replyParts, stateSnapshot };
+    if (executionGraph.steps.some((step) => step.status === 'blocked')) {
+      executionGraph.stopReason = executionGraph.steps.some((step) => step.status === 'executed') ? 'fallback' : 'blocked';
+    }
+
+    return { actions, replyParts, stateSnapshot, executionGraph };
   }
 
   function mintConfirmToken(
@@ -704,12 +782,25 @@ export function createChiefService(deps: ChiefDeps) {
       };
     }
     pendingConfirmations.delete(confirmToken);
-    const executed = await executePlans(identity, pending.plans, { intent: pending.intent, runbook: pending.meta?.runbook });
+    const executed = await executePlans(identity, pending.plans, {
+      intent: pending.intent,
+      runbook: pending.meta?.runbook,
+      objective: pending.meta?.executionGraph?.objective
+    });
     metrics.confirmationCompletions += 1;
+    const confirmedReply = formatChiefReplyStyle({
+      mode: pending.mode,
+      intent: pending.intent,
+      runbook: pending.meta?.runbook,
+      reply: executed.replyParts.join('\n') || 'Confirmed and executed.',
+      actionsCount: executed.actions.length,
+      safetyClass: pending.meta?.safetyClass,
+      stopReason: executed.executionGraph.stopReason
+    });
     return {
       ok: true,
       mode: pending.mode,
-      reply: executed.replyParts.join('\n') || 'Confirmed.',
+      reply: confirmedReply,
       intent: pending.intent,
       actions: executed.actions,
       requiresConfirmation: false,
@@ -717,7 +808,8 @@ export function createChiefService(deps: ChiefDeps) {
       selectedSkills: pending.meta?.selectedSkills,
       runbook: pending.meta?.runbook,
       skillTrace: pending.meta?.skillTrace,
-      safetyClass: pending.meta?.safetyClass
+      safetyClass: pending.meta?.safetyClass,
+      executionGraph: executed.executionGraph
     };
   }
 
@@ -788,12 +880,33 @@ export function createChiefService(deps: ChiefDeps) {
 
     selectedSkills = [...new Set([...selectedSkills, ...runbookSelection.selectedSkills])];
     skillTrace = [...skillTrace, ...runbookSelection.skillTrace];
+    const objectiveSteps = decomposeObjective(message, intent, runbookSelection.runbook);
+    const memoryContext = memory.memoryContextFor(intent, mode, 4);
+    if (memoryContext) {
+      skillTrace.push({
+        step: 'memory.retrieve',
+        status: 'planned',
+        summary: 'Loaded prior relevant operations context.',
+        whySelected: memoryContext
+      });
+    }
+    const objective = objectiveSteps.join(' -> ');
 
     if (runbookSelection.matched && runbookSelection.requiresInput?.length) {
+      const inputReply = formatChiefReplyStyle({
+        mode,
+        intent,
+        runbook: runbookSelection.runbook,
+        reply: 'I can run this, but I still need a few inputs before execution.',
+        actionsCount: 0,
+        safetyClass: runbookSelection.safetyClass,
+        includePrelude: false,
+        stopReason: 'fallback'
+      });
       return {
         ok: true,
         mode,
-        reply: 'Additional input required before this runbook can execute.',
+        reply: inputReply,
         intent,
         actions: [],
         requiresConfirmation: false,
@@ -801,7 +914,17 @@ export function createChiefService(deps: ChiefDeps) {
         runbook: runbookSelection.runbook,
         skillTrace,
         safetyClass: runbookSelection.safetyClass,
-        requiresInput: runbookSelection.requiresInput
+        requiresInput: runbookSelection.requiresInput,
+        executionGraph: {
+          objective,
+          steps: runbookSelection.plans.map((plan) => ({
+            tool: plan.tool,
+            status: 'planned',
+            summary: plan.summary,
+            whySelected: `Prepared by runbook ${runbookSelection.runbook || 'unknown'}.`
+          })),
+          stopReason: 'fallback'
+        }
       };
     }
 
@@ -817,11 +940,22 @@ export function createChiefService(deps: ChiefDeps) {
         selectedSkills,
         runbook: runbookSelection.runbook,
         skillTrace,
-        safetyClass
+        safetyClass,
+        executionGraph: {
+          objective,
+          steps: plans.map((plan) => ({
+            tool: plan.tool,
+            status: 'planned',
+            summary: plan.summary,
+            whySelected: `Planned for ${runbookSelection.runbook ? `runbook ${runbookSelection.runbook}` : `intent ${intent}`}.`
+          })),
+          stopReason: 'completed'
+        }
       });
       const actions = plans.map((plan) => ({ tool: plan.tool, status: 'planned' as const, summary: plan.summary }));
       const reply = [
-        'Confirmation required before executing sensitive actions.',
+        'I can do that, but it affects sensitive state.',
+        'Confirm to execute these actions:',
         ...plans.map((plan) => `- ${plan.summary}`)
       ].join('\n');
       metrics.nonEmptyReplyCount += 1;
@@ -836,7 +970,17 @@ export function createChiefService(deps: ChiefDeps) {
         selectedSkills,
         runbook: runbookSelection.runbook,
         skillTrace,
-        safetyClass
+        safetyClass,
+        executionGraph: {
+          objective,
+          steps: plans.map((plan) => ({
+            tool: plan.tool,
+            status: 'planned',
+            summary: plan.summary,
+            whySelected: `Planned for ${runbookSelection.runbook ? `runbook ${runbookSelection.runbook}` : `intent ${intent}`}.`
+          })),
+          stopReason: 'completed'
+        }
       };
     }
 
@@ -844,13 +988,32 @@ export function createChiefService(deps: ChiefDeps) {
       if (runbookSelection.matched) {
         metrics.skillExecs += 1;
       }
-      const executed = await executePlans(identity, plans, { intent, runbook: runbookSelection.runbook });
-      const reply = executed.replyParts.join('\n').trim() || 'Done.';
+      const executed = await executePlans(identity, plans, { intent, runbook: runbookSelection.runbook, objective });
+      const rawReply = executed.replyParts.join('\n').trim() || 'Done.';
+      const reply = formatChiefReplyStyle({
+        mode,
+        intent,
+        runbook: runbookSelection.runbook,
+        reply: rawReply,
+        actionsCount: executed.actions.length,
+        safetyClass,
+        stopReason: executed.executionGraph.stopReason
+      });
       if (reply.length > 0) {
         metrics.nonEmptyReplyCount += 1;
       } else {
         incFailure(metrics, 'empty_reply');
       }
+      memory.recordTurn({
+        at: Date.now(),
+        mode,
+        intent,
+        message,
+        runbook: runbookSelection.runbook,
+        selectedSkills,
+        summary: reply,
+        outcome: executed.executionGraph.stopReason === 'completed' ? 'executed' : 'blocked'
+      });
       return {
         ok: true,
         mode,
@@ -862,7 +1025,8 @@ export function createChiefService(deps: ChiefDeps) {
         selectedSkills,
         runbook: runbookSelection.runbook,
         skillTrace,
-        safetyClass
+        safetyClass,
+        executionGraph: executed.executionGraph
       };
     }
 
@@ -871,20 +1035,44 @@ export function createChiefService(deps: ChiefDeps) {
       metrics.skillFallbacks += 1;
     }
     const safeFallback = String(fallback || '').trim() || 'No route matched, but chief is alive. Try "status".';
-    if (safeFallback.length > 0) {
+    const styledFallback = formatChiefReplyStyle({
+      mode,
+      intent,
+      runbook: runbookSelection.runbook,
+      reply: `${safeFallback}\n${memory.whatChangedSummary(mode)}`,
+      actionsCount: 0,
+      includePrelude: false,
+      stopReason: 'fallback'
+    });
+    if (styledFallback.length > 0) {
       metrics.nonEmptyReplyCount += 1;
     } else {
       incFailure(metrics, 'empty_reply');
     }
+    memory.recordTurn({
+      at: Date.now(),
+      mode,
+      intent,
+      message,
+      runbook: runbookSelection.runbook,
+      selectedSkills,
+      summary: styledFallback,
+      outcome: 'fallback'
+    });
     return {
       ok: true,
       mode,
-      reply: safeFallback,
+      reply: styledFallback,
       intent,
       actions: [],
       requiresConfirmation: false,
       selectedSkills,
-      skillTrace
+      skillTrace,
+      executionGraph: {
+        objective,
+        steps: [],
+        stopReason: 'fallback'
+      }
     };
   }
 

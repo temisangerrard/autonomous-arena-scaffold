@@ -1,0 +1,67 @@
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
+    @media (pointer: coarse), (max-width: 720px) {
+      #hud {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        min-height: 46px;
+        padding: 0 10px;
+      }
+      .topbar-left {
+        gap: 8px;
+      }
+      .topbar-right .topbar-pill.streak,
+      .topbar-right .topbar-pill.bot {
+        display: none;
+      }
+      .topbar-pill.wallet {
+        min-width: auto;
+        font-size: 13px;
+      }
+      .menu-ghost {
+        width: 42px;
+        height: 34px;
+      }
+      .world-map-panel {
+        right: 10px;
+        bottom: 80px;
+        transform: scale(0.75);
+        transform-origin: bottom right;
+      }
+      .world-map-panel:hover {
+        width: 140px;
+        opacity: 0.9;
+      }
+      .world-map-panel.mobile-obscured {
+        display: none;
+      }
+      .interaction-prompt {
+        bottom: 180px;
+        font-size: 13px;
+        padding: 10px 16px;
+      }
+      .match-controls {
+        width: calc(100vw - 20px);
+        left: 10px;
+        right: 10px;
+        transform: none;
+        padding: 14px;
+      }
+      .onboarding-card {
+        padding: 20px;
+      }
+      .onboarding__title {
+        font-size: 22px;
+      }
+      .onboarding__keys {
+        gap: 8px;
+      }
+      .onboarding__key-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+      }
+    }
+

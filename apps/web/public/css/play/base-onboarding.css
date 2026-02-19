@@ -1,0 +1,166 @@
+    body { margin: 0; overflow: hidden; }
+    :root {
+      --ui-coral: #ff7f7f;
+      --ui-peach: #ffcba4;
+      --ui-mint: #98fb98;
+      --ui-lavender: #e6e6fa;
+      --ui-gold: #ffd700;
+      --ui-cream: #fdf5e6;
+      --ui-dark: #1e1e1e;
+      --ui-success: #22c55e;
+      --ui-error: #ef4444;
+      --ui-info: #3b82f6;
+      --ui-warning: #f59e0b;
+    }
+    .canvas-shell { position: fixed; inset: 0; }
+    #scene { width: 100vw; height: 100vh; display: block; }
+
+    /* ============================================
+       ONBOARDING TUTORIAL OVERLAY
+       ============================================ */
+    .onboarding-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 12, 8, 0.92);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(8px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .onboarding-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .onboarding-card {
+      width: min(540px, calc(100vw - 32px));
+      background: linear-gradient(145deg, rgba(253, 248, 237, 0.98), rgba(255, 252, 245, 0.95));
+      border: 2px solid rgba(201, 162, 39, 0.5);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+      padding: 28px;
+      color: #2c2416;
+      text-align: center;
+      transform: scale(0.95);
+      transition: transform 0.3s ease;
+    }
+    .onboarding-overlay.visible .onboarding-card {
+      transform: scale(1);
+    }
+    .onboarding__progress {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .onboarding__dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(201, 162, 39, 0.3);
+      transition: all 0.3s ease;
+    }
+    .onboarding__dot.active {
+      background: var(--ui-gold);
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+      transform: scale(1.2);
+    }
+    .onboarding__dot.completed {
+      background: var(--ui-success);
+    }
+    .onboarding__icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      line-height: 1;
+    }
+    .onboarding__title {
+      font: 700 28px/1.2 'Cormorant Garamond', serif;
+      color: #2c2416;
+      margin-bottom: 12px;
+    }
+    .onboarding__step--hidden {
+      display: none;
+    }
+    .onboarding__desc {
+      font: 16px/1.5 'Crimson Text', serif;
+      color: #5a4d3a;
+      margin-bottom: 20px;
+    }
+    .onboarding__keys {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .onboarding__key {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .onboarding__key-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      border: 2px solid rgba(201, 162, 39, 0.5);
+      background: linear-gradient(180deg, #fff 0%, #f5f0e0 100%);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 0 #fff inset;
+      font: 700 18px/1 'IBM Plex Mono', monospace;
+      color: #3a2f1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .onboarding__key-label {
+      font: 600 11px/1 'Crimson Text', serif;
+      color: #8c7d68;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .onboarding__actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    .onboarding__btn {
+      min-width: 120px;
+      height: 44px;
+      border-radius: 12px;
+      border: none;
+      font: 700 14px/1 'Crimson Text', serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .onboarding__btn--primary {
+      background: linear-gradient(135deg, #d4a84b 0%, #c49a38 100%);
+      color: #1a1408;
+      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4);
+    }
+    .onboarding__btn--primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(201, 162, 39, 0.5);
+    }
+    .onboarding__btn--secondary {
+      background: transparent;
+      border: 2px solid rgba(201, 162, 39, 0.4);
+      color: #6a5a38;
+    }
+    .onboarding__btn--secondary:hover {
+      background: rgba(201, 162, 39, 0.1);
+    }
+    .onboarding__skip {
+      margin-top: 16px;
+      font: 13px/1 'Crimson Text', serif;
+      color: #8c7d68;
+    }
+    .onboarding__skip a {
+      color: #a68523;
+      text-decoration: underline;
+      cursor: pointer;
+    }

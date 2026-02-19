@@ -55,21 +55,43 @@ test.describe('World Exploration', () => {
       `${WEB_BASE_URL}/play?world=train_world&test=1&name=${name}&clientId=${clientId}&walletId=${walletId}&wsAuth=${wsAuthParam}`
     );
     await page.waitForLoadState('domcontentloaded');
+
+    // Force onboarding complete for deterministic movement tests.
+    await page.evaluate(() => {
+      localStorage.setItem('arena_onboarding_completed', 'true');
+      const overlay = document.getElementById('onboarding-overlay');
+      if (overlay) {
+        overlay.classList.remove('visible');
+        overlay.setAttribute('aria-hidden', 'true');
+        overlay.style.display = 'none';
+      }
+    });
+    await expect(page.locator('#onboarding-overlay.visible')).toHaveCount(0);
     
     // Wait for canvas to be visible
     const canvas = page.locator('canvas#scene');
     await expect(canvas).toBeVisible({ timeout: 15000 });
     
-    // Wait for websocket/player identity hydration.
-    await page.waitForFunction(() => {
-      const state = window.render_game_to_text?.();
-      if (!state) return false;
-      const parsed = JSON.parse(state || '{}');
-      if (parsed.wsConnected && parsed.playerId && parsed.player) {
-        return true;
+    // Wait for deterministic runtime test hooks.
+    await page.waitForFunction(() => typeof window.render_game_to_text === 'function', { timeout: 30000 });
+
+    // In test mode the frame loop is stepped manually, so advance a few ticks
+    // while waiting for websocket + local player hydration.
+    const hydrated = await page.evaluate(async () => {
+      for (let i = 0; i < 300; i += 1) {
+        await window.advanceTime?.(50);
+        const snapshot = window.render_game_to_text?.();
+        if (snapshot) {
+          const parsed = JSON.parse(snapshot || '{}');
+          if (parsed.wsConnected && parsed.playerId && parsed.player) {
+            return true;
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
       }
       return false;
-    }, { timeout: 90000 });
+    });
+    expect(hydrated).toBe(true);
   });
 
   test('should respond to movement keys', async ({ page }) => {

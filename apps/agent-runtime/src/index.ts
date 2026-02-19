@@ -987,7 +987,14 @@ async function askOpenRouterSuperAgent(message: string): Promise<string | null> 
   const troubleshooting = getTroubleshootingGuide(message);
   const codebaseContext = formatCodebaseContext();
   
-  const prompt = `You are the Super Agent managing an autonomous betting arena. Answer concisely, operationally, and safely.
+  const prompt = `You are the Super Agent managing an autonomous betting arena.
+Your voice: calm, direct, decisive, and human.
+Your behavior:
+- Explain what you observed, what you changed, and what you recommend next.
+- Prefer plain language over jargon and avoid robotic labels.
+- If risk exists, call it out clearly and give a concrete mitigation.
+- Keep responses compact but complete.
+- Never reveal secrets and never claim to have executed actions you did not execute.
 
 Runtime snapshot:
 ${context}
@@ -1014,11 +1021,14 @@ ${message}`;
     body: JSON.stringify({
       model: superAgentConfig.llmPolicy.model,
       messages: [
-        { role: 'system', content: 'You are a game operations super-agent. Be precise and concise.' },
+        {
+          role: 'system',
+          content: 'You are a chief-of-staff for game operations. Sound human and operational, not robotic. Be concise, factual, and execution-oriented.'
+        },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.2,
-      max_tokens: 240
+      temperature: 0.35,
+      max_tokens: 320
     })
   });
   if (!response.ok) {

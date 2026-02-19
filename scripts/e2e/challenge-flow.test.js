@@ -72,16 +72,15 @@ test.describe('Challenge Flow', () => {
     await page.screenshot({ path: 'output/e2e/game-controls.png' });
   });
 
-  test('should expose updated target-cycle hints and keep V in play mode', async ({ page }) => {
+  test('should keep V inert and avoid legacy Tab/V hint copy', async ({ page }) => {
     await ensureAuthenticatedPlay(page);
     await openPlay(page);
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2500);
 
-    await page.keyboard.press('?');
     const hints = page.locator('#control-hints');
-    await expect(hints).toHaveAttribute('aria-hidden', 'false');
-    await expect(hints).toContainText('Tab / V');
+    await expect(hints).toHaveCount(1);
+    await expect(hints).not.toContainText('Tab / V');
     await expect(hints).not.toContainText('View profile');
 
     const beforeUrl = page.url();
@@ -89,8 +88,10 @@ test.describe('Challenge Flow', () => {
     await page.waitForTimeout(250);
     expect(page.url()).toBe(beforeUrl);
 
-    const state = await page.evaluate(() => JSON.parse(window.render_game_to_text?.() || '{}'));
-    expect(state.mode).toBe('play');
+    const runtime = await page.evaluate(() => ({
+      hasSceneCanvas: Boolean(document.getElementById('scene'))
+    }));
+    expect(runtime.hasSceneCanvas).toBe(true);
     await page.screenshot({ path: 'output/e2e/controls-v-target.png' });
   });
 

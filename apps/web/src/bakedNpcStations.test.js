@@ -16,6 +16,7 @@ describe('baked npc section assignment', () => {
     expect(jobs).toContain('dealer_coinflip');
     expect(jobs).toContain('dealer_rps');
     expect(jobs).toContain('dealer_dice_duel');
+    expect(jobs).toContain('dealer_prediction');
     expect(jobs).toContain('cashier_bank');
   });
 });

@@ -1,5 +1,63 @@
 Original prompt: yes there's a file called train world or so , thats the base world we will use so we can scaffold that in so we start seeing the game, dont forget various entry points required
 
+- 2026-02-19: Built parallel PI-style Chief Ops Agent surface at `/admin/chief` (admin-only, standalone).
+  - Added new admin Chief workspace UI:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/admin-chief.html`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/admin-chief.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/css/admin-chief.css`
+  - Added PI-patterned `chief2` core module:
+    - contracts, AI provider abstraction, deterministic tool registry, loop executor, session/memory stores, runbook catalog.
+    - files under `/Users/temisan/Downloads/blender implementation/apps/web/src/chief2/`
+  - Added new admin workspace APIs in web server:
+    - `GET /api/admin/chief/workspace/bootstrap`
+    - `POST /api/admin/chief/workspace/command`
+    - `GET /api/admin/chief/workspace/incidents`
+    - `GET /api/admin/chief/workspace/runbooks`
+  - Added `/admin/chief` route in web server and static css serving for `/css/*`.
+  - Kept existing `/admin`, `/agents`, `/users`, and player-facing paths unchanged.
+  - Added tests for `chief2` command loop + confirmation flow in:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/chief2.test.ts`
+
+- 2026-02-19: Prediction-market expansion phase shipped (Polymarket-style module, low-UI churn).
+  - Added shared prediction station/game contract types in `/Users/temisan/Downloads/blender implementation/packages/shared/src/types/index.ts`:
+    - station kind: `dealer_prediction`
+    - station actions: `prediction_markets_open|quote|buy_yes|buy_no|positions_open`
+    - station UI states/payloads for list/quote/order/positions/settle/error.
+  - Added server market persistence + migration v6:
+    - tables: `markets`, `market_positions`, `market_admin_activation`
+    - indexes for market status/close and player/market position scans.
+  - Implemented market services in `/Users/temisan/Downloads/blender implementation/apps/server/src/markets/`:
+    - `PolymarketFeed` normalization from Gamma API
+    - `MarketService` (sync, quote, open position, settle)
+    - `SettlementWorker` periodic idempotent settlement pass
+  - Wired prediction gameplay into station system:
+    - added `station_dealer_prediction_a` in `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/catalog.ts`
+    - added prediction station handler `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/handlers/dealerPrediction.ts`
+    - routed prediction actions in `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/router.ts`
+  - Added server operator endpoints for markets in `/Users/temisan/Downloads/blender implementation/apps/server/src/routes/index.ts`:
+    - `GET /admin/markets`
+    - `POST /admin/markets/sync|activate|deactivate|config`
+  - Added web API admin proxy support in `/Users/temisan/Downloads/blender implementation/apps/web/src/server.ts`:
+    - `/api/admin/runtime/markets*` now proxied to server admin market endpoints.
+  - Added `/play` prediction dealer interaction UI in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js`:
+    - market refresh/list
+    - quote + buy YES/NO
+    - open positions view
+    - explicit prediction error handling state.
+  - Mesh NPC role updates:
+    - prediction dealer host added and mapped to server station in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/world-npc-hosts.js`
+    - baked NPC fallback rotations now include `dealer_prediction` in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/baked-npc-stations.js`
+  - Admin console:
+    - new `Markets` tab in `/Users/temisan/Downloads/blender implementation/apps/web/public/agents.html`
+    - sync + activate/deactivate actions in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/agents.js`
+  - Coverage updates:
+    - added prediction parser test in `/Users/temisan/Downloads/blender implementation/apps/server/src/websocket/messages.test.ts`
+    - expanded station catalog test for prediction dealer in `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/catalog.test.ts`
+    - expanded baked NPC determinism test for prediction role in `/Users/temisan/Downloads/blender implementation/apps/web/src/bakedNpcStations.test.js`
+  - Validation:
+    - `npm run -ws --if-present typecheck` ✅
+    - `npm run -ws --if-present test` ✅
+
 - 2026-02-18: Redesigned admin command center UI to match app dashboard language.
   - Refactored `/Users/temisan/Downloads/blender implementation/apps/web/public/agents.html` from standalone style system into shared dashboard-style layout:
     - sticky dark left rail navigation
@@ -993,3 +1051,201 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `arena-server-00031-k8q` (100%)
   - runtime `/status` now includes `house.sponsorGas` diagnostics.
   - current sponsor gas state is red in production (`balanceEth=0.000000`, threshold `0.0003`).
+- 2026-02-19: Modularity deepening pass (runtime decomposition + contextual enforcement upgrades).
+  - Extracted interaction card renderer to `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card.js`.
+  - Extracted websocket runtime to `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/network/socket-runtime.js`.
+  - Extracted game move routing to `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/game-moves.js`.
+  - Extracted challenge event transitions to `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/challenge-events.js`.
+  - Extracted world map renderer to `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/world-map-renderer.js`.
+  - Extracted world loading lifecycle to `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/world-loader.js`.
+  - Extracted challenge reason mapping + feed rendering to:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/challenge-reason.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/feed.js`
+  - Extracted runtime config + ws URL resolution to `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/network/arena-config.js`.
+  - Removed dead local `renderQuickstart()` in app runtime (imported module already used).
+  - Shrunk runtime app orchestrator:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` now ~1695 lines (from >3300 earlier this session).
+  - Upgraded modular enforcement:
+    - contextual per-file warn thresholds (`warnAtPct`) in `/Users/temisan/Downloads/blender implementation/scripts/enforce-modularity.mjs`.
+    - updated boundaries/import requirements in `/Users/temisan/Downloads/blender implementation/config/modularity-budgets.json`.
+  - Added code responsibility map:
+    - `/Users/temisan/Downloads/blender implementation/docs/play-runtime-code-map.md`.
+  - Validation:
+    - `npm run -w @arena/web test` ✅
+    - `npm run lint:modularity` ✅
+    - `npm run modularity:report` ✅ (no errors/warnings currently).
+  - Next extraction candidates (if continuing): `setInteractOpen`, `renderInteractionPrompt`, and station proxy/merge helpers in runtime app.
+- 2026-02-19: Continued runtime decomposition for traceable ownership.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/network/arena-config.js` and moved:
+    - `/api/config` loading/retry/fallback logic
+    - websocket base URL resolution logic.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/interaction-shell.js` and moved:
+    - interaction open/close state transitions (`setInteractOpen` behavior)
+    - interaction prompt rendering logic.
+  - Updated runtime app imports/wrappers accordingly; reduced app orchestrator size to ~1545 lines.
+  - Updated modular budgets and boundary rules to require imports for new modules.
+  - Updated code map doc with interaction-shell responsibility.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅.
+- 2026-02-19: Continued runtime decomposition pass (station routing extraction).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/station-routing.js` and moved:
+    - station payload normalization
+    - host/baked proxy remap + local/proxy index rebuild
+    - merged station map construction
+    - station id resolution for outgoing/incoming events.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` to delegate through station-routing wrappers (socket callback contract unchanged).
+  - Runtime orchestrator size reduced again to ~1462 lines.
+  - Updated runtime code map doc with station-routing responsibility.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (formatting/explorer extraction).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/formatting.js` and moved:
+    - USD/wager formatting helpers
+    - tx hash/explorer URL helpers
+    - dealer reveal status rendering helper
+    - prediction market price/close formatting helpers.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` imports and removed duplicated local formatter implementations.
+  - Runtime orchestrator size reduced to ~1389 lines.
+  - Updated code map doc for formatting ownership.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (wallet sync controller extraction).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/wallet-sync.js` and moved:
+    - wallet summary fetch + in-flight dedupe
+    - websocket/visibility-aware sync scheduler
+    - escrow policy sync trigger on wallet updates.
+  - Kept `app.js` compatibility wrappers (`syncWalletSummary`, `startWalletSyncScheduler`, `stopWalletSyncScheduler`) to preserve existing call sites.
+  - Runtime orchestrator size reduced to ~1354 lines.
+  - Updated code map doc for wallet-sync ownership.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (retry/world-stations/escrow-approval extractions).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/network/retry-scheduler.js` and moved reconnect backoff scheduling + retry status dispatch.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/world-stations.js` and moved world root + NPC host station lifecycle/sync responsibilities.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/escrow-approval.js` and moved escrow preparation flow + reason classification.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` to keep wrapper-based compatibility and orchestration-only flow.
+  - Runtime orchestrator size reduced to ~1283 lines.
+  - Updated runtime code map for new module ownership.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (result splash extraction).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/result-splash.js` and moved match outcome splash rendering/animation.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` to import the module and drop local UI effect implementation.
+  - Runtime orchestrator size reduced further to ~1242 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (test hooks + settlement + player normalization).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/test-hooks.js` and moved:
+    - `window.advanceTime` deterministic stepping
+    - `window.render_game_to_text` snapshot export
+    - test-mode frame scheduling bootstrap.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/challenge-settlement-ui.js` and moved post-resolution wallet delta + splash messaging flow.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/player-normalization.js` and moved player snapshot/yaw/render normalization helpers.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` to import/delegate to these modules.
+  - Runtime orchestrator size reduced to ~1133 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (mobile renderer + scene dynamics + targeting).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/mobile-controls-renderer.js` and moved mobile controls DOM visibility wiring out of app orchestrator.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/scene-dynamics.js` and moved:
+    - local avatar interpolation + camera follow update
+    - display separation pass
+    - match/target spotlight rendering.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/targeting.js` and moved:
+    - nearby target resolution and cycling
+    - nearby player/station distance synchronization.
+  - Kept compatibility wrappers in app runtime; preserved existing call contracts.
+  - Runtime orchestrator reduced to ~905 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (escrow policy + feed/challenge bridge + frame loop).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/escrow-policy.js` and moved escrow policy resolution/sync logic out of app orchestrator.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/feed-events.js` and moved challenge feed event dedupe/truncation/render lifecycle.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/challenge-bridge.js` and moved challenge event bridge + reason mapping wiring.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/frame-loop.js` and moved frame scheduling/render loop behavior.
+  - Kept modularity contract compliance by injecting `renderChallengeFeed`, `handleChallengeEvent`, and `challengeReasonLabelForMode` from app runtime.
+  - Runtime orchestrator reduced to ~829 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (station interactions controller).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/station-interactions.js` and moved:
+    - station interaction send routing + proxy safety checks
+    - guide station inspect/use detail writing
+    - station status tone/class updates
+    - player seed generation helper.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` wrappers to delegate to station-interactions controller.
+  - Runtime orchestrator reduced to ~788 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Continued runtime decomposition pass (startup lifecycle + interaction bindings).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/startup-lifecycle.js` and moved:
+    - visibility-driven wallet sync scheduler handling
+    - main world runtime startup/load wiring.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/interaction-bindings.js` and moved interaction prompt/help/close event bindings.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` to delegate startup and interaction bindings.
+  - Runtime orchestrator reduced to ~770 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Lean cleanup pass (dead wrapper removal + direct controller bindings).
+  - Removed dead runtime wrappers in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js`:
+    - removed unused `renderFeed()` and `renderWorldMap()`
+    - removed pass-through wrappers for wallet sync, station routing, station interaction helpers, and targeting helpers.
+  - Replaced wrappers with direct controller method bindings/destructuring to reduce indirection noise while preserving contracts.
+  - Switched map rendering in update loop to direct `renderWorldMapPanel(...)` usage to satisfy modularity contract.
+  - Runtime orchestrator reduced to ~709 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Lean cleanup pass (wrapper collapse + inlined module calls).
+  - Removed trivial wrapper functions in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` for:
+    - escrow policy sync / retry schedule / escrow approval helpers
+    - local avatar + spotlight + interaction card + mobile controls render wrappers
+    - interaction prompt wrapper.
+  - Replaced wrappers with direct controller method bindings/destructuring and direct module calls inside `update(...)`.
+  - Kept behavior identical while reducing indirection and dead glue.
+  - Runtime orchestrator reduced further to ~664 lines.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Lean cleanup pass (API client extraction + local rationale enforcement).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/api-client.js` and moved runtime fetch/session-header helpers out of app orchestrator.
+  - Replaced additional function wrappers in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js` with direct bindings/destructuring.
+  - Added explicit in-file rationale comment for every remaining local function in app runtime (why it remains local vs module import).
+  - Runtime orchestrator reduced to ~657 lines.
+  - Remaining local functions are down to 9 and are intentionally orchestration/selectors/compat hooks.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Lean cleanup pass (selectors + update extraction + import-only rule tightening).
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/selectors.js` and moved `isStation` + `labelFor` selector logic out of app runtime.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/spotlights.js` and moved spotlight mesh construction out of app runtime.
+  - Added `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/runtime-update.js` and moved the full per-frame `update(...)` body out of app runtime.
+  - Converted challenge/feed compatibility wrappers to direct method bindings (`updateRpsVisibility`, `addFeedEvent`, `handleChallenge`, `challengeReasonLabel`).
+  - Runtime orchestrator reduced to ~577 lines.
+  - Remaining local functions in app runtime are now only:
+    - `normalizeSnapshotPlayer` (WORLD_BOUND-bound adapter)
+    - `setInteractOpen` (DOM ref bound interaction-shell adapter)
+    plus a small local scene camera fallback closure; each has explicit local-rationale comments.
+  - Validation: `npm run -w @arena/web test` ✅, `npm run lint:modularity` ✅, `npm run modularity:report` ✅.
+- 2026-02-19: Play runtime bugfix pass for live dice/presence errors.
+  - Fixed `showToast is not defined` runtime crash in websocket message handling:
+    - injected `showToast` into `connectSocketRuntime` dependencies in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/network/socket-runtime.js`
+    - wired `showToast` from app orchestrator in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/app.js`
+  - Reduced `/api/player/presence` error spam and removed hard-fail behavior when runtime presence backend degrades:
+    - client-side mute/backoff for non-OK presence responses in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/ws.js`
+    - server now returns `202` with degraded reason instead of `400` on runtime presence proxy failure in `/Users/temisan/Downloads/blender implementation/apps/web/src/server.ts`
+  - Fixed HUD layering where map could occlude interaction/move controls (including dice actions):
+    - lowered map panel stacking in `/Users/temisan/Downloads/blender implementation/apps/web/public/css/play/world-map.css`
+    - raised mobile controls stacking in `/Users/temisan/Downloads/blender implementation/apps/web/public/css/play/mobile-controls.css`
+    - raised interaction card stacking in `/Users/temisan/Downloads/blender implementation/apps/web/public/css/play/interaction-card.css`
+  - Validation:
+    - `npm run -w @arena/web typecheck` ✅
+    - `npm run -w @arena/web test` ✅
+    - Playwright smoke client run against production `/play?world=mega&test=1&name=Codex` completed and artifacts written to `/Users/temisan/Downloads/blender implementation/output/web-game/`.
+      - Observed remaining live issue: websocket auth failure in test mode (`/ws ... no valid credentials available`) from `errors-0.json`; this is separate from the fixed `showToast` crash and indicates server-side WS auth policy/environment mismatch for unauth test-mode sessions.
+- 2026-02-19: Production rollout for play-runtime hotfixes completed.
+  - Netlify production deploy completed for static runtime changes:
+    - URL: `https://autobett.netlify.app`
+    - Deploy ID URL: `https://69970e7c6816c9040312aca3--autobett.netlify.app`
+  - Cloud Run rollout completed for web API presence endpoint behavior:
+    - Service: `arena-web-api`
+    - Revision: `arena-web-api-00040-rbs`
+    - URL: `https://arena-web-api-mfpf3lbsba-uc.a.run.app`
+  - Post-deploy spot checks:
+    - Live `app.js` includes `showToast` wiring into `connectSocketRuntime` ✅
+    - Live `socket-runtime.js` includes `showToast` dependency destructuring ✅
+    - Live CSS z-index stack now map `50`, mobile controls `90`, interaction card `95` ✅
+- 2026-02-19: Avatar scaling bugfix for world-resized avatars not reflecting on newly spawned entities.
+  - Root cause: world-scale updates only affected avatars present at the time `updateWorldScale(...)` ran; newly created procedural/GLB remotes were still initialized from default `AVATAR_WORLD_SCALE` and could appear incorrectly sized.
+  - Fix in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/avatars.js`:
+    - apply `currentWorldScale` immediately when creating new procedural remote avatars.
+    - re-apply GLB scale with `currentWorldScale` after model load (`targetHeight * currentWorldScale / rawHeight`).
+  - Validation:
+    - `npm run -w @arena/web typecheck` ✅
+    - `npm run -w @arena/web test` ✅
+  - Production deploy:
+    - Netlify URL: `https://autobett.netlify.app`
+    - Unique deploy: `https://6997113f246ec31814ebf967--autobett.netlify.app`

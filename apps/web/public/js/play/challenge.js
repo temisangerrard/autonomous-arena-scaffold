@@ -48,6 +48,10 @@ export function createChallengeController(deps) {
       showToast('Move near another player to challenge.');
       return;
     }
+    if (!state.nearbyIds?.has(resolvedTargetId)) {
+      showToast('Move closer to that player, then retry challenge.');
+      return;
+    }
     const resolvedGameType = normalizedChallengeGameType(
       gameType
       ?? state.ui?.challenge?.gameType
@@ -131,7 +135,13 @@ export function createChallengeController(deps) {
       && state.ui.interactionMode === 'station'
       && state.ui.dealer.state === 'ready';
 
-    if (dealerReady) return 'dealer_ready';
+    if (dealerReady) {
+      const dealerGameType = state.ui?.dealer?.gameType;
+      if (dealerGameType === 'rps') return 'dealer_ready_rps';
+      if (dealerGameType === 'dice_duel') return 'dealer_ready_dice_duel';
+      if (dealerGameType === 'coinflip') return 'dealer_ready_coinflip';
+      return 'idle';
+    }
     if (incoming) return 'incoming_challenge';
     if (inMatch && active?.gameType === 'rps') return 'active_rps';
     if (inMatch && active?.gameType === 'coinflip') return 'active_coinflip';

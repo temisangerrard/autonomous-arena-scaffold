@@ -1,0 +1,226 @@
+{
+  "generatedAt": "2026-02-19T10:08:42.588Z",
+  "policyPath": "config/modularity-budgets.json",
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "checks": 22
+  },
+  "findings": [
+    {
+      "type": "budget",
+      "path": "apps/web/public/play.html",
+      "goal": "Keep as shell markup only and avoid re-inline style debt.",
+      "baselineLines": 277,
+      "maxGrowthPct": 20,
+      "warnAtPct": 95,
+      "thresholdLines": 333,
+      "currentLines": 278,
+      "status": "ok",
+      "recommendations": []
+    },
+    {
+      "type": "budget",
+      "path": "apps/web/public/css/play/play-shell.css",
+      "goal": "Stay import-only entrypoint; module css lives in css/play/*.css.",
+      "baselineLines": 14,
+      "maxGrowthPct": 50,
+      "warnAtPct": 95,
+      "thresholdLines": 21,
+      "currentLines": 15,
+      "status": "ok",
+      "recommendations": []
+    },
+    {
+      "type": "budget",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "goal": "Gradually extract runtime feature domains into runtime/*.js modules.",
+      "baselineLines": 1545,
+      "maxGrowthPct": 5,
+      "warnAtPct": 97,
+      "thresholdLines": 1623,
+      "currentLines": 578,
+      "status": "ok",
+      "recommendations": []
+    },
+    {
+      "type": "budget",
+      "path": "apps/web/public/js/play/input.js",
+      "goal": "Keep input map and bindings isolated from rendering logic.",
+      "baselineLines": 385,
+      "maxGrowthPct": 15,
+      "warnAtPct": 95,
+      "thresholdLines": 443,
+      "currentLines": 386,
+      "status": "ok",
+      "recommendations": [
+        "Large function candidate: onKeyDown (142 lines @ apps/web/public/js/play/input.js:35). Split into helper module(s)."
+      ]
+    },
+    {
+      "type": "budget",
+      "path": "apps/web/public/js/play/challenge.js",
+      "goal": "Challenge context and flow should remain controller-level only.",
+      "baselineLines": 156,
+      "maxGrowthPct": 20,
+      "warnAtPct": 95,
+      "thresholdLines": 188,
+      "currentLines": 157,
+      "status": "ok",
+      "recommendations": []
+    },
+    {
+      "type": "boundary",
+      "id": "play-html-no-inline-style-block",
+      "path": "apps/web/public/play.html",
+      "message": "Inline <style> blocks are not allowed in play shell.",
+      "severity": "error",
+      "remediation": "Move styles into /apps/web/public/css/play/*.css and import from play-shell.css.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "play-html-no-inline-style-attrs",
+      "path": "apps/web/public/play.html",
+      "message": "Inline style attributes are not allowed in play shell.",
+      "severity": "error",
+      "remediation": "Replace inline style attributes with semantic utility classes in css modules.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "removed-mobile-target-markup",
+      "path": "apps/web/public/play.html",
+      "message": "Removed mobile target button must not be reintroduced.",
+      "severity": "error",
+      "remediation": "Do not add target/profile quick button back to mobile controls.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "removed-mobile-target-dom",
+      "path": "apps/web/public/js/play/dom.js",
+      "message": "Removed mobile target wiring must stay deleted.",
+      "severity": "error",
+      "remediation": "Keep target cycling on keyboard Tab only.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "removed-mobile-target-input",
+      "path": "apps/web/public/js/play/input.js",
+      "message": "Input layer must not wire removed mobile target control.",
+      "severity": "error",
+      "remediation": "Do not reintroduce mobile target click handlers.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "dealer-no-coinflip-default-fallback",
+      "path": "apps/web/public/js/play/state.js",
+      "message": "Dealer gameType must not default to coinflip fallback.",
+      "severity": "error",
+      "remediation": "Use empty dealer gameType and fail closed for unknown contexts.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-dealer-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume dealer game-type module.",
+      "severity": "error",
+      "remediation": "Keep dealer game-type parsing/derivation in runtime/dealer-game-type.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-mobile-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume mobile controls module.",
+      "severity": "error",
+      "remediation": "Keep mobile visibility and map hide logic in runtime/mobile-controls.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-network-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume socket runtime module.",
+      "severity": "error",
+      "remediation": "Keep websocket connection + message pipeline in runtime/network/socket-runtime.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-game-moves-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume game move module.",
+      "severity": "error",
+      "remediation": "Keep move routing and validation in runtime/game-moves.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-challenge-events-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume challenge events module.",
+      "severity": "error",
+      "remediation": "Keep challenge lifecycle event handling in runtime/challenge-events.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-world-loader-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume world loader module.",
+      "severity": "error",
+      "remediation": "Keep world loading lifecycle logic in runtime/world-loader.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-world-map-renderer-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume world map renderer module.",
+      "severity": "error",
+      "remediation": "Keep world map rendering logic in runtime/world-map-renderer.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-feed-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume feed module.",
+      "severity": "error",
+      "remediation": "Keep challenge feed rendering in runtime/feed.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-challenge-reason-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume challenge reason module.",
+      "severity": "error",
+      "remediation": "Keep challenge reason mapping in runtime/challenge-reason.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-arena-config-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume arena config module.",
+      "severity": "error",
+      "remediation": "Keep runtime config loading and ws base resolution in runtime/network/arena-config.js.",
+      "status": "ok"
+    },
+    {
+      "type": "boundary",
+      "id": "runtime-import-interaction-shell-module",
+      "path": "apps/web/public/js/play/runtime/app.js",
+      "message": "Runtime app must consume interaction shell module.",
+      "severity": "error",
+      "remediation": "Keep interaction open/close and prompt rendering behavior in runtime/interaction-shell.js.",
+      "status": "ok"
+    }
+  ]
+}

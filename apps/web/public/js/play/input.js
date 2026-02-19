@@ -44,8 +44,7 @@ export function createInputSystem({
       || event.code === 'KeyT'
       || event.code === 'Escape'
       || event.code === 'KeyE'
-      || event.code === 'Tab'
-      || event.code === 'KeyV';
+      || event.code === 'Tab';
     const recoveredMovementFromWager =
       editing
       && movementKey
@@ -87,34 +86,70 @@ export function createInputSystem({
       event.preventDefault();
       actions.cycleNearbyTarget?.(!event.shiftKey);
     }
-    if (event.code === 'KeyV') {
-      event.preventDefault();
-      actions.cycleNearbyTarget?.(!event.shiftKey);
-    }
 
     if (event.code === 'Escape') {
       actions.setInteractOpen?.(false);
     }
 
     if (event.code === 'KeyH') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context !== 'active_coinflip' && context !== 'dealer_ready_coinflip') return;
       event.preventDefault();
       actions.sendGameMove?.('heads');
     }
     if (event.code === 'KeyT') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context !== 'active_coinflip' && context !== 'dealer_ready_coinflip') return;
       event.preventDefault();
       actions.sendGameMove?.('tails');
     }
     if (event.code === 'Digit1') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context === 'active_dice_duel' || context === 'dealer_ready_dice_duel') {
+        event.preventDefault();
+        actions.sendGameMove?.('d1');
+        return;
+      }
       event.preventDefault();
       actions.sendGameMove?.('rock');
     }
     if (event.code === 'Digit2') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context === 'active_dice_duel' || context === 'dealer_ready_dice_duel') {
+        event.preventDefault();
+        actions.sendGameMove?.('d2');
+        return;
+      }
       event.preventDefault();
       actions.sendGameMove?.('paper');
     }
     if (event.code === 'Digit3') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context === 'active_dice_duel' || context === 'dealer_ready_dice_duel') {
+        event.preventDefault();
+        actions.sendGameMove?.('d3');
+        return;
+      }
       event.preventDefault();
       actions.sendGameMove?.('scissors');
+    }
+    if (event.code === 'Digit4') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context !== 'active_dice_duel' && context !== 'dealer_ready_dice_duel') return;
+      event.preventDefault();
+      actions.sendGameMove?.('d4');
+    }
+    if (event.code === 'Digit5') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context !== 'active_dice_duel' && context !== 'dealer_ready_dice_duel') return;
+      event.preventDefault();
+      actions.sendGameMove?.('d5');
+    }
+    if (event.code === 'Digit6') {
+      const context = actions.computeControlContext?.() ?? '';
+      if (context !== 'active_dice_duel' && context !== 'dealer_ready_dice_duel') return;
+      event.preventDefault();
+      actions.sendGameMove?.('d6');
     }
     if (event.code === 'KeyC' && actions.canUseChallengeHotkeys?.()) {
       event.preventDefault();
@@ -299,7 +334,6 @@ export function createInputSystem({
       if (!actions.getUiTargetId?.()) return;
       actions.setInteractOpen?.(true);
     });
-    dom.mobileTarget?.addEventListener('click', () => actions.cycleNearbyTarget?.(true));
     dom.mobileSend?.addEventListener('click', () => actions.sendChallenge?.());
     dom.mobileAccept?.addEventListener('click', () => actions.respondToIncoming?.(true));
     dom.mobileDecline?.addEventListener('click', () => actions.respondToIncoming?.(false));

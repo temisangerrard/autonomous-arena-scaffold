@@ -8,6 +8,8 @@ import { COINFLIP_DEALER_METHOD, oppositeCoinflipPick } from './handlers/dealerC
 import { DICE_DUEL_DEALER_METHOD, pickHouseDiceGuess } from './handlers/dealerDiceDuel.js';
 import { RPS_DEALER_METHOD, pickHouseRpsMove } from './handlers/dealerRps.js';
 import { unsupportedCashierActionView } from './handlers/cashier.js';
+import { handlePredictionStationAction } from './handlers/dealerPrediction.js';
+import type { MarketService } from '../../markets/MarketService.js';
 
 type PendingDealerRound = {
   playerId: string;
@@ -45,10 +47,22 @@ type StationRouterContext = {
   dispatchChallengeEventWithEscrow: (event: ChallengeEvent) => Promise<void>;
   stationErrorFromEscrowFailure: (input: { reason?: string; raw?: Record<string, unknown> }) => EscrowFailure;
   newSeedHex: (bytes?: number) => string;
+  marketService?: MarketService | null;
 };
 
 type StationStartMessage = Extract<StationInteractMessage, { action: 'coinflip_house_start' | 'rps_house_start' | 'dice_duel_start' }>;
 type StationPickMessage = Extract<StationInteractMessage, { action: 'coinflip_house_pick' | 'rps_house_pick' | 'dice_duel_pick' }>;
+type PredictionMessage = Extract<
+  StationInteractMessage,
+  {
+    action:
+      | 'prediction_markets_open'
+      | 'prediction_market_quote'
+      | 'prediction_market_buy_yes'
+      | 'prediction_market_buy_no'
+      | 'prediction_positions_open';
+  }
+>;
 
 function renderReadyState(gameType: GameType): StationUiView['state'] {
   if (gameType === 'rps') return 'dealer_ready_rps';
@@ -502,6 +516,33 @@ export function createStationRouter(ctx: StationRouterContext) {
         type: 'station_ui',
         stationId,
         view: unsupportedCashierActionView()
+      });
+      return true;
+    }
+
+    if (station.kind === 'dealer_prediction') {
+      const predictionActionSet = new Set([
+        'prediction_markets_open',
+        'prediction_market_quote',
+        'prediction_market_buy_yes',
+        'prediction_market_buy_no',
+        'prediction_positions_open'
+      ]);
+      if (!predictionActionSet.has(payload.action)) {
+        ctx.sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'prediction_error', reason: 'invalid_station_action' }
+        });
+        return true;
+      }
+      await handlePredictionStationAction({
+        playerId,
+        station,
+        payload: payload as PredictionMessage,
+        marketService: ctx.marketService || null,
+        walletIdFor: ctx.walletIdFor,
+        sendTo: ctx.sendTo
       });
       return true;
     }

@@ -10,7 +10,7 @@ const WORLD_SECTION_SPAWNS = [
   { x: 25, z: -24 }, // rps_a -> station_dealer_rps_a
   { x: -27, z: 34 }, // rps_b -> station_dealer_rps_b
   { x: -78, z: -37 }, // dice -> station_dealer_dice_a
-  { x: -72, z: 39 } // info (local interactable)
+  { x: -70, z: 41 } // prediction -> station_dealer_prediction_a
 ];
 
 export const HOST_STATION_PROXY_MAP = {
@@ -19,31 +19,72 @@ export const HOST_STATION_PROXY_MAP = {
   station_npc_host_4: 'station_dealer_coinflip_b',
   station_npc_host_5: 'station_dealer_rps_a',
   station_npc_host_6: 'station_dealer_rps_b',
-  station_npc_host_7: 'station_dealer_dice_a'
+  station_npc_host_7: 'station_dealer_dice_a',
+  station_npc_host_8: 'station_dealer_prediction_a'
 };
 
 function roleDetails(role) {
   if (role === 'guide') {
     return {
       title: 'Welcome Conductor',
-      inspect: 'Welcome to the train world. Explore sections, meet hosts, and challenge other players.',
+      inspect: 'I route new players fast: find a dealer, pick a game, and keep wagers controlled.',
       useLabel: 'Get Tour',
-      use: 'Try coinflip, RPS, or dice duel. Stake USDC, play smart, and win rounds. Explore other hosts for each game.'
+      use: 'Start at the nearest dealer station. Open interaction with E, choose game + wager, then lock your move quickly.'
+    };
+  }
+  if (role === 'cashier') {
+    return {
+      title: 'Cashier Ops',
+      inspect: 'I handle wallet flow: fund, withdraw, transfer, and balance checks.',
+      useLabel: 'Open Cashier',
+      use: 'Run a balance refresh first, then use small amounts for any fund/withdraw transfer test.'
+    };
+  }
+  if (role === 'coinflip') {
+    return {
+      title: 'Coinflip Dealer',
+      inspect: 'Fast variance rounds. Heads/Tails only with provably fair reveal.',
+      useLabel: 'Run Coinflip',
+      use: 'Press Start Round, wait for commit hash, then pick Heads or Tails before timeout.'
+    };
+  }
+  if (role === 'rps') {
+    return {
+      title: 'RPS Dealer',
+      inspect: 'Skill matchup rounds with Rock/Paper/Scissors and escrow settlement.',
+      useLabel: 'Run RPS',
+      use: 'Start round, then submit Rock, Paper, or Scissors. Invalid move types are rejected.'
+    };
+  }
+  if (role === 'dice') {
+    return {
+      title: 'Dice Duel Host',
+      inspect: 'Number pick rounds with 1-6 move set and deterministic reveal flow.',
+      useLabel: 'Run Dice Duel',
+      use: 'Start round first, then lock one number from 1 to 6. Use small test wagers before scaling up.'
+    };
+  }
+  if (role === 'prediction') {
+    return {
+      title: 'Prediction Dealer',
+      inspect: 'Live yes/no markets with house-priced quotes and capped wager limits.',
+      useLabel: 'Open Markets',
+      use: 'Open market list, request a quote, then buy YES or NO. Resolved markets settle automatically.'
     };
   }
   if (role === 'info') {
     return {
       title: 'Explorer Guide',
-      inspect: 'I can point you to every game host and station interaction point in this world.',
+      inspect: 'I provide section-by-section routing for dealers, cashier, and interaction hosts.',
       useLabel: 'Show Routes',
-      use: 'Coinflip, RPS, and Dice Duel are live now. Cards and more modes are coming soon.'
+      use: 'Coinflip, RPS, and Dice Duel are active now. Follow section markers and keep station radius in range.'
     };
   }
   return {
     title: 'World Host',
-    inspect: 'Talk with nearby hosts to run game rounds and interactions.',
-    useLabel: 'Use',
-    use: 'Interaction complete.'
+    inspect: 'I coordinate local interactions and can route you to active game stations.',
+    useLabel: 'Open Brief',
+    use: 'Use this brief, then move to the nearest dealer or cashier for the next operational step.'
   };
 }
 
@@ -121,22 +162,20 @@ function hostSpec(index) {
     },
     {
       hostId: 'npc_host_info',
-      role: 'info',
-      displayName: 'Explorer Info Host',
-      kind: 'world_interactable',
-      interactionTag: 'explorer_info',
-      actions: ['interact_open', 'interact_use'],
-      yaw: 0.4,
-      radius: 8
+      role: 'prediction',
+      displayName: 'Prediction Dealer',
+      kind: 'dealer_prediction',
+      interactionTag: 'prediction_host',
+      actions: ['prediction_markets_open', 'prediction_market_quote', 'prediction_market_buy_yes', 'prediction_market_buy_no', 'prediction_positions_open'],
+      yaw: 0.28,
+      radius: 7
     }
   ];
   return base[index] || null;
 }
 
 function makeHostStationRecord(spec, spawn, index) {
-  const localInteraction = spec.kind === 'world_interactable'
-    ? roleDetails(spec.role)
-    : null;
+  const localInteraction = roleDetails(spec.role);
   return {
     id: `station_npc_host_${index + 1}`,
     source: 'host',

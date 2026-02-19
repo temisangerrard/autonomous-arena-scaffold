@@ -341,6 +341,7 @@ async function connectSocket() {
     dealerReasonLabel,
     labelFor,
     deriveDealerGameType,
+    showToast,
     showResultSplash,
     refreshWalletBalanceAndShowDelta,
     handleChallenge,

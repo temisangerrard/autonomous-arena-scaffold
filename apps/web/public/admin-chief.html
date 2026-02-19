@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chief Ops Agent</title>
+  <link rel="stylesheet" href="/css/admin-chief.css">
+  <script src="/runtime-config.js"></script>
+</head>
+<body>
+  <div class="chief-shell">
+    <aside class="chief-rail">
+      <h1>Chief Ops Agent</h1>
+      <p class="muted">Parallel PI-style control plane</p>
+      <nav>
+        <button class="rail-btn active" data-view="mission">Mission</button>
+        <button class="rail-btn" data-view="live">Live State</button>
+        <button class="rail-btn" data-view="incidents">Incidents</button>
+        <button class="rail-btn" data-view="runbooks">Runbooks</button>
+        <button class="rail-btn" data-view="tools">Tools</button>
+        <button class="rail-btn" data-view="activity">Activity</button>
+        <button class="rail-btn" data-view="fleet">Fleet</button>
+        <button class="rail-btn" data-view="treasury">Treasury</button>
+        <button class="rail-btn" data-view="markets">Markets</button>
+        <button class="rail-btn" data-view="users">Users</button>
+      </nav>
+      <div class="rail-links">
+        <a href="/admin">Open Existing Admin</a>
+        <a href="/users">Open Users Utility</a>
+      </div>
+    </aside>
+
+    <main class="chief-main">
+      <header class="topbar">
+        <div id="status-line">Loading Chief Ops workspace...</div>
+        <button id="refresh" type="button">Refresh</button>
+      </header>
+
+      <section class="command-card">
+        <h2>Run Chief Command</h2>
+        <textarea id="command-input" rows="3" placeholder="Try: status | reconcile bots to 8 | check sponsor gas | sync markets"></textarea>
+        <div class="cmd-actions">
+          <button id="command-run" type="button" class="primary">Run Chief Command</button>
+          <button id="command-status" type="button">Quick Status</button>
+          <button id="command-confirm" type="button" hidden>Confirm Pending Action</button>
+        </div>
+        <pre id="command-reply">Ready.</pre>
+      </section>
+
+      <section class="graph-card">
+        <h2>Execution Graph</h2>
+        <ul id="graph-steps" class="steps"></ul>
+      </section>
+
+      <section class="views">
+        <article class="view active" id="view-mission">
+          <h3>Mission</h3>
+          <pre id="mission-card"></pre>
+        </article>
+
+        <article class="view" id="view-live">
+          <h3>Live State</h3>
+          <pre id="live-card"></pre>
+        </article>
+
+        <article class="view" id="view-incidents">
+          <h3>Incidents</h3>
+          <ul id="incident-list" class="incident-list"></ul>
+        </article>
+
+        <article class="view" id="view-runbooks">
+          <h3>Runbooks</h3>
+          <ul id="runbook-list" class="runbook-list"></ul>
+        </article>
+
+        <article class="view" id="view-tools">
+          <h3>Tools</h3>
+          <div id="tool-chips" class="chips"></div>
+        </article>
+
+        <article class="view" id="view-activity">
+          <h3>Activity</h3>
+          <ul id="activity-list" class="activity-list"></ul>
+        </article>
+
+        <article class="view" id="view-fleet">
+          <h3>Fleet</h3>
+          <details open>
+            <summary>Quick fleet actions</summary>
+            <div class="chips" data-tool-group="fleet"></div>
+          </details>
+        </article>
+
+        <article class="view" id="view-treasury">
+          <h3>Treasury</h3>
+          <details open>
+            <summary>Quick treasury actions</summary>
+            <div class="chips" data-tool-group="treasury"></div>
+          </details>
+        </article>
+
+        <article class="view" id="view-markets">
+          <h3>Markets</h3>
+          <details open>
+            <summary>Quick market actions</summary>
+            <div class="chips" data-tool-group="markets"></div>
+          </details>
+        </article>
+
+        <article class="view" id="view-users">
+          <h3>Users</h3>
+          <details open>
+            <summary>Quick user actions</summary>
+            <div class="chips" data-tool-group="users"></div>
+            <p class="muted">Use profile ids directly in commands, e.g. <code>logout user profile_7</code>.</p>
+          </details>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/js/admin-chief.js"></script>
+</body>
+</html>

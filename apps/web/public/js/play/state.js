@@ -68,7 +68,7 @@ export function createInitialState() {
       },
       dealer: {
         stationId: '',
-        gameType: 'coinflip',
+        gameType: '',
         state: 'idle',
         wager: 1,
         commitHash: '',
@@ -90,6 +90,16 @@ export function createInitialState() {
         title: '',
         detail: '',
         actionLabel: 'Use'
+      },
+      prediction: {
+        stationId: '',
+        state: 'idle',
+        markets: [],
+        positions: [],
+        selectedMarketId: '',
+        quote: null,
+        lastReason: '',
+        lastReasonText: ''
       }
     },
     touch: {

@@ -1,0 +1,79 @@
+    /* ============================================
+       GAME MODAL (Results / Incoming)
+       ============================================ */
+    .game-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 12, 8, 0.85);
+      z-index: 200;
+      backdrop-filter: blur(8px);
+    }
+    .game-modal.visible { display: flex; }
+
+    .game-card {
+      width: min(92vw, 480px);
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(255, 252, 244, 0.98), rgba(253, 248, 237, 0.95));
+      border: 2px solid rgba(201, 162, 39, 0.45);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+      padding: 24px;
+      color: #2c2416;
+      text-align: center;
+      animation: modal-in 0.3s ease-out;
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: scale(0.95) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .game-card h3 {
+      margin: 0 0 12px;
+      font: 700 28px/1.1 var(--font-display);
+      color: #a68523;
+    }
+
+    .game-card p { margin: 10px 0; font: 16px/1.5 var(--font-primary); }
+
+    .game-card__result {
+      font-size: 48px;
+      margin: 16px 0;
+    }
+
+    .game-card__timer {
+      margin: 16px 0 8px;
+    }
+    .game-card__timer-bar {
+      height: 8px;
+      background: rgba(0, 0, 0, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .game-card__timer-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, var(--ui-gold), var(--ui-coral));
+      transition: width 0.2s linear;
+    }
+
+    .game-card button {
+      margin-top: 16px;
+      min-width: 140px;
+      height: 44px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #d4a84b 0%, #c49a38 100%);
+      color: #1a1408;
+      font: 700 14px/1 var(--font-display);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .game-card button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(201, 162, 39, 0.4);
+    }
+

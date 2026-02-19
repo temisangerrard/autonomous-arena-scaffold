@@ -227,6 +227,11 @@ export type StationActionId =
   | 'rps_house_pick'
   | 'dice_duel_start'
   | 'dice_duel_pick'
+  | 'prediction_markets_open'
+  | 'prediction_market_quote'
+  | 'prediction_market_buy_yes'
+  | 'prediction_market_buy_no'
+  | 'prediction_positions_open'
   | 'interact_open'
   | 'interact_use'
   | 'balance'
@@ -236,7 +241,7 @@ export type StationActionId =
 
 export interface SnapshotStation {
   id: string;
-  kind: 'dealer_coinflip' | 'dealer_rps' | 'dealer_dice_duel' | 'cashier_bank' | 'world_interactable';
+  kind: 'dealer_coinflip' | 'dealer_rps' | 'dealer_dice_duel' | 'dealer_prediction' | 'cashier_bank' | 'world_interactable';
   displayName: string;
   x: number;
   z: number;
@@ -261,7 +266,44 @@ export type StationUiViewState =
   | 'dealer_reveal'
   | 'dealer_reveal_rps'
   | 'dealer_reveal_dice'
+  | 'prediction_list'
+  | 'prediction_quote'
+  | 'prediction_order_pending'
+  | 'prediction_order_filled'
+  | 'prediction_positions'
+  | 'prediction_settle'
+  | 'prediction_error'
   | 'dealer_error';
+
+export type PredictionSide = 'yes' | 'no';
+
+export interface PredictionMarketView {
+  marketId: string;
+  slug: string;
+  question: string;
+  category: string;
+  closeAt: number;
+  resolveAt: number;
+  status: 'open' | 'closed' | 'resolved' | 'cancelled';
+  outcome: PredictionSide | null;
+  yesPrice: number;
+  noPrice: number;
+  maxWager: number;
+}
+
+export interface PredictionPositionView {
+  positionId: string;
+  marketId: string;
+  question: string;
+  side: PredictionSide;
+  stake: number;
+  price: number;
+  shares: number;
+  potentialPayout: number;
+  status: 'open' | 'won' | 'lost' | 'voided';
+  createdAt: number;
+  settledAt: number | null;
+}
 
 export interface StationUiView {
   ok: boolean;
@@ -285,6 +327,15 @@ export interface StationUiView {
   opponentPick?: DiceDuelMove;
   winnerId?: string | null;
   payoutDelta?: number;
+  marketId?: string;
+  side?: PredictionSide;
+  price?: number;
+  shares?: number;
+  potentialPayout?: number;
+  positionStatus?: 'open' | 'won' | 'lost' | 'voided';
+  settlementStatus?: 'pending' | 'settled' | 'error';
+  markets?: PredictionMarketView[];
+  positions?: PredictionPositionView[];
   escrowTx?: {
     lock?: string;
     resolve?: string;

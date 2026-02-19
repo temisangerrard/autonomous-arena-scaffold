@@ -1,0 +1,247 @@
+    /* ============================================
+       INTERACTION CARD (Expanded interaction)
+       ============================================ */
+    .interaction-card {
+      position: fixed;
+      left: 50%;
+      bottom: 120px;
+      transform: translateX(-50%);
+      width: min(380px, calc(100vw - 32px));
+      background: rgba(253, 248, 237, 0.98);
+      border: 1px solid rgba(198, 152, 49, 0.45);
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(25, 20, 10, 0.3);
+      z-index: 95;
+      display: none;
+      backdrop-filter: blur(12px);
+    }
+    body.interaction-focus::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: rgba(22, 16, 8, 0.24);
+      backdrop-filter: blur(6px);
+      z-index: 52;
+      pointer-events: none;
+    }
+    .interaction-card.open {
+      display: block;
+      animation: slide-up 0.25s ease-out;
+      z-index: 95;
+    }
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    .interaction-card__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 10px;
+    }
+    .interaction-card__head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .interaction-card__help {
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      background: rgba(255, 255, 255, 0.75);
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #5a3f16;
+      font: 700 14px/1 'JetBrains Mono', monospace;
+      transition: all 0.2s ease;
+    }
+    .interaction-card__help:hover {
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .interaction-card__title {
+      font: 700 15px/1.1 'Cormorant Garamond', serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #3b2b12;
+    }
+
+    .interaction-card__close {
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      background: rgba(255, 255, 255, 0.8);
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: #5a3f16;
+      font: 700 18px/1 'IBM Plex Sans', sans-serif;
+      transition: all 0.2s ease;
+    }
+    .interaction-card__close:hover {
+      background: rgba(255, 200, 200, 0.5);
+    }
+    .interaction-card__close:focus-visible {
+      outline: 2px solid var(--ui-gold);
+      outline-offset: 2px;
+    }
+
+    .interaction-card__body {
+      padding: 12px 16px 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .interaction-help {
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      background: rgba(255, 251, 242, 0.8);
+      border-radius: 12px;
+      padding: 10px 11px;
+      color: #5f4a25;
+      font: 600 12px/1.4 'IBM Plex Sans', sans-serif;
+    }
+
+    .station-ui {
+      border: 1px solid rgba(198, 152, 49, 0.25);
+      background: rgba(255, 255, 255, 0.72);
+      border-radius: 12px;
+      padding: 13px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .station-ui__title {
+      font: 800 12px/1 var(--font-mono);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #5a3f16;
+    }
+
+    .station-ui__row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .station-ui__row label {
+      font: 700 11px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6a5835;
+    }
+
+    .station-ui__actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .station-ui__meta {
+      font: 600 12px/1.35 'IBM Plex Sans', sans-serif;
+      color: rgba(44, 33, 18, 0.9);
+      border-radius: 10px;
+      border: 1px solid rgba(198, 152, 49, 0.22);
+      background: rgba(255, 255, 255, 0.62);
+      padding: 10px 11px;
+    }
+
+    .station-ui__meta--warning {
+      border-color: rgba(200, 129, 41, 0.58);
+      background: rgba(255, 233, 186, 0.82);
+      color: #5f3f08;
+      font-weight: 700;
+    }
+
+    .station-ui__meta--success {
+      border-color: rgba(66, 150, 97, 0.48);
+      background: rgba(212, 244, 214, 0.78);
+      color: #184828;
+    }
+
+    .interaction-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .interaction-row label {
+      font: 700 11px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6a5835;
+    }
+
+    .interaction-row select,
+    .interaction-row input {
+      height: 38px;
+      border-radius: 10px;
+      border: 1px solid rgba(163, 128, 40, 0.35);
+      background: rgba(255, 255, 255, 0.85);
+      padding: 0 12px;
+      font: 600 13px/1 'IBM Plex Sans', sans-serif;
+      color: #2c2112;
+      transition: all 0.2s ease;
+    }
+    .interaction-row select:focus,
+    .interaction-row input:focus {
+      outline: none;
+      border-color: var(--ui-gold);
+      box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.15);
+    }
+
+    .interaction-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-gold {
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid rgba(153, 113, 18, 0.5);
+      background: linear-gradient(180deg, #e8c860 0%, #d4a830 100%);
+      color: #241a07;
+      font: 900 13px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-gold:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(212, 168, 48, 0.4);
+    }
+    .btn-gold:focus-visible {
+      outline: 2px solid var(--ui-gold);
+      outline-offset: 2px;
+    }
+
+    .btn-ghost {
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(163, 128, 40, 0.35);
+      background: rgba(255, 255, 255, 0.6);
+      color: #5a3f16;
+      font: 800 12px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      padding: 0 14px;
+      transition: all 0.2s ease;
+    }
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.8);
+    }
+    .btn-ghost:focus-visible {
+      outline: 2px solid var(--ui-gold);
+      outline-offset: 2px;
+    }
+
+    .interaction-hint {
+      font: 12px/1.4 'Crimson Text', serif;
+      color: rgba(60, 44, 18, 0.7);
+    }

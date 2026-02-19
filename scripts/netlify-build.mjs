@@ -1,8 +1,19 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, 'apps', 'web', 'public');
+
+// Fail fast if /play runtime imports reference missing static modules.
+{
+  const check = spawnSync('node', [path.join(ROOT, 'scripts', 'validate-play-runtime-imports.mjs')], {
+    stdio: 'inherit'
+  });
+  if (check.status !== 0) {
+    process.exit(check.status ?? 1);
+  }
+}
 
 function env(name, fallback = '') {
   const value = process.env[name];

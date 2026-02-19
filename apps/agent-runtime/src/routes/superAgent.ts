@@ -138,10 +138,10 @@ export function registerSuperAgentRoutes(router: SimpleRouter, deps: {
 
     const replyParts: string[] = [];
     if (actionReplies.length > 0) {
-      replyParts.push(actionReplies.join('\n'));
+      replyParts.push(`Executed:\n${actionReplies.join('\n')}`);
     }
     if (advisory) {
-      replyParts.push(`Advisory:\n${advisory}`);
+      replyParts.push(advisory);
       deps.rememberSuperAgent('decision', 'provided llm advisory');
     }
     if (replyParts.length === 0) {

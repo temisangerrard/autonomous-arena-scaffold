@@ -357,6 +357,7 @@
         <button type="button" data-tab="super">Super Agent</button>
         <button type="button" data-tab="fleet">Fleet</button>
         <button type="button" data-tab="treasury">Treasury</button>
+        <button type="button" data-tab="markets">Markets</button>
         <button type="button" data-tab="users">Users</button>
         <button type="button" data-tab="activity">Activity</button>
       </nav>
@@ -592,6 +593,28 @@
           </div>
           <pre id="house-ledger" style="margin-top:10px;">Loading house ledger...</pre>
         </article>
+      </div>
+    </section>
+
+    <section id="panel-markets" class="panel">
+      <h2 class="section-title">Prediction Markets</h2>
+      <div class="actions" style="margin-bottom:10px;">
+        <button id="markets-sync" class="btn btn-primary" type="button">Sync Oracle</button>
+      </div>
+      <div class="table-wrap">
+        <table aria-label="Prediction markets">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Status</th>
+              <th>Odds</th>
+              <th>Limits</th>
+              <th>Active</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="markets-body"></tbody>
+        </table>
       </div>
     </section>
 

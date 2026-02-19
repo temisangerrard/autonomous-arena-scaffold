@@ -9,6 +9,7 @@ const state = {
   latestStatus: null,
   latestChallenges: [],
   latestUsers: [],
+  latestMarkets: [],
   latestSuperStatus: null,
   errors: [],
   activity: [],
@@ -23,6 +24,7 @@ const el = {
     super: document.getElementById('panel-super'),
     fleet: document.getElementById('panel-fleet'),
     treasury: document.getElementById('panel-treasury'),
+    markets: document.getElementById('panel-markets'),
     users: document.getElementById('panel-users'),
     activity: document.getElementById('panel-activity')
   },
@@ -74,7 +76,9 @@ const el = {
   houseTransfer: document.getElementById('house-transfer'),
   houseLedger: document.getElementById('house-ledger'),
 
-  usersBody: document.getElementById('users-body')
+  usersBody: document.getElementById('users-body'),
+  marketsSync: document.getElementById('markets-sync'),
+  marketsBody: document.getElementById('markets-body')
 };
 
 function escapeHtml(value) {
@@ -394,6 +398,37 @@ function renderUsers() {
   }
 }
 
+function renderMarkets() {
+  if (!el.marketsBody) return;
+  const markets = state.latestMarkets || [];
+  el.marketsBody.innerHTML = '';
+  for (const market of markets) {
+    const tr = document.createElement('tr');
+    const maxWager = Number(market.maxWager || 100);
+    const spread = Number(market.houseSpreadBps || 0);
+    tr.innerHTML = `
+      <td>
+        <div style="font-weight:650;">${escapeHtml(market.question || market.marketId || '-')}</div>
+        <div class="mono" style="color:var(--text-secondary);">${escapeHtml(market.marketId || '-')}</div>
+      </td>
+      <td>${escapeHtml(market.status || 'open')}</td>
+      <td>YES ${Number(market.yesPrice || 0).toFixed(2)} · NO ${Number(market.noPrice || 0).toFixed(2)}</td>
+      <td>
+        <div class="mono">max ${maxWager}</div>
+        <div class="mono" style="color:var(--text-secondary);">spread ${spread} bps</div>
+      </td>
+      <td>${market.active ? 'yes' : 'no'}</td>
+      <td>
+        <div class="actions">
+          <button class="btn" data-action="market-activate" data-market-id="${escapeHtml(market.marketId || '')}">Activate</button>
+          <button class="btn" data-action="market-deactivate" data-market-id="${escapeHtml(market.marketId || '')}">Deactivate</button>
+        </div>
+      </td>
+    `;
+    el.marketsBody.appendChild(tr);
+  }
+}
+
 function renderActivity() {
   if (!el.activityList) return;
 
@@ -428,6 +463,7 @@ function renderAll() {
   populateControlValues();
   renderProfiles();
   renderBots();
+  renderMarkets();
   renderUsers();
   renderActivity();
 }
@@ -446,20 +482,22 @@ async function refreshAll({ silent = false } = {}) {
     setStatus('Refreshing command center...');
   }
 
-  const [statusRes, challengesRes, usersRes, superRes] = await Promise.all([
+  const [statusRes, challengesRes, usersRes, superRes, marketsRes] = await Promise.all([
     safeFetch('status', () => apiGetJson(`${runtimeBase}/status`)),
     safeFetch('challenges', () => apiGetJson(`${serverBase}/challenges/recent?limit=80`)),
     safeFetch('users', () => apiGetJson(`${serverBase}/users`)),
-    safeFetch('superStatus', () => apiGetJson(`${runtimeBase}/super-agent/status`))
+    safeFetch('superStatus', () => apiGetJson(`${runtimeBase}/super-agent/status`)),
+    safeFetch('markets', () => apiGetJson(`${runtimeBase}/markets`))
   ]);
 
-  const failures = [statusRes, challengesRes, usersRes, superRes].filter((r) => !r.ok);
+  const failures = [statusRes, challengesRes, usersRes, superRes, marketsRes].filter((r) => !r.ok);
   state.errors = failures.map((f) => `${f.name}: ${f.error}`);
 
   if (statusRes.ok) state.latestStatus = statusRes.data;
   if (challengesRes.ok) state.latestChallenges = challengesRes.data?.recent || [];
   if (usersRes.ok) state.latestUsers = usersRes.data?.users || [];
   if (superRes.ok) state.latestSuperStatus = superRes.data;
+  if (marketsRes.ok) state.latestMarkets = Array.isArray(marketsRes.data?.markets) ? marketsRes.data.markets : [];
 
   state.lastLoadedAt = Date.now();
   renderAll();
@@ -741,6 +779,17 @@ function bindPrimaryActions() {
       setStatus(`Failed: ${String(error?.message || error)}`, true);
     }
   });
+
+  el.marketsSync?.addEventListener('click', async () => {
+    try {
+      await apiPostJson(`${runtimeBase}/markets/sync`, {});
+      addActivity('write', 'Synced prediction markets');
+      await refreshAll({ silent: true });
+      setStatus('Prediction markets synced.');
+    } catch (error) {
+      setStatus(`Failed: ${String(error?.message || error)}`, true);
+    }
+  });
 }
 
 function bindTableActions() {
@@ -864,10 +913,34 @@ function bindTableActions() {
       setStatus(`Failed: ${String(error?.message || error)}`, true);
     }
   });
+
+  el.marketsBody?.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const action = String(target.dataset.action || '');
+    const marketId = String(target.dataset.marketId || '').trim();
+    if (!action || !marketId) return;
+    try {
+      if (action === 'market-activate') {
+        await apiPostJson(`${runtimeBase}/markets/activate`, { marketId });
+        addActivity('write', `Activated market ${marketId}`);
+      } else if (action === 'market-deactivate') {
+        await apiPostJson(`${runtimeBase}/markets/deactivate`, { marketId });
+        addActivity('write', `Deactivated market ${marketId}`);
+      } else {
+        return;
+      }
+      await refreshAll({ silent: true });
+      setStatus(`Updated market ${marketId}.`);
+    } catch (error) {
+      setStatus(`Failed: ${String(error?.message || error)}`, true);
+    }
+  });
 }
 
 function pollingIntervalMs() {
   if (state.activeTab === 'super' || state.activeTab === 'activity') return 7000;
+  if (state.activeTab === 'markets') return 9000;
   if (state.activeTab === 'users') return 8000;
   return 12000;
 }

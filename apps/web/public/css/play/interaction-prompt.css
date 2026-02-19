@@ -1,0 +1,36 @@
+    /* ============================================
+       INTERACTION PROMPT (Center bottom)
+       ============================================ */
+    .interaction-prompt {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 100px;
+      z-index: 135;
+      display: none;
+      padding: 12px 20px;
+      border-radius: 999px;
+      border: 1px solid rgba(201, 162, 39, 0.4);
+      background: rgba(253, 248, 237, 0.96);
+      color: #4a3612;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+      font: 700 14px/1.2 'Crimson Text', serif;
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(8px);
+      animation: float-prompt 2s ease-in-out infinite;
+    }
+    .interaction-prompt.visible { display: block; }
+    @keyframes float-prompt {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-4px); }
+    }
+
+    .interaction-prompt__key {
+      display: inline-block;
+      padding: 2px 8px;
+      background: rgba(201, 162, 39, 0.2);
+      border-radius: 4px;
+      font: 700 12px/1 'IBM Plex Mono', monospace;
+      margin: 0 2px;
+    }
+

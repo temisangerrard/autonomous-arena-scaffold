@@ -43,6 +43,23 @@ export type StationInteractMessage = {
       playerSeed: string;
     }
   | {
+      action: 'prediction_markets_open';
+    }
+  | {
+      action: 'prediction_market_quote';
+      marketId: string;
+      side: 'yes' | 'no';
+      stake: number;
+    }
+  | {
+      action: 'prediction_market_buy_yes' | 'prediction_market_buy_no';
+      marketId: string;
+      stake: number;
+    }
+  | {
+      action: 'prediction_positions_open';
+    }
+  | {
       action: 'interact_open';
     }
   | {
@@ -133,12 +150,53 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           action: 'interact_open'
         };
       }
+      if (payload.action === 'prediction_markets_open') {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'prediction_markets_open'
+        };
+      }
+      if (payload.action === 'prediction_positions_open') {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'prediction_positions_open'
+        };
+      }
       if (payload.action === 'interact_use') {
         return {
           type: 'station_interact',
           stationId: payload.stationId,
           action: 'interact_use',
           interactionTag: typeof payload.interactionTag === 'string' ? payload.interactionTag : undefined
+        };
+      }
+      if (
+        payload.action === 'prediction_market_quote' &&
+        typeof payload.marketId === 'string' &&
+        typeof payload.side === 'string' &&
+        (payload.side === 'yes' || payload.side === 'no')
+      ) {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'prediction_market_quote',
+          marketId: payload.marketId,
+          side: payload.side,
+          stake: typeof payload.stake === 'number' ? payload.stake : 1
+        };
+      }
+      if (
+        (payload.action === 'prediction_market_buy_yes' || payload.action === 'prediction_market_buy_no') &&
+        typeof payload.marketId === 'string'
+      ) {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: payload.action,
+          marketId: payload.marketId,
+          stake: typeof payload.stake === 'number' ? payload.stake : 1
         };
       }
       if (

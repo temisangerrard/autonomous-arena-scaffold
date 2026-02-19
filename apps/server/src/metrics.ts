@@ -291,6 +291,13 @@ export const METRIC_NAMES = {
   
   // Rate limiting
   rateLimitExceeded: 'rate_limit_exceeded_total',
+
+  // Prediction market metrics
+  marketsActiveTotal: 'markets_active_total',
+  marketOrdersTotal: 'market_orders_total',
+  marketSettlementSuccessTotal: 'market_settlement_success_total',
+  marketSettlementFailureTotal: 'market_settlement_failure_total',
+  marketOracleStalenessSeconds: 'market_oracle_staleness_seconds',
   
   // System
   memoryUsage: 'process_memory_bytes',

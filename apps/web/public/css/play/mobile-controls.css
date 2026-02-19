@@ -1,0 +1,117 @@
+    /* ============================================
+       MOBILE CONTROLS
+       ============================================ */
+    .mobile-controls {
+      display: none;
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      z-index: 90;
+      pointer-events: none;
+    }
+
+    @media (pointer: coarse) {
+      .mobile-controls {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .challenge-panel {
+        display: none;
+      }
+    }
+
+    .mobile-stick {
+      width: 140px;
+      pointer-events: auto;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+    }
+
+    .mobile-stick__base {
+      width: 120px;
+      height: 120px;
+      border-radius: 999px;
+      background: rgba(20, 18, 14, 0.6);
+      border: 2px solid rgba(255, 210, 122, 0.3);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+      position: relative;
+      backdrop-filter: blur(12px);
+    }
+
+    .mobile-stick__knob {
+      width: 52px;
+      height: 52px;
+      border-radius: 999px;
+      background: rgba(253, 248, 237, 0.95);
+      border: 2px solid rgba(198, 152, 49, 0.5);
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .mobile-stick__label {
+      font: 800 11px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(253, 248, 237, 0.85);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .mobile-actions {
+      flex: 1;
+      max-width: 300px;
+      display: grid;
+      gap: 8px;
+      align-content: end;
+      justify-items: end;
+      pointer-events: none;
+    }
+
+    .mobile-actions > * {
+      pointer-events: auto;
+    }
+
+    .mobile-btn {
+      height: 44px;
+      min-width: 100px;
+      padding: 0 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(163, 128, 40, 0.4);
+      background: rgba(253, 248, 237, 0.95);
+      color: #2c2112;
+      font: 800 12px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+    }
+    .mobile-btn:active {
+      transform: scale(0.96);
+    }
+
+    .mobile-btn--gold {
+      border-color: rgba(153, 113, 18, 0.5);
+      background: linear-gradient(180deg, #e8c860, #d4a830);
+      color: #241a07;
+    }
+
+    .mobile-moves {
+      display: none;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      width: min(280px, 100%);
+      justify-items: stretch;
+    }
+
+    .mobile-moves .mobile-btn {
+      min-width: 0;
+    }

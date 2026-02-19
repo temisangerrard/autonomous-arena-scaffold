@@ -10,6 +10,7 @@ import type { Database } from '../Database.js';
 import { WORLD_SECTION_SPAWNS } from '../WorldSim.js';
 import type { AdminCommand } from '../DistributedBus.js';
 import { handleMetricsEndpoint, handleMetricsJsonEndpoint } from '../metrics.js';
+import type { MarketService } from '../markets/MarketService.js';
 
 export type RouteContext = {
   serverInstanceId: string;
@@ -20,6 +21,7 @@ export type RouteContext = {
   internalToken: string;
   publishAdminCommand: (serverId: string, command: AdminCommand) => Promise<void>;
   teleportLocal: (playerId: string, x: number, z: number) => boolean;
+  marketService?: MarketService | null;
 };
 
 /**
@@ -211,12 +213,108 @@ export async function handleAdminTeleport(
   res.end(JSON.stringify({ ok, forwarded: false, serverId: ctx.serverInstanceId, playerId, x, z }));
 }
 
+async function handleAdminMarkets(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: RouteContext,
+  parsed: URL
+): Promise<void> {
+  if (!isInternalAuthorized(req, ctx.internalToken)) {
+    res.statusCode = 401;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'unauthorized_internal' }));
+    return;
+  }
+  if (!ctx.marketService) {
+    res.statusCode = 503;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'prediction_service_unavailable' }));
+    return;
+  }
+  const pathname = parsed.pathname;
+
+  if (pathname === '/admin/markets' && req.method === 'GET') {
+    const payload = await ctx.marketService.getAdminState();
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(payload));
+    return;
+  }
+
+  if (pathname === '/admin/markets/sync' && req.method === 'POST') {
+    const body = await readJsonBody<{ limit?: number }>(req);
+    const limit = Math.max(1, Math.min(200, Number(body?.limit || 60)));
+    const payload = await ctx.marketService.syncFromOracle(limit);
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(payload));
+    return;
+  }
+
+  if ((pathname === '/admin/markets/activate' || pathname === '/admin/markets/deactivate') && req.method === 'POST') {
+    const body = await readJsonBody<{
+      marketId?: string;
+      maxWager?: number;
+      houseSpreadBps?: number;
+      updatedBy?: string;
+    }>(req);
+    const marketId = String(body?.marketId || '').trim();
+    if (!marketId) {
+      res.statusCode = 400;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: false, reason: 'market_id_required' }));
+      return;
+    }
+    const active = pathname.endsWith('/activate');
+    const payload = await ctx.marketService.activateMarket({
+      marketId,
+      active,
+      maxWager: body?.maxWager,
+      houseSpreadBps: body?.houseSpreadBps,
+      updatedBy: body?.updatedBy || 'admin'
+    });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(payload));
+    return;
+  }
+
+  if (pathname === '/admin/markets/config' && req.method === 'POST') {
+    const body = await readJsonBody<{
+      marketId?: string;
+      active?: boolean;
+      maxWager?: number;
+      houseSpreadBps?: number;
+      updatedBy?: string;
+    }>(req);
+    const marketId = String(body?.marketId || '').trim();
+    if (!marketId) {
+      res.statusCode = 400;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: false, reason: 'market_id_required' }));
+      return;
+    }
+    const payload = await ctx.marketService.activateMarket({
+      marketId,
+      active: Boolean(body?.active),
+      maxWager: body?.maxWager,
+      houseSpreadBps: body?.houseSpreadBps,
+      updatedBy: body?.updatedBy || 'admin'
+    });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(payload));
+    return;
+  }
+
+  res.statusCode = 404;
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ ok: false, reason: 'not_found' }));
+}
+
 /**
  * Main HTTP request router
  */
 export function createRouter(ctx: RouteContext) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     setCorsHeaders(res);
+    const parsed = new URL(req.url ?? '/', 'http://localhost');
 
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
@@ -257,7 +355,6 @@ export function createRouter(ctx: RouteContext) {
 
     // Leaderboard endpoint
     if (req.url?.startsWith('/leaderboard')) {
-      const parsed = new URL(req.url ?? '/', 'http://localhost');
       const limit = Math.max(1, Math.min(100, Number(parsed.searchParams.get('limit') ?? 10)));
       const sortBy = parsed.searchParams.get('sortBy') === 'totalWon' ? 'totalWon' : 'wins';
       const leaderboard = await ctx.database.getLeaderboard({ limit, sortBy });
@@ -283,7 +380,6 @@ export function createRouter(ctx: RouteContext) {
         res.end(JSON.stringify({ ok: false, reason: 'unauthorized_internal' }));
         return;
       }
-      const parsed = new URL(req.url ?? '/', 'http://localhost');
       const playerId = String(parsed.searchParams.get('playerId') || '').trim();
       const limit = Math.max(1, Math.min(300, Number(parsed.searchParams.get('limit') ?? 60)));
       if (!playerId) {
@@ -300,6 +396,11 @@ export function createRouter(ctx: RouteContext) {
 
     if (req.url?.startsWith('/admin/teleport')) {
       await handleAdminTeleport(req, res, ctx);
+      return;
+    }
+
+    if (req.url?.startsWith('/admin/markets')) {
+      await handleAdminMarkets(req, res, ctx, parsed);
       return;
     }
 

@@ -93,4 +93,42 @@ describe('parseClientMessage station_interact', () => {
       playerSeed: 'seed'
     });
   });
+
+  it('accepts prediction station actions', () => {
+    const open = parseClientMessage(
+      Buffer.from(
+        JSON.stringify({
+          type: 'station_interact',
+          stationId: 'station_dealer_prediction_a',
+          action: 'prediction_markets_open'
+        })
+      )
+    );
+    expect(open).toEqual({
+      type: 'station_interact',
+      stationId: 'station_dealer_prediction_a',
+      action: 'prediction_markets_open'
+    });
+
+    const quote = parseClientMessage(
+      Buffer.from(
+        JSON.stringify({
+          type: 'station_interact',
+          stationId: 'station_dealer_prediction_a',
+          action: 'prediction_market_quote',
+          marketId: 'poly_1',
+          side: 'yes',
+          stake: 5
+        })
+      )
+    );
+    expect(quote).toEqual({
+      type: 'station_interact',
+      stationId: 'station_dealer_prediction_a',
+      action: 'prediction_market_quote',
+      marketId: 'poly_1',
+      side: 'yes',
+      stake: 5
+    });
+  });
 });

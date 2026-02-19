@@ -76,7 +76,11 @@ export function renderMinimap(state, worldMapCanvas, mapCoords) {
     for (const station of state.stations.values()) {
       const x = ((station.x + WORLD_BOUND) / (WORLD_BOUND * 2)) * width;
       const y = ((station.z + WORLD_BOUND) / (WORLD_BOUND * 2)) * height;
-      ctx.fillStyle = station.kind === 'cashier_bank' ? 'rgba(47,109,255,.9)' : 'rgba(243,156,18,.9)';
+      ctx.fillStyle = station.kind === 'cashier_bank'
+        ? 'rgba(47,109,255,.9)'
+        : station.kind === 'dealer_prediction'
+          ? 'rgba(95,141,255,.9)'
+          : 'rgba(243,156,18,.9)';
       ctx.fillRect(x - 3, y - 3, 6, 6);
     }
   }

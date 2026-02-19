@@ -1,0 +1,176 @@
+    /* ============================================
+       MINIMAL TOP HUD
+       ============================================ */
+    #hud {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      min-height: 58px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(20, 18, 14, 0.88);
+      border: 1px solid rgba(255, 212, 153, 0.34);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      color: #f8f5ef;
+      font: 12px/1.3 'Inter', 'SF Pro Display', sans-serif;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    #hud.hidden {
+      transform: translateY(-70px);
+      opacity: 0;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--ui-coral) 0%, #ff9a76 100%);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .topbar-name {
+      font: 600 14px/1 'Inter', 'SF Pro Display', sans-serif;
+      color: #fff;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .topbar-pills {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .topbar-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font: 700 11px/1 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      transition: all 0.2s ease;
+    }
+
+    .topbar-pill.wallet {
+      background: rgba(212, 168, 75, 0.16);
+      border: 1px solid rgba(212, 168, 75, 0.48);
+      color: #f4d684;
+      font-size: 16px;
+      line-height: 1;
+      min-width: 84px;
+      justify-content: center;
+    }
+    .topbar-pill.wallet:hover {
+      background: rgba(212, 168, 75, 0.24);
+    }
+
+    .topbar-pill.streak {
+      background: rgba(255, 233, 175, 0.14);
+      border: 1px solid rgba(255, 233, 175, 0.34);
+      color: #f9e2ac;
+    }
+    .topbar-pill.streak:hover {
+      background: rgba(255, 233, 175, 0.2);
+    }
+
+    .topbar-pill.bot {
+      background: rgba(80, 185, 122, 0.16);
+      border: 1px solid rgba(80, 185, 122, 0.38);
+      color: #bcebcf;
+    }
+    .topbar-pill.bot.manual {
+      background: rgba(230, 166, 69, 0.16);
+      border-color: rgba(230, 166, 69, 0.45);
+      color: #ffdca6;
+    }
+    .topbar-pill__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.95;
+      box-shadow: 0 0 8px rgba(154, 255, 200, 0.5);
+      flex: none;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .menu-ghost {
+      border-radius: 12px;
+      border: 1px solid rgba(255, 214, 171, 0.44);
+      background: rgba(255, 239, 217, 0.1);
+      color: #ffe6bf;
+      width: 46px;
+      height: 38px;
+      font: 700 20px/1 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .menu-ghost:hover {
+      background: rgba(255, 239, 217, 0.18);
+      border-color: rgba(255, 214, 171, 0.64);
+    }
+    .menu-ghost:focus-visible {
+      outline: 2px solid var(--ui-gold);
+      outline-offset: 2px;
+    }
+
+    .menu-pop {
+      position: fixed;
+      right: 16px;
+      top: 84px;
+      width: 180px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 203, 164, 0.35);
+      background: rgba(24, 22, 18, 0.95);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      z-index: 90;
+      display: none;
+      padding: 8px;
+      backdrop-filter: blur(12px);
+    }
+    .menu-pop.open { display: grid; gap: 4px; }
+    .menu-pop button {
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #f6d8be;
+      min-height: 40px;
+      font: 600 12px/1 'Inter', sans-serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+      padding: 0 12px;
+    }
+    .menu-pop button:hover {
+      border-color: rgba(255, 203, 164, 0.3);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .menu-pop button:focus-visible {
+      outline: 2px solid var(--ui-gold);
+      outline-offset: -2px;
+    }
+

@@ -65,6 +65,8 @@ function createStationMarker(THREE, station) {
 
   const iconColor = station.kind === 'cashier_bank'
     ? 0x2f6dff
+    : station.kind === 'dealer_prediction'
+      ? 0x5f8dff
     : station.kind === 'world_interactable'
       ? 0x2fbf8a
       : 0xf39c12;

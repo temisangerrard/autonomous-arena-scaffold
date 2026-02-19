@@ -78,7 +78,12 @@ export async function buildRunbookSelection(deps: RunbookDeps): Promise<RunbookS
       matched: true,
       runbook: 'ops.state.snapshot',
       selectedSkills: ['inspect.state'],
-      skillTrace: [{ step: 'runbook.select.ops.state.snapshot', status: 'planned', summary: 'Selected ops snapshot runbook.' }],
+      skillTrace: [{
+        step: 'runbook.select.ops.state.snapshot',
+        status: 'planned',
+        summary: 'Selected ops snapshot runbook.',
+        whySelected: 'Message requested operations/coo state snapshot.'
+      }],
       safetyClass: 'read_only',
       plans: [{
         tool: 'runbook.ops.state.snapshot',
@@ -114,7 +119,12 @@ export async function buildRunbookSelection(deps: RunbookDeps): Promise<RunbookS
       matched: true,
       runbook: 'economy.daily.summary',
       selectedSkills: ['economy.analytics'],
-      skillTrace: [{ step: 'runbook.select.economy.daily.summary', status: 'planned', summary: 'Selected economy analytics runbook.' }],
+      skillTrace: [{
+        step: 'runbook.select.economy.daily.summary',
+        status: 'planned',
+        summary: 'Selected economy analytics runbook.',
+        whySelected: 'Message requested economy/payout/liquidity/risk summary.'
+      }],
       safetyClass: 'read_only',
       plans: [{
         tool: 'runbook.economy.daily.summary',
@@ -184,7 +194,12 @@ export async function buildRunbookSelection(deps: RunbookDeps): Promise<RunbookS
       matched: true,
       runbook: 'challenge.ops',
       selectedSkills: ['challenge.ops'],
-      skillTrace: [{ step: 'runbook.select.challenge.ops', status: 'planned', summary: 'Selected challenge operations runbook.' }],
+      skillTrace: [{
+        step: 'runbook.select.challenge.ops',
+        status: 'planned',
+        summary: 'Selected challenge operations runbook.',
+        whySelected: 'Message referenced stuck/orphan/challenge operations.'
+      }],
       safetyClass: includesFix ? 'mutating' : 'read_only',
       plans,
       requiresInput: undefined
@@ -198,7 +213,12 @@ export async function buildRunbookSelection(deps: RunbookDeps): Promise<RunbookS
       matched: true,
       runbook: 'player.inspect',
       selectedSkills: ['player.ops.inspect'],
-      skillTrace: [{ step: 'runbook.select.player.inspect', status: 'planned', summary: 'Selected player inspection runbook.' }],
+      skillTrace: [{
+        step: 'runbook.select.player.inspect',
+        status: 'planned',
+        summary: 'Selected player inspection runbook.',
+        whySelected: 'Message matched inspect/show/health player pattern.'
+      }],
       safetyClass: 'read_only',
       plans: [{
         tool: 'runbook.player.inspect',
@@ -232,7 +252,12 @@ export async function buildRunbookSelection(deps: RunbookDeps): Promise<RunbookS
       matched: true,
       runbook: 'player.logout',
       selectedSkills: ['player.ops.logout'],
-      skillTrace: [{ step: 'runbook.select.player.logout', status: 'planned', summary: 'Selected player logout runbook.' }],
+      skillTrace: [{
+        step: 'runbook.select.player.logout',
+        status: 'planned',
+        summary: 'Selected player logout runbook.',
+        whySelected: 'Message matched logout player pattern.'
+      }],
       safetyClass: 'mutating',
       plans: [{
         tool: 'runbook.player.logout',
@@ -261,7 +286,12 @@ export async function buildRunbookSelection(deps: RunbookDeps): Promise<RunbookS
       matched: true,
       runbook: 'wallet.adjust',
       selectedSkills: ['wallet.ops.adjust'],
-      skillTrace: [{ step: 'runbook.select.wallet.adjust', status: 'planned', summary: 'Selected wallet adjustment runbook.' }],
+      skillTrace: [{
+        step: 'runbook.select.wallet.adjust',
+        status: 'planned',
+        summary: 'Selected wallet adjustment runbook.',
+        whySelected: 'Message matched credit/debit player wallet pattern.'
+      }],
       safetyClass: 'financial',
       plans: [{
         tool: 'runbook.wallet.adjust',
@@ -297,7 +327,12 @@ export async function buildRunbookSelection(deps: RunbookDeps): Promise<RunbookS
       matched: true,
       runbook: 'runtime.integrity',
       selectedSkills: ['runtime.integrity'],
-      skillTrace: [{ step: 'runbook.select.runtime.integrity', status: 'planned', summary: 'Selected runtime continuity integrity runbook.' }],
+      skillTrace: [{
+        step: 'runbook.select.runtime.integrity',
+        status: 'planned',
+        summary: 'Selected runtime continuity integrity runbook.',
+        whySelected: 'Message requested continuity/runtime integrity checks.'
+      }],
       safetyClass: wantsRepair ? 'mutating' : 'read_only',
       plans: [{
         tool: 'runbook.runtime.integrity',

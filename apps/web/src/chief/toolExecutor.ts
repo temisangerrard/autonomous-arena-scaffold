@@ -7,6 +7,7 @@ export type ToolExecutionResult = {
   code: number;
   durationMs: number;
   reason?: string;
+  selectionRationale?: string;
 };
 
 function extractAllowedPrefixes(allowedTools: string[]): string[] {
@@ -26,6 +27,9 @@ export async function executeAllowedTool(command: string, allowedTools: string[]
   const normalized = String(command || '').trim();
   const prefixes = extractAllowedPrefixes(allowedTools);
   const allowed = prefixes.some((prefix) => normalized.startsWith(prefix));
+  const selectionRationale = allowed
+    ? `Command accepted by allowlist prefixes: ${prefixes.join(', ') || 'none'}`
+    : `Command blocked. No allowlist prefix matched: ${prefixes.join(', ') || 'none'}`;
   if (!allowed) {
     return {
       ok: false,
@@ -33,7 +37,8 @@ export async function executeAllowedTool(command: string, allowedTools: string[]
       stderr: '',
       code: 126,
       durationMs: 0,
-      reason: 'command_not_allowed'
+      reason: 'command_not_allowed',
+      selectionRationale
     };
   }
 
@@ -49,7 +54,8 @@ export async function executeAllowedTool(command: string, allowedTools: string[]
           stderr: redactOutput(stderr || String(error.message || 'execution_failed')),
           code,
           durationMs,
-          reason: 'execution_failed'
+          reason: 'execution_failed',
+          selectionRationale
         });
         return;
       }
@@ -58,7 +64,8 @@ export async function executeAllowedTool(command: string, allowedTools: string[]
         stdout: redactOutput(stdout),
         stderr: redactOutput(stderr),
         code: 0,
-        durationMs
+        durationMs,
+        selectionRationale
       });
     });
   });

@@ -41,6 +41,21 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
       actions: ['rps_house_start', 'rps_house_pick'] satisfies StationActionId[]
     },
     {
+      id: 'station_dealer_prediction_a',
+      kind: 'dealer_prediction',
+      displayName: 'Prediction Dealer',
+      x: (WORLD_SECTION_SPAWNS[4]?.x ?? -80) + 10,
+      z: (WORLD_SECTION_SPAWNS[4]?.z ?? 45) - 2,
+      yaw: 0,
+      actions: [
+        'prediction_markets_open',
+        'prediction_market_quote',
+        'prediction_market_buy_yes',
+        'prediction_market_buy_no',
+        'prediction_positions_open'
+      ] satisfies StationActionId[]
+    },
+    {
       id: 'station_cashier_bank',
       kind: 'cashier_bank',
       displayName: 'Cashier',

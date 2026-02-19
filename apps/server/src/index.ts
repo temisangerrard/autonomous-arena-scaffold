@@ -28,6 +28,9 @@ import {
 } from './game/proximity.js';
 import { computeCoinflipFromSeeds, sha256Hex } from './coinflip.js';
 import { createStationRouter } from './game/stations/router.js';
+import { PolymarketFeed } from './markets/PolymarketFeed.js';
+import { MarketService } from './markets/MarketService.js';
+import { SettlementWorker } from './markets/SettlementWorker.js';
 
 type PlayerMeta = {
   role: PlayerRole;
@@ -62,6 +65,14 @@ const escrowAdapter = new EscrowAdapter(
     internalToken: internalServiceToken
   }
 );
+const marketFeed = new PolymarketFeed();
+const marketService = new MarketService(
+  database,
+  escrowAdapter,
+  marketFeed,
+  () => houseWalletId || walletIdFor('system_house')
+);
+const settlementWorker = new SettlementWorker(marketService);
 
 const stationProximityThreshold = Math.max(3, Math.min(25, Number(process.env.STATION_PROXIMITY_THRESHOLD ?? 8)));
 
@@ -151,6 +162,7 @@ const server = createServer(createRouter({
   distributedChallengeStore,
   challengeService,
   database,
+  marketService,
   internalToken: internalServiceToken,
   publishAdminCommand: (targetServerId, command) => distributedBus.publishAdminCommand(targetServerId, command),
   teleportLocal: (playerId, x, z) => worldSim.teleportPlayer(playerId, x, z)
@@ -596,7 +608,8 @@ const stationRouter = createStationRouter({
   registerCreatedChallenge,
   dispatchChallengeEventWithEscrow,
   stationErrorFromEscrowFailure,
-  newSeedHex
+  newSeedHex,
+  marketService
 });
 const STATIONS = config.stationPluginRouterEnabled
   ? stationRouter.stations
@@ -1616,6 +1629,11 @@ void (async () => {
   await presenceStore.connect(config.redisUrl);
   await distributedChallengeStore.connect(config.redisUrl);
   await distributedBus.connect(config.redisUrl);
+  await marketService.syncFromOracle().catch(() => ({ ok: false, synced: 0 }));
+  setInterval(() => {
+    void marketService.syncFromOracle().catch(() => undefined);
+  }, Math.max(30_000, Number(process.env.PREDICTION_ORACLE_SYNC_MS || 60_000))).unref();
+  settlementWorker.start();
   if (wsAuthSecret) {
     log.info('websocket auth is enabled; ensure GAME_WS_AUTH_SECRET matches across web/server/agent-runtime.');
   }

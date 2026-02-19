@@ -37,19 +37,20 @@ const WORLD_SECTION_SPAWNS = [
 ];
 const MAX_BAKED_STATIONS_PER_SECTION = 3;
 const SECTION_KIND_ROTATIONS = [
-  ['dealer_dice_duel', 'world_interactable', 'dealer_coinflip'],
-  ['cashier_bank', 'dealer_coinflip', 'world_interactable'],
-  ['dealer_rps', 'dealer_coinflip', 'world_interactable'],
-  ['cashier_bank', 'world_interactable', 'dealer_rps'],
-  ['world_interactable', 'dealer_dice_duel', 'dealer_coinflip'],
-  ['dealer_rps', 'cashier_bank', 'world_interactable'],
-  ['dealer_coinflip', 'dealer_rps', 'world_interactable'],
-  ['dealer_dice_duel', 'dealer_coinflip', 'world_interactable']
+  ['dealer_dice_duel', 'dealer_prediction', 'dealer_coinflip'],
+  ['cashier_bank', 'dealer_coinflip', 'dealer_prediction'],
+  ['dealer_rps', 'dealer_coinflip', 'dealer_prediction'],
+  ['cashier_bank', 'dealer_prediction', 'dealer_rps'],
+  ['dealer_prediction', 'dealer_dice_duel', 'dealer_coinflip'],
+  ['dealer_rps', 'cashier_bank', 'dealer_prediction'],
+  ['dealer_coinflip', 'dealer_rps', 'dealer_prediction'],
+  ['dealer_dice_duel', 'dealer_coinflip', 'dealer_prediction']
 ];
 
 function inferKindFromName(name) {
   const raw = normalizeName(name).toLowerCase();
   if (raw.includes('cashier') || raw.includes('bank')) return 'cashier_bank';
+  if (raw.includes('predict') || raw.includes('market') || raw.includes('oracle')) return 'dealer_prediction';
   if (raw.includes('dice') || raw.includes('duel')) return 'dealer_dice_duel';
   if (raw.includes('rps') || raw.includes('rock') || raw.includes('paper') || raw.includes('scissors')) return 'dealer_rps';
   if (raw.includes('coin') || raw.includes('flip')) return 'dealer_coinflip';
@@ -83,6 +84,7 @@ function labelForKind(kind) {
   if (kind === 'dealer_coinflip') return 'Coinflip Dealer';
   if (kind === 'dealer_rps') return 'RPS Dealer';
   if (kind === 'dealer_dice_duel') return 'Dice Duel Dealer';
+  if (kind === 'dealer_prediction') return 'Prediction Dealer';
   return 'Info Host';
 }
 
@@ -91,6 +93,7 @@ function inferRole(kind) {
   if (kind === 'dealer_coinflip') return 'coinflip';
   if (kind === 'dealer_rps') return 'rps';
   if (kind === 'dealer_dice_duel') return 'dice';
+  if (kind === 'dealer_prediction') return 'prediction';
   return 'info';
 }
 
@@ -99,6 +102,7 @@ function actionsForKind(kind) {
   if (kind === 'dealer_coinflip') return ['coinflip_house_start', 'coinflip_house_pick'];
   if (kind === 'dealer_rps') return ['rps_house_start', 'rps_house_pick'];
   if (kind === 'dealer_dice_duel') return ['dice_duel_start', 'dice_duel_pick'];
+  if (kind === 'dealer_prediction') return ['prediction_markets_open', 'prediction_market_quote', 'prediction_market_buy_yes', 'prediction_market_buy_no', 'prediction_positions_open'];
   return ['interact_open', 'interact_use'];
 }
 
@@ -107,6 +111,7 @@ function interactionTagForKind(kind) {
   if (kind === 'dealer_coinflip') return 'coinflip_baked';
   if (kind === 'dealer_rps') return 'rps_baked';
   if (kind === 'dealer_dice_duel') return 'dice_baked';
+  if (kind === 'dealer_prediction') return 'prediction_baked';
   return 'info_kiosk';
 }
 
@@ -155,9 +160,9 @@ export function extractBakedNpcStations({ THREE, worldRoot }) {
       localInteraction: kind === 'world_interactable'
         ? {
             title: `Section ${sectionIndex + 1} Coordinator`,
-            inspect: 'This host coordinates active games in this section.',
+            inspect: `Section ${sectionIndex + 1} brief: active dealers and cashier routes are live in this zone.`,
             useLabel: 'View Jobs',
-            use: 'Coinflip, RPS, and Dice Duel hosts are active nearby. Start at any dealer station.'
+            use: 'Next action: open a dealer panel, confirm game-specific controls, and run a low-risk wager first.'
           }
         : null
     });
