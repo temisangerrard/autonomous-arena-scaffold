@@ -27,7 +27,9 @@ export function computeAvatarScaleForWorld(worldBox, baseScale = AVATAR_WORLD_SC
   if (!worldBox || !worldBox.getSize) {
     return baseScale;
   }
-  const size = worldBox.getSize({ x: 0, y: 0, z: 0 });
+  // getSize returns a Vector3-like object with x, y, z
+  const size = { x: 0, y: 0, z: 0 };
+  worldBox.getSize(size);
   // Use the larger of x/z dimensions as the world "footprint"
   const worldFootprint = Math.max(size.x || 1, size.z || 1);
   // Scale avatars relative to reference world size
