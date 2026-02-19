@@ -12,6 +12,31 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 export const AVATAR_GROUND_OFFSET = -0.7;
 export const AVATAR_WORLD_SCALE = 0.82;
 
+// Reference world size used to calculate dynamic avatar scaling.
+// Avatars were originally designed for a world of this approximate size.
+const REFERENCE_WORLD_SIZE = 120;
+
+/**
+ * Compute avatar scale factor based on loaded world's bounding box.
+ * Larger worlds get proportionally larger avatars to maintain visual presence.
+ * @param {THREE.Box3} worldBox - The world's bounding box
+ * @param {number} [baseScale=AVATAR_WORLD_SCALE] - Base avatar scale
+ * @returns {number} Scale factor for avatars
+ */
+export function computeAvatarScaleForWorld(worldBox, baseScale = AVATAR_WORLD_SCALE) {
+  if (!worldBox || !worldBox.getSize) {
+    return baseScale;
+  }
+  const size = worldBox.getSize({ x: 0, y: 0, z: 0 });
+  // Use the larger of x/z dimensions as the world "footprint"
+  const worldFootprint = Math.max(size.x || 1, size.z || 1);
+  // Scale avatars relative to reference world size
+  const scaleFactor = worldFootprint / REFERENCE_WORLD_SIZE;
+  // Clamp to reasonable range (0.5x to 3x of base scale)
+  const clampedFactor = Math.max(0.5, Math.min(3, scaleFactor));
+  return baseScale * clampedFactor;
+}
+
 // Color palettes
 const COLORS = {
   human: {
@@ -175,7 +200,9 @@ export function createCharacterGlbPool(THREE) {
       gltf,
       root,
       anchor,
-      yawOffset: Number(cfg.yawOffset) || 0
+      yawOffset: Number(cfg.yawOffset) || 0,
+      rawHeight,
+      config: cfg
     };
   }
 
@@ -515,11 +542,12 @@ export function animateAvatar(parts, speed, t, phaseOffset = 0) {
   parts.body.rotation.z = Math.sin(phase * 0.5) * 0.03 * gait;
 }
 
-export function createAvatarSystem({ THREE, scene }) {
+export function createAvatarSystem({ THREE, scene, worldScale = AVATAR_WORLD_SCALE }) {
   const glbPool = createCharacterGlbPool(THREE);
   const clock = new THREE.Clock();
   const MIN_RENDER_Y = -6;
   const MAX_RENDER_Y = 8;
+  let currentWorldScale = worldScale;
 
   function isNpcModelEligible(player) {
     if (!player) return false;
@@ -546,6 +574,8 @@ export function createAvatarSystem({ THREE, scene }) {
           glbRoot: null,
           glbAnchor: null,
           glbYawOffset: 0,
+          glbRawHeight: 0,
+          glbConfig: null,
           mixer: null
         };
         remote.proceduralAvatar = remote.avatar;
@@ -563,6 +593,8 @@ export function createAvatarSystem({ THREE, scene }) {
             active.glbRoot = loaded.root;
             active.glbAnchor = loaded.anchor;
             active.glbYawOffset = loaded.yawOffset || 0;
+            active.glbRawHeight = loaded.rawHeight || 1;
+            active.glbConfig = loaded.config || null;
             active.avatar = loaded.anchor;
             scene.add(loaded.anchor);
             if (Array.isArray(loaded.gltf.animations) && loaded.gltf.animations.length > 0) {
@@ -614,5 +646,41 @@ export function createAvatarSystem({ THREE, scene }) {
     }
   }
 
-  return { localAvatarParts, remoteAvatars, syncRemoteAvatars };
+  /**
+   * Update the world scale factor for all avatars.
+   * Call this after loading a new world to resize avatars appropriately.
+   * @param {number} newScale - The new scale factor
+   */
+  function updateWorldScale(newScale) {
+    if (!Number.isFinite(newScale) || newScale <= 0) return;
+    currentWorldScale = newScale;
+
+    // Update local avatar
+    if (localAvatarParts?.avatar) {
+      localAvatarParts.avatar.scale.setScalar(currentWorldScale);
+    }
+
+    // Update all remote avatars
+    for (const remote of remoteAvatars.values()) {
+      if (remote.glbRoot && remote.glbRawHeight && remote.glbConfig) {
+        // GLB models: recalculate scale based on new world scale
+        const rawHeight = remote.glbRawHeight;
+        const scale = ((Number(remote.glbConfig.targetHeight) || 1.7) * currentWorldScale) / rawHeight;
+        remote.glbRoot.scale.setScalar(scale);
+      } else if (remote.proceduralAvatar) {
+        // Procedural avatars
+        remote.proceduralAvatar.scale.setScalar(currentWorldScale);
+      }
+    }
+  }
+
+  /**
+   * Get current world scale factor.
+   * @returns {number}
+   */
+  function getWorldScale() {
+    return currentWorldScale;
+  }
+
+  return { localAvatarParts, remoteAvatars, syncRemoteAvatars, updateWorldScale, getWorldScale };
 }
