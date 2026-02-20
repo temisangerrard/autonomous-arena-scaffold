@@ -6,7 +6,7 @@
       left: 50%;
       bottom: 120px;
       transform: translateX(-50%);
-      width: min(380px, calc(100vw - 32px));
+      width: min(420px, calc(100vw - 32px));
       background: rgba(253, 248, 237, 0.98);
       border: 1px solid rgba(198, 152, 49, 0.45);
       border-radius: 16px;
@@ -244,4 +244,185 @@
     .interaction-hint {
       font: 12px/1.4 'Crimson Text', serif;
       color: rgba(60, 44, 18, 0.7);
+    }
+
+    /* ============================================
+       GAME PANEL (dealer station game UI)
+       ============================================ */
+    .game-panel {
+      display: grid;
+      gap: 12px;
+    }
+
+    .game-panel__wager-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(198, 152, 49, 0.28);
+      border-radius: 12px;
+      padding: 10px 14px;
+    }
+    .game-panel__wager-label {
+      font: 700 11px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6a5835;
+      flex-shrink: 0;
+    }
+    .game-panel__currency {
+      font-weight: 400;
+      opacity: 0.65;
+    }
+    .game-panel__wager-input {
+      flex: 1;
+      min-width: 0;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid rgba(163, 128, 40, 0.3);
+      background: rgba(255, 255, 255, 0.9);
+      padding: 0 10px;
+      font: 700 14px/1 var(--font-mono);
+      color: #2c2112;
+      text-align: right;
+    }
+    .game-panel__wager-input:focus {
+      outline: none;
+      border-color: var(--ui-gold);
+      box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.15);
+    }
+
+    .game-panel__stage {
+      display: flex;
+      justify-content: center;
+    }
+
+    .game-panel__play-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 48px;
+      padding: 0 32px;
+      border-radius: 12px;
+      border: 1px solid rgba(153, 113, 18, 0.55);
+      background: linear-gradient(160deg, #f0d060 0%, #c8940e 100%);
+      color: #241a07;
+      font: 900 15px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      box-shadow: 0 4px 14px rgba(200, 148, 14, 0.35);
+    }
+    .game-panel__play-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(200, 148, 14, 0.45);
+    }
+    .game-panel__play-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .game-panel__play-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .game-panel__play-icon {
+      font-size: 13px;
+    }
+
+    .game-panel__picks {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .game-panel__picks--dice {
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .game-panel__pick-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex: 1;
+      min-width: 72px;
+      max-width: 100px;
+      padding: 10px 6px 8px;
+      border-radius: 12px;
+      border: 2px solid rgba(198, 152, 49, 0.3);
+      background: rgba(255, 255, 255, 0.72);
+      color: #2c2112;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .game-panel__pick-btn:hover:not(:disabled) {
+      border-color: rgba(198, 152, 49, 0.75);
+      background: rgba(255, 248, 220, 0.95);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(198, 152, 49, 0.28);
+    }
+    .game-panel__pick-btn:active:not(:disabled) {
+      transform: translateY(0);
+      background: rgba(245, 220, 130, 0.85);
+    }
+    .game-panel__pick-btn:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .game-panel__pick-btn--die {
+      font-size: 28px;
+      line-height: 1;
+      min-width: 48px;
+      max-width: 56px;
+      flex: 0 0 auto;
+      padding: 8px 4px;
+    }
+    .game-panel__pick-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+    .game-panel__pick-label {
+      font: 700 10px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #5a3f16;
+    }
+
+    .game-panel__status {
+      font: 600 12px/1.4 'IBM Plex Sans', sans-serif;
+      color: rgba(44, 33, 18, 0.8);
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(198, 152, 49, 0.2);
+      border-radius: 10px;
+      padding: 9px 12px;
+      text-align: center;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .game-panel__status--prompt {
+      border-color: rgba(198, 152, 49, 0.55);
+      background: rgba(255, 248, 215, 0.82);
+      color: #4a3210;
+      font-weight: 700;
+    }
+    .game-panel__status--loading {
+      border-color: rgba(100, 140, 220, 0.35);
+      background: rgba(230, 238, 255, 0.7);
+      color: #2a3f7a;
+      animation: status-pulse 1.4s ease-in-out infinite;
+    }
+    .game-panel__status--error {
+      border-color: rgba(200, 80, 50, 0.45);
+      background: rgba(255, 230, 220, 0.8);
+      color: #7a2010;
+      font-weight: 700;
+    }
+    @keyframes status-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
     }

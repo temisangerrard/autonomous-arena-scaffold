@@ -67,7 +67,6 @@ const COLORS = {
 };
 
 export const CHARACTER_MODEL_CONFIGS = [
-  { file: 'anime_girl_mia_ter_excited_preview.glb', targetHeight: 1.72, yawOffset: 0 },
   { file: 'arab_man.glb', targetHeight: 1.74, yawOffset: 0 },
   { file: 'mordecai_-_fortnite_skin.glb', targetHeight: 1.68, yawOffset: 0 },
   { file: 'neutral_idle_fbi.glb', targetHeight: 1.72, yawOffset: 0 },

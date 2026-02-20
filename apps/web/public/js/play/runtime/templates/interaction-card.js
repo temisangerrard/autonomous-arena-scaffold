@@ -105,22 +105,36 @@ export function renderInteractionCardTemplate(params) {
         `;
         return;
       }
+      // Returns true if the dealer state belongs to this station (handles proxy id mismatch)
+      function dealerStationMatches(st) {
+        const dsid = String(state.ui.dealer.stationId || '');
+        return dsid === st.id || dsid === String(st.proxyStationId || '');
+      }
+
       if (station.kind === 'dealer_coinflip') {
         state.ui.dealer.gameType = 'coinflip';
+        const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)));
         stationUi.innerHTML = `
-          <div class="station-ui__title">Dealer: Coinflip</div>
-          <div class="station-ui__row">
-            <label for="station-wager">Wager (each, USDC)</label>
-            <input id="station-wager" type="number" min="0" max="10000" step="1" value="${Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)))}" />
+          <div class="game-panel">
+            <div class="game-panel__wager-row">
+              <label class="game-panel__wager-label" for="station-wager">Wager <span class="game-panel__currency">USDC</span></label>
+              <input class="game-panel__wager-input" id="station-wager" type="number" min="0" max="10000" step="1" value="${curWager}" />
+            </div>
+            <div class="game-panel__stage" id="station-stage">
+              <button id="station-house-start" class="game-panel__play-btn" type="button">
+                <span class="game-panel__play-icon">▶</span> Play
+              </button>
+            </div>
+            <div class="game-panel__picks" id="station-pick-actions" style="display:none;">
+              <button id="station-house-heads" class="game-panel__pick-btn" data-pick="heads" type="button">
+                <span class="game-panel__pick-icon">🪙</span><span class="game-panel__pick-label">Heads</span>
+              </button>
+              <button id="station-house-tails" class="game-panel__pick-btn" data-pick="tails" type="button">
+                <span class="game-panel__pick-icon">🔄</span><span class="game-panel__pick-label">Tails</span>
+              </button>
+            </div>
+            <div class="game-panel__status" id="station-status">Choose your wager and press Play.</div>
           </div>
-          <div class="station-ui__actions">
-            <button id="station-house-start" class="btn-gold" type="button">Start Round</button>
-          </div>
-          <div class="station-ui__actions" id="station-pick-actions" style="display:none;">
-            <button id="station-house-heads" class="btn-gold" type="button">Heads</button>
-            <button id="station-house-tails" class="btn-gold" type="button">Tails</button>
-          </div>
-          <div class="station-ui__meta" id="station-status">Start to receive house commit hash, then pick a side. Wagers are in USDC (displayed as $). Press Esc to close this panel and return to movement.</div>
         `;
 
         const wagerEl = document.getElementById('station-wager');
@@ -128,129 +142,165 @@ export function renderInteractionCardTemplate(params) {
         const headsBtn = document.getElementById('station-house-heads');
         const tailsBtn = document.getElementById('station-house-tails');
         const pickActions = document.getElementById('station-pick-actions');
+        const stageEl = document.getElementById('station-stage');
         const statusEl = document.getElementById('station-status');
 
+        function setGameStatus(text, tone) {
+          if (!statusEl) return;
+          statusEl.textContent = text;
+          statusEl.className = 'game-panel__status' + (tone ? ` game-panel__status--${tone}` : '');
+        }
+
+        function setPicksLocked(locked) {
+          if (headsBtn) headsBtn.disabled = locked;
+          if (tailsBtn) tailsBtn.disabled = locked;
+        }
+
         function sendStart() {
-          if (!sendStationInteract(station, 'coinflip_house_start', {
-            wager: Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)))
-          })) {
-            return;
-          }
           const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
+          if (!sendStationInteract(station, 'coinflip_house_start', { wager })) return;
           state.ui.dealer.state = 'preflight';
           state.ui.dealer.wager = wager;
-          setStationStatus(statusEl, 'Preflight check... validating player + house wallets. Press Esc to close panel.');
           if (startBtn) startBtn.disabled = true;
-          if (headsBtn) headsBtn.disabled = true;
-          if (tailsBtn) tailsBtn.disabled = true;
+          setPicksLocked(true);
+          setGameStatus('Locking in…', 'loading');
         }
 
         function sendPick(pick) {
-          if (!sendStationInteract(station, 'coinflip_house_pick', {
-            pick,
-            playerSeed: makePlayerSeed()
-          })) {
-            return;
-          }
+          if (!sendStationInteract(station, 'coinflip_house_pick', { pick, playerSeed: makePlayerSeed() })) return;
           state.ui.dealer.state = 'dealing';
-          setStationStatus(statusEl, `Flipping... ${pick.toUpperCase()} selected.`);
-          if (startBtn) startBtn.disabled = true;
-          if (headsBtn) headsBtn.disabled = true;
-          if (tailsBtn) tailsBtn.disabled = true;
+          setPicksLocked(true);
+          setGameStatus(`Flipping… you picked ${pick.toUpperCase()}`, 'loading');
         }
 
-        if (startBtn) {
-          startBtn.onclick = () => sendStart();
-        }
-        if (headsBtn) {
-          headsBtn.onclick = () => sendPick('heads');
-        }
-        if (tailsBtn) {
-          tailsBtn.onclick = () => sendPick('tails');
-        }
-        if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+        if (startBtn) startBtn.onclick = () => sendStart();
+        if (headsBtn) headsBtn.onclick = () => sendPick('heads');
+        if (tailsBtn) tailsBtn.onclick = () => sendPick('tails');
+
+        const ds = state.ui.dealer.state;
+        const stationReady = ds === 'ready' && dealerStationMatches(station);
+        if (stationReady) {
+          if (stageEl) stageEl.style.display = 'none';
           if (pickActions) pickActions.style.display = 'flex';
-          setStationStatus(statusEl, `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`);
-        }
-        if (state.ui.dealer.state === 'preflight') {
+          setPicksLocked(false);
+          setGameStatus('Choose your side — Heads or Tails!', 'prompt');
+        } else if (ds === 'preflight') {
           if (pickActions) pickActions.style.display = 'none';
-          setStationStatus(statusEl, 'Preflight check... (Esc closes panel)');
-        }
-        if (state.ui.dealer.state === 'dealing') {
+          setGameStatus('Locking in…', 'loading');
+        } else if (ds === 'dealing') {
+          if (stageEl) stageEl.style.display = 'none';
           if (pickActions) pickActions.style.display = 'flex';
-          setStationStatus(statusEl, 'Dealing...');
-        }
-        if (state.ui.dealer.state === 'error') {
-          if (pickActions) pickActions.style.display = 'none';
-          const msg = state.ui.dealer.reasonText || 'Insufficient gas. Top up ETH, then retry.';
-          setStationStatus(statusEl, msg, 'warning');
+          setPicksLocked(true);
+          setGameStatus('Flipping…', 'loading');
+        } else if (ds === 'error') {
           if (startBtn) startBtn.disabled = false;
-          if (headsBtn) headsBtn.disabled = false;
-          if (tailsBtn) tailsBtn.disabled = false;
+          setPicksLocked(false);
+          setGameStatus(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
         }
       } else if (station.kind === 'dealer_rps' || station.kind === 'dealer_dice_duel') {
         const isRps = station.kind === 'dealer_rps';
         state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
-        const gameLabel = isRps ? 'RPS' : 'Dice Duel';
         const startAction = isRps ? 'rps_house_start' : 'dice_duel_start';
         const pickAction = isRps ? 'rps_house_pick' : 'dice_duel_pick';
+        const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)));
+
+        const pickButtonsHtml = isRps
+          ? `<button id="station-house-r" class="game-panel__pick-btn" data-pick="rock" type="button"><span class="game-panel__pick-icon">🪨</span><span class="game-panel__pick-label">Rock</span></button>
+             <button id="station-house-p" class="game-panel__pick-btn" data-pick="paper" type="button"><span class="game-panel__pick-icon">📄</span><span class="game-panel__pick-label">Paper</span></button>
+             <button id="station-house-s" class="game-panel__pick-btn" data-pick="scissors" type="button"><span class="game-panel__pick-icon">✂️</span><span class="game-panel__pick-label">Scissors</span></button>`
+          : `<button id="station-house-d1" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d1" type="button">⚀</button>
+             <button id="station-house-d2" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d2" type="button">⚁</button>
+             <button id="station-house-d3" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d3" type="button">⚂</button>
+             <button id="station-house-d4" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d4" type="button">⚃</button>
+             <button id="station-house-d5" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d5" type="button">⚄</button>
+             <button id="station-house-d6" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d6" type="button">⚅</button>`;
+
         stationUi.innerHTML = `
-          <div class="station-ui__title">Dealer: ${gameLabel}</div>
-          <div class="station-ui__row">
-            <label for="station-wager">Wager (each, USDC)</label>
-            <input id="station-wager" type="number" min="0" max="10000" step="1" value="${Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)))}" />
+          <div class="game-panel">
+            <div class="game-panel__wager-row">
+              <label class="game-panel__wager-label" for="station-wager">Wager <span class="game-panel__currency">USDC</span></label>
+              <input class="game-panel__wager-input" id="station-wager" type="number" min="0" max="10000" step="1" value="${curWager}" />
+            </div>
+            <div class="game-panel__stage" id="station-stage">
+              <button id="station-house-start" class="game-panel__play-btn" type="button">
+                <span class="game-panel__play-icon">▶</span> Play
+              </button>
+            </div>
+            <div class="game-panel__picks${isRps ? '' : ' game-panel__picks--dice'}" id="station-pick-actions" style="display:none;">
+              ${pickButtonsHtml}
+            </div>
+            <div class="game-panel__status" id="station-status">Choose your wager and press Play.</div>
           </div>
-          <div class="station-ui__actions">
-            <button id="station-house-start" class="btn-gold" type="button">Start Round</button>
-          </div>
-          <div class="station-ui__actions" id="station-pick-actions" style="display:none;">
-            ${isRps
-              ? '<button id="station-house-r" class="btn-gold" type="button">Rock</button><button id="station-house-p" class="btn-gold" type="button">Paper</button><button id="station-house-s" class="btn-gold" type="button">Scissors</button>'
-              : '<button id="station-house-d1" class="btn-gold" type="button">1</button><button id="station-house-d2" class="btn-gold" type="button">2</button><button id="station-house-d3" class="btn-gold" type="button">3</button><button id="station-house-d4" class="btn-gold" type="button">4</button><button id="station-house-d5" class="btn-gold" type="button">5</button><button id="station-house-d6" class="btn-gold" type="button">6</button>'
-            }
-          </div>
-          <div class="station-ui__meta" id="station-status">Start to receive commit hash, then pick your move. Press Esc to close.</div>
         `;
 
         const wagerEl = document.getElementById('station-wager');
         const startBtn = document.getElementById('station-house-start');
         const pickActions = document.getElementById('station-pick-actions');
+        const stageEl = document.getElementById('station-stage');
         const statusEl = document.getElementById('station-status');
+
+        function setGameStatus(text, tone) {
+          if (!statusEl) return;
+          statusEl.textContent = text;
+          statusEl.className = 'game-panel__status' + (tone ? ` game-panel__status--${tone}` : '');
+        }
+
+        function setAllPicksLocked(locked) {
+          if (!pickActions) return;
+          for (const btn of pickActions.querySelectorAll('button')) {
+            btn.disabled = locked;
+          }
+        }
 
         if (startBtn) {
           startBtn.onclick = () => {
             const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
-            if (!sendStationInteract(station, startAction, { wager })) {
-              return;
-            }
+            if (!sendStationInteract(station, startAction, { wager })) return;
             state.ui.dealer.state = 'preflight';
             state.ui.dealer.wager = wager;
             state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
-            setStationStatus(statusEl, 'Preflight check...');
+            startBtn.disabled = true;
+            setGameStatus('Locking in…', 'loading');
           };
         }
 
         const picks = isRps ? ['rock', 'paper', 'scissors'] : ['d1', 'd2', 'd3', 'd4', 'd5', 'd6'];
         for (const pick of picks) {
-          const id = isRps
-            ? `station-house-${pick.charAt(0)}`
-            : `station-house-${pick}`;
-          const btn = document.getElementById(id);
+          const btnId = isRps ? `station-house-${pick.charAt(0)}` : `station-house-${pick}`;
+          const btn = document.getElementById(btnId);
           if (!(btn instanceof HTMLButtonElement)) continue;
           btn.onclick = () => {
-            if (!sendStationInteract(station, pickAction, {
-              pick,
-              playerSeed: makePlayerSeed()
-            })) {
-              return;
-            }
+            if (!sendStationInteract(station, pickAction, { pick, playerSeed: makePlayerSeed() })) return;
             state.ui.dealer.state = 'dealing';
-            setStationStatus(statusEl, `Dealing ${gameLabel}...`);
+            setAllPicksLocked(true);
+            setGameStatus(`You picked ${isRps ? pick : pick.replace('d', '')} — rolling…`, 'loading');
           };
         }
 
-        if (pickActions && state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
-          pickActions.style.display = 'flex';
+        const ds = state.ui.dealer.state;
+        const stationReady = ds === 'ready' && dealerStationMatches(station);
+        if (stationReady) {
+          if (stageEl) stageEl.style.display = 'none';
+          if (pickActions) pickActions.style.display = 'flex';
+          setAllPicksLocked(false);
+          setGameStatus(isRps ? 'Pick Rock, Paper, or Scissors!' : 'Pick your number!', 'prompt');
+        } else if (ds === 'preflight') {
+          setGameStatus('Locking in…', 'loading');
+        } else if (ds === 'dealing') {
+          if (stageEl) stageEl.style.display = 'none';
+          if (pickActions) pickActions.style.display = 'flex';
+          setAllPicksLocked(true);
+          setGameStatus('Rolling…', 'loading');
+        } else if (ds === 'reveal') {
+          if (startBtn) startBtn.disabled = false;
+          if (pickActions) pickActions.style.display = 'none';
+          if (stageEl) stageEl.style.display = 'flex';
+          setGameStatus('Round over — play again?');
+        } else if (ds === 'error') {
+          if (startBtn) startBtn.disabled = false;
+          if (pickActions) pickActions.style.display = 'none';
+          if (stageEl) stageEl.style.display = 'flex';
+          setGameStatus(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
         }
       } else if (station.kind === 'dealer_prediction') {
         stationUi.innerHTML = `
@@ -520,43 +570,58 @@ export function renderInteractionCardTemplate(params) {
     }
 
     if (station.kind === 'dealer_coinflip') {
+      function dealerStationMatchesLive(st) {
+        const dsid = String(state.ui.dealer.stationId || '');
+        return dsid === st.id || dsid === String(st.proxyStationId || '');
+      }
       const pickActions = document.getElementById('station-pick-actions');
+      const stageEl = document.getElementById('station-stage');
       const statusEl = document.getElementById('station-status');
       const startBtn = document.getElementById('station-house-start');
       const headsBtn = document.getElementById('station-house-heads');
       const tailsBtn = document.getElementById('station-house-tails');
-      if (state.ui.dealer.state === 'ready' && state.ui.dealer.stationId === station.id) {
+
+      function setLiveStatus(text, tone) {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.className = 'game-panel__status' + (tone ? ` game-panel__status--${tone}` : '');
+      }
+
+      const ds = state.ui.dealer.state;
+      if (ds === 'ready' && dealerStationMatchesLive(station)) {
         if (startBtn) startBtn.disabled = false;
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
+        if (stageEl) stageEl.style.display = 'none';
         if (pickActions) pickActions.style.display = 'flex';
-        setStationStatus(statusEl, `Commit ${state.ui.dealer.commitHash.slice(0, 12)}... received. Pick heads or tails (Esc closes panel).`);
-      } else if (state.ui.dealer.state === 'preflight') {
+        setLiveStatus('Choose your side — Heads or Tails!', 'prompt');
+      } else if (ds === 'preflight') {
         if (startBtn) startBtn.disabled = true;
         if (headsBtn) headsBtn.disabled = true;
         if (tailsBtn) tailsBtn.disabled = true;
         if (pickActions) pickActions.style.display = 'none';
-        setStationStatus(statusEl, 'Preflight check... (Esc closes panel)');
-      } else if (state.ui.dealer.state === 'dealing') {
+        setLiveStatus('Locking in…', 'loading');
+      } else if (ds === 'dealing') {
         if (startBtn) startBtn.disabled = true;
         if (headsBtn) headsBtn.disabled = true;
         if (tailsBtn) tailsBtn.disabled = true;
+        if (stageEl) stageEl.style.display = 'none';
         if (pickActions) pickActions.style.display = 'flex';
-        setStationStatus(statusEl, 'Dealing...');
-      } else if (state.ui.dealer.state === 'error') {
+        setLiveStatus('Flipping…', 'loading');
+      } else if (ds === 'error') {
         if (startBtn) startBtn.disabled = false;
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'none';
-        const msg = state.ui.dealer.reasonText || 'Insufficient gas. Top up ETH, then retry.';
-        setStationStatus(statusEl, msg, 'warning');
-      } else if (state.ui.dealer.state === 'reveal') {
+        setLiveStatus(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
+      } else if (ds === 'reveal') {
         if (startBtn) startBtn.disabled = false;
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
         if (pickActions) pickActions.style.display = 'none';
+        if (stageEl) stageEl.style.display = 'flex';
         if (statusEl) {
-          statusEl.classList.remove('station-ui__meta--warning', 'station-ui__meta--success');
+          statusEl.className = 'game-panel__status';
           const delta = Number(state.ui.dealer.payoutDelta || 0);
           const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
           renderDealerRevealStatus(statusEl, {
