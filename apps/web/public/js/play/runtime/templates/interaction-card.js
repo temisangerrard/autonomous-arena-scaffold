@@ -634,6 +634,77 @@ export function renderInteractionCardTemplate(params) {
         }
       }
     }
+    if (station.kind === 'dealer_rps' || station.kind === 'dealer_dice_duel') {
+      function dealerStationMatchesLiveRps(st) {
+        const dsid = String(state.ui.dealer.stationId || '');
+        return dsid === st.id || dsid === String(st.proxyStationId || '');
+      }
+      const isRpsLive = station.kind === 'dealer_rps';
+      const pickActions = document.getElementById('station-pick-actions');
+      const stageEl = document.getElementById('station-stage');
+      const statusEl = document.getElementById('station-status');
+      const startBtn = document.getElementById('station-house-start');
+
+      const allPickIds = isRpsLive
+        ? ['station-house-r', 'station-house-p', 'station-house-s']
+        : ['station-house-d1', 'station-house-d2', 'station-house-d3', 'station-house-d4', 'station-house-d5', 'station-house-d6'];
+
+      function setAllPicksBtnDisabled(disabled) {
+        for (const id of allPickIds) {
+          const btn = document.getElementById(id);
+          if (btn instanceof HTMLButtonElement) btn.disabled = disabled;
+        }
+      }
+
+      function setLiveStatusRps(text, tone) {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.className = 'game-panel__status' + (tone ? ` game-panel__status--${tone}` : '');
+      }
+
+      const ds = state.ui.dealer.state;
+      if (ds === 'ready' && dealerStationMatchesLiveRps(station)) {
+        if (startBtn) startBtn.disabled = false;
+        setAllPicksBtnDisabled(false);
+        if (stageEl) stageEl.style.display = 'none';
+        if (pickActions) pickActions.style.display = 'flex';
+        setLiveStatusRps(isRpsLive ? 'Pick Rock, Paper, or Scissors!' : 'Pick your number!', 'prompt');
+      } else if (ds === 'preflight') {
+        if (startBtn) startBtn.disabled = true;
+        setAllPicksBtnDisabled(true);
+        if (pickActions) pickActions.style.display = 'none';
+        setLiveStatusRps('Locking in…', 'loading');
+      } else if (ds === 'dealing') {
+        if (startBtn) startBtn.disabled = true;
+        setAllPicksBtnDisabled(true);
+        if (stageEl) stageEl.style.display = 'none';
+        if (pickActions) pickActions.style.display = 'flex';
+        setLiveStatusRps(isRpsLive ? 'Waiting for result…' : 'Rolling…', 'loading');
+      } else if (ds === 'error') {
+        if (startBtn) startBtn.disabled = false;
+        setAllPicksBtnDisabled(false);
+        if (pickActions) pickActions.style.display = 'none';
+        if (stageEl) stageEl.style.display = 'flex';
+        setLiveStatusRps(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
+      } else if (ds === 'reveal') {
+        if (startBtn) startBtn.disabled = false;
+        setAllPicksBtnDisabled(false);
+        if (pickActions) pickActions.style.display = 'none';
+        if (stageEl) stageEl.style.display = 'flex';
+        if (statusEl) {
+          statusEl.className = 'game-panel__status';
+          const delta = Number(state.ui.dealer.payoutDelta || 0);
+          const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
+          renderDealerRevealStatus(statusEl, {
+            coinflipResult: state.ui.dealer.coinflipResult,
+            delta,
+            txHash: tx,
+            walletBalance: state.walletBalance,
+            chainId: state.walletChainId
+          });
+        }
+      }
+    }
     if (station.kind === 'dealer_prediction') {
       const prediction = state.ui.prediction || {};
       const markets = Array.isArray(prediction.markets) ? prediction.markets : [];
