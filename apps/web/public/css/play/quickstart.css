@@ -1,0 +1,114 @@
+/* ============================================
+   QUICKSTART FIRST-STEPS PANEL
+   ============================================ */
+.quickstart-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 110;
+  width: min(340px, calc(100vw - 32px));
+  background: rgba(253, 248, 237, 0.96);
+  border: 1px solid rgba(201, 162, 39, 0.38);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  padding: 14px 16px 12px;
+  pointer-events: auto;
+}
+
+.quickstart-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.quickstart-panel__title {
+  font: 700 13px/1 'Crimson Text', serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #8c7018;
+}
+
+.quickstart-panel__close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: #a09070;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+.quickstart-panel__close:hover { color: #5a4020; }
+
+/* Step list */
+.quickstart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.qs-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  transition: opacity 0.2s;
+}
+
+.qs-step--done {
+  opacity: 0.5;
+}
+
+.qs-step__check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(201, 162, 39, 0.55);
+  background: rgba(255, 255, 255, 0.6);
+  font: 700 11px/18px 'IBM Plex Mono', monospace;
+  color: #8c7018;
+  text-align: center;
+  margin-top: 1px;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.qs-step--done .qs-step__check {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #16a34a;
+}
+
+.qs-step__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.qs-step__label {
+  font: 600 13px/1.2 'Crimson Text', serif;
+  color: #2c2416;
+}
+
+.qs-step--done .qs-step__label {
+  color: #7a6a50;
+}
+
+.qs-step__hint {
+  font: 12px/1.35 'Crimson Text', serif;
+  color: #7a6a50;
+}
+
+/* All-done completion message */
+.qs-complete {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(201, 162, 39, 0.2);
+  font: italic 13px/1.4 'Crimson Text', serif;
+  color: #8c7018;
+  list-style: none;
+}

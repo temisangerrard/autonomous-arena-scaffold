@@ -31,18 +31,17 @@
       <div id="onboarding-content">
         <!-- Step 0: Welcome -->
         <div class="onboarding__step" data-step="0">
-          <div class="onboarding__icon">⚔️</div>
-          <h2 class="onboarding__title" id="onboarding-title">Welcome to the Arena</h2>
-          <p class="onboarding__desc">Challenge AI agents and other players to betting duels. Let's learn the basics!</p>
+          <h2 class="onboarding__title" id="onboarding-title">The Arena</h2>
+          <p class="onboarding__desc">"Welcome. People come here from all over — some to test their luck, some their nerve. The dealers run fair games and the escrow never lies.<br><br>Walk around. Find someone to play against."<br><span class="onboarding__speaker">— Mara, Welcome Conductor</span></p>
           <div class="onboarding__actions">
-            <button class="onboarding__btn onboarding__btn--primary" data-action="next">Start Tutorial</button>
+            <button class="onboarding__btn onboarding__btn--primary" data-action="next">Show me around</button>
           </div>
+          <p class="onboarding__skip"><a id="skip-tutorial">I know my way — enter now</a></p>
         </div>
         <!-- Step 1: Movement -->
         <div class="onboarding__step onboarding__step--hidden" data-step="1">
-          <div class="onboarding__icon">🚶</div>
-          <h2 class="onboarding__title">Movement</h2>
-          <p class="onboarding__desc">Use WASD or arrow keys to move around the arena.</p>
+          <h2 class="onboarding__title">Getting around</h2>
+          <p class="onboarding__desc">Walk with <strong>WASD</strong>. Each character you see is a dealer or host — walk close enough and you'll be prompted to interact.</p>
           <div class="onboarding__keys">
             <div class="onboarding__key">
               <div class="onboarding__key-btn">W</div>
@@ -68,13 +67,16 @@
         </div>
         <!-- Step 2: Camera -->
         <div class="onboarding__step onboarding__step--hidden" data-step="2">
-          <div class="onboarding__icon">📷</div>
-          <h2 class="onboarding__title">Camera Control</h2>
-          <p class="onboarding__desc">Hold <strong>Shift + Right-drag</strong> to orbit the camera. Press <strong>R</strong> to reset behind your character.</p>
+          <h2 class="onboarding__title">Camera</h2>
+          <p class="onboarding__desc">Hold <strong>Shift + Right-drag</strong> to orbit around your character. Press <strong>R</strong> to snap the view back behind you. Scroll to zoom.</p>
           <div class="onboarding__keys">
             <div class="onboarding__key">
               <div class="onboarding__key-btn">R</div>
-              <span class="onboarding__key-label">Reset Cam</span>
+              <span class="onboarding__key-label">Reset</span>
+            </div>
+            <div class="onboarding__key">
+              <div class="onboarding__key-btn">⇕</div>
+              <span class="onboarding__key-label">Zoom</span>
             </div>
           </div>
           <div class="onboarding__actions">
@@ -82,23 +84,14 @@
             <button class="onboarding__btn onboarding__btn--primary" data-action="next">Next</button>
           </div>
         </div>
-        <!-- Step 3: Challenges -->
+        <!-- Step 3: Dealers -->
         <div class="onboarding__step onboarding__step--hidden" data-step="3">
-          <div class="onboarding__icon">⚔️</div>
-          <h2 class="onboarding__title">Challenges</h2>
-          <p class="onboarding__desc">When near another player, press <strong>E</strong> to open the interaction card. Send challenges with <strong>C</strong>, respond with <strong>Y/N</strong>.</p>
+          <h2 class="onboarding__title">The dealers</h2>
+          <p class="onboarding__desc">Walk up to Flint, Vera, or Kobi and press <strong>E</strong> to open a game station. Set your wager and hit Play. Every result is settled on-chain — no middlemen.</p>
           <div class="onboarding__keys">
             <div class="onboarding__key">
               <div class="onboarding__key-btn">E</div>
-              <span class="onboarding__key-label">Interact</span>
-            </div>
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">C</div>
-              <span class="onboarding__key-label">Challenge</span>
-            </div>
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">Y/N</div>
-              <span class="onboarding__key-label">Respond</span>
+              <span class="onboarding__key-label">Open station</span>
             </div>
           </div>
           <div class="onboarding__actions">
@@ -106,30 +99,29 @@
             <button class="onboarding__btn onboarding__btn--primary" data-action="next">Next</button>
           </div>
         </div>
-        <!-- Step 4: Games -->
+        <!-- Step 4: Making your move -->
         <div class="onboarding__step onboarding__step--hidden" data-step="4">
-          <div class="onboarding__icon">🎮</div>
-          <h2 class="onboarding__title">Play!</h2>
-          <p class="onboarding__desc">In active matches: Rock Paper Scissors uses <strong>1/2/3</strong> and Coin Flip uses <strong>H/T</strong>. Good luck!</p>
+          <h2 class="onboarding__title">Making your move</h2>
+          <p class="onboarding__desc">Once a round is live, pick your side. Coin Flip: <strong>H / T</strong>. Rock Paper Scissors: <strong>1 / 2 / 3</strong>. Dice: <strong>1–6</strong>. Escrow reveals and pays out instantly.</p>
           <div class="onboarding__keys">
+            <div class="onboarding__key">
+              <div class="onboarding__key-btn">H</div>
+              <span class="onboarding__key-label">Heads</span>
+            </div>
             <div class="onboarding__key">
               <div class="onboarding__key-btn">1</div>
               <span class="onboarding__key-label">Rock</span>
             </div>
             <div class="onboarding__key">
-              <div class="onboarding__key-btn">2</div>
-              <span class="onboarding__key-label">Paper</span>
-            </div>
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">3</div>
-              <span class="onboarding__key-label">Scissors</span>
+              <div class="onboarding__key-btn">1–6</div>
+              <span class="onboarding__key-label">Dice</span>
             </div>
           </div>
           <div class="onboarding__actions">
             <button class="onboarding__btn onboarding__btn--secondary" data-action="prev">Back</button>
-            <button class="onboarding__btn onboarding__btn--primary" data-action="start">Enter Arena</button>
+            <button class="onboarding__btn onboarding__btn--primary" data-action="start">Enter the Arena</button>
           </div>
-          <p class="onboarding__skip">Press <a id="skip-tutorial">Skip Tutorial</a> to start immediately</p>
+          <p class="onboarding__skip"><a id="skip-tutorial">Skip — enter now</a></p>
         </div>
       </div>
     </div>
@@ -144,6 +136,15 @@
       <div id="world-loading-text" class="world-loading__text">Preparing assets</div>
     </div>
   </div>
+
+  <!-- Quickstart Guide -->
+  <aside id="quickstart-panel" class="quickstart-panel" aria-label="Getting started guide">
+    <div class="quickstart-panel__head">
+      <span class="quickstart-panel__title">First steps</span>
+      <button id="quickstart-close" class="quickstart-panel__close" type="button" aria-label="Dismiss guide">×</button>
+    </div>
+    <ul id="quickstart-list" class="quickstart-list" aria-live="polite"></ul>
+  </aside>
 
   <!-- Top HUD -->
   <header id="hud" role="banner">

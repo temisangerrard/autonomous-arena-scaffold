@@ -516,37 +516,33 @@ export function renderInteractionCardTemplate(params) {
         }
         void refresh();
       } else if (station.kind === 'world_interactable') {
+        const localInteraction = station.localInteraction || {};
         const detail = state.ui.world.stationId === station.id
           ? state.ui.world.detail
-          : 'Interact with this world object.';
+          : (localInteraction.inspect || 'Interact with this world object.');
         const actionLabel = state.ui.world.stationId === station.id
           ? state.ui.world.actionLabel
-          : 'Use';
+          : (localInteraction.useLabel || 'Use');
+        const npcName = localInteraction.title || station.displayName;
         stationUi.innerHTML = `
-          <div class="station-ui__title">${station.displayName}</div>
-          <div class="station-ui__meta" id="world-interaction-detail">${detail}</div>
+          <div class="npc-speech">
+            <div class="npc-speech__name">${npcName}</div>
+            <div class="npc-speech__bubble" id="world-interaction-detail">${detail}</div>
+          </div>
           <div class="station-ui__actions">
-            <button id="world-interaction-open" class="btn-ghost" type="button">Inspect</button>
             <button id="world-interaction-use" class="btn-gold" type="button">${actionLabel}</button>
           </div>
         `;
-        const openBtn = document.getElementById('world-interaction-open');
         const useBtn = document.getElementById('world-interaction-use');
         const detailEl = document.getElementById('world-interaction-detail');
-        if (openBtn) {
-          openBtn.onclick = () => {
-            if (renderGuideStationDetail(station, 'inspect')) {
-              return;
-            }
-            void sendStationInteract(station, 'interact_open');
-          };
-        }
         if (useBtn) {
           useBtn.onclick = () => {
             if (renderGuideStationDetail(station, 'use')) {
               if (detailEl) {
                 detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
               }
+              useBtn.textContent = 'Used';
+              useBtn.disabled = true;
               return;
             }
             void sendStationInteract(station, 'interact_use', {
@@ -558,11 +554,7 @@ export function renderInteractionCardTemplate(params) {
           };
         }
         if (state.ui.world.stationId !== station.id) {
-          if (!renderGuideStationDetail(station, 'inspect')) {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              void sendStationInteract(station, 'interact_open');
-            }
-          }
+          renderGuideStationDetail(station, 'inspect');
         }
       } else {
         stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
