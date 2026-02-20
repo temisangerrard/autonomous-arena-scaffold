@@ -524,11 +524,14 @@ export function renderInteractionCardTemplate(params) {
           ? state.ui.world.actionLabel
           : (localInteraction.useLabel || 'Use');
         const npcName = localInteraction.title || station.displayName;
+        // Show name + role subtitle in card header; strip outer station-ui box styling
+        if (interactionTitle) {
+          const tag = station.interactionTag ? station.interactionTag.replace(/_/g, ' ') : 'host';
+          interactionTitle.innerHTML = `${npcName}<span class="interaction-card__subtitle">${tag}</span>`;
+        }
+        stationUi.classList.add('station-ui--npc');
         stationUi.innerHTML = `
-          <div class="npc-speech">
-            <div class="npc-speech__name">${npcName}</div>
-            <div class="npc-speech__bubble" id="world-interaction-detail">${detail}</div>
-          </div>
+          <div class="npc-speech__bubble" id="world-interaction-detail">${detail}</div>
           <div class="station-ui__actions">
             <button id="world-interaction-use" class="btn-gold" type="button">${actionLabel}</button>
           </div>
@@ -759,6 +762,7 @@ export function renderInteractionCardTemplate(params) {
   stationUi.hidden = true;
   stationUi.style.display = 'none';
   stationUi.innerHTML = '';
+  stationUi.classList.remove('station-ui--npc');
   interactionStationRenderKey = '';
   if (interactionNpcInfo && targetPlayer && state.ui.interactionMode === 'player') {
     interactionTitle.textContent = `Challenge: ${labelFor(targetId)}`;
