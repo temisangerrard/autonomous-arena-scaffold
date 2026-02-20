@@ -96,7 +96,10 @@ export function createStationRouting(params) {
 
     const station = stationObj || (state.stations instanceof Map ? state.stations.get(id) : null);
     const mappedProxyId = localStationToProxy.get(id) || '';
-    if (mappedProxyId && state.serverStations.has(mappedProxyId)) {
+    if (mappedProxyId) {
+      // Prefer the mapped proxy even when it's absent from the snapshot —
+      // world_interactable stations are filtered out of the snapshot on some
+      // server configs but the server still handles their station_interact calls.
       return mappedProxyId;
     }
 
