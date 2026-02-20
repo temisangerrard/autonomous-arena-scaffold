@@ -164,3 +164,10 @@
       text-decoration: underline;
       cursor: pointer;
     }
+    .onboarding__speaker {
+      display: block;
+      margin-top: 12px;
+      font: italic 600 13px/1 'Crimson Text', serif;
+      color: #a68523;
+      letter-spacing: 0.03em;
+    }

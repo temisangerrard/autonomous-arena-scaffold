@@ -27,65 +27,65 @@ export const HOST_STATION_PROXY_MAP = {
 function roleDetails(role) {
   if (role === 'guide') {
     return {
-      title: 'Welcome Conductor',
-      inspect: 'I route new players fast: find a dealer, pick a game, and keep wagers controlled.',
-      useLabel: 'Get Tour',
-      use: 'Start at the nearest dealer station. Open interaction with E, choose game + wager, then lock your move quickly.'
+      title: 'Mara',
+      inspect: '"Welcome to the Arena. People come here from all over — some to test their luck, some their nerve. The dealers run fair games and the escrow never lies. Walk around and find someone to play against."',
+      useLabel: 'How does it work?',
+      use: '"Walk up to any dealer and press E. Set your wager, hit Play, then make your move. The house settles on-chain instantly — no middlemen. Start small. The Arena rewards patience."'
     };
   }
   if (role === 'cashier') {
     return {
-      title: 'Cashier Ops',
-      inspect: 'I handle wallet flow: fund, withdraw, transfer, and balance checks.',
-      useLabel: 'Open Cashier',
-      use: 'Run a balance refresh first, then use small amounts for any fund/withdraw transfer test.'
+      title: 'Cassius',
+      inspect: '"All transactions, no conversation. I handle your USDC — deposits, withdrawals, player transfers. Your balance is live on-chain. What you see is what you actually have."',
+      useLabel: 'Check balance',
+      use: '"Balance loaded. Fund to top up, withdraw to pull out, or transfer to another player\'s wallet. Keep a few USDC in reserve — the dealers don\'t extend credit."'
     };
   }
   if (role === 'coinflip') {
     return {
-      title: 'Coinflip Dealer',
-      inspect: 'Fast variance rounds. Heads/Tails only with provably fair reveal.',
-      useLabel: 'Run Coinflip',
-      use: 'Press Start Round, wait for commit hash, then pick Heads or Tails before timeout.'
+      title: 'Flint',
+      inspect: '"Heads or tails — oldest game in the world, fairest one in this Arena. The outcome\'s committed on-chain before you even pick a side. No way to rig it. Not even for me."',
+      useLabel: 'Let\'s play',
+      use: '"Set your wager and hit Play. Once the round locks, pick Heads or Tails. Win and it goes straight to your wallet."'
     };
   }
   if (role === 'rps') {
     return {
-      title: 'RPS Dealer',
-      inspect: 'Skill matchup rounds with Rock/Paper/Scissors and escrow settlement.',
-      useLabel: 'Run RPS',
-      use: 'Start round, then submit Rock, Paper, or Scissors. Invalid move types are rejected.'
+      title: 'Vera',
+      inspect: '"Rock beats scissors, paper beats rock — you know the rules. What you don\'t know is that every round is sealed by escrow before either of us sees a result. Pure reads, pure nerve."',
+      useLabel: 'Challenge me',
+      use: '"Hit Play to lock the round, then throw Rock, Paper, or Scissors. Escrow reveals the winner and settles immediately. No takebacks."'
     };
   }
   if (role === 'dice') {
     return {
-      title: 'Dice Duel Host',
-      inspect: 'Number pick rounds with 1-6 move set and deterministic reveal flow.',
-      useLabel: 'Run Dice Duel',
-      use: 'Start round first, then lock one number from 1 to 6. Use small test wagers before scaling up.'
+      title: 'Kobi',
+      inspect: '"Six faces, one pick — the seed\'s randomised on-chain so neither of us knows the result until it lands. I\'ve been running this table longer than most players have been in the Arena."',
+      useLabel: 'Roll with me',
+      use: '"Start the round, pick a number from 1 to 6. If the die lands on your number, the pot\'s yours. Start with a small wager until you get the rhythm."'
     };
   }
   if (role === 'prediction') {
     return {
-      title: 'Prediction Dealer',
-      inspect: 'Live yes/no markets with house-priced quotes and capped wager limits.',
-      useLabel: 'Open Markets',
-      use: 'Open market list, request a quote, then buy YES or NO. Resolved markets settle automatically.'
+      title: 'Oren',
+      inspect: '"I trade outcomes, not cards. My markets are live yes/no questions on real events. Quote a side, check the price, decide if you believe in it. That\'s the whole game."',
+      useLabel: 'Browse markets',
+      use: '"Refresh the market list, pick a question you have a view on, request a quote, then buy YES or NO. Resolved markets settle automatically and winnings land in your wallet."'
     };
   }
   if (role === 'info') {
     return {
-      title: 'Explorer Guide',
-      inspect: 'I provide section-by-section routing for dealers, cashier, and interaction hosts.',
-      useLabel: 'Show Routes',
-      use: 'Coinflip, RPS, and Dice Duel are active now. Follow section markers and keep station radius in range.'
+      title: 'Scout',
+      inspect: '"I\'ve mapped every corner of this place. Coinflip\'s south-west, RPS south-east, Dice to the north-west. Cashier\'s near the east wall. Prediction markets at the far corner."',
+      useLabel: 'Show me the layout',
+      use: '"South: Flint runs Coinflip, Vera runs RPS. North: Kobi at the dice table. East: Cassius at the cashier. Far corner: Oren on prediction markets. Every station runs provably fair escrow."'
     };
   }
   return {
-    title: 'World Host',
-    inspect: 'I coordinate local interactions and can route you to active game stations.',
-    useLabel: 'Open Brief',
-    use: 'Use this brief, then move to the nearest dealer or cashier for the next operational step.'
+    title: 'Arena Host',
+    inspect: '"You\'ve found a world interaction point. Walk up and press E to open. Each one connects to a live game or service."',
+    useLabel: 'Open',
+    use: '"Interaction complete. Check the nearest game station if you\'re looking for a round."'
   };
 }
 
@@ -94,7 +94,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_guide',
       role: 'guide',
-      displayName: 'Welcome Conductor',
+      displayName: 'Mara',
       kind: 'world_interactable',
       interactionTag: 'guide_welcome',
       actions: ['interact_open', 'interact_use'],
@@ -104,7 +104,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_cashier',
       role: 'cashier',
-      displayName: 'Cashier Host',
+      displayName: 'Cassius',
       kind: 'cashier_bank',
       interactionTag: 'cashier_host',
       actions: ['balance', 'fund', 'withdraw', 'transfer'],
@@ -114,7 +114,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_coinflip_a',
       role: 'coinflip',
-      displayName: 'Coinflip Dealer A',
+      displayName: 'Flint',
       kind: 'dealer_coinflip',
       interactionTag: 'coinflip_a',
       actions: ['coinflip_house_start', 'coinflip_house_pick'],
@@ -124,7 +124,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_coinflip_b',
       role: 'coinflip',
-      displayName: 'Coinflip Dealer B',
+      displayName: 'Flint II',
       kind: 'dealer_coinflip',
       interactionTag: 'coinflip_b',
       actions: ['coinflip_house_start', 'coinflip_house_pick'],
@@ -134,7 +134,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_rps_a',
       role: 'rps',
-      displayName: 'RPS Dealer A',
+      displayName: 'Vera',
       kind: 'dealer_rps',
       interactionTag: 'rps_a',
       actions: ['rps_house_start', 'rps_house_pick'],
@@ -144,7 +144,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_rps_b',
       role: 'rps',
-      displayName: 'RPS Dealer B',
+      displayName: 'Vera II',
       kind: 'dealer_rps',
       interactionTag: 'rps_b',
       actions: ['rps_house_start', 'rps_house_pick'],
@@ -154,7 +154,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_dice',
       role: 'dice',
-      displayName: 'Dice Duel Host',
+      displayName: 'Kobi',
       kind: 'dealer_dice_duel',
       interactionTag: 'dice_host',
       actions: ['dice_duel_start', 'dice_duel_pick'],
@@ -164,7 +164,7 @@ function hostSpec(index) {
     {
       hostId: 'npc_host_info',
       role: 'prediction',
-      displayName: 'Prediction Dealer',
+      displayName: 'Oren',
       kind: 'dealer_prediction',
       interactionTag: 'prediction_host',
       actions: ['prediction_markets_open', 'prediction_market_quote', 'prediction_market_buy_yes', 'prediction_market_buy_no', 'prediction_positions_open'],
