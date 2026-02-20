@@ -3,7 +3,7 @@ import { AVATAR_GROUND_OFFSET, createCharacterGlbPool, createProceduralAvatar } 
 // Keep host positions aligned with server station coordinates to avoid
 // "not_near_station" mismatches for proxied dealer/cashier interactions.
 const WORLD_SECTION_SPAWNS = [
-  { x: -72, z: 41 }, // guide (local interactable)
+  { x: -70, z: 43 }, // guide (local interactable) -> station_world_info_a
   { x: 78, z: -41 }, // cashier -> station_cashier_bank
   { x: -25, z: -24 }, // coinflip_a -> station_dealer_coinflip_a
   { x: 25, z: 26 }, // coinflip_b -> station_dealer_coinflip_b
@@ -14,6 +14,7 @@ const WORLD_SECTION_SPAWNS = [
 ];
 
 export const HOST_STATION_PROXY_MAP = {
+  station_npc_host_1: 'station_world_info_a',
   station_npc_host_2: 'station_cashier_bank',
   station_npc_host_3: 'station_dealer_coinflip_a',
   station_npc_host_4: 'station_dealer_coinflip_b',
