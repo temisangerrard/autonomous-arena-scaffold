@@ -179,6 +179,52 @@
       color: #184828;
     }
 
+    .prediction-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .prediction-panel__head {
+      display: grid;
+      gap: 5px;
+    }
+
+    .prediction-panel__subhead {
+      font: 600 12px/1.35 'IBM Plex Sans', sans-serif;
+      color: rgba(68, 48, 14, 0.85);
+    }
+
+    .prediction-panel__ticker {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .prediction-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(198, 152, 49, 0.32);
+      background: rgba(255, 252, 242, 0.92);
+      color: #4c3512;
+      font: 700 10px/1 var(--font-mono);
+      letter-spacing: 0.02em;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .prediction-pill strong {
+      font-weight: 800;
+    }
+
+    .prediction-pill span {
+      opacity: 0.78;
+    }
+
     /* NPC speech bubble (world_interactable stations) */
     .npc-speech__bubble {
       font: 17px/1.6 'Crimson Text', serif;

@@ -218,6 +218,18 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Added player-vs-player separation so avatars cannot overlap; includes velocity dampening on contact.
 - Added test hooks for deterministic position setup in WorldSim tests.
 - Expanded WorldSim tests:
+
+- 2026-02-21: Prediction market UI pass for play interaction card (Claude-style continuity).
+  - Refactored prediction station interaction panel into a shared `prediction-panel` style that matches existing Claude card language.
+  - Added live market ticker pills + tighter copy in `/Users/temisan/Downloads/blender implementation/apps/web/public/css/play/interaction-card.css` and `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card.js`.
+  - Repurposed baked `world_interactable` stations (`interactionTag` containing `world_baked`) into market terminals:
+    - they now mount the same prediction UI surface
+    - route actions to nearest live `dealer_prediction` station
+    - stop behaving like dead/placeholder interaction points.
+  - Prediction UI live-render updater now applies to both dealer station and kiosk mode.
+  - Validation:
+    - `npm run -w @arena/web build` ✅
+    - `npm run -w @arena/web test` ❌ (existing unrelated failing tests in `src/runtimeModularity.test.js` and `src/stationRouting.test.js`).
   - overlap separation
   - obstacle blocking
   - existing speed/bounds/deceleration tests still passing.

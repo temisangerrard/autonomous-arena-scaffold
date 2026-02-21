@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Database, MarketActivationRecord, MarketPositionRecord, MarketRecord } from '../Database.js';
 import type { EscrowAdapter } from '../EscrowAdapter.js';
 import { METRIC_NAMES, metrics } from '../metrics.js';
-import { PolymarketFeed } from './PolymarketFeed.js';
+import { PolymarketFeed, type PolymarketNormalizedMarket } from './PolymarketFeed.js';
 
 export type MarketView = MarketRecord & {
   active: boolean;
@@ -27,9 +27,23 @@ const DEFAULT_MAX_WAGER = Math.max(1, Number(process.env.PREDICTION_MAX_WAGER_DE
 const DEFAULT_SPREAD_BPS = Math.max(0, Math.min(5000, Number(process.env.PREDICTION_SPREAD_BPS_DEFAULT || 300)));
 const MAX_OPEN_POSITIONS_PER_PLAYER = Math.max(1, Number(process.env.PREDICTION_MAX_OPEN_PER_PLAYER || 12));
 const ORACLE_STALE_MS = Math.max(30_000, Number(process.env.PREDICTION_ORACLE_STALE_MS || 3 * 60_000));
+const FALLBACK_MARKET_ID = (process.env.PREDICTION_FALLBACK_MARKET_ID || 'fallback_train_world_market').trim();
+const FALLBACK_MARKET_SLUG = (process.env.PREDICTION_FALLBACK_MARKET_SLUG || 'train-world-house-market').trim();
+const FALLBACK_MARKET_QUESTION = (
+  process.env.PREDICTION_FALLBACK_MARKET_QUESTION || 'Will Bitcoin (BTC) be higher in 24 hours?'
+).trim();
+const FALLBACK_MARKET_CATEGORY = (process.env.PREDICTION_FALLBACK_MARKET_CATEGORY || 'train_world').trim();
+const FALLBACK_MARKET_CLOSE_MS = Math.max(60 * 60_000, Number(process.env.PREDICTION_FALLBACK_CLOSE_MS || 24 * 60 * 60_000));
+const ENSURE_ACTIVE_MARKET_COOLDOWN_MS = Math.max(1_000, Number(process.env.PREDICTION_ENSURE_ACTIVE_COOLDOWN_MS || 5_000));
+const PREFERRED_MARKET_TERMS = (process.env.PREDICTION_PREFERRED_MARKET_TERMS || 'bitcoin,btc')
+  .split(',')
+  .map((token) => token.trim().toLowerCase())
+  .filter(Boolean);
 
 export class MarketService {
   private lastSyncAt = 0;
+  private ensureActiveMarketInFlight: Promise<void> | null = null;
+  private ensureActiveMarketLastRunAt = 0;
 
   constructor(
     private readonly db: Database,
@@ -68,6 +82,159 @@ export class MarketService {
     return this.normalizedPrice(raw + spread);
   }
 
+  private isPlayableNow(market: MarketRecord): boolean {
+    if (market.status === 'cancelled' || market.status === 'resolved') return false;
+    return market.closeAt > Date.now();
+  }
+
+  private async ensureFallbackMarket(activeMaxWager = DEFAULT_MAX_WAGER, activeSpreadBps = DEFAULT_SPREAD_BPS): Promise<void> {
+    const now = Date.now();
+    await this.db.upsertMarket({
+      id: FALLBACK_MARKET_ID,
+      slug: FALLBACK_MARKET_SLUG,
+      question: FALLBACK_MARKET_QUESTION,
+      category: FALLBACK_MARKET_CATEGORY,
+      closeAt: now + FALLBACK_MARKET_CLOSE_MS,
+      resolveAt: null,
+      status: 'open',
+      oracleSource: 'polymarket_gamma',
+      oracleMarketId: 'fallback_house',
+      outcome: null,
+      yesPrice: 0.5,
+      noPrice: 0.5,
+      rawJson: {
+        source: 'fallback',
+        generatedAt: now
+      }
+    });
+    await this.db.setMarketActivation({
+      marketId: FALLBACK_MARKET_ID,
+      active: true,
+      maxWager: activeMaxWager,
+      houseSpreadBps: activeSpreadBps,
+      updatedBy: 'system:auto_fallback'
+    });
+  }
+
+  private preferredMarketScore(market: MarketRecord): number {
+    const haystack = `${market.question} ${market.slug} ${market.category}`.toLowerCase();
+    let score = 0;
+    for (const term of PREFERRED_MARKET_TERMS) {
+      if (haystack.includes(term)) score += 1;
+    }
+    return score;
+  }
+
+  private async upsertOracleMarkets(markets: PolymarketNormalizedMarket[]): Promise<void> {
+    for (const entry of markets) {
+      await this.db.upsertMarket({
+        id: entry.id,
+        slug: entry.slug,
+        question: entry.question,
+        category: entry.category,
+        closeAt: entry.closeAt,
+        resolveAt: entry.resolveAt,
+        status: entry.status,
+        oracleSource: 'polymarket_gamma',
+        oracleMarketId: entry.oracleMarketId,
+        outcome: entry.outcome,
+        yesPrice: entry.yesPrice,
+        noPrice: entry.noPrice,
+        rawJson: entry.raw
+      });
+    }
+  }
+
+  private choosePreferredMarket<T extends { question: string; slug: string; category: string; closeAt: number }>(markets: T[]): T | null {
+    return (
+      markets
+        .map((market) => ({
+          market,
+          score: this.preferredMarketScore({
+            id: 'x',
+            slug: market.slug,
+            question: market.question,
+            category: market.category,
+            closeAt: market.closeAt,
+            resolveAt: null,
+            status: 'open',
+            oracleSource: '',
+            oracleMarketId: '',
+            outcome: null,
+            yesPrice: 0.5,
+            noPrice: 0.5
+          })
+        }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score || a.market.closeAt - b.market.closeAt)[0]?.market || null
+    );
+  }
+
+  private async ensureAtLeastOneActiveMarket(): Promise<void> {
+    const now = Date.now();
+    if (this.ensureActiveMarketInFlight) {
+      await this.ensureActiveMarketInFlight;
+      return;
+    }
+    if (now - this.ensureActiveMarketLastRunAt < ENSURE_ACTIVE_MARKET_COOLDOWN_MS) return;
+    this.ensureActiveMarketInFlight = (async () => {
+      const [markets, activation] = await Promise.all([this.db.listMarkets(200), this.activationMap()]);
+      const activePlayable = markets
+        .map((market) => this.marketViewOf(market, activation.get(market.id) || null))
+        .some((market) => market.active && this.isPlayableNow(market));
+      if (activePlayable) return;
+
+      const defaultActivation = activation.values().next().value || null;
+      const maxWager = Number(defaultActivation?.maxWager ?? DEFAULT_MAX_WAGER);
+      const houseSpreadBps = Number(defaultActivation?.houseSpreadBps ?? DEFAULT_SPREAD_BPS);
+      const candidatePool = markets.filter((market) => market.id !== FALLBACK_MARKET_ID && this.isPlayableNow(market));
+      const preferred = this.choosePreferredMarket(candidatePool);
+      const candidate = preferred || candidatePool[0];
+      if (candidate) {
+        await this.db.setMarketActivation({
+          marketId: candidate.id,
+          active: true,
+          maxWager,
+          houseSpreadBps,
+          updatedBy: 'system:auto_activate'
+        });
+        return;
+      }
+
+      // API-first path: pull fresh oracle markets and try to activate a BTC/preferred market.
+      try {
+        const oracleMarkets = await this.feed.fetchMarkets(80);
+        if (oracleMarkets.length > 0) {
+          await this.upsertOracleMarkets(oracleMarkets);
+          const openOracle = oracleMarkets.filter((market) => market.status === 'open' && market.closeAt > Date.now());
+          const preferredOracle = this.choosePreferredMarket(openOracle);
+          const oracleCandidate = preferredOracle || openOracle[0];
+          if (oracleCandidate) {
+            await this.db.setMarketActivation({
+              marketId: oracleCandidate.id,
+              active: true,
+              maxWager,
+              houseSpreadBps,
+              updatedBy: 'system:auto_activate_oracle'
+            });
+            return;
+          }
+        }
+      } catch {
+        // If oracle fetch fails, fallback market keeps station usable.
+      }
+
+      await this.ensureFallbackMarket(maxWager, houseSpreadBps);
+    })()
+      .catch(() => undefined)
+      .finally(() => {
+        this.ensureActiveMarketLastRunAt = Date.now();
+        this.ensureActiveMarketInFlight = null;
+      });
+
+    await this.ensureActiveMarketInFlight;
+  }
+
   async syncFromOracle(limit = 60): Promise<{ ok: boolean; synced: number; error?: string }> {
     try {
       const markets = await this.feed.fetchMarkets(limit);
@@ -96,6 +263,7 @@ export class MarketService {
   }
 
   async getAdminState(): Promise<{ ok: true; lastSyncAt: number; staleMs: number; markets: MarketView[] }> {
+    await this.ensureAtLeastOneActiveMarket();
     const [markets, activation] = await Promise.all([
       this.db.listMarkets(300),
       this.activationMap()
@@ -129,6 +297,7 @@ export class MarketService {
   }
 
   async listActiveMarketsForPlayer(): Promise<MarketView[]> {
+    await this.ensureAtLeastOneActiveMarket();
     const [markets, activation] = await Promise.all([
       this.db.listMarkets(200),
       this.activationMap()
@@ -147,6 +316,7 @@ export class MarketService {
     side: 'yes' | 'no';
     stake: number;
   }): Promise<QuoteResult> {
+    await this.ensureAtLeastOneActiveMarket();
     const [market, activation] = await Promise.all([
       this.db.getMarketById(params.marketId),
       this.activationMap()

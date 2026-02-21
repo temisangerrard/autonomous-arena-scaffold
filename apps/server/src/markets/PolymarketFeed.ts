@@ -91,7 +91,12 @@ export class PolymarketFeed {
   }
 
   async fetchMarkets(limit = 60): Promise<PolymarketNormalizedMarket[]> {
-    const url = `${this.baseUrl}?limit=${Math.max(1, Math.min(200, limit))}`;
+    const params = new URLSearchParams({
+      limit: String(Math.max(1, Math.min(200, limit))),
+      active: 'true',
+      closed: 'false'
+    });
+    const url = `${this.baseUrl}?${params.toString()}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(this.timeoutMs) });
     if (!response.ok) {
       throw new Error(`oracle_http_${response.status}`);

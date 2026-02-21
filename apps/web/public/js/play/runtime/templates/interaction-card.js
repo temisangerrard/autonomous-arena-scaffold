@@ -96,6 +96,7 @@ export function renderInteractionCardTemplate(params) {
     stationUi.style.display = 'grid';
     if (stationUi && interactionStationRenderKey !== stationRenderKey) {
       interactionStationRenderKey = stationRenderKey;
+      stationUi.dataset.predictionMode = '';
       if (station.source === 'host' && station.proxyMissing) {
         stationUi.innerHTML = `
           <div class="station-ui__title">${station.displayName || 'Station'}</div>
@@ -109,6 +110,157 @@ export function renderInteractionCardTemplate(params) {
       function dealerStationMatches(st) {
         const dsid = String(state.ui.dealer.stationId || '');
         return dsid === st.id || dsid === String(st.proxyStationId || '');
+      }
+
+      function resolvePredictionRouteStation(fromStation) {
+        const allPredictionStations = state.stations instanceof Map
+          ? [...state.stations.values()].filter((entry) => entry && entry.kind === 'dealer_prediction')
+          : [];
+        if (allPredictionStations.length === 0) return null;
+        const explicitProxy = String(fromStation?.proxyStationId || '').trim();
+        if (explicitProxy) {
+          const proxied = allPredictionStations.find((entry) => entry.id === explicitProxy);
+          if (proxied) return proxied;
+        }
+        const me = state.playerId ? state.players.get(state.playerId) : null;
+        const originX = Number(me?.x ?? me?.displayX ?? fromStation?.x ?? 0);
+        const originZ = Number(me?.z ?? me?.displayZ ?? fromStation?.z ?? 0);
+        let best = allPredictionStations[0] || null;
+        let bestScore = Number.POSITIVE_INFINITY;
+        for (const entry of allPredictionStations) {
+          const dist = Math.hypot(Number(entry.x || 0) - originX, Number(entry.z || 0) - originZ);
+          const score = dist + (entry.source === 'server' ? 0 : 1000);
+          if (score < bestScore) {
+            best = entry;
+            bestScore = score;
+          }
+        }
+        return best;
+      }
+
+      function mountPredictionPanel(options = {}) {
+        const routeStation = options.routeStation || station;
+        const kioskMode = Boolean(options.kioskMode);
+        const unavailable = !routeStation;
+        stationUi.classList.remove('station-ui--npc');
+        stationUi.dataset.predictionMode = kioskMode ? 'kiosk' : 'dealer';
+        stationUi.innerHTML = `
+          <div class="prediction-panel">
+            <div class="prediction-panel__head">
+              <div class="station-ui__title">${kioskMode ? 'Prediction Market Board' : 'Prediction Dealer'}</div>
+              <div class="prediction-panel__subhead">${kioskMode ? 'Browse live Polymarket outcomes from this terminal.' : 'Trade live YES/NO outcomes with market pricing.'}</div>
+            </div>
+            <div class="prediction-panel__ticker" id="prediction-market-strip"></div>
+            <div class="station-ui__row">
+              <label for="prediction-market-select">Market</label>
+              <select id="prediction-market-select"></select>
+            </div>
+            <div class="station-ui__row">
+              <label for="prediction-stake">Stake (USDC)</label>
+              <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" />
+            </div>
+            <div class="station-ui__actions">
+              <button id="prediction-refresh" class="btn-ghost" type="button">${kioskMode ? 'Refresh Board' : 'Refresh Markets'}</button>
+              <button id="prediction-positions" class="btn-ghost" type="button">My Positions</button>
+              <button id="prediction-quote" class="btn-ghost" type="button">Quote YES</button>
+            </div>
+            <div class="station-ui__actions">
+              <button id="prediction-buy-yes" class="btn-gold" type="button">Buy YES</button>
+              <button id="prediction-buy-no" class="btn-gold" type="button">Buy NO</button>
+            </div>
+            <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Load markets, then quote or place a side.'}</div>
+            <div class="station-ui__meta" id="prediction-quote-view"></div>
+            <div class="station-ui__meta" id="prediction-positions-view"></div>
+          </div>
+        `;
+
+        const selectEl = document.getElementById('prediction-market-select');
+        const stakeEl = document.getElementById('prediction-stake');
+        const refreshBtn = document.getElementById('prediction-refresh');
+        const positionsBtn = document.getElementById('prediction-positions');
+        const quoteBtn = document.getElementById('prediction-quote');
+        const buyYesBtn = document.getElementById('prediction-buy-yes');
+        const buyNoBtn = document.getElementById('prediction-buy-no');
+
+        function currentMarketId() {
+          if (selectEl instanceof HTMLSelectElement && selectEl.value) {
+            state.ui.prediction.selectedMarketId = selectEl.value;
+          }
+          return String(state.ui.prediction.selectedMarketId || '');
+        }
+
+        function currentStake() {
+          return Math.max(1, Math.min(10_000, Number(stakeEl?.value || 1)));
+        }
+
+        function dispatchPrediction(action, extra = {}) {
+          if (!routeStation) {
+            showToast('Prediction dealer is unavailable right now.');
+            return false;
+          }
+          return sendStationInteract(routeStation, action, extra);
+        }
+
+        if (selectEl instanceof HTMLSelectElement) {
+          selectEl.onchange = () => {
+            state.ui.prediction.selectedMarketId = String(selectEl.value || '');
+          };
+        }
+        if (refreshBtn) {
+          refreshBtn.onclick = () => {
+            dispatchPrediction('prediction_markets_open');
+          };
+        }
+        if (positionsBtn) {
+          positionsBtn.onclick = () => {
+            dispatchPrediction('prediction_positions_open');
+          };
+        }
+        if (quoteBtn) {
+          quoteBtn.onclick = () => {
+            const marketId = currentMarketId();
+            if (!marketId) {
+              showToast('Pick a market first.');
+              return;
+            }
+            dispatchPrediction('prediction_market_quote', {
+              marketId,
+              side: 'yes',
+              stake: currentStake()
+            });
+          };
+        }
+        if (buyYesBtn) {
+          buyYesBtn.onclick = () => {
+            const marketId = currentMarketId();
+            if (!marketId) {
+              showToast('Pick a market first.');
+              return;
+            }
+            state.ui.prediction.state = 'pending';
+            dispatchPrediction('prediction_market_buy_yes', {
+              marketId,
+              stake: currentStake()
+            });
+          };
+        }
+        if (buyNoBtn) {
+          buyNoBtn.onclick = () => {
+            const marketId = currentMarketId();
+            if (!marketId) {
+              showToast('Pick a market first.');
+              return;
+            }
+            state.ui.prediction.state = 'pending';
+            dispatchPrediction('prediction_market_buy_no', {
+              marketId,
+              stake: currentStake()
+            });
+          };
+        }
+        if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
+          dispatchPrediction('prediction_markets_open');
+        }
       }
 
       if (station.kind === 'dealer_coinflip') {
@@ -303,110 +455,7 @@ export function renderInteractionCardTemplate(params) {
           setGameStatus(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
         }
       } else if (station.kind === 'dealer_prediction') {
-        stationUi.innerHTML = `
-          <div class="station-ui__title">Dealer: Prediction Markets</div>
-          <div class="station-ui__row">
-            <label for="prediction-market-select">Market</label>
-            <select id="prediction-market-select"></select>
-          </div>
-          <div class="station-ui__row">
-            <label for="prediction-stake">Stake (USDC)</label>
-            <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" />
-          </div>
-          <div class="station-ui__actions">
-            <button id="prediction-refresh" class="btn-ghost" type="button">Refresh Markets</button>
-            <button id="prediction-positions" class="btn-ghost" type="button">My Positions</button>
-          </div>
-          <div class="station-ui__actions">
-            <button id="prediction-quote" class="btn-ghost" type="button">Quote</button>
-            <button id="prediction-buy-yes" class="btn-gold" type="button">Buy YES</button>
-            <button id="prediction-buy-no" class="btn-gold" type="button">Buy NO</button>
-          </div>
-          <div class="station-ui__meta" id="prediction-status">Load markets, then quote or place a side.</div>
-          <div class="station-ui__meta" id="prediction-quote-view"></div>
-          <div class="station-ui__meta" id="prediction-positions-view"></div>
-        `;
-        const selectEl = document.getElementById('prediction-market-select');
-        const stakeEl = document.getElementById('prediction-stake');
-        const refreshBtn = document.getElementById('prediction-refresh');
-        const positionsBtn = document.getElementById('prediction-positions');
-        const quoteBtn = document.getElementById('prediction-quote');
-        const buyYesBtn = document.getElementById('prediction-buy-yes');
-        const buyNoBtn = document.getElementById('prediction-buy-no');
-
-        function currentMarketId() {
-          if (selectEl instanceof HTMLSelectElement && selectEl.value) {
-            state.ui.prediction.selectedMarketId = selectEl.value;
-          }
-          return String(state.ui.prediction.selectedMarketId || '');
-        }
-
-        function currentStake() {
-          return Math.max(1, Math.min(10_000, Number(stakeEl?.value || 1)));
-        }
-
-        function sendQuote(side) {
-          const marketId = currentMarketId();
-          if (!marketId) {
-            showToast('Pick a market first.');
-            return;
-          }
-          sendStationInteract(station, 'prediction_market_quote', {
-            marketId,
-            side,
-            stake: currentStake()
-          });
-        }
-
-        if (selectEl instanceof HTMLSelectElement) {
-          selectEl.onchange = () => {
-            state.ui.prediction.selectedMarketId = String(selectEl.value || '');
-          };
-        }
-        if (refreshBtn) {
-          refreshBtn.onclick = () => {
-            sendStationInteract(station, 'prediction_markets_open');
-          };
-        }
-        if (positionsBtn) {
-          positionsBtn.onclick = () => {
-            sendStationInteract(station, 'prediction_positions_open');
-          };
-        }
-        if (quoteBtn) {
-          quoteBtn.onclick = () => sendQuote('yes');
-        }
-        if (buyYesBtn) {
-          buyYesBtn.onclick = () => {
-            const marketId = currentMarketId();
-            if (!marketId) {
-              showToast('Pick a market first.');
-              return;
-            }
-            state.ui.prediction.state = 'pending';
-            sendStationInteract(station, 'prediction_market_buy_yes', {
-              marketId,
-              stake: currentStake()
-            });
-          };
-        }
-        if (buyNoBtn) {
-          buyNoBtn.onclick = () => {
-            const marketId = currentMarketId();
-            if (!marketId) {
-              showToast('Pick a market first.');
-              return;
-            }
-            state.ui.prediction.state = 'pending';
-            sendStationInteract(station, 'prediction_market_buy_no', {
-              marketId,
-              stake: currentStake()
-            });
-          };
-        }
-        if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
-          sendStationInteract(station, 'prediction_markets_open');
-        }
+        mountPredictionPanel({ routeStation: station, kioskMode: false });
       } else if (station.kind === 'cashier_bank') {
         stationUi.innerHTML = `
           <div class="station-ui__title">Cashier</div>
@@ -516,48 +565,57 @@ export function renderInteractionCardTemplate(params) {
         }
         void refresh();
       } else if (station.kind === 'world_interactable') {
-        const localInteraction = station.localInteraction || {};
-        const detail = state.ui.world.stationId === station.id
-          ? state.ui.world.detail
-          : (localInteraction.inspect || 'Interact with this world object.');
-        const actionLabel = state.ui.world.stationId === station.id
-          ? state.ui.world.actionLabel
-          : (localInteraction.useLabel || 'Use');
-        const npcName = localInteraction.title || station.displayName;
-        // Show name + role subtitle in card header; strip outer station-ui box styling
-        if (interactionTitle) {
-          const tag = station.interactionTag ? station.interactionTag.replace(/_/g, ' ') : 'host';
-          interactionTitle.innerHTML = `${npcName}<span class="interaction-card__subtitle">${tag}</span>`;
-        }
-        stationUi.classList.add('station-ui--npc');
-        stationUi.innerHTML = `
-          <div class="npc-speech__bubble" id="world-interaction-detail">${detail}</div>
-          <div class="station-ui__actions">
-            <button id="world-interaction-use" class="btn-gold" type="button">${actionLabel}</button>
-          </div>
-        `;
-        const useBtn = document.getElementById('world-interaction-use');
-        const detailEl = document.getElementById('world-interaction-detail');
-        if (useBtn) {
-          useBtn.onclick = () => {
-            if (renderGuideStationDetail(station, 'use')) {
-              if (detailEl) {
-                detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
+        const isMarketBoardStation = String(station.interactionTag || '').includes('world_baked');
+        if (isMarketBoardStation) {
+          const routeStation = resolvePredictionRouteStation(station);
+          if (interactionTitle) {
+            interactionTitle.innerHTML = `Market Terminal<span class="interaction-card__subtitle">live board</span>`;
+          }
+          mountPredictionPanel({ routeStation, kioskMode: true });
+        } else {
+          const localInteraction = station.localInteraction || {};
+          const detail = state.ui.world.stationId === station.id
+            ? state.ui.world.detail
+            : (localInteraction.inspect || 'Interact with this world object.');
+          const actionLabel = state.ui.world.stationId === station.id
+            ? state.ui.world.actionLabel
+            : (localInteraction.useLabel || 'Use');
+          const npcName = localInteraction.title || station.displayName;
+          // Show name + role subtitle in card header; strip outer station-ui box styling
+          if (interactionTitle) {
+            const tag = station.interactionTag ? station.interactionTag.replace(/_/g, ' ') : 'host';
+            interactionTitle.innerHTML = `${npcName}<span class="interaction-card__subtitle">${tag}</span>`;
+          }
+          stationUi.classList.add('station-ui--npc');
+          stationUi.innerHTML = `
+            <div class="npc-speech__bubble" id="world-interaction-detail">${detail}</div>
+            <div class="station-ui__actions">
+              <button id="world-interaction-use" class="btn-gold" type="button">${actionLabel}</button>
+            </div>
+          `;
+          const useBtn = document.getElementById('world-interaction-use');
+          const detailEl = document.getElementById('world-interaction-detail');
+          if (useBtn) {
+            useBtn.onclick = () => {
+              if (renderGuideStationDetail(station, 'use')) {
+                if (detailEl) {
+                  detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
+                }
+                useBtn.textContent = 'Used';
+                useBtn.disabled = true;
+                return;
               }
-              useBtn.textContent = 'Used';
-              useBtn.disabled = true;
-              return;
-            }
-            void sendStationInteract(station, 'interact_use', {
-              interactionTag: String(station.interactionTag || '')
-            });
-            if (detailEl) {
-              detailEl.textContent = 'Using interaction...';
-            }
-          };
-        }
-        if (state.ui.world.stationId !== station.id) {
-          renderGuideStationDetail(station, 'inspect');
+              void sendStationInteract(station, 'interact_use', {
+                interactionTag: String(station.interactionTag || '')
+              });
+              if (detailEl) {
+                detailEl.textContent = 'Using interaction...';
+              }
+            };
+          }
+          if (state.ui.world.stationId !== station.id) {
+            renderGuideStationDetail(station, 'inspect');
+          }
         }
       } else {
         stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
@@ -700,7 +758,7 @@ export function renderInteractionCardTemplate(params) {
         }
       }
     }
-    if (station.kind === 'dealer_prediction') {
+    if (station.kind === 'dealer_prediction' || stationUi.dataset.predictionMode === 'kiosk') {
       const prediction = state.ui.prediction || {};
       const markets = Array.isArray(prediction.markets) ? prediction.markets : [];
       const positions = Array.isArray(prediction.positions) ? prediction.positions : [];
@@ -709,6 +767,7 @@ export function renderInteractionCardTemplate(params) {
       const statusEl = document.getElementById('prediction-status');
       const quoteEl = document.getElementById('prediction-quote-view');
       const positionsEl = document.getElementById('prediction-positions-view');
+      const tickerEl = document.getElementById('prediction-market-strip');
       if (selectEl instanceof HTMLSelectElement) {
         const options = markets.map((market) => {
           const marketId = String(market.marketId || '');
@@ -755,6 +814,18 @@ export function renderInteractionCardTemplate(params) {
               })
               .join('<br/>');
       }
+      if (tickerEl) {
+        tickerEl.innerHTML = markets.length === 0
+          ? '<span class="prediction-pill">No active markets</span>'
+          : markets
+              .slice(0, 3)
+              .map((entry) => {
+                const question = String(entry.question || entry.marketId || '').slice(0, 42);
+                const yes = formatPredictionPrice(Number(entry.yesPrice || 0));
+                return `<span class="prediction-pill"><strong>${question}</strong><span>YES ${yes}</span></span>`;
+              })
+              .join('');
+      }
     }
     return;
   }
@@ -762,6 +833,7 @@ export function renderInteractionCardTemplate(params) {
   stationUi.hidden = true;
   stationUi.style.display = 'none';
   stationUi.innerHTML = '';
+  stationUi.dataset.predictionMode = '';
   stationUi.classList.remove('station-ui--npc');
   interactionStationRenderKey = '';
   if (interactionNpcInfo && targetPlayer && state.ui.interactionMode === 'player') {
