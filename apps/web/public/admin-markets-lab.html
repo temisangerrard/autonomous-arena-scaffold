@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Markets Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/claude-corners.css">
+  <script src="/runtime-config.js"></script>
+  <style>
+    :root {
+      --ink: #15120d;
+      --gold: #c79b39;
+      --edge: #d8c8a6;
+      --panel: #fffcf5;
+      --muted: #706654;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Syne', system-ui, sans-serif;
+    }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 12% 8%, #fff7e8 0%, #f5efdf 48%, #ede5d2 100%);
+      color: var(--ink);
+      font-family: var(--sans);
+    }
+    .page {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      gap: 12px;
+    }
+    .head {
+      border: 1px solid var(--edge);
+      border-radius: 14px;
+      background: var(--panel);
+      padding: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    h1 {
+      margin: 0;
+      font: 700 28px/1 var(--sans);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font: 500 13px/1.4 var(--sans);
+      max-width: 860px;
+    }
+    .status {
+      border: 1px solid var(--edge);
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font: 12px/1.3 var(--mono);
+      color: #574c3a;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .kpi {
+      border: 1px solid var(--edge);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.86);
+      padding: 10px;
+    }
+    .kpi .label {
+      font: 11px/1.2 var(--mono);
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .kpi .value {
+      margin-top: 4px;
+      font: 700 22px/1 var(--sans);
+    }
+    .panel {
+      border: 1px solid var(--edge);
+      border-radius: 12px;
+      background: var(--panel);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    input, select {
+      border-radius: 9px;
+      border: 1px solid var(--edge);
+      background: #fff;
+      color: var(--ink);
+      padding: 8px;
+      font: 13px/1.3 var(--sans);
+      min-width: 110px;
+    }
+    .btn {
+      border: 1px solid #cfbd96;
+      border-radius: 9px;
+      background: #fffdf7;
+      color: #2e2518;
+      padding: 8px 10px;
+      font: 700 11px/1 var(--mono);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-gold {
+      background: linear-gradient(125deg, #dfb95b, #ba8d29);
+      color: #241a08;
+      border-color: #aa7f20;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      border-bottom: 1px solid #e8dbc0;
+      padding: 8px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      text-transform: uppercase;
+      font: 11px/1.2 var(--mono);
+      color: #665a46;
+    }
+    .table-wrap {
+      overflow: auto;
+      max-height: 360px;
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      background: #fffdf8;
+    }
+    .badge {
+      border: 1px solid #dac9a5;
+      border-radius: 999px;
+      padding: 4px 7px;
+      font: 11px/1 var(--mono);
+      white-space: nowrap;
+      display: inline-block;
+    }
+    .badge.live { border-color: #9bc7a0; color: #1d5f28; background: #f2fff3; }
+    .badge.off { border-color: #d7b1a4; color: #7c2f1a; background: #fff5f2; }
+    .mono { font-family: var(--mono); }
+    .cap {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .cap article {
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.88);
+      padding: 10px;
+    }
+    .cap h3 {
+      margin: 0 0 6px;
+      font: 700 12px/1 var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #7a5c1f;
+    }
+    .cap p {
+      margin: 0;
+      color: #4f4535;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    @media (max-width: 980px) {
+      .grid, .cap { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 680px) {
+      .grid, .cap { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="head">
+      <div>
+        <h1>Polymarket Admin Lab</h1>
+        <p class="sub">Clean control surface for live Polymarket feed, enabled in-app markets, activation toggles, and stake/quote simulation. Built to validate integration outside gameplay UI.</p>
+      </div>
+      <div class="row">
+        <a class="btn" href="/admin">Back To Admin</a>
+        <button id="refresh-all" class="btn btn-gold" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <section id="status" class="status">Loading markets lab...</section>
+
+    <section class="grid">
+      <article class="kpi"><div class="label">Enabled Markets</div><div class="value" id="kpi-enabled">0</div></article>
+      <article class="kpi"><div class="label">Active Markets</div><div class="value" id="kpi-active">0</div></article>
+      <article class="kpi"><div class="label">Live API Markets</div><div class="value" id="kpi-live">0</div></article>
+      <article class="kpi"><div class="label">API Access</div><div class="value mono" id="kpi-auth">Public</div></article>
+    </section>
+
+    <section class="cap">
+      <article>
+        <h3>What You Can Do</h3>
+        <p>Browse live Polymarket feed, search BTC/events, and promote a live market into your enabled list for gameplay.</p>
+      </article>
+      <article>
+        <h3>Activation Controls</h3>
+        <p>Toggle market active/inactive, set max wager and spread, then reuse same market immediately in station gameplay.</p>
+      </article>
+      <article>
+        <h3>API Key Requirement</h3>
+        <p id="api-key-note">No key needed for public Gamma read endpoints in this setup. Key is only needed if you move to restricted/private data providers.</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="row">
+        <h2 style="margin:0; font:700 15px/1 var(--sans); text-transform:uppercase; letter-spacing:0.05em;">Enabled In App</h2>
+        <button id="sync-markets" class="btn" type="button">Sync From Polymarket</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Status</th>
+              <th>Pricing</th>
+              <th>Controls</th>
+            </tr>
+          </thead>
+          <tbody id="enabled-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="row">
+        <h2 style="margin:0; font:700 15px/1 var(--sans); text-transform:uppercase; letter-spacing:0.05em;">Live Polymarket Feed</h2>
+        <input id="live-query" type="text" placeholder="Search (btc, election, sports)" />
+        <select id="live-limit">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
+        <button id="refresh-live" class="btn" type="button">Load Live Feed</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Close</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="live-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin:0; font:700 15px/1 var(--sans); text-transform:uppercase; letter-spacing:0.05em;">Stake Simulator</h2>
+      <div class="row">
+        <select id="sim-market"></select>
+        <select id="sim-side">
+          <option value="yes">YES</option>
+          <option value="no">NO</option>
+        </select>
+        <input id="sim-stake" type="number" min="1" max="10000" step="1" value="10" />
+        <button id="sim-run" class="btn btn-gold" type="button">Simulate Quote</button>
+      </div>
+      <div id="sim-output" class="status">Select an enabled market and run simulation.</div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/admin-markets-lab.js"></script>
+</body>
+</html>

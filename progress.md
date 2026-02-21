@@ -230,6 +230,28 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - Validation:
     - `npm run -w @arena/web build` ✅
     - `npm run -w @arena/web test` ❌ (existing unrelated failing tests in `src/runtimeModularity.test.js` and `src/stationRouting.test.js`).
+
+- 2026-02-21: Added standalone admin Polymarket lab page for integration clarity.
+  - New admin page at `/admin/markets-lab`:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/admin-markets-lab.html`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/admin-markets-lab.js`
+  - Page capabilities:
+    - view enabled app markets (`/api/admin/runtime/markets`)
+    - view live Polymarket feed preview (`/api/admin/runtime/markets/live`)
+    - sync markets from oracle, activate/deactivate, apply defaults, promote live market into enabled set
+    - local stake/quote simulator to preview pricing effects (including spread)
+    - explicit API-key note: public Gamma read endpoint requires no key in this setup
+  - Server additions:
+    - `MarketService.previewLiveMarkets(...)` read-only oracle preview
+    - new server admin route `GET /admin/markets/live`
+    - web admin proxy `GET /api/admin/runtime/markets/live`
+    - admin-only route mapping for `/admin/markets-lab`
+  - Admin navigation update:
+    - added “Open Markets Lab” link in `/Users/temisan/Downloads/blender implementation/apps/web/public/agents.html`
+  - Validation:
+    - `npm run -w @arena/server test` ✅
+    - `npm run -w @arena/server build` ✅
+    - `npm run -w @arena/web build` ✅
   - overlap separation
   - obstacle blocking
   - existing speed/bounds/deceleration tests still passing.

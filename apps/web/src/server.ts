@@ -756,6 +756,18 @@ function htmlRouteToFile(
     return path.join(publicDir, 'admin-chief.html');
   }
 
+  if (pathname === '/admin/markets-lab') {
+    if (!identity) {
+      redirect(res, '/welcome');
+      return null;
+    }
+    if (identity.role !== 'admin') {
+      redirect(res, '/dashboard');
+      return null;
+    }
+    return path.join(publicDir, 'admin-markets-lab.html');
+  }
+
   if (pathname === '/agents') {
     if (!identity) {
       redirect(res, '/welcome');
@@ -1924,6 +1936,21 @@ const server = createServer(async (req, res) => {
     if (subpath === '/markets' && req.method === 'GET') {
       try {
         const payload = await serverGet('/admin/markets');
+        sendJson(res, payload);
+      } catch {
+        sendJson(res, { ok: false, reason: 'server_unavailable' }, 400);
+      }
+      return;
+    }
+    if (subpath === '/markets/live' && req.method === 'GET') {
+      const limit = Math.max(1, Math.min(200, Number(requestUrl.searchParams.get('limit') || 60)));
+      const query = String(requestUrl.searchParams.get('query') || '').trim();
+      const queryBits = new URLSearchParams({
+        limit: String(limit)
+      });
+      if (query) queryBits.set('query', query);
+      try {
+        const payload = await serverGet(`/admin/markets/live?${queryBits.toString()}`);
         sendJson(res, payload);
       } catch {
         sendJson(res, { ok: false, reason: 'server_unavailable' }, 400);

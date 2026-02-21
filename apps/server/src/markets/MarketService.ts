@@ -23,6 +23,20 @@ export type QuoteResult = {
   potentialPayout?: number;
 };
 
+export type LiveMarketPreview = {
+  marketId: string;
+  slug: string;
+  question: string;
+  category: string;
+  closeAt: number;
+  resolveAt: number | null;
+  status: 'open' | 'closed' | 'resolved' | 'cancelled';
+  outcome: 'yes' | 'no' | null;
+  yesPrice: number;
+  noPrice: number;
+  oracleMarketId: string;
+};
+
 const DEFAULT_MAX_WAGER = Math.max(1, Number(process.env.PREDICTION_MAX_WAGER_DEFAULT || 100));
 const DEFAULT_SPREAD_BPS = Math.max(0, Math.min(5000, Number(process.env.PREDICTION_SPREAD_BPS_DEFAULT || 300)));
 const MAX_OPEN_POSITIONS_PER_PLAYER = Math.max(1, Number(process.env.PREDICTION_MAX_OPEN_PER_PLAYER || 12));
@@ -259,6 +273,53 @@ export class MarketService {
       return { ok: true, synced: markets.length };
     } catch (error) {
       return { ok: false, synced: 0, error: String((error as Error)?.message || error) };
+    }
+  }
+
+  async previewLiveMarkets(params?: { limit?: number; query?: string }): Promise<{
+    ok: boolean;
+    source: 'polymarket_gamma';
+    count: number;
+    markets: LiveMarketPreview[];
+    error?: string;
+  }> {
+    const limit = Math.max(1, Math.min(200, Number(params?.limit || 60)));
+    const query = String(params?.query || '').trim().toLowerCase();
+    try {
+      const fetched = await this.feed.fetchMarkets(limit);
+      const filtered = query
+        ? fetched.filter((entry) => {
+            const haystack = `${entry.question} ${entry.slug} ${entry.category}`.toLowerCase();
+            return haystack.includes(query);
+          })
+        : fetched;
+      const markets = filtered.map((entry) => ({
+        marketId: entry.id,
+        slug: entry.slug,
+        question: entry.question,
+        category: entry.category,
+        closeAt: entry.closeAt,
+        resolveAt: entry.resolveAt,
+        status: entry.status,
+        outcome: entry.outcome,
+        yesPrice: entry.yesPrice,
+        noPrice: entry.noPrice,
+        oracleMarketId: entry.oracleMarketId
+      }));
+      return {
+        ok: true,
+        source: 'polymarket_gamma',
+        count: markets.length,
+        markets
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        source: 'polymarket_gamma',
+        count: 0,
+        markets: [],
+        error: String((error as Error)?.message || error)
+      };
     }
   }
 
