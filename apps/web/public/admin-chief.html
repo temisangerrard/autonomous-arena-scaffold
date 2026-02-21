@@ -103,10 +103,26 @@
 
         <article class="view" id="view-markets">
           <h3>Markets</h3>
-          <details open>
-            <summary>Quick market actions</summary>
-            <div class="chips" data-tool-group="markets"></div>
-          </details>
+          <div class="markets-token-row">
+            <label for="markets-token">Internal token</label>
+            <input id="markets-token" type="password" placeholder="INTERNAL_SERVICE_TOKEN" />
+            <button id="markets-token-save" type="button">Save</button>
+          </div>
+          <div class="markets-toolbar">
+            <span id="markets-sync-status">—</span>
+            <button id="markets-sync-btn" type="button">Sync from Polymarket</button>
+            <button id="markets-autoactivate-btn" type="button">Auto-activate open</button>
+          </div>
+          <div class="markets-filter">
+            <select id="markets-filter-status">
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <input id="markets-search" type="search" placeholder="Search question..." />
+          </div>
+          <div id="markets-table" class="markets-table"></div>
+          <div id="markets-detail" class="markets-detail" hidden></div>
         </article>
 
         <article class="view" id="view-users">

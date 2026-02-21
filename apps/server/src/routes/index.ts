@@ -250,9 +250,11 @@ async function handleAdminMarkets(
   }
 
   if (pathname === '/admin/markets/sync' && req.method === 'POST') {
-    const body = await readJsonBody<{ limit?: number }>(req);
+    const body = await readJsonBody<{ limit?: number; autoActivate?: boolean }>(req);
     const limit = Math.max(1, Math.min(200, Number(body?.limit || 60)));
-    const payload = await ctx.marketService.syncFromOracle(limit);
+    const payload = body?.autoActivate
+      ? await ctx.marketService.syncAndAutoActivate(limit)
+      : await ctx.marketService.syncFromOracle(limit);
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify(payload));
     return;

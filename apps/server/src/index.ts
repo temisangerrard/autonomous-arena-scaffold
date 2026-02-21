@@ -1629,9 +1629,21 @@ void (async () => {
   await presenceStore.connect(config.redisUrl);
   await distributedChallengeStore.connect(config.redisUrl);
   await distributedBus.connect(config.redisUrl);
-  await marketService.syncFromOracle().catch(() => ({ ok: false, synced: 0 }));
+  await marketService.syncAndAutoActivate()
+    .then((result) => {
+      log.info({ synced: result.synced, activated: result.activated, ok: result.ok }, 'prediction market sync bootstrap');
+    })
+    .catch((error) => {
+      log.warn({ error: String((error as Error)?.message || error) }, 'prediction market sync bootstrap failed');
+    });
   setInterval(() => {
-    void marketService.syncFromOracle().catch(() => undefined);
+    void marketService.syncAndAutoActivate()
+      .then((result) => {
+        log.info({ synced: result.synced, activated: result.activated, ok: result.ok }, 'prediction market sync tick');
+      })
+      .catch((error) => {
+        log.warn({ error: String((error as Error)?.message || error) }, 'prediction market sync tick failed');
+      });
   }, Math.max(30_000, Number(process.env.PREDICTION_ORACLE_SYNC_MS || 60_000))).unref();
   settlementWorker.start();
   if (wsAuthSecret) {
