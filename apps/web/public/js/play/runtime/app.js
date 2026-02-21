@@ -174,6 +174,29 @@ const state = store.getState();
 const dispatch = store.dispatch;
 const labelFor = createLabelFor(state);
 const isStation = isStationId;
+const QUICKSTART_DISMISSED_KEY = 'arena_quickstart_dismissed_v1';
+
+function readQuickstartDismissed() {
+  try {
+    return localStorage.getItem(QUICKSTART_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeQuickstartDismissed(value) {
+  try {
+    if (value) {
+      localStorage.setItem(QUICKSTART_DISMISSED_KEY, '1');
+    } else {
+      localStorage.removeItem(QUICKSTART_DISMISSED_KEY);
+    }
+  } catch {
+    // ignore storage failures in restricted browser modes
+  }
+}
+
+state.quickstart.dismissed = readQuickstartDismissed();
 
 // Local function rationale (non-imported on purpose):
 // - `normalizeSnapshotPlayer`: binds shared normalization logic to this runtime's WORLD_BOUND.
@@ -259,6 +282,7 @@ const cameraController = createCameraController({ THREE, camera, state });
 
 quickstartClose?.addEventListener('click', () => {
   state.quickstart.dismissed = true;
+  writeQuickstartDismissed(true);
   if (quickstartPanel) {
     quickstartPanel.style.display = 'none';
   }
