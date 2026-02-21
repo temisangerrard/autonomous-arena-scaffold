@@ -127,10 +127,10 @@ export function renderInteractionCardTemplate(params) {
             </div>
             <div class="game-panel__picks" id="station-pick-actions" style="display:none;">
               <button id="station-house-heads" class="game-panel__pick-btn" data-pick="heads" type="button">
-                <span class="game-panel__pick-icon">🪙</span><span class="game-panel__pick-label">Heads</span>
+                <span class="game-panel__pick-icon">H</span><span class="game-panel__pick-label">Heads</span>
               </button>
               <button id="station-house-tails" class="game-panel__pick-btn" data-pick="tails" type="button">
-                <span class="game-panel__pick-icon">🔄</span><span class="game-panel__pick-label">Tails</span>
+                <span class="game-panel__pick-icon">T</span><span class="game-panel__pick-label">Tails</span>
               </button>
             </div>
             <div class="game-panel__status" id="station-status">Choose your wager and press Play.</div>
@@ -205,15 +205,15 @@ export function renderInteractionCardTemplate(params) {
         const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)));
 
         const pickButtonsHtml = isRps
-          ? `<button id="station-house-r" class="game-panel__pick-btn" data-pick="rock" type="button"><span class="game-panel__pick-icon">🪨</span><span class="game-panel__pick-label">Rock</span></button>
-             <button id="station-house-p" class="game-panel__pick-btn" data-pick="paper" type="button"><span class="game-panel__pick-icon">📄</span><span class="game-panel__pick-label">Paper</span></button>
-             <button id="station-house-s" class="game-panel__pick-btn" data-pick="scissors" type="button"><span class="game-panel__pick-icon">✂️</span><span class="game-panel__pick-label">Scissors</span></button>`
-          : `<button id="station-house-d1" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d1" type="button">⚀</button>
-             <button id="station-house-d2" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d2" type="button">⚁</button>
-             <button id="station-house-d3" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d3" type="button">⚂</button>
-             <button id="station-house-d4" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d4" type="button">⚃</button>
-             <button id="station-house-d5" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d5" type="button">⚄</button>
-             <button id="station-house-d6" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d6" type="button">⚅</button>`;
+          ? `<button id="station-house-r" class="game-panel__pick-btn" data-pick="rock" type="button"><span class="game-panel__pick-icon">R</span><span class="game-panel__pick-label">Rock</span></button>
+             <button id="station-house-p" class="game-panel__pick-btn" data-pick="paper" type="button"><span class="game-panel__pick-icon">P</span><span class="game-panel__pick-label">Paper</span></button>
+             <button id="station-house-s" class="game-panel__pick-btn" data-pick="scissors" type="button"><span class="game-panel__pick-icon">S</span><span class="game-panel__pick-label">Scissors</span></button>`
+          : `<button id="station-house-d1" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d1" type="button">1</button>
+             <button id="station-house-d2" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d2" type="button">2</button>
+             <button id="station-house-d3" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d3" type="button">3</button>
+             <button id="station-house-d4" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d4" type="button">4</button>
+             <button id="station-house-d5" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d5" type="button">5</button>
+             <button id="station-house-d6" class="game-panel__pick-btn game-panel__pick-btn--die" data-pick="d6" type="button">6</button>`;
 
         stationUi.innerHTML = `
           <div class="game-panel">

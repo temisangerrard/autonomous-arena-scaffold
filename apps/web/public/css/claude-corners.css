@@ -1,0 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Crimson+Text:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap');
+
+/* Claude design carry-over: warm parchment surfaces + floating islands */
+:root {
+  --claude-paper: rgba(253, 248, 237, 0.94);
+  --claude-paper-strong: rgba(255, 252, 245, 0.98);
+  --claude-gold: #c69831;
+  --claude-gold-soft: rgba(198, 152, 49, 0.32);
+  --claude-ink: #2c2010;
+  --claude-muted: #6e5a35;
+  --claude-shadow: 0 8px 26px rgba(20, 15, 5, 0.14);
+}
+
+body {
+  background: radial-gradient(circle at 18% 10%, #fff9ee 0%, #f6efdf 44%, #efe4cc 100%) !important;
+  color: var(--claude-ink) !important;
+  font-family: 'Crimson Text', serif !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.card__title,
+.hero__title,
+.hero-card h1,
+.admin-brand h1,
+.chief-rail h1 {
+  font-family: 'Cormorant Garamond', serif !important;
+}
+
+code,
+pre,
+.mono,
+.topbar-pill,
+.status,
+.sidebar-balance__value {
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+.btn,
+button {
+  border-radius: 10px;
+}
+
+.card,
+.panel,
+.view,
+.command-card,
+.graph-card,
+.topbar,
+.world-info__card,
+.camera-info__card,
+.controls-hint__card {
+  background: var(--claude-paper) !important;
+  border: 1px solid var(--claude-gold-soft) !important;
+  box-shadow: var(--claude-shadow) !important;
+  color: var(--claude-ink) !important;
+}
+
+.welcome-header,
+.viewer-topbar,
+.toolbar,
+.top,
+.topbar {
+  background: var(--claude-paper) !important;
+  border: 1px solid var(--claude-gold-soft) !important;
+  box-shadow: var(--claude-shadow) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(10px);
+}
+
+.dashboard-sidebar,
+.admin-sidebar,
+.chief-rail {
+  background: rgba(251, 244, 230, 0.96) !important;
+  border-right: 1px solid var(--claude-gold-soft) !important;
+}
+
+.player-chip__name,
+.admin-brand h1,
+.chief-rail h1 {
+  color: var(--claude-ink) !important;
+}
+
+.player-chip__handle,
+.admin-brand p,
+.admin-kicker,
+.muted,
+.chief-rail .muted {
+  color: var(--claude-muted) !important;
+}
+
+.sidebar-nav button,
+.tabs button,
+.rail-btn {
+  background: var(--claude-paper-strong) !important;
+  border: 1px solid var(--claude-gold-soft) !important;
+  color: var(--claude-muted) !important;
+}
+
+.sidebar-nav button.active,
+.tabs button.active,
+.rail-btn.active {
+  background: rgba(253, 248, 225, 0.95) !important;
+  border-color: rgba(198, 152, 49, 0.6) !important;
+  color: var(--claude-ink) !important;
+}
+
+.btn-primary,
+.btn-gold,
+.toolbar button,
+.retry-button {
+  background: linear-gradient(135deg, #d4a84b 0%, #a87830 100%) !important;
+  border-color: rgba(168, 120, 48, 0.9) !important;
+  color: #fffdf7 !important;
+}
+
+input,
+select,
+textarea {
+  background: #fffdfa !important;
+  color: var(--claude-ink) !important;
+  border: 1px solid rgba(198, 152, 49, 0.28) !important;
+}
+
+table {
+  border: 1px solid var(--claude-gold-soft) !important;
+  background: var(--claude-paper) !important;
+}
+
+th {
+  background: rgba(198, 152, 49, 0.08) !important;
+  color: var(--claude-muted) !important;
+}

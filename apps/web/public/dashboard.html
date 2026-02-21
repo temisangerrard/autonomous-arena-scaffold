@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/css/claude-corners.css">
   <script src="/runtime-config.js"></script>
   <style>
     :root {
@@ -939,10 +940,10 @@
       </div>
 
       <nav class="sidebar-nav">
-        <button type="button" data-view="bots" class="active"><span class="nav-icon">🤖</span><span>My Bots</span></button>
-        <button type="button" data-view="wallet"><span class="nav-icon">💼</span><span>Wallet</span></button>
-        <button type="button" data-view="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
-        <button type="button" data-view="super"><span class="nav-icon">✦</span><span>Chief Of Staff</span></button>
+        <button type="button" data-view="bots" class="active"><span class="nav-icon">BT</span><span>My Bots</span></button>
+        <button type="button" data-view="wallet"><span class="nav-icon">WL</span><span>Wallet</span></button>
+        <button type="button" data-view="settings"><span class="nav-icon">ST</span><span>Settings</span></button>
+        <button type="button" data-view="super"><span class="nav-icon">CH</span><span>Chief Of Staff</span></button>
       </nav>
 
       <div class="sidebar-actions">
@@ -1018,7 +1019,7 @@
                   </div>
                 </div>
                 <div class="gas-indicator" id="gas-indicator" style="display:none;">
-                  <div class="gas-indicator__icon">⛽</div>
+                  <div class="gas-indicator__icon">Gas</div>
                   <div class="gas-indicator__label">Gas:</div>
                   <div class="gas-indicator__value"><span id="gas-balance">0.00000</span> ETH</div>
                 </div>
@@ -1089,13 +1090,9 @@
             </article>
           </div>
 
-          <article class="panel">
+          <article id="wallet-escrow-panel" class="panel">
             <h2>Escrow Activity</h2>
             <div id="escrow-history" class="tx-history muted">Loading escrow activity...</div>
-          </article>
-          <article id="wallet-player-directory-panel" class="panel" style="margin-top:14px;">
-            <h2>Player Wallet Directory</h2>
-            <div id="wallet-player-list" class="stack muted">Loading players...</div>
           </article>
         </section>
 

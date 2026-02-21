@@ -37,7 +37,7 @@ export function renderQuickstart(state, quickstartPanel, quickstartList) {
   quickstartList.innerHTML = steps
     .map((step) => `
       <li class="qs-step${step.done ? ' qs-step--done' : ''}">
-        <span class="qs-step__check">${step.done ? '✓' : '·'}</span>
+        <span class="qs-step__check">${step.done ? 'OK' : '--'}</span>
         <span class="qs-step__body">
           <span class="qs-step__label">${step.label}</span>
           <span class="qs-step__hint">${step.hint}</span>

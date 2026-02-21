@@ -29,8 +29,6 @@ const walletTransferTarget = document.getElementById('wallet-transfer-target');
 const walletTransferWalletId = document.getElementById('wallet-transfer-wallet-id');
 const walletTransferAmount = document.getElementById('wallet-transfer-amount');
 const walletTransfer = document.getElementById('wallet-transfer');
-const walletPlayerList = document.getElementById('wallet-player-list');
-const walletPlayerDirectoryPanel = document.getElementById('wallet-player-directory-panel');
 
 const botPersonality = document.getElementById('bot-personality');
 const botTarget = document.getElementById('bot-target');
@@ -55,6 +53,7 @@ const superAgentResponseAlt = document.getElementById('super-agent-response-alt'
 
 const onboardingList = document.getElementById('onboarding-list');
 const escrowHistory = document.getElementById('escrow-history');
+const walletEscrowPanel = document.getElementById('wallet-escrow-panel');
 const exportPrivateKey = document.getElementById('export-private-key');
 
 const botModal = document.getElementById('bot-modal');
@@ -275,27 +274,6 @@ function renderContext() {
       .join('');
   }
 
-  if (walletPlayerList) {
-    const canSeeDirectory = String(playerCtx?.user?.role || '') === 'admin';
-    if (!canSeeDirectory) {
-      walletPlayerList.innerHTML = '';
-    } else if (!playerDirectory.length) {
-      walletPlayerList.innerHTML = '<div>No other players found yet.</div>';
-    } else {
-      walletPlayerList.innerHTML = playerDirectory
-        .map((entry) => {
-          const address = entry.walletAddress || '-';
-          return `<div><strong>${escapeHtml(entry.displayName || entry.username)}</strong><br><span class="mono">${escapeHtml(entry.walletId)}</span><br><span class="mono">${escapeHtml(address)}</span></div>`;
-        })
-        .join('');
-    }
-  }
-
-  if (walletPlayerDirectoryPanel) {
-    const canSeeDirectory = String(playerCtx?.user?.role || '') === 'admin';
-    walletPlayerDirectoryPanel.style.display = canSeeDirectory ? '' : 'none';
-  }
-
   if (onboardingList) {
     const hasUser = Boolean(user?.email);
     const hasProfile = Boolean(profile?.id);
@@ -312,7 +290,7 @@ function renderContext() {
       [hasPlayLink, 'Play link ready to share']
     ];
     onboardingList.innerHTML = rows
-      .map(([ok, text]) => `<li>${ok ? '✓' : '○'} ${escapeHtml(text)}</li>`)
+      .map(([ok, text]) => `<li>${ok ? '[x]' : '[ ]'} ${escapeHtml(text)}</li>`)
       .join('');
   }
 
@@ -323,16 +301,17 @@ function renderEscrowHistory(entries, errorMessage = '') {
   if (!escrowHistory) {
     return;
   }
+  if (walletEscrowPanel) {
+    walletEscrowPanel.style.display = '';
+  }
   if (errorMessage) {
-    if (errorMessage.includes('escrow_history_unavailable')) {
-      escrowHistory.innerHTML = '<div class="escrow-empty"><div>⚠</div><strong>Escrow activity is unavailable right now</strong></div>';
-      return;
-    }
-    escrowHistory.innerHTML = '<div class="escrow-empty"><div>⚠</div><strong>Failed to load escrow activity</strong></div>';
+    escrowHistory.innerHTML = '';
+    if (walletEscrowPanel) walletEscrowPanel.style.display = 'none';
     return;
   }
   if (!Array.isArray(entries) || entries.length === 0) {
-    escrowHistory.innerHTML = '<div class="escrow-empty"><div>🧾</div><strong>No wagers in escrow</strong><a href="/play?world=mega">→ Enter Arena to start playing</a></div>';
+    escrowHistory.innerHTML = '';
+    if (walletEscrowPanel) walletEscrowPanel.style.display = 'none';
     return;
   }
   escrowHistory.innerHTML = entries
@@ -375,7 +354,12 @@ async function refreshContext() {
   let escrowError = '';
   try {
     const escrow = await api('/api/player/wallet/escrow-history?limit=20');
-    escrowEntries = Array.isArray(escrow?.recent) ? escrow.recent : [];
+    const rawEscrowEntries = Array.isArray(escrow?.recent) ? escrow.recent : [];
+    escrowEntries = rawEscrowEntries.filter((entry) => {
+      const challengeId = String(entry?.challengeId || '').trim();
+      const phase = String(entry?.phase || entry?.outcome || '').trim();
+      return Boolean(challengeId) && Boolean(phase);
+    });
   } catch (error) {
     escrowError = String(error?.message || error);
   }
