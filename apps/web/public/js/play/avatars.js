@@ -215,8 +215,8 @@ export function createCharacterGlbPool(THREE) {
 
 function createNameTag(THREE, initialText) {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 24;
+  canvas.width = 160;
+  canvas.height = 28;
   const ctx = canvas.getContext('2d');
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -224,24 +224,24 @@ function createNameTag(THREE, initialText) {
   function draw(text) {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Rounded rectangle background
-    const radius = 6;
+
+    // Warm parchment pill
+    const radius = canvas.height / 2;
     ctx.beginPath();
-    ctx.roundRect(2, 2, canvas.width - 4, canvas.height - 4, radius);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, radius);
+    ctx.fillStyle = 'rgba(253, 248, 237, 0.93)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(198, 152, 49, 0.45)';
+    ctx.lineWidth = 1.2;
     ctx.stroke();
-    
-    // Text with shadow
-    ctx.fillStyle = '#333';
-    ctx.font = '600 11px "Inter", "Segoe UI", sans-serif';
+
+    // Name text — serif, warm dark
+    ctx.fillStyle = '#3b2b12';
+    ctx.font = 'italic 600 11px "Crimson Text", Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const trimmed = String(text).slice(0, 16);
-    ctx.fillText(trimmed, canvas.width / 2, canvas.height / 2);
+    const trimmed = String(text).slice(0, 18);
+    ctx.fillText(trimmed, canvas.width / 2, canvas.height / 2 + 0.5);
     texture.needsUpdate = true;
   }
 
@@ -255,8 +255,8 @@ function createNameTag(THREE, initialText) {
       depthWrite: false
     })
   );
-  sprite.scale.set(0.8, 0.15, 1);
-  sprite.position.set(0, 1.75, 0);
+  sprite.scale.set(0.95, 0.165, 1);
+  sprite.position.set(0, 1.82, 0);
 
   return {
     sprite,

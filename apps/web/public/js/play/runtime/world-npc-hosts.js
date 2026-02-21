@@ -208,7 +208,9 @@ export function createWorldNpcHosts({ THREE, scene }) {
     hostStations.set(station.id, station);
 
     const procedural = createProceduralAvatar(THREE, 'agent', station.displayName, false);
-    procedural.avatar.position.set(station.x, AVATAR_GROUND_OFFSET, station.z);
+    // Procedural avatars have their body geometry starting above y=0; use 0 as root.
+    // AVATAR_GROUND_OFFSET (-0.7) is reserved for GLB models whose pivot is at the feet.
+    procedural.avatar.position.set(station.x, 0, station.z);
     procedural.avatar.rotation.y = station.yaw || 0;
     scene.add(procedural.avatar);
 

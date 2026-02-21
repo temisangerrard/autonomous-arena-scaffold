@@ -455,3 +455,99 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.6; }
     }
+
+    /* ============================================
+       PREDICTION / POLYMARKET STATION
+       ============================================ */
+    .prediction-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(198, 152, 49, 0.18);
+    }
+
+    .prediction-header__source {
+      font: 800 13px/1 'JetBrains Mono', monospace;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #5b3f8a;
+    }
+
+    .prediction-header__label {
+      font: 400 11px/1 'IBM Plex Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9a8a60;
+    }
+
+    /* YES / NO hero buttons */
+    .prediction-sides {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .prediction-side {
+      height: 44px;
+      border-radius: 10px;
+      border: 2px solid transparent;
+      font: 900 14px/1 'JetBrains Mono', monospace;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .prediction-side--yes {
+      background: rgba(34, 197, 94, 0.12);
+      border-color: rgba(34, 197, 94, 0.4);
+      color: #166534;
+    }
+    .prediction-side--yes:hover:not(:disabled) {
+      background: rgba(34, 197, 94, 0.22);
+      border-color: rgba(34, 197, 94, 0.65);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.2);
+    }
+
+    .prediction-side--no {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.38);
+      color: #991b1b;
+    }
+    .prediction-side--no:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(239, 68, 68, 0.6);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.18);
+    }
+
+    .prediction-side:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .prediction-position {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font: 12px/1.4 'IBM Plex Mono', monospace;
+      color: #3a2e1e;
+      padding: 3px 0;
+    }
+
+    .prediction-position__side {
+      font-weight: 700;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .prediction-position__side--yes {
+      background: rgba(34, 197, 94, 0.15);
+      color: #166534;
+    }
+    .prediction-position__side--no {
+      background: rgba(239, 68, 68, 0.12);
+      color: #991b1b;
+    }
