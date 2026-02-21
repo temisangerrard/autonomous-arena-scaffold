@@ -10,7 +10,6 @@ const state = {
 };
 
 const marketsState = {
-  token: sessionStorage.getItem('arena_admin_token') || '',
   markets: [],
   filter: 'all',
   search: '',
@@ -36,8 +35,6 @@ const el = {
   railButtons: [...document.querySelectorAll('.rail-btn')],
   views: [...document.querySelectorAll('.view')],
   toolGroups: [...document.querySelectorAll('[data-tool-group]')],
-  marketsToken: document.getElementById('markets-token'),
-  marketsTokenSave: document.getElementById('markets-token-save'),
   marketsSyncStatus: document.getElementById('markets-sync-status'),
   marketsSyncBtn: document.getElementById('markets-sync-btn'),
   marketsAutoActivateBtn: document.getElementById('markets-autoactivate-btn'),
@@ -68,17 +65,6 @@ function setStatus(text) {
   if (el.statusLine) el.statusLine.textContent = text;
 }
 
-function marketsServerBase() {
-  return String(window?.ARENA_CONFIG?.serverOrigin || '').replace(/\/+$/, '');
-}
-
-function marketsApiHeaders() {
-  return {
-    'content-type': 'application/json',
-    'x-internal-token': String(marketsState.token || '').trim()
-  };
-}
-
 function formatMarketDate(ms) {
   const n = Number(ms || 0);
   if (!Number.isFinite(n) || n <= 0) return '-';
@@ -100,18 +86,18 @@ function normalizedMarketSearch(entry) {
 }
 
 async function marketsRequest(pathname, init = {}) {
-  const base = marketsServerBase();
-  if (!base) throw new Error('server_origin_missing');
-  const token = String(marketsState.token || '').trim();
-  if (!token) throw new Error('internal_token_required');
-  const response = await fetch(`${base}${pathname}`, {
+  const response = await fetch(`/api/admin/runtime${pathname}`, {
     ...init,
-    mode: 'cors',
+    credentials: 'include',
     headers: {
-      ...marketsApiHeaders(),
+      'content-type': 'application/json',
       ...(init.headers || {})
     }
   });
+  if (response.status === 401 || response.status === 403) {
+    window.location.href = '/welcome';
+    throw new Error('unauthorized');
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(String(payload?.reason || `status_${response.status}`));
@@ -276,7 +262,7 @@ function renderViews() {
   for (const view of el.views) {
     view.classList.toggle('active', view.id === `view-${state.view}`);
   }
-  if (state.view === 'markets' && marketsState.token && (!Array.isArray(marketsState.markets) || marketsState.markets.length === 0)) {
+  if (state.view === 'markets' && (!Array.isArray(marketsState.markets) || marketsState.markets.length === 0)) {
     void marketsLoad().catch((error) => setStatus(`Markets load failed: ${String(error?.message || error)}`));
   }
 }
@@ -465,24 +451,6 @@ function bindEvents() {
   bindToolClicks(el.toolChips);
   for (const group of el.toolGroups) bindToolClicks(group);
 
-  if (el.marketsToken) {
-    el.marketsToken.value = marketsState.token;
-  }
-  el.marketsTokenSave?.addEventListener('click', async () => {
-    marketsState.token = String(el.marketsToken?.value || '').trim();
-    sessionStorage.setItem('arena_admin_token', marketsState.token);
-    if (!marketsState.token) {
-      setStatus('Markets token cleared.');
-      return;
-    }
-    setStatus('Markets token saved. Loading markets...');
-    try {
-      await marketsLoad();
-      setStatus('Markets ready.');
-    } catch (error) {
-      setStatus(`Markets token error: ${String(error?.message || error)}`);
-    }
-  });
   el.marketsSyncBtn?.addEventListener('click', async () => {
     setStatus('Syncing markets from Polymarket...');
     try {
@@ -562,12 +530,10 @@ async function init() {
   renderTools();
   renderActivity();
   await loadBootstrap();
-  if (marketsState.token) {
-    try {
-      await marketsLoad();
-    } catch {
-      // lazy retry when user enters markets view
-    }
+  try {
+    await marketsLoad();
+  } catch {
+    // lazy retry when user enters markets view
   }
   setStatus('Chief Ops workspace ready.');
 }

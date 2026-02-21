@@ -17,6 +17,18 @@ import { cookieSessionId, createSessionStore, type IdentityRecord, type Role, ty
 
 loadEnvFromFile();
 
+function resolveInternalServiceToken(): string {
+  const explicit = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
+  if (explicit) return explicit;
+  const superAgentKey = String(
+    process.env.ESCROW_RESOLVER_PRIVATE_KEY
+    ?? process.env.DEPLOYER_PRIVATE_KEY
+    ?? ''
+  ).trim();
+  if (!superAgentKey) return '';
+  return `sa_${createHash('sha256').update(superAgentKey).digest('hex')}`;
+}
+
 const port = Number(process.env.PORT ?? 3000);
 const googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
 const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
@@ -42,7 +54,7 @@ const allowedAuthOrigins = new Set(
     .filter(Boolean)
 );
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
-const internalToken = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
+const internalToken = resolveInternalServiceToken();
 const redisUrl = process.env.REDIS_URL?.trim() || '';
 const adminEmails = new Set(
   (process.env.ADMIN_EMAILS ?? process.env.SUPER_ADMIN_EMAIL ?? '')
