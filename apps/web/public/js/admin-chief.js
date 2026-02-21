@@ -94,9 +94,12 @@ async function marketsRequest(pathname, init = {}) {
       ...(init.headers || {})
     }
   });
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     window.location.href = '/welcome';
     throw new Error('unauthorized');
+  }
+  if (response.status === 403) {
+    throw new Error('forbidden');
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -228,9 +231,12 @@ async function marketsSetConfig(marketId, maxWager, spreadBps) {
 
 async function apiGet(path) {
   const res = await fetch(path, { credentials: 'include' });
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     window.location.href = '/welcome';
     throw new Error('unauthorized');
+  }
+  if (res.status === 403) {
+    throw new Error('forbidden');
   }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(String(payload?.reason || `status_${res.status}`));
@@ -244,9 +250,12 @@ async function apiPost(path, body) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body || {})
   });
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     window.location.href = '/welcome';
     throw new Error('unauthorized');
+  }
+  if (res.status === 403) {
+    throw new Error('forbidden');
   }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(String(payload?.reason || `status_${res.status}`));
