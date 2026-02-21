@@ -8,6 +8,10 @@ export type MarketView = MarketRecord & {
   active: boolean;
   maxWager: number;
   houseSpreadBps: number;
+  yesLiquidity?: number;
+  noLiquidity?: number;
+  netOppositeLiquidity?: number;
+  refundOnlyRisk?: boolean;
 };
 
 export type QuoteResult = {
@@ -21,6 +25,11 @@ export type QuoteResult = {
   price?: number;
   shares?: number;
   potentialPayout?: number;
+  estimatedPayout?: number;
+  minPayout?: number;
+  liquidityOpposite?: number;
+  liquiditySameSide?: number;
+  liquidityWarning?: string;
 };
 
 export type LiveMarketPreview = {
@@ -74,6 +83,47 @@ export class MarketService {
     const safeStake = Math.max(0, stake);
     const safePrice = this.normalizedPrice(price);
     return Number((safeStake / safePrice).toFixed(6));
+  }
+
+  private async trackInteractionEvent(params: {
+    playerId: string;
+    stationId: string;
+    marketId?: string | null;
+    eventType: string;
+    side?: 'yes' | 'no' | null;
+    stake?: number | null;
+    oppositeLiquidityAtCommit?: number | null;
+    closeAt?: number | null;
+    reason?: string | null;
+    reasonCode?: string | null;
+    metaJson?: Record<string, unknown> | null;
+  }): Promise<void> {
+    await this.db.insertMarketInteractionEvent({
+      id: `mke_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
+      playerId: params.playerId,
+      stationId: params.stationId,
+      marketId: params.marketId ?? null,
+      eventType: params.eventType,
+      side: params.side ?? null,
+      stake: params.stake ?? null,
+      oppositeLiquidityAtCommit: params.oppositeLiquidityAtCommit ?? null,
+      closeAt: params.closeAt ?? null,
+      reason: params.reason ?? null,
+      reasonCode: params.reasonCode ?? null,
+      metaJson: params.metaJson ?? null
+    });
+  }
+
+  private async liquidityByMarketId(): Promise<Map<string, { yes: number; no: number }>> {
+    const open = await this.db.listOpenMarketPositions(4000);
+    const map = new Map<string, { yes: number; no: number }>();
+    for (const entry of open) {
+      const current = map.get(entry.marketId) || { yes: 0, no: 0 };
+      if (entry.side === 'yes') current.yes += Number(entry.stake || 0);
+      else current.no += Number(entry.stake || 0);
+      map.set(entry.marketId, current);
+    }
+    return map;
   }
 
   private async activationMap(): Promise<Map<string, MarketActivationRecord>> {
@@ -367,18 +417,57 @@ export class MarketService {
     }
   }
 
-  async getAdminState(): Promise<{ ok: true; lastSyncAt: number; staleMs: number; markets: MarketView[] }> {
+  async getAdminState(): Promise<{
+    ok: true;
+    lastSyncAt: number;
+    staleMs: number;
+    markets: MarketView[];
+    liquidityHealth: {
+      marketsWithBothSides: number;
+      activeMarkets: number;
+      refundOnlyRiskMarkets: number;
+    };
+    eventCounts: Array<{ eventType: string; count: number }>;
+  }> {
     await this.ensureAtLeastOneActiveMarket();
-    const [markets, activation] = await Promise.all([
+    const [markets, activation, liquidityByMarket] = await Promise.all([
       this.db.listMarkets(300),
-      this.activationMap()
+      this.activationMap(),
+      this.liquidityByMarketId()
     ]);
-    const views = markets.map((m) => this.marketViewOf(m, activation.get(m.id) || null));
+    const views = markets
+      .map((m) => {
+        const view = this.marketViewOf(m, activation.get(m.id) || null);
+        const liquidity = liquidityByMarket.get(m.id) || { yes: 0, no: 0 };
+        const winningPoolEstimate = Math.max(liquidity.yes, liquidity.no);
+        const oppositePoolEstimate = Math.min(liquidity.yes, liquidity.no);
+        return {
+          ...view,
+          yesLiquidity: Number(liquidity.yes.toFixed(6)),
+          noLiquidity: Number(liquidity.no.toFixed(6)),
+          netOppositeLiquidity: Number(oppositePoolEstimate.toFixed(6)),
+          refundOnlyRisk: winningPoolEstimate > 0 && oppositePoolEstimate <= 0
+        };
+      })
+      .sort((a, b) => {
+        const aPlayable = this.isPlayableNow(a) ? 1 : 0;
+        const bPlayable = this.isPlayableNow(b) ? 1 : 0;
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        if (aPlayable !== bPlayable) return bPlayable - aPlayable;
+        if (a.closeAt !== b.closeAt) return a.closeAt - b.closeAt;
+        return String(a.question || '').localeCompare(String(b.question || ''));
+      });
     return {
       ok: true,
       lastSyncAt: this.lastSyncAt,
       staleMs: this.lastSyncAt > 0 ? Math.max(0, Date.now() - this.lastSyncAt) : Number.MAX_SAFE_INTEGER,
-      markets: views
+      markets: views,
+      liquidityHealth: {
+        marketsWithBothSides: views.filter((v) => Number(v.yesLiquidity || 0) > 0 && Number(v.noLiquidity || 0) > 0).length,
+        activeMarkets: views.filter((v) => v.active).length,
+        refundOnlyRiskMarkets: views.filter((v) => Boolean(v.refundOnlyRisk)).length
+      },
+      eventCounts: await this.db.listMarketInteractionCounts(24)
     };
   }
 
@@ -403,13 +492,22 @@ export class MarketService {
 
   async listActiveMarketsForPlayer(): Promise<MarketView[]> {
     await this.ensureAtLeastOneActiveMarket();
-    const [markets, activation] = await Promise.all([
+    const [markets, activation, liquidityByMarket] = await Promise.all([
       this.db.listMarkets(200),
-      this.activationMap()
+      this.activationMap(),
+      this.liquidityByMarketId()
     ]);
     const now = Date.now();
     return markets
-      .map((m) => this.marketViewOf(m, activation.get(m.id) || null))
+      .map((m) => {
+        const view = this.marketViewOf(m, activation.get(m.id) || null);
+        const liquidity = liquidityByMarket.get(m.id) || { yes: 0, no: 0 };
+        return {
+          ...view,
+          yesLiquidity: Number(liquidity.yes.toFixed(6)),
+          noLiquidity: Number(liquidity.no.toFixed(6))
+        };
+      })
       .filter((m) => m.active)
       .filter((m) => m.status !== 'cancelled')
       .filter((m) => m.status === 'resolved' || m.closeAt > now)
@@ -445,6 +543,18 @@ export class MarketService {
     const price = this.quotePriceForSide(view, params.side);
     const shares = Number((stake / price).toFixed(6));
     const potentialPayout = this.payoutFor(stake, price);
+    const pools = await this.liquidityByMarketId();
+    const liquidity = pools.get(view.id) || { yes: 0, no: 0 };
+    const liquiditySameSide = params.side === 'yes' ? liquidity.yes : liquidity.no;
+    const liquidityOpposite = params.side === 'yes' ? liquidity.no : liquidity.yes;
+    const futureWinningPool = liquiditySameSide + stake;
+    const netOppositePool = liquidityOpposite * Math.max(0, 1 - (view.houseSpreadBps / 10_000));
+    const estimatedProfit = futureWinningPool > 0 ? (netOppositePool * (stake / futureWinningPool)) : 0;
+    const estimatedPayout = Number((stake + estimatedProfit).toFixed(6));
+    const minPayout = Number(stake.toFixed(6));
+    const liquidityWarning = liquidityOpposite <= 0
+      ? 'No opposite liquidity yet. If this side wins without counter-liquidity, stake is refunded.'
+      : '';
     return {
       ok: true,
       market: view,
@@ -452,7 +562,12 @@ export class MarketService {
       stake,
       price,
       shares,
-      potentialPayout
+      potentialPayout,
+      estimatedPayout,
+      minPayout,
+      liquidityOpposite: Number(liquidityOpposite.toFixed(6)),
+      liquiditySameSide: Number(liquiditySameSide.toFixed(6)),
+      liquidityWarning
     };
   }
 
@@ -462,6 +577,7 @@ export class MarketService {
     marketId: string;
     side: 'yes' | 'no';
     stake: number;
+    stationId?: string;
   }): Promise<{
     ok: boolean;
     reason?: string;
@@ -547,8 +663,29 @@ export class MarketService {
       stake: quote.stake,
       price: quote.price,
       shares: quote.shares,
-      escrowBetId
+      escrowBetId,
+      estimatedPayoutAtOpen: quote.estimatedPayout ?? quote.potentialPayout ?? null,
+      minPayoutAtOpen: quote.minPayout ?? quote.stake ?? null
     });
+
+    if (params.stationId) {
+      await this.trackInteractionEvent({
+        playerId: params.playerId,
+        stationId: params.stationId,
+        marketId: quote.market.id,
+        eventType: 'prediction_commit_filled',
+        side: params.side,
+        stake: quote.stake,
+        oppositeLiquidityAtCommit: quote.liquidityOpposite ?? null,
+        closeAt: quote.market.closeAt,
+        metaJson: {
+          estimatedPayout: quote.estimatedPayout ?? null,
+          minPayout: quote.minPayout ?? null,
+          price: quote.price,
+          shares: quote.shares
+        }
+      });
+    }
 
     metrics.incrementCounter(METRIC_NAMES.marketOrdersTotal, { side: params.side, market: quote.market.id });
 
@@ -574,49 +711,115 @@ export class MarketService {
     let settled = 0;
     let failed = 0;
 
+    const positionsByMarket = new Map<string, MarketPositionRecord[]>();
     for (const position of openPositions) {
-      const market = marketById.get(position.marketId);
+      const rows = positionsByMarket.get(position.marketId) || [];
+      rows.push(position);
+      positionsByMarket.set(position.marketId, rows);
+    }
+
+    for (const [marketId, rows] of positionsByMarket.entries()) {
+      const market = marketById.get(marketId);
       if (!market) continue;
       if (market.status !== 'resolved' && market.status !== 'cancelled') continue;
 
-      let targetWalletId: string | null = null;
-      let finalStatus: 'won' | 'lost' | 'voided' = 'voided';
+      const yesPool = rows.filter((p) => p.side === 'yes').reduce((sum, p) => sum + Number(p.stake || 0), 0);
+      const noPool = rows.filter((p) => p.side === 'no').reduce((sum, p) => sum + Number(p.stake || 0), 0);
+      const losingPool = market.outcome === 'yes' ? noPool : market.outcome === 'no' ? yesPool : 0;
+      const winningPool = market.outcome === 'yes' ? yesPool : market.outcome === 'no' ? noPool : 0;
 
-      if (market.status === 'cancelled' || !market.outcome) {
-        targetWalletId = position.walletId;
-        finalStatus = 'voided';
-      } else if (position.side === market.outcome) {
-        targetWalletId = position.walletId;
-        finalStatus = 'won';
-      } else {
-        targetWalletId = this.getHouseWalletId();
-        finalStatus = 'lost';
+      for (const position of rows) {
+        const isCancelled = market.status === 'cancelled' || !market.outcome;
+        const isWinner = !isCancelled && position.side === market.outcome;
+        const noOppositeLiquidity = !isCancelled && losingPool <= 0;
+        const insufficientOppositeLiquidity = !isCancelled && losingPool > 0 && losingPool < winningPool;
+        let finalStatus: 'won' | 'lost' | 'voided' = 'voided';
+        let settlementReason = 'voided';
+        let payout: number | null = null;
+
+        if (isCancelled) {
+          const refunded = await this.escrowAdapter.refund(position.escrowBetId);
+          if (!refunded.ok) {
+            failed += 1;
+            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'voided' });
+            continue;
+          }
+          finalStatus = 'voided';
+          settlementReason = 'voided';
+          payout = Number(position.stake || 0);
+        } else if (isWinner && (noOppositeLiquidity || insufficientOppositeLiquidity)) {
+          const refunded = await this.escrowAdapter.refund(position.escrowBetId);
+          if (!refunded.ok) {
+            failed += 1;
+            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'won' });
+            continue;
+          }
+          finalStatus = 'won';
+          settlementReason = 'won_refund_only';
+          payout = Number(position.stake || 0);
+        } else {
+          const winnerWalletId = isWinner ? position.walletId : this.getHouseWalletId();
+          if (!winnerWalletId) {
+            failed += 1;
+            continue;
+          }
+          const resolved = await this.escrowAdapter.resolve({
+            challengeId: position.escrowBetId,
+            winnerWalletId
+          });
+          if (!resolved.ok) {
+            failed += 1;
+            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: isWinner ? 'won' : 'lost' });
+            continue;
+          }
+          finalStatus = isWinner ? 'won' : 'lost';
+          settlementReason = isWinner ? 'won_profit' : 'lost';
+          payout = isWinner ? Number(resolved.payout ?? this.payoutFor(position.stake, position.price)) : 0;
+        }
+
+        await this.db.settleMarketPosition({
+          positionId: position.id,
+          status: finalStatus,
+          payout,
+          settlementReason
+        });
+        settled += 1;
+        metrics.incrementCounter(METRIC_NAMES.marketSettlementSuccessTotal, { market: market.id, status: finalStatus });
+        await this.trackInteractionEvent({
+          playerId: position.playerId,
+          stationId: 'settlement_worker',
+          marketId: position.marketId,
+          eventType: finalStatus === 'voided'
+            ? 'prediction_settlement_voided'
+            : (finalStatus === 'lost'
+                ? 'prediction_settlement_lost'
+                : (settlementReason === 'won_refund_only' ? 'prediction_settlement_won_refund_only' : 'prediction_settlement_won_profit')),
+          side: position.side,
+          stake: position.stake,
+          closeAt: market.closeAt,
+          reason: settlementReason,
+          metaJson: { payout, marketOutcome: market.outcome, yesPool, noPool }
+        });
       }
-
-      if (!targetWalletId) {
-        failed += 1;
-        continue;
-      }
-
-      const resolved = await this.escrowAdapter.resolve({
-        challengeId: position.escrowBetId,
-        winnerWalletId: targetWalletId
-      });
-      if (!resolved.ok) {
-        failed += 1;
-        metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: finalStatus });
-        continue;
-      }
-
-      await this.db.settleMarketPosition({
-        positionId: position.id,
-        status: finalStatus
-      });
-      settled += 1;
-      metrics.incrementCounter(METRIC_NAMES.marketSettlementSuccessTotal, { market: market.id, status: finalStatus });
     }
 
     return { checked: openPositions.length, settled, failed };
+  }
+
+  async recordPredictionEvent(params: {
+    playerId: string;
+    stationId: string;
+    marketId?: string | null;
+    eventType: string;
+    side?: 'yes' | 'no' | null;
+    stake?: number | null;
+    oppositeLiquidityAtCommit?: number | null;
+    closeAt?: number | null;
+    reason?: string | null;
+    reasonCode?: string | null;
+    metaJson?: Record<string, unknown> | null;
+  }): Promise<void> {
+    await this.trackInteractionEvent(params);
   }
 }
 
@@ -632,12 +835,19 @@ export function toPredictionViewPosition(input: {
   price: number;
   shares: number;
   potentialPayout: number;
+  estimatedPayout: number;
+  minPayout: number;
+  payout: number;
+  settlementReason: string | null;
+  liquidityFloor: number;
   status: 'open' | 'won' | 'lost' | 'voided';
   createdAt: number;
   settledAt: number | null;
 } {
   const { position, market } = input;
   const potentialPayout = Number((position.stake / Math.max(0.01, position.price)).toFixed(6));
+  const estimatedPayout = position.estimatedPayoutAtOpen ?? potentialPayout;
+  const minPayout = position.minPayoutAtOpen ?? Number(position.stake.toFixed(6));
   return {
     positionId: position.id,
     marketId: position.marketId,
@@ -647,6 +857,11 @@ export function toPredictionViewPosition(input: {
     price: position.price,
     shares: position.shares,
     potentialPayout,
+    estimatedPayout,
+    minPayout,
+    payout: position.payout ?? 0,
+    settlementReason: position.settlementReason,
+    liquidityFloor: minPayout,
     status: position.status,
     createdAt: position.createdAt,
     settledAt: position.settledAt
@@ -665,6 +880,8 @@ export function toMarketView(market: MarketView) {
     outcome: market.outcome,
     yesPrice: market.yesPrice,
     noPrice: market.noPrice,
-    maxWager: market.maxWager
+    maxWager: market.maxWager,
+    yesLiquidity: market.yesLiquidity ?? 0,
+    noLiquidity: market.noLiquidity ?? 0
   };
 }

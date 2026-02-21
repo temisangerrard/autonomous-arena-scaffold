@@ -10,6 +10,8 @@ const el = {
   kpiEnabled: document.getElementById('kpi-enabled'),
   kpiActive: document.getElementById('kpi-active'),
   kpiLive: document.getElementById('kpi-live'),
+  kpiBoth: document.getElementById('kpi-both'),
+  kpiRisk: document.getElementById('kpi-risk'),
   simMarket: document.getElementById('sim-market'),
   simSide: document.getElementById('sim-side'),
   simStake: document.getElementById('sim-stake'),
@@ -19,7 +21,9 @@ const el = {
 
 const state = {
   adminMarkets: [],
-  liveMarkets: []
+  liveMarkets: [],
+  liquidityHealth: null,
+  eventCounts: []
 };
 
 function escapeHtml(value) {
@@ -76,9 +80,16 @@ function renderKpis() {
   const enabled = state.adminMarkets.length;
   const active = state.adminMarkets.filter((entry) => entry.active).length;
   const live = state.liveMarkets.length;
+  const both = state.liquidityHealth?.marketsWithBothSides ?? 0;
+  const risk = state.liquidityHealth?.refundOnlyRiskMarkets ?? 0;
   if (el.kpiEnabled) el.kpiEnabled.textContent = String(enabled);
   if (el.kpiActive) el.kpiActive.textContent = String(active);
   if (el.kpiLive) el.kpiLive.textContent = String(live);
+  if (el.kpiBoth) el.kpiBoth.textContent = String(both);
+  if (el.kpiRisk) {
+    el.kpiRisk.textContent = String(risk);
+    el.kpiRisk.style.color = risk > 0 ? '#a03030' : '';
+  }
 }
 
 function renderEnabled() {
@@ -182,6 +193,8 @@ function simulateQuote() {
 async function loadEnabled() {
   const payload = await apiGet('/api/admin/runtime/markets');
   state.adminMarkets = Array.isArray(payload?.markets) ? payload.markets : [];
+  state.liquidityHealth = payload?.liquidityHealth ?? null;
+  state.eventCounts = Array.isArray(payload?.eventCounts) ? payload.eventCounts : [];
 }
 
 async function loadLive() {
