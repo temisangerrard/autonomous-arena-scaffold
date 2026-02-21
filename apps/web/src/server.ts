@@ -67,7 +67,6 @@ const adminEmails = new Set(
 const localAdminUsername = process.env.ADMIN_USERNAME ?? '';
 const localAdminPassword = process.env.ADMIN_PASSWORD ?? '';
 const localAuthEnabled = (process.env.LOCAL_AUTH_ENABLED ?? 'false') === 'true';
-const adminUiLegacyDefault = String(process.env.ADMIN_UI_DEFAULT ?? '').trim().toLowerCase() === 'legacy';
 const isProduction = process.env.NODE_ENV === 'production';
 const escrowApprovalChainIdRaw = Number(
   process.env.ESCROW_APPROVAL_CHAIN_ID
@@ -781,9 +780,7 @@ function htmlRouteToFile(
       redirect(res, '/dashboard');
       return null;
     }
-    const forceLegacy = requestUrl.searchParams.get('legacy') === '1';
-    const useLegacy = forceLegacy || adminUiLegacyDefault;
-    return path.join(publicDir, useLegacy ? 'agents-legacy.html' : 'agents.html');
+    return path.join(publicDir, 'admin-chief.html');
   }
 
   if (pathname === '/admin/chief') {
@@ -819,7 +816,8 @@ function htmlRouteToFile(
       redirect(res, '/dashboard');
       return null;
     }
-    return path.join(publicDir, 'agents-legacy.html');
+    redirect(res, '/admin');
+    return null;
   }
 
   if (pathname === '/users') {

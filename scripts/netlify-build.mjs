@@ -89,8 +89,9 @@ const redirects = [
   '/play      /play.html      200',
   '/viewer    /viewer.html    200',
   '/profile   /dashboard      302',
-  '/agents    /agents.html    200',
-  '/admin     /agents.html    200',
+  '/agents    /admin          301',
+  '/admin     /admin-chief.html    200',
+  '/admin-markets-lab /admin-markets-lab.html 200',
   '/users     /users.html     200',
   ''
 ].join('\n');

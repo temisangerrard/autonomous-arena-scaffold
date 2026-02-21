@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chief Ops Agent</title>
+  <title>Admin — Ops Command Centre</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600;1,700&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -15,29 +15,31 @@
 <body>
   <div class="chief-shell">
     <aside class="chief-rail">
-      <h1>Chief Ops Agent</h1>
-      <p class="muted">Parallel PI-style control plane</p>
+      <h1>Admin Command</h1>
+      <p class="muted">Operations control plane</p>
       <nav>
-        <button class="rail-btn active" data-view="mission">Mission</button>
+        <button class="rail-btn active" data-view="overview">Overview</button>
+        <button class="rail-btn" data-view="mission">Mission</button>
         <button class="rail-btn" data-view="live">Live State</button>
         <button class="rail-btn" data-view="incidents">Incidents</button>
         <button class="rail-btn" data-view="runbooks">Runbooks</button>
         <button class="rail-btn" data-view="tools">Tools</button>
         <button class="rail-btn" data-view="activity">Activity</button>
+        <button class="rail-btn" data-view="super">Super Agent</button>
         <button class="rail-btn" data-view="fleet">Fleet</button>
         <button class="rail-btn" data-view="treasury">Treasury</button>
         <button class="rail-btn" data-view="markets">Markets</button>
         <button class="rail-btn" data-view="users">Users</button>
       </nav>
       <div class="rail-links">
-        <a href="/admin">Open Existing Admin</a>
-        <a href="/users">Open Users Utility</a>
+        <a href="/admin-markets-lab">Markets Lab</a>
+        <a href="/users">Users Utility</a>
       </div>
     </aside>
 
     <main class="chief-main">
       <header class="topbar">
-        <div id="status-line">Loading Chief Ops workspace...</div>
+        <div id="status-line">Loading admin workspace...</div>
         <button id="refresh" type="button">Refresh</button>
       </header>
 
@@ -45,7 +47,7 @@
         <h2>Run Chief Command</h2>
         <textarea id="command-input" rows="3" placeholder="Try: status | reconcile bots to 8 | check sponsor gas | sync markets"></textarea>
         <div class="cmd-actions">
-          <button id="command-run" type="button" class="primary">Run Chief Command</button>
+          <button id="command-run" type="button" class="primary">Run Command</button>
           <button id="command-status" type="button">Quick Status</button>
           <button id="command-confirm" type="button" hidden>Confirm Pending Action</button>
         </div>
@@ -58,52 +60,276 @@
       </section>
 
       <section class="views">
-        <article class="view active" id="view-mission">
+
+        <!-- OVERVIEW (default landing) -->
+        <article class="view active" id="view-overview">
+          <h3>Overview</h3>
+          <div id="overview-kpis" class="kpi-grid"></div>
+          <div class="split" style="margin-top:10px;">
+            <div class="panel-card">
+              <h4>Runtime Snapshot</h4>
+              <pre id="runtime-snapshot">Loading...</pre>
+            </div>
+            <div class="panel-card">
+              <h4>Recent Incidents</h4>
+              <pre id="overview-incidents">Loading...</pre>
+            </div>
+          </div>
+        </article>
+
+        <!-- MISSION -->
+        <article class="view" id="view-mission">
           <h3>Mission</h3>
           <pre id="mission-card"></pre>
         </article>
 
+        <!-- LIVE STATE -->
         <article class="view" id="view-live">
           <h3>Live State</h3>
           <pre id="live-card"></pre>
         </article>
 
+        <!-- INCIDENTS -->
         <article class="view" id="view-incidents">
           <h3>Incidents</h3>
           <ul id="incident-list" class="incident-list"></ul>
         </article>
 
+        <!-- RUNBOOKS -->
         <article class="view" id="view-runbooks">
           <h3>Runbooks</h3>
           <ul id="runbook-list" class="runbook-list"></ul>
         </article>
 
+        <!-- TOOLS -->
         <article class="view" id="view-tools">
           <h3>Tools</h3>
           <div id="tool-chips" class="chips"></div>
         </article>
 
+        <!-- ACTIVITY -->
         <article class="view" id="view-activity">
           <h3>Activity</h3>
           <ul id="activity-list" class="activity-list"></ul>
         </article>
 
+        <!-- SUPER AGENT -->
+        <article class="view" id="view-super">
+          <h3>Super Agent</h3>
+          <div class="split">
+            <div class="panel-card">
+              <h4>Configuration</h4>
+              <div id="super-chips" class="chips" style="margin-bottom:10px;"></div>
+              <div class="form-row">
+                <div>
+                  <label class="form-label" for="super-id">Super Agent Id</label>
+                  <input id="super-id" type="text" value="agent_1">
+                </div>
+                <div>
+                  <label class="form-label" for="super-mode">Mode</label>
+                  <select id="super-mode">
+                    <option value="balanced">balanced</option>
+                    <option value="hunter">hunter</option>
+                    <option value="defensive">defensive</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row form-row-3">
+                <div>
+                  <label class="form-label" for="super-cooldown">Cooldown (ms)</label>
+                  <input id="super-cooldown" type="number" min="1200" max="120000" value="9000">
+                </div>
+                <div>
+                  <label class="form-label" for="super-target">Target</label>
+                  <select id="super-target">
+                    <option value="human_only">human_only</option>
+                    <option value="human_first">human_first</option>
+                    <option value="any">any</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label" for="bg-count">Background Bots</label>
+                  <input id="bg-count" type="number" min="0" max="120" value="8">
+                </div>
+              </div>
+              <div class="form-row" style="align-items:center;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                  <input id="super-challenge-enabled" type="checkbox" checked> Challenges Enabled
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                  <input id="wallet-enabled" type="checkbox"> Wallet Skills
+                </label>
+              </div>
+              <div class="form-row">
+                <div>
+                  <label class="form-label" for="wallet-skills">Wallet Skills (comma-sep)</label>
+                  <input id="wallet-skills" type="text" placeholder="skill1,skill2">
+                </div>
+                <div>
+                  <label class="form-label" for="openrouter-key">OpenRouter API Key</label>
+                  <input id="openrouter-key" type="password" placeholder="sk-or-v1-...">
+                </div>
+              </div>
+              <div class="btn-row">
+                <button id="save-super" type="button" class="primary">Apply Config</button>
+                <button id="save-wallet" type="button">Apply Wallet Policy</button>
+                <button id="save-openrouter" type="button">Save OpenRouter Key</button>
+                <button id="sync-ethskills" type="button">Sync ETHSkills</button>
+                <button id="apply-delegation" type="button">Run Delegation</button>
+                <button id="apply-bg-count" type="button">Reconcile Bot Count</button>
+              </div>
+            </div>
+            <div class="panel-card">
+              <h4>Ops Super Agent Console</h4>
+              <label class="form-label" for="super-chat-input">Command</label>
+              <textarea id="super-chat-input" rows="5" placeholder="status | why are games not starting? | rebalance bots"></textarea>
+              <div class="btn-row">
+                <button id="super-chat-send" type="button" class="primary">Send</button>
+                <button id="super-chat-status" type="button">Quick Status</button>
+              </div>
+              <pre id="super-chat-log">Ops Super Agent ready.</pre>
+            </div>
+          </div>
+        </article>
+
+        <!-- FLEET -->
         <article class="view" id="view-fleet">
           <h3>Fleet</h3>
-          <details open>
-            <summary>Quick fleet actions</summary>
-            <div class="chips" data-tool-group="fleet"></div>
-          </details>
+          <div class="split">
+            <div class="panel-card">
+              <h4>Create Profile Bundle</h4>
+              <div class="form-row">
+                <div>
+                  <label class="form-label" for="new-username">Username</label>
+                  <input id="new-username" type="text" placeholder="temi">
+                </div>
+                <div>
+                  <label class="form-label" for="new-display-name">Display Name</label>
+                  <input id="new-display-name" type="text" placeholder="Temisan">
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <label class="form-label" for="new-personality">Personality</label>
+                  <select id="new-personality">
+                    <option value="social">social</option>
+                    <option value="aggressive">aggressive</option>
+                    <option value="conservative">conservative</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label" for="new-target">Target Preference</label>
+                  <select id="new-target">
+                    <option value="human_only">human_only</option>
+                    <option value="human_first">human_first</option>
+                    <option value="any">any</option>
+                  </select>
+                </div>
+              </div>
+              <div class="btn-row">
+                <button id="create-profile" type="button" class="primary">Create Profile</button>
+              </div>
+            </div>
+            <div class="panel-card">
+              <h4>Quick Fleet Actions</h4>
+              <div class="chips" data-tool-group="fleet"></div>
+            </div>
+          </div>
+          <div class="view-section">
+            <h4 class="section-label">Profiles</h4>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Profile</th><th>Wallet</th><th>Balance</th><th>Bots</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="profiles-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="view-section">
+            <h4 class="section-label">Bots</h4>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Name</th><th>Owner</th><th>Duty</th><th>Section</th><th>Connected</th>
+                    <th>Personality</th><th>Target</th><th>Cooldown</th><th>Managed</th><th>Save</th>
+                  </tr>
+                </thead>
+                <tbody id="bots-body"></tbody>
+              </table>
+            </div>
+          </div>
         </article>
 
+        <!-- TREASURY -->
         <article class="view" id="view-treasury">
           <h3>Treasury</h3>
-          <details open>
-            <summary>Quick treasury actions</summary>
-            <div class="chips" data-tool-group="treasury"></div>
-          </details>
+          <div class="split">
+            <div class="panel-card">
+              <h4>House Policy</h4>
+              <div class="form-row">
+                <div>
+                  <label class="form-label">House Wallet</label>
+                  <input id="house-wallet-id" type="text" readonly value="-">
+                </div>
+                <div>
+                  <label class="form-label">House Balance</label>
+                  <input id="house-balance" type="text" readonly value="-">
+                </div>
+              </div>
+              <div class="form-row form-row-3">
+                <div>
+                  <label class="form-label" for="house-npc-floor">NPC Wallet Floor</label>
+                  <input id="house-npc-floor" type="number" min="0" step="1" value="40">
+                </div>
+                <div>
+                  <label class="form-label" for="house-npc-topup">NPC Topup</label>
+                  <input id="house-npc-topup" type="number" min="0" step="1" value="20">
+                </div>
+                <div>
+                  <label class="form-label" for="house-super-floor">Super Agent Floor</label>
+                  <input id="house-super-floor" type="number" min="0" step="1" value="120">
+                </div>
+              </div>
+              <div class="btn-row">
+                <button id="house-apply" type="button" class="primary">Apply House Policy</button>
+              </div>
+              <div style="margin-top:12px;">
+                <h4 style="margin:0 0 8px;">Quick Treasury Actions</h4>
+                <div class="chips" data-tool-group="treasury"></div>
+              </div>
+            </div>
+            <div class="panel-card">
+              <h4>Refill / Transfer</h4>
+              <div class="form-row">
+                <div>
+                  <label class="form-label" for="house-refill-amount">Refill Amount</label>
+                  <input id="house-refill-amount" type="number" min="1" step="1" value="200">
+                </div>
+                <div style="align-self:end;">
+                  <button id="house-refill" type="button" style="width:100%;">Refill House</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <label class="form-label" for="house-transfer-wallet">Transfer To Wallet ID</label>
+                  <input id="house-transfer-wallet" type="text" placeholder="wallet_123">
+                </div>
+                <div>
+                  <label class="form-label" for="house-transfer-amount">Amount</label>
+                  <input id="house-transfer-amount" type="number" min="1" step="1" value="20">
+                </div>
+              </div>
+              <div class="btn-row">
+                <button id="house-transfer" type="button">Transfer</button>
+              </div>
+              <pre id="house-ledger" style="margin-top:10px;">Loading house ledger...</pre>
+            </div>
+          </div>
         </article>
 
+        <!-- MARKETS -->
         <article class="view" id="view-markets">
           <h3>Markets</h3>
           <div class="markets-toolbar">
@@ -123,18 +349,39 @@
           <div id="markets-detail" class="markets-detail" hidden></div>
         </article>
 
+        <!-- USERS -->
         <article class="view" id="view-users">
           <h3>Users</h3>
-          <details open>
-            <summary>Quick user actions</summary>
-            <div class="chips" data-tool-group="users"></div>
-            <p class="muted">Use profile ids directly in commands, e.g. <code>logout user profile_7</code>.</p>
-          </details>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Identity</th>
+                  <th>Wallet</th>
+                  <th>Presence</th>
+                  <th>Ops</th>
+                </tr>
+              </thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
         </article>
+
       </section>
     </main>
   </div>
 
+  <script type="module">
+    (async () => {
+      try {
+        const res = await fetch('/api/session', { credentials: 'include' });
+        if (!res.ok) { window.location.href = '/welcome'; return; }
+        const p = await res.json().catch(() => ({}));
+        if (p?.user?.role !== 'admin') window.location.href = '/dashboard';
+      } catch { window.location.href = '/welcome'; }
+    })();
+  </script>
   <script type="module" src="/js/admin-chief.js"></script>
 </body>
 </html>
