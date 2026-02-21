@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-19T10:08:42.588Z",
+  "generatedAt": "2026-02-21T14:15:40.799Z",
   "policyPath": "config/modularity-budgets.json",
   "summary": {
     "errors": 0,
@@ -15,7 +15,7 @@
       "maxGrowthPct": 20,
       "warnAtPct": 95,
       "thresholdLines": 333,
-      "currentLines": 278,
+      "currentLines": 281,
       "status": "ok",
       "recommendations": []
     },
@@ -27,7 +27,7 @@
       "maxGrowthPct": 50,
       "warnAtPct": 95,
       "thresholdLines": 21,
-      "currentLines": 15,
+      "currentLines": 16,
       "status": "ok",
       "recommendations": []
     },
@@ -39,7 +39,7 @@
       "maxGrowthPct": 5,
       "warnAtPct": 97,
       "thresholdLines": 1623,
-      "currentLines": 578,
+      "currentLines": 606,
       "status": "ok",
       "recommendations": []
     },
@@ -65,7 +65,7 @@
       "maxGrowthPct": 20,
       "warnAtPct": 95,
       "thresholdLines": 188,
-      "currentLines": 157,
+      "currentLines": 161,
       "status": "ok",
       "recommendations": []
     },

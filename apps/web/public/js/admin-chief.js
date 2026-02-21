@@ -251,7 +251,7 @@ function marketsRenderDetail(market) {
 }
 
 async function marketsLoad() {
-  const payload = await marketsRequest('/admin/markets');
+  const payload = await marketsRequest('/markets');
   marketsState.markets = Array.isArray(payload?.markets) ? payload.markets : [];
   marketsState.lastSyncAt = Number(payload?.lastSyncAt || 0);
   if (el.marketsSyncStatus) {
@@ -268,7 +268,7 @@ async function marketsLoad() {
 }
 
 async function marketsSync() {
-  const payload = await marketsRequest('/admin/markets/sync', {
+  const payload = await marketsRequest('/markets/sync', {
     method: 'POST',
     body: JSON.stringify({ limit: 60 })
   });
@@ -277,7 +277,7 @@ async function marketsSync() {
 }
 
 async function marketsAutoActivate() {
-  const payload = await marketsRequest('/admin/markets/sync', {
+  const payload = await marketsRequest('/markets/sync', {
     method: 'POST',
     body: JSON.stringify({ limit: 60, autoActivate: true })
   });
@@ -286,7 +286,7 @@ async function marketsAutoActivate() {
 }
 
 async function marketsSetActive(marketId, active) {
-  const endpoint = active ? '/admin/markets/activate' : '/admin/markets/deactivate';
+  const endpoint = active ? '/markets/activate' : '/markets/deactivate';
   await marketsRequest(endpoint, {
     method: 'POST',
     body: JSON.stringify({ marketId })
@@ -295,7 +295,7 @@ async function marketsSetActive(marketId, active) {
 }
 
 async function marketsSetConfig(marketId, maxWager, spreadBps) {
-  await marketsRequest('/admin/markets/config', {
+  await marketsRequest('/markets/config', {
     method: 'POST',
     body: JSON.stringify({
       marketId,
