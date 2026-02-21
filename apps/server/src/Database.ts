@@ -638,8 +638,7 @@ export class Database {
       const safeLimit = Math.max(1, Math.min(500, Number(limit || 100)));
       const result = await this.pool.query(
         `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id,
-                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason,
-                created_at, settled_at
+                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason, created_at, settled_at
          FROM market_positions
          WHERE player_id = $1
          ORDER BY created_at DESC
@@ -657,10 +656,10 @@ export class Database {
         shares: Number(row.shares ?? 0),
         status: String(row.status) as MarketPositionRecord['status'],
         escrowBetId: String(row.escrow_bet_id || ''),
-        estimatedPayoutAtOpen: row.estimated_payout_at_open == null ? null : Number(row.estimated_payout_at_open),
-        minPayoutAtOpen: row.min_payout_at_open == null ? null : Number(row.min_payout_at_open),
-        payout: row.payout == null ? null : Number(row.payout),
-        settlementReason: row.settlement_reason == null ? null : String(row.settlement_reason),
+        estimatedPayoutAtOpen: row.estimated_payout_at_open != null ? Number(row.estimated_payout_at_open) : null,
+        minPayoutAtOpen: row.min_payout_at_open != null ? Number(row.min_payout_at_open) : null,
+        payout: row.payout != null ? Number(row.payout) : null,
+        settlementReason: row.settlement_reason != null ? String(row.settlement_reason) : null,
         createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
         settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
       }));
@@ -676,8 +675,7 @@ export class Database {
       const safeLimit = Math.max(1, Math.min(5000, Number(limit || 500)));
       const result = await this.pool.query(
         `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id,
-                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason,
-                created_at, settled_at
+                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason, created_at, settled_at
          FROM market_positions
          WHERE status = 'open'
          ORDER BY created_at ASC
@@ -695,10 +693,10 @@ export class Database {
         shares: Number(row.shares ?? 0),
         status: String(row.status) as MarketPositionRecord['status'],
         escrowBetId: String(row.escrow_bet_id || ''),
-        estimatedPayoutAtOpen: row.estimated_payout_at_open == null ? null : Number(row.estimated_payout_at_open),
-        minPayoutAtOpen: row.min_payout_at_open == null ? null : Number(row.min_payout_at_open),
-        payout: row.payout == null ? null : Number(row.payout),
-        settlementReason: row.settlement_reason == null ? null : String(row.settlement_reason),
+        estimatedPayoutAtOpen: row.estimated_payout_at_open != null ? Number(row.estimated_payout_at_open) : null,
+        minPayoutAtOpen: row.min_payout_at_open != null ? Number(row.min_payout_at_open) : null,
+        payout: row.payout != null ? Number(row.payout) : null,
+        settlementReason: row.settlement_reason != null ? String(row.settlement_reason) : null,
         createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
         settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
       }));
@@ -731,58 +729,58 @@ export class Database {
     id: string;
     playerId: string;
     stationId: string;
-    marketId?: string | null;
+    marketId: string | null;
     eventType: string;
-    side?: 'yes' | 'no' | null;
-    stake?: number | null;
-    oppositeLiquidityAtCommit?: number | null;
-    closeAt?: number | null;
-    reason?: string | null;
-    reasonCode?: string | null;
-    metaJson?: Record<string, unknown> | null;
+    side: 'yes' | 'no' | null;
+    stake: number | null;
+    oppositeLiquidityAtCommit: number | null;
+    closeAt: number | null;
+    reason: string | null;
+    reasonCode: string | null;
+    metaJson: Record<string, unknown> | null;
   }): Promise<void> {
     if (!this.pool) return;
     try {
       await this.pool.query(
         `INSERT INTO market_interaction_events (
-          id, player_id, station_id, market_id, event_type, side, stake, opposite_liquidity_at_commit,
-          close_at, reason, reason_code, meta_json, created_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())`,
+           id, player_id, station_id, market_id, event_type, side, stake,
+           opposite_liquidity_at_commit, close_at, reason, reason_code, meta_json, created_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+         ON CONFLICT (id) DO NOTHING`,
         [
           params.id,
           params.playerId,
           params.stationId,
-          params.marketId ?? null,
+          params.marketId,
           params.eventType,
-          params.side ?? null,
-          params.stake ?? null,
-          params.oppositeLiquidityAtCommit ?? null,
-          params.closeAt ? new Date(params.closeAt).toISOString() : null,
-          params.reason ?? null,
-          params.reasonCode ?? null,
-          params.metaJson ? JSON.stringify(params.metaJson) : null
+          params.side,
+          params.stake,
+          params.oppositeLiquidityAtCommit,
+          params.closeAt != null ? new Date(params.closeAt).toISOString() : null,
+          params.reason,
+          params.reasonCode,
+          params.metaJson != null ? JSON.stringify(params.metaJson) : null
         ]
       );
     } catch (err) {
-      log.error({ err, eventType: params.eventType, marketId: params.marketId }, 'failed to insert market interaction event');
+      log.error({ err, eventId: params.id }, 'failed to insert market interaction event');
     }
   }
 
   async listMarketInteractionCounts(limitHours = 24): Promise<Array<{ eventType: string; count: number }>> {
     if (!this.pool) return [];
     try {
-      const safeHours = Math.max(1, Math.min(24 * 30, Number(limitHours || 24)));
       const result = await this.pool.query(
         `SELECT event_type, COUNT(*)::int AS count
          FROM market_interaction_events
-         WHERE created_at >= NOW() - ($1::text || ' hours')::interval
+         WHERE created_at >= NOW() - INTERVAL '${Math.max(1, Math.min(168, Number(limitHours || 24)))} hours'
          GROUP BY event_type
-         ORDER BY event_type ASC`,
-        [safeHours]
+         ORDER BY count DESC
+         LIMIT 50`
       );
       return result.rows.map((row) => ({
-        eventType: String(row.event_type || ''),
-        count: Number(row.count ?? 0)
+        eventType: String(row.event_type),
+        count: Number(row.count)
       }));
     } catch (err) {
       log.error({ err }, 'failed to list market interaction counts');

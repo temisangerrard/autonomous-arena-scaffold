@@ -94,12 +94,9 @@ async function marketsRequest(pathname, init = {}) {
       ...(init.headers || {})
     }
   });
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
     window.location.href = '/welcome';
     throw new Error('unauthorized');
-  }
-  if (response.status === 403) {
-    throw new Error('forbidden');
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -173,7 +170,7 @@ function marketsRenderDetail(market) {
 }
 
 async function marketsLoad() {
-  const payload = await marketsRequest('/markets');
+  const payload = await marketsRequest('/admin/markets');
   marketsState.markets = Array.isArray(payload?.markets) ? payload.markets : [];
   marketsState.lastSyncAt = Number(payload?.lastSyncAt || 0);
   if (el.marketsSyncStatus) {
@@ -190,7 +187,7 @@ async function marketsLoad() {
 }
 
 async function marketsSync() {
-  const payload = await marketsRequest('/markets/sync', {
+  const payload = await marketsRequest('/admin/markets/sync', {
     method: 'POST',
     body: JSON.stringify({ limit: 60 })
   });
@@ -199,7 +196,7 @@ async function marketsSync() {
 }
 
 async function marketsAutoActivate() {
-  const payload = await marketsRequest('/markets/sync', {
+  const payload = await marketsRequest('/admin/markets/sync', {
     method: 'POST',
     body: JSON.stringify({ limit: 60, autoActivate: true })
   });
@@ -208,7 +205,7 @@ async function marketsAutoActivate() {
 }
 
 async function marketsSetActive(marketId, active) {
-  const endpoint = active ? '/markets/activate' : '/markets/deactivate';
+  const endpoint = active ? '/admin/markets/activate' : '/admin/markets/deactivate';
   await marketsRequest(endpoint, {
     method: 'POST',
     body: JSON.stringify({ marketId })
@@ -217,7 +214,7 @@ async function marketsSetActive(marketId, active) {
 }
 
 async function marketsSetConfig(marketId, maxWager, spreadBps) {
-  await marketsRequest('/markets/config', {
+  await marketsRequest('/admin/markets/config', {
     method: 'POST',
     body: JSON.stringify({
       marketId,
@@ -231,12 +228,9 @@ async function marketsSetConfig(marketId, maxWager, spreadBps) {
 
 async function apiGet(path) {
   const res = await fetch(path, { credentials: 'include' });
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     window.location.href = '/welcome';
     throw new Error('unauthorized');
-  }
-  if (res.status === 403) {
-    throw new Error('forbidden');
   }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(String(payload?.reason || `status_${res.status}`));
@@ -250,12 +244,9 @@ async function apiPost(path, body) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body || {})
   });
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     window.location.href = '/welcome';
     throw new Error('unauthorized');
-  }
-  if (res.status === 403) {
-    throw new Error('forbidden');
   }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(String(payload?.reason || `status_${res.status}`));

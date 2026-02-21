@@ -50,7 +50,6 @@ const DEFAULT_MAX_WAGER = Math.max(1, Number(process.env.PREDICTION_MAX_WAGER_DE
 const DEFAULT_SPREAD_BPS = Math.max(0, Math.min(5000, Number(process.env.PREDICTION_SPREAD_BPS_DEFAULT || 300)));
 const MAX_OPEN_POSITIONS_PER_PLAYER = Math.max(1, Number(process.env.PREDICTION_MAX_OPEN_PER_PLAYER || 12));
 const ORACLE_STALE_MS = Math.max(30_000, Number(process.env.PREDICTION_ORACLE_STALE_MS || 3 * 60_000));
-const EVENT_ID_PREFIX = 'mke_';
 const FALLBACK_MARKET_ID = (process.env.PREDICTION_FALLBACK_MARKET_ID || 'fallback_train_world_market').trim();
 const FALLBACK_MARKET_SLUG = (process.env.PREDICTION_FALLBACK_MARKET_SLUG || 'train-world-house-market').trim();
 const FALLBACK_MARKET_QUESTION = (
@@ -100,7 +99,7 @@ export class MarketService {
     metaJson?: Record<string, unknown> | null;
   }): Promise<void> {
     await this.db.insertMarketInteractionEvent({
-      id: `${EVENT_ID_PREFIX}${randomUUID().replace(/-/g, '').slice(0, 20)}`,
+      id: `mke_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
       playerId: params.playerId,
       stationId: params.stationId,
       marketId: params.marketId ?? null,
@@ -382,14 +381,12 @@ export class MarketService {
     const query = String(params?.query || '').trim().toLowerCase();
     try {
       const fetched = await this.feed.fetchMarkets(limit);
-      const now = Date.now();
-      const openOnly = fetched.filter((entry) => entry.status === 'open' && entry.closeAt > now);
       const filtered = query
-        ? openOnly.filter((entry) => {
+        ? fetched.filter((entry) => {
             const haystack = `${entry.question} ${entry.slug} ${entry.category}`.toLowerCase();
             return haystack.includes(query);
           })
-        : openOnly;
+        : fetched;
       const markets = filtered.map((entry) => ({
         marketId: entry.id,
         slug: entry.slug,
@@ -466,9 +463,9 @@ export class MarketService {
       staleMs: this.lastSyncAt > 0 ? Math.max(0, Date.now() - this.lastSyncAt) : Number.MAX_SAFE_INTEGER,
       markets: views,
       liquidityHealth: {
-        marketsWithBothSides: views.filter((entry) => Number(entry.yesLiquidity || 0) > 0 && Number(entry.noLiquidity || 0) > 0).length,
-        activeMarkets: views.filter((entry) => entry.active).length,
-        refundOnlyRiskMarkets: views.filter((entry) => Boolean(entry.refundOnlyRisk)).length
+        marketsWithBothSides: views.filter((v) => Number(v.yesLiquidity || 0) > 0 && Number(v.noLiquidity || 0) > 0).length,
+        activeMarkets: views.filter((v) => v.active).length,
+        refundOnlyRiskMarkets: views.filter((v) => Boolean(v.refundOnlyRisk)).length
       },
       eventCounts: await this.db.listMarketInteractionCounts(24)
     };
@@ -726,8 +723,8 @@ export class MarketService {
       if (!market) continue;
       if (market.status !== 'resolved' && market.status !== 'cancelled') continue;
 
-      const yesPool = rows.filter((entry) => entry.side === 'yes').reduce((sum, entry) => sum + Number(entry.stake || 0), 0);
-      const noPool = rows.filter((entry) => entry.side === 'no').reduce((sum, entry) => sum + Number(entry.stake || 0), 0);
+      const yesPool = rows.filter((p) => p.side === 'yes').reduce((sum, p) => sum + Number(p.stake || 0), 0);
+      const noPool = rows.filter((p) => p.side === 'no').reduce((sum, p) => sum + Number(p.stake || 0), 0);
       const losingPool = market.outcome === 'yes' ? noPool : market.outcome === 'no' ? yesPool : 0;
       const winningPool = market.outcome === 'yes' ? yesPool : market.outcome === 'no' ? noPool : 0;
 
@@ -801,12 +798,7 @@ export class MarketService {
           stake: position.stake,
           closeAt: market.closeAt,
           reason: settlementReason,
-          metaJson: {
-            payout,
-            marketOutcome: market.outcome,
-            yesPool,
-            noPool
-          }
+          metaJson: { payout, marketOutcome: market.outcome, yesPool, noPool }
         });
       }
     }
