@@ -70,7 +70,7 @@ export function verifyWsAuth(
   expectedRole: PlayerRole
 ): { ok: boolean; claims?: Record<string, unknown>; reason?: string } {
   if (!config.wsAuthSecret) {
-    return { ok: true }; // No auth configured
+    return { ok: false, reason: 'ws_auth_not_configured' };
   }
   
   const verified = verifyWsAuthToken(config.wsAuthSecret, token);

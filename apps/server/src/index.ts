@@ -31,12 +31,15 @@ import { createStationRouter } from './game/stations/router.js';
 import { PolymarketFeed } from './markets/PolymarketFeed.js';
 import { MarketService } from './markets/MarketService.js';
 import { SettlementWorker } from './markets/SettlementWorker.js';
+import { runStartupValidation } from './middleware/security.js';
 
 type PlayerMeta = {
   role: PlayerRole;
   displayName: string;
   walletId: string | null;
 };
+
+runStartupValidation(process.env);
 
 // Use centralized config
 const serverInstanceId = config.serverInstanceId;

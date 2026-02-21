@@ -50,7 +50,7 @@ async function readJsonBody<T>(req: IncomingMessage): Promise<T | null> {
 
 function isInternalAuthorized(req: IncomingMessage, token: string): boolean {
   if (!token) {
-    return true;
+    return false;
   }
   const header = req.headers['x-internal-token'];
   const got = Array.isArray(header) ? header[0] : header;

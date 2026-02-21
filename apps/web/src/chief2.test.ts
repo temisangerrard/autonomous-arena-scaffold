@@ -31,9 +31,9 @@ describe('chief2 service', () => {
         }
         return { ok: true } as T;
       },
-      runtimePost: async <T>(_path: string, _body: unknown): Promise<T> => ({ ok: true } as T),
-      serverGet: async <T>(_path: string): Promise<T> => ({ ok: true } as T),
-      serverPost: async <T>(_path: string, _body: unknown): Promise<T> => ({ ok: true } as T),
+      runtimePost: async <T>(): Promise<T> => ({ ok: true } as T),
+      serverGet: async <T>(): Promise<T> => ({ ok: true } as T),
+      serverPost: async <T>(): Promise<T> => ({ ok: true } as T),
       adminActions: {
         userTeleport: vi.fn(async () => ({ ok: true })),
         userWalletAdjust: vi.fn(async () => ({ ok: true })),
@@ -56,13 +56,13 @@ describe('chief2 service', () => {
   it('requires and validates confirmation for sensitive actions', async () => {
     const runtimePostSpy = vi.fn<(path: string, body: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
     const service = createChief2Service({
-      runtimeGet: async <T>(_path: string): Promise<T> => ({ ok: true } as T),
+      runtimeGet: async <T>(): Promise<T> => ({ ok: true } as T),
       runtimePost: async <T>(path: string, body: unknown): Promise<T> => {
         runtimePostSpy(path, body);
         return { ok: true } as T;
       },
-      serverGet: async <T>(_path: string): Promise<T> => ({ ok: true } as T),
-      serverPost: async <T>(_path: string, _body: unknown): Promise<T> => ({ ok: true } as T),
+      serverGet: async <T>(): Promise<T> => ({ ok: true } as T),
+      serverPost: async <T>(): Promise<T> => ({ ok: true } as T),
       adminActions: {
         userTeleport: vi.fn(async () => ({ ok: true })),
         userWalletAdjust: vi.fn(async () => ({ ok: true })),

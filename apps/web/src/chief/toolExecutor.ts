@@ -12,7 +12,7 @@ export type ToolExecutionResult = {
 
 function extractAllowedPrefixes(allowedTools: string[]): string[] {
   return allowedTools
-    .map((entry) => entry.match(/Bash\(([^*\)]+)[*\)]/)?.[1]?.trim() || '')
+    .map((entry) => entry.match(/Bash\(([^*)]+)[*)]/)?.[1]?.trim() || '')
     .filter(Boolean);
 }
 

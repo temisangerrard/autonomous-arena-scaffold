@@ -48,8 +48,8 @@ describe('chief COO runbooks', () => {
         }
         return {} as T;
       },
-      runtimePost: async <T>(_path: string, _body: unknown): Promise<T> => ({ reply: '' } as T),
-      serverGet: async <T>(_path: string): Promise<T> => ({ recent: [] } as T),
+      runtimePost: async <T>(): Promise<T> => ({ reply: '' } as T),
+      serverGet: async <T>(): Promise<T> => ({ recent: [] } as T),
       runtimeProfiles: vi.fn(async () => []),
       purgeSessionsForProfile: vi.fn(async () => 0),
       cooModeEnabled: true,
@@ -72,9 +72,9 @@ describe('chief COO runbooks', () => {
   it('requires confirmation for admin mutating runbook', async () => {
     const purgeSessionsForProfile = vi.fn(async () => 3);
     const chief = createChiefService({
-      runtimeGet: async <T>(_path: string): Promise<T> => ({}) as T,
-      runtimePost: async <T>(_path: string, _body: unknown): Promise<T> => ({}) as T,
-      serverGet: async <T>(_path: string): Promise<T> => ({ recent: [] } as T),
+      runtimeGet: async <T>(): Promise<T> => ({}) as T,
+      runtimePost: async <T>(): Promise<T> => ({}) as T,
+      serverGet: async <T>(): Promise<T> => ({ recent: [] } as T),
       runtimeProfiles: vi.fn(async () => [{
         id: 'profile_a',
         username: 'alice',
@@ -109,12 +109,12 @@ describe('chief COO runbooks', () => {
   it('keeps COO runbooks admin-only', async () => {
     const runtimePostSpy = vi.fn();
     const chief = createChiefService({
-      runtimeGet: async <T>(_path: string): Promise<T> => ({ bots: [], wallets: [] } as T),
+      runtimeGet: async <T>(): Promise<T> => ({ bots: [], wallets: [] } as T),
       runtimePost: async <T>(path: string, body: unknown): Promise<T> => {
         runtimePostSpy(path, body);
         return { reply: '' } as T;
       },
-      serverGet: async <T>(_path: string): Promise<T> => ({ recent: [] } as T),
+      serverGet: async <T>(): Promise<T> => ({ recent: [] } as T),
       runtimeProfiles: vi.fn(async () => []),
       purgeSessionsForProfile: vi.fn(async () => 0),
       cooModeEnabled: true,

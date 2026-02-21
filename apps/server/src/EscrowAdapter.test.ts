@@ -99,6 +99,13 @@ describe('EscrowAdapter onchain error decoding', () => {
     vi.restoreAllMocks();
   });
 
+  type TestEscrowContract = {
+    interface: {
+      parseError: () => { name: string };
+    };
+    createBet: () => Promise<never>;
+  };
+
   function mockWalletAndPreflightFetches(): void {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.includes('/wallets/onchain/prepare-escrow')) {
@@ -141,7 +148,7 @@ describe('EscrowAdapter onchain error decoding', () => {
   it('maps BetAlreadyExists to BET_ID_ALREADY_USED', async () => {
     mockWalletAndPreflightFetches();
     const adapter = newOnchainAdapter();
-    (adapter as any).escrowContract = {
+    (adapter as unknown as { escrowContract: TestEscrowContract }).escrowContract = {
       interface: {
         parseError: () => ({ name: 'BetAlreadyExists' })
       },
@@ -166,7 +173,7 @@ describe('EscrowAdapter onchain error decoding', () => {
   it('maps InvalidAmount to INVALID_WAGER', async () => {
     mockWalletAndPreflightFetches();
     const adapter = newOnchainAdapter();
-    (adapter as any).escrowContract = {
+    (adapter as unknown as { escrowContract: TestEscrowContract }).escrowContract = {
       interface: {
         parseError: () => ({ name: 'InvalidAmount' })
       },
@@ -190,7 +197,7 @@ describe('EscrowAdapter onchain error decoding', () => {
   it('keeps unknown errors on fallback reason code', async () => {
     mockWalletAndPreflightFetches();
     const adapter = newOnchainAdapter();
-    (adapter as any).escrowContract = {
+    (adapter as unknown as { escrowContract: TestEscrowContract }).escrowContract = {
       interface: {
         parseError: () => {
           throw new Error('unknown custom error');

@@ -727,8 +727,7 @@ function wsAuthForIdentity(identity: IdentityRecord): string | null {
 function htmlRouteToFile(
   pathname: string,
   identity: IdentityRecord | null,
-  res: import('node:http').ServerResponse,
-  requestUrl: URL
+  res: import('node:http').ServerResponse
 ): string | null {
 
   if (pathname === '/welcome') {
@@ -2290,7 +2289,7 @@ const server = createServer(async (req, res) => {
   }
 
   const identity = await getIdentityFromReq(req);
-  const htmlFile = htmlRouteToFile(pathname, identity, res, requestUrl);
+  const htmlFile = htmlRouteToFile(pathname, identity, res);
   if (htmlFile) {
     await sendFile(res, htmlFile, 'text/html; charset=utf-8');
     return;

@@ -330,7 +330,7 @@ export function createChief2Service(deps: Chief2Deps) {
 
     const degradedReasons: string[] = [];
     const disconnectedBotIds = Array.isArray(runtimeStatus.disconnectedBotIds) ? runtimeStatus.disconnectedBotIds : [];
-    if (Boolean(runtimeStatus.wsAuthMismatchLikely)) degradedReasons.push('ws_auth_mismatch_likely');
+    if (runtimeStatus.wsAuthMismatchLikely) degradedReasons.push('ws_auth_mismatch_likely');
     if (disconnectedBotIds.length > 0) degradedReasons.push('bots_disconnected');
     const sponsorStatus = ((runtimeStatus.house as { sponsorGas?: { status?: string } } | undefined)?.sponsorGas?.status || 'unknown');
     if (sponsorStatus === 'red') degradedReasons.push('sponsor_gas_red');
