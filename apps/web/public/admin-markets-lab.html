@@ -6,37 +6,44 @@
   <title>Admin Markets Lab</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600;1,700&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/claude-corners.css">
   <script src="/runtime-config.js"></script>
   <style>
     :root {
-      --ink: #15120d;
-      --gold: #c79b39;
-      --edge: #d8c8a6;
-      --panel: #fffcf5;
-      --muted: #706654;
+      --ink: #2c2010;
+      --gold: #c69831;
+      --edge: rgba(198, 152, 49, 0.3);
+      --panel: rgba(253, 248, 237, 0.96);
+      --muted: #6e5a35;
+      --good: #2f8f5e;
+      --bad: #b44d3c;
+      --warn: #ad7a24;
       --mono: 'JetBrains Mono', monospace;
-      --sans: 'Syne', system-ui, sans-serif;
+      --serif: 'Crimson Text', Georgia, serif;
+      --display: 'Cormorant Garamond', 'Crimson Text', Georgia, serif;
     }
+    *, *::before, *::after { box-sizing: border-box; }
     body {
       margin: 0;
-      background: radial-gradient(circle at 12% 8%, #fff7e8 0%, #f5efdf 48%, #ede5d2 100%);
+      background: radial-gradient(circle at 12% 8%, #fff9ee 0%, #f6efdf 48%, #efe4cc 100%);
       color: var(--ink);
-      font-family: var(--sans);
+      font-family: var(--serif);
+      font-size: 15px;
+      line-height: 1.5;
     }
     .page {
       max-width: 1240px;
       margin: 0 auto;
       padding: 22px;
       display: grid;
-      gap: 12px;
+      gap: 14px;
     }
     .head {
       border: 1px solid var(--edge);
       border-radius: 14px;
       background: var(--panel);
-      padding: 14px;
+      padding: 16px 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -45,23 +52,22 @@
     }
     h1 {
       margin: 0;
-      font: 700 28px/1 var(--sans);
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
+      font: italic 700 30px/1 var(--display);
+      letter-spacing: 0.01em;
     }
     .sub {
       margin: 6px 0 0;
       color: var(--muted);
-      font: 500 13px/1.4 var(--sans);
+      font: italic 400 14px/1.5 var(--serif);
       max-width: 860px;
     }
     .status {
       border: 1px solid var(--edge);
       background: var(--panel);
       border-radius: 10px;
-      padding: 8px 10px;
-      font: 12px/1.3 var(--mono);
-      color: #574c3a;
+      padding: 8px 12px;
+      font: 12px/1.4 var(--mono);
+      color: var(--muted);
     }
     .grid {
       display: grid;
@@ -70,27 +76,34 @@
     }
     .kpi {
       border: 1px solid var(--edge);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.86);
-      padding: 10px;
+      border-left: 3px solid var(--gold);
+      border-radius: 10px;
+      background: var(--panel);
+      padding: 12px;
     }
     .kpi .label {
-      font: 11px/1.2 var(--mono);
+      font: 500 11px/1.2 var(--mono);
       text-transform: uppercase;
       color: var(--muted);
       letter-spacing: 0.04em;
     }
     .kpi .value {
-      margin-top: 4px;
-      font: 700 22px/1 var(--sans);
+      margin-top: 5px;
+      font: italic 700 26px/1 var(--display);
+      color: var(--ink);
     }
     .panel {
       border: 1px solid var(--edge);
       border-radius: 12px;
       background: var(--panel);
-      padding: 12px;
+      padding: 14px;
       display: grid;
-      gap: 10px;
+      gap: 12px;
+    }
+    .panel-heading {
+      margin: 0;
+      font: italic 600 18px/1 var(--display);
+      color: var(--ink);
     }
     .row {
       display: flex;
@@ -99,21 +112,26 @@
       align-items: center;
     }
     input, select {
-      border-radius: 9px;
+      border-radius: 8px;
       border: 1px solid var(--edge);
-      background: #fff;
+      background: rgba(255, 253, 248, 0.95);
       color: var(--ink);
-      padding: 8px;
-      font: 13px/1.3 var(--sans);
+      padding: 7px 10px;
+      font: 13px/1.3 var(--serif);
       min-width: 110px;
     }
+    input:focus, select:focus {
+      outline: none;
+      border-color: rgba(198, 152, 49, 0.6);
+      box-shadow: 0 0 0 2px rgba(198, 152, 49, 0.12);
+    }
     .btn {
-      border: 1px solid #cfbd96;
-      border-radius: 9px;
-      background: #fffdf7;
-      color: #2e2518;
-      padding: 8px 10px;
-      font: 700 11px/1 var(--mono);
+      border: 1px solid rgba(198, 152, 49, 0.45);
+      border-radius: 8px;
+      background: rgba(255, 253, 248, 0.95);
+      color: var(--ink);
+      padding: 7px 12px;
+      font: 500 11px/1 var(--mono);
       letter-spacing: 0.04em;
       text-transform: uppercase;
       cursor: pointer;
@@ -121,46 +139,62 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      transition: background 0.15s;
     }
+    .btn:hover { background: rgba(253, 248, 225, 0.95); }
     .btn-gold {
-      background: linear-gradient(125deg, #dfb95b, #ba8d29);
+      background: linear-gradient(125deg, rgba(219, 170, 68, 0.9), rgba(184, 132, 30, 0.9));
       color: #241a08;
-      border-color: #aa7f20;
+      border-color: #a97920;
     }
+    .btn-gold:hover { filter: brightness(1.06); }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12px;
+      font-size: 13px;
     }
     th, td {
-      border-bottom: 1px solid #e8dbc0;
-      padding: 8px 6px;
+      border-bottom: 1px solid rgba(198, 152, 49, 0.18);
+      padding: 9px 8px;
       text-align: left;
-      vertical-align: top;
+      vertical-align: middle;
     }
     th {
       text-transform: uppercase;
-      font: 11px/1.2 var(--mono);
-      color: #665a46;
+      font: 500 11px/1.2 var(--mono);
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    td .question-text {
+      font-style: italic;
+      font-size: 14px;
+      color: var(--ink);
+    }
+    td .id-text {
+      font: 400 10px/1.4 var(--mono);
+      color: var(--muted);
+      margin-top: 2px;
     }
     .table-wrap {
       overflow: auto;
       max-height: 360px;
       border: 1px solid var(--edge);
       border-radius: 10px;
-      background: #fffdf8;
+      background: rgba(255, 253, 248, 0.95);
     }
     .badge {
-      border: 1px solid #dac9a5;
+      border: 1px solid var(--edge);
       border-radius: 999px;
-      padding: 4px 7px;
-      font: 11px/1 var(--mono);
+      padding: 3px 8px;
+      font: 500 11px/1 var(--mono);
       white-space: nowrap;
       display: inline-block;
     }
-    .badge.live { border-color: #9bc7a0; color: #1d5f28; background: #f2fff3; }
-    .badge.off { border-color: #d7b1a4; color: #7c2f1a; background: #fff5f2; }
-    .mono { font-family: var(--mono); }
+    .badge.live { border-color: rgba(47, 143, 94, 0.5); color: var(--good); background: rgba(47, 143, 94, 0.08); }
+    .badge.off  { border-color: rgba(180, 77, 60, 0.4);  color: var(--bad);  background: rgba(180, 77, 60, 0.07); }
+    .price-yes { color: var(--good); font-family: var(--mono); font-size: 12px; }
+    .price-no  { color: var(--bad);  font-family: var(--mono); font-size: 12px; }
+    .mono { font-family: var(--mono); font-size: 12px; }
     .cap {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -169,21 +203,19 @@
     .cap article {
       border: 1px solid var(--edge);
       border-radius: 10px;
-      background: rgba(255,255,255,0.88);
-      padding: 10px;
+      background: var(--panel);
+      padding: 12px;
     }
     .cap h3 {
       margin: 0 0 6px;
-      font: 700 12px/1 var(--mono);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #7a5c1f;
+      font: italic 600 15px/1 var(--display);
+      color: var(--ink);
     }
     .cap p {
       margin: 0;
-      color: #4f4535;
+      color: var(--muted);
       font-size: 13px;
-      line-height: 1.4;
+      line-height: 1.5;
     }
     @media (max-width: 980px) {
       .grid, .cap { grid-template-columns: 1fr 1fr; }
@@ -232,7 +264,7 @@
 
     <section class="panel">
       <div class="row">
-        <h2 style="margin:0; font:700 15px/1 var(--sans); text-transform:uppercase; letter-spacing:0.05em;">Enabled In App</h2>
+        <h2 class="panel-heading">Enabled In-App</h2>
         <button id="sync-markets" class="btn" type="button">Sync From Polymarket</button>
       </div>
       <div class="table-wrap">
@@ -252,7 +284,7 @@
 
     <section class="panel">
       <div class="row">
-        <h2 style="margin:0; font:700 15px/1 var(--sans); text-transform:uppercase; letter-spacing:0.05em;">Live Polymarket Feed</h2>
+        <h2 class="panel-heading">Live Polymarket Feed</h2>
         <input id="live-query" type="text" placeholder="Search (btc, election, sports)" />
         <select id="live-limit">
           <option value="25">25</option>
@@ -279,7 +311,7 @@
     </section>
 
     <section class="panel">
-      <h2 style="margin:0; font:700 15px/1 var(--sans); text-transform:uppercase; letter-spacing:0.05em;">Stake Simulator</h2>
+      <h2 class="panel-heading">Stake Simulator</h2>
       <div class="row">
         <select id="sim-market"></select>
         <select id="sim-side">

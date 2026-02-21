@@ -121,18 +121,22 @@ function marketsRenderTable() {
     const rowClass = active ? 'markets-row active' : 'markets-row';
     const question = String(market.question || id);
     const closeAt = formatMarketDate(Number(market.closeAt || 0));
+    const cat = String(market.category || '-').toUpperCase();
+    const yesPrice = Number(market.yesPrice || 0).toFixed(2);
+    const noPrice = Number(market.noPrice || 0).toFixed(2);
     return `<div class="${rowClass}" data-market-id="${escapeHtml(id)}">
       <div class="markets-row-main">
-        <span class="status-dot ${dotClass}"></span>
+        <span class="status-dot ${dotClass}" title="${active ? 'active' : 'inactive'}"></span>
         <span class="markets-question">${escapeHtml(question.slice(0, 120))}</span>
       </div>
       <div class="markets-meta">
-        <span>${escapeHtml(String(market.category || '-').toUpperCase())}</span>
-        <span>${escapeHtml(closeAt)}</span>
-        <span>YES ${Number(market.yesPrice || 0).toFixed(2)}</span>
+        <span class="markets-cat">${escapeHtml(cat)}</span>
+        <span class="markets-close">${escapeHtml(closeAt)}</span>
+        <span class="markets-price yes">Y ${yesPrice}</span>
+        <span class="markets-price no">N ${noPrice}</span>
       </div>
       <div class="markets-actions">
-        <button type="button" data-action="toggle" data-market-id="${escapeHtml(id)}">${active ? 'Deactivate' : 'Activate'}</button>
+        <button type="button" data-action="toggle" data-market-id="${escapeHtml(id)}" class="${active ? 'btn-deactivate' : 'btn-activate'}">${active ? 'Deactivate' : 'Activate'}</button>
       </div>
     </div>`;
   }).join('');

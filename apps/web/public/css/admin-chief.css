@@ -249,13 +249,66 @@ pre {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-style: italic;
+  font-size: 14px;
 }
 .markets-meta {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+  align-items: center;
   color: var(--muted);
   font-size: 12px;
+}
+.markets-cat {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  background: rgba(198, 152, 49, 0.1);
+  border: 1px solid rgba(198, 152, 49, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--warn);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.markets-close {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+.markets-price {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.markets-price.yes { color: var(--good); background: rgba(47, 143, 94, 0.08); }
+.markets-price.no  { color: var(--bad);  background: rgba(180, 77, 60, 0.08); }
+.markets-actions button {
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.markets-actions .btn-activate {
+  border: 1px solid rgba(47, 143, 94, 0.5);
+  background: rgba(47, 143, 94, 0.08);
+  color: var(--good);
+}
+.markets-actions .btn-activate:hover {
+  background: rgba(47, 143, 94, 0.16);
+}
+.markets-actions .btn-deactivate {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+.markets-actions .btn-deactivate:hover {
+  background: rgba(180, 77, 60, 0.06);
+  border-color: rgba(180, 77, 60, 0.3);
+  color: var(--bad);
 }
 
 .markets-detail {
