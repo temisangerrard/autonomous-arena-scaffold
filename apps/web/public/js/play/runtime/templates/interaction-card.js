@@ -1,3 +1,44 @@
+/* ── Button action feedback helpers ──────────────────────── */
+const _actionTimers = new Map();
+
+function _startTimer(key, onTimeout, ms) {
+  _clearTimer(key);
+  _actionTimers.set(key, setTimeout(() => { _actionTimers.delete(key); onTimeout(); }, ms));
+}
+
+function _clearTimer(key) {
+  const id = _actionTimers.get(key);
+  if (id !== undefined) { clearTimeout(id); _actionTimers.delete(key); }
+}
+
+/** Disable a button, store its current text, show pending label, add .is-pending */
+function setPendingBtn(el, pendingText) {
+  if (!el) return;
+  if (!el.dataset.origText) el.dataset.origText = el.textContent.trim();
+  el.textContent = pendingText;
+  el.classList.add('is-pending');
+  el.disabled = true;
+  el.setAttribute('aria-busy', 'true');
+}
+
+/** Re-enable a button, restore original text, remove feedback classes */
+function clearPendingBtn(el, fallback) {
+  if (!el) return;
+  const orig = el.dataset.origText;
+  el.textContent = (orig && orig.length > 0) ? orig : (fallback || el.textContent);
+  delete el.dataset.origText;
+  el.classList.remove('is-pending', 'is-success', 'is-failed');
+  el.disabled = false;
+  el.removeAttribute('aria-busy');
+}
+
+/** Briefly flash .is-success or .is-failed on a button */
+function flashBtn(el, cls, ms = 700) {
+  if (!el) return;
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), ms);
+}
+
 export function renderInteractionCardTemplate(params) {
   const {
     state,
@@ -215,46 +256,52 @@ export function renderInteractionCardTemplate(params) {
             dispatchPrediction('prediction_positions_open');
           };
         }
+        function clearPredictionBuyBtns() {
+          clearPendingBtn(buyYesBtn, 'YES');
+          clearPendingBtn(buyNoBtn, 'NO');
+          clearPendingBtn(quoteBtn, 'Get quote');
+        }
+
         if (quoteBtn) {
           quoteBtn.onclick = () => {
             const marketId = currentMarketId();
-            if (!marketId) {
-              showToast('Pick a market first.');
-              return;
-            }
-            dispatchPrediction('prediction_market_quote', {
-              marketId,
-              side: 'yes',
-              stake: currentStake()
-            });
+            if (!marketId) { showToast('Pick a market first.'); return; }
+            setPendingBtn(quoteBtn, 'Getting quote…');
+            _startTimer('prediction:quote', () => {
+              clearPendingBtn(quoteBtn, 'Get quote');
+              showToast('No response from prediction server.', 'error');
+            }, 5000);
+            dispatchPrediction('prediction_market_quote', { marketId, side: 'yes', stake: currentStake() });
           };
         }
         if (buyYesBtn) {
           buyYesBtn.onclick = () => {
             const marketId = currentMarketId();
-            if (!marketId) {
-              showToast('Pick a market first.');
-              return;
-            }
+            if (!marketId) { showToast('Pick a market first.'); return; }
             state.ui.prediction.state = 'pending';
-            dispatchPrediction('prediction_market_buy_yes', {
-              marketId,
-              stake: currentStake()
-            });
+            setPendingBtn(buyYesBtn, 'Confirming…');
+            buyNoBtn && (buyNoBtn.disabled = true);
+            _startTimer('prediction:buy', () => {
+              clearPredictionBuyBtns();
+              state.ui.prediction.state = 'error';
+              showToast('No server response. Try again.', 'error');
+            }, 7000);
+            dispatchPrediction('prediction_market_buy_yes', { marketId, stake: currentStake() });
           };
         }
         if (buyNoBtn) {
           buyNoBtn.onclick = () => {
             const marketId = currentMarketId();
-            if (!marketId) {
-              showToast('Pick a market first.');
-              return;
-            }
+            if (!marketId) { showToast('Pick a market first.'); return; }
             state.ui.prediction.state = 'pending';
-            dispatchPrediction('prediction_market_buy_no', {
-              marketId,
-              stake: currentStake()
-            });
+            setPendingBtn(buyNoBtn, 'Confirming…');
+            buyYesBtn && (buyYesBtn.disabled = true);
+            _startTimer('prediction:buy', () => {
+              clearPredictionBuyBtns();
+              state.ui.prediction.state = 'error';
+              showToast('No server response. Try again.', 'error');
+            }, 7000);
+            dispatchPrediction('prediction_market_buy_no', { marketId, stake: currentStake() });
           };
         }
         if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
@@ -307,26 +354,42 @@ export function renderInteractionCardTemplate(params) {
           if (tailsBtn) tailsBtn.disabled = locked;
         }
 
+        function onCoinflipTimeout() {
+          _clearTimer('dealer:pick');
+          state.ui.dealer.state = 'error';
+          state.ui.dealer.reasonText = 'No server response. Try again.';
+          clearPendingBtn(startBtn, '▶ Play');
+          flashBtn(startBtn, 'is-failed');
+          clearPendingBtn(headsBtn, 'Heads');
+          clearPendingBtn(tailsBtn, 'Tails');
+          setPicksLocked(false);
+          setGameStatus('No server response. Try again.', 'error');
+          showToast('Station timed out. Retry.', 'error');
+        }
+
         function sendStart() {
           const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
           if (!sendStationInteract(station, 'coinflip_house_start', { wager })) return;
           state.ui.dealer.state = 'preflight';
           state.ui.dealer.wager = wager;
-          if (startBtn) startBtn.disabled = true;
+          setPendingBtn(startBtn, 'Locking in…');
           setPicksLocked(true);
           setGameStatus('Locking in…', 'loading');
+          _startTimer('dealer:preflight', onCoinflipTimeout, 7000);
         }
 
         function sendPick(pick) {
           if (!sendStationInteract(station, 'coinflip_house_pick', { pick, playerSeed: makePlayerSeed() })) return;
+          _clearTimer('dealer:preflight');
           state.ui.dealer.state = 'dealing';
           setPicksLocked(true);
           setGameStatus(`Flipping… you picked ${pick.toUpperCase()}`, 'loading');
+          _startTimer('dealer:pick', onCoinflipTimeout, 7000);
         }
 
         if (startBtn) startBtn.onclick = () => sendStart();
-        if (headsBtn) headsBtn.onclick = () => sendPick('heads');
-        if (tailsBtn) tailsBtn.onclick = () => sendPick('tails');
+        if (headsBtn) headsBtn.onclick = () => { setPendingBtn(headsBtn, 'Heads…'); sendPick('heads'); };
+        if (tailsBtn) tailsBtn.onclick = () => { setPendingBtn(tailsBtn, 'Tails…'); sendPick('tails'); };
 
         const ds = state.ui.dealer.state;
         const stationReady = ds === 'ready' && dealerStationMatches(station);
@@ -403,6 +466,22 @@ export function renderInteractionCardTemplate(params) {
           }
         }
 
+        function onRpsTimeout() {
+          _clearTimer('dealer:pick');
+          state.ui.dealer.state = 'error';
+          state.ui.dealer.reasonText = 'No server response. Try again.';
+          clearPendingBtn(startBtn, '▶ Play');
+          flashBtn(startBtn, 'is-failed');
+          for (const id of (isRps
+            ? ['station-house-r', 'station-house-p', 'station-house-s']
+            : ['station-house-d1', 'station-house-d2', 'station-house-d3', 'station-house-d4', 'station-house-d5', 'station-house-d6'])) {
+            const b = document.getElementById(id);
+            if (b) { clearPendingBtn(b); b.disabled = false; }
+          }
+          setGameStatus('No server response. Try again.', 'error');
+          showToast('Station timed out. Retry.', 'error');
+        }
+
         if (startBtn) {
           startBtn.onclick = () => {
             const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
@@ -410,8 +489,9 @@ export function renderInteractionCardTemplate(params) {
             state.ui.dealer.state = 'preflight';
             state.ui.dealer.wager = wager;
             state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
-            startBtn.disabled = true;
+            setPendingBtn(startBtn, 'Locking in…');
             setGameStatus('Locking in…', 'loading');
+            _startTimer('dealer:preflight', onRpsTimeout, 7000);
           };
         }
 
@@ -422,9 +502,12 @@ export function renderInteractionCardTemplate(params) {
           if (!(btn instanceof HTMLButtonElement)) continue;
           btn.onclick = () => {
             if (!sendStationInteract(station, pickAction, { pick, playerSeed: makePlayerSeed() })) return;
+            _clearTimer('dealer:preflight');
             state.ui.dealer.state = 'dealing';
+            setPendingBtn(btn, isRps ? `${pick.charAt(0).toUpperCase()}…` : `${pick.replace('d', '')}…`);
             setAllPicksLocked(true);
             setGameStatus(`You picked ${isRps ? pick : pick.replace('d', '')} — rolling…`, 'loading');
+            _startTimer('dealer:pick', onRpsTimeout, 7000);
           };
         }
 
@@ -554,13 +637,28 @@ export function renderInteractionCardTemplate(params) {
           refreshBtn.onclick = () => { void refresh(); };
         }
         if (fundBtn) {
-          fundBtn.onclick = () => { void fund().catch((e) => showToast(String(e.message || e))); };
+          fundBtn.onclick = () => {
+            setPendingBtn(fundBtn, 'Funding…');
+            fund()
+              .then(() => { flashBtn(fundBtn, 'is-success'); clearPendingBtn(fundBtn, 'Fund'); })
+              .catch((e) => { flashBtn(fundBtn, 'is-failed'); clearPendingBtn(fundBtn, 'Fund'); showToast(String(e.message || e)); });
+          };
         }
         if (withdrawBtn) {
-          withdrawBtn.onclick = () => { void withdraw().catch((e) => showToast(String(e.message || e))); };
+          withdrawBtn.onclick = () => {
+            setPendingBtn(withdrawBtn, 'Withdrawing…');
+            withdraw()
+              .then(() => { flashBtn(withdrawBtn, 'is-success'); clearPendingBtn(withdrawBtn, 'Withdraw'); })
+              .catch((e) => { flashBtn(withdrawBtn, 'is-failed'); clearPendingBtn(withdrawBtn, 'Withdraw'); showToast(String(e.message || e)); });
+          };
         }
         if (transferBtn) {
-          transferBtn.onclick = () => { void transfer().catch((e) => showToast(String(e.message || e))); };
+          transferBtn.onclick = () => {
+            setPendingBtn(transferBtn, 'Transferring…');
+            transfer()
+              .then(() => { flashBtn(transferBtn, 'is-success'); clearPendingBtn(transferBtn, 'Transfer'); })
+              .catch((e) => { flashBtn(transferBtn, 'is-failed'); clearPendingBtn(transferBtn, 'Transfer'); showToast(String(e.message || e)); });
+          };
         }
         void refresh();
       } else if (station.kind === 'world_interactable') {
@@ -600,10 +698,16 @@ export function renderInteractionCardTemplate(params) {
                 if (detailEl) {
                   detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
                 }
-                useBtn.textContent = 'Used';
-                useBtn.disabled = true;
+                setPendingBtn(useBtn, 'Done');
+                // Auto-clear after 4s (guide interaction is local, no server ack)
+                _startTimer('world:use', () => { clearPendingBtn(useBtn, actionLabel); }, 4000);
                 return;
               }
+              setPendingBtn(useBtn, 'Opening…');
+              _startTimer('world:use', () => {
+                clearPendingBtn(useBtn, actionLabel);
+                showToast('No server response. Try again.', 'error');
+              }, 4000);
               void sendStationInteract(station, 'interact_use', {
                 interactionTag: String(station.interactionTag || '')
               });
@@ -661,15 +765,15 @@ export function renderInteractionCardTemplate(params) {
         if (pickActions) pickActions.style.display = 'flex';
         setLiveStatus('Flipping…', 'loading');
       } else if (ds === 'error') {
-        if (startBtn) startBtn.disabled = false;
-        if (headsBtn) headsBtn.disabled = false;
-        if (tailsBtn) tailsBtn.disabled = false;
+        _clearTimer('dealer:preflight'); _clearTimer('dealer:pick');
+        clearPendingBtn(startBtn, '▶ Play'); flashBtn(startBtn, 'is-failed');
+        clearPendingBtn(headsBtn, 'Heads'); clearPendingBtn(tailsBtn, 'Tails');
         if (pickActions) pickActions.style.display = 'none';
         setLiveStatus(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
       } else if (ds === 'reveal') {
-        if (startBtn) startBtn.disabled = false;
-        if (headsBtn) headsBtn.disabled = false;
-        if (tailsBtn) tailsBtn.disabled = false;
+        _clearTimer('dealer:preflight'); _clearTimer('dealer:pick');
+        clearPendingBtn(startBtn, '▶ Play'); flashBtn(startBtn, 'is-success');
+        clearPendingBtn(headsBtn, 'Heads'); clearPendingBtn(tailsBtn, 'Tails');
         if (pickActions) pickActions.style.display = 'none';
         if (stageEl) stageEl.style.display = 'flex';
         if (statusEl) {
@@ -733,13 +837,17 @@ export function renderInteractionCardTemplate(params) {
         if (pickActions) pickActions.style.display = 'flex';
         setLiveStatusRps(isRpsLive ? 'Waiting for result…' : 'Rolling…', 'loading');
       } else if (ds === 'error') {
-        if (startBtn) startBtn.disabled = false;
+        _clearTimer('dealer:preflight'); _clearTimer('dealer:pick');
+        clearPendingBtn(startBtn, '▶ Play'); flashBtn(startBtn, 'is-failed');
+        for (const id of allPickIds) { const b = document.getElementById(id); if (b) clearPendingBtn(b); }
         setAllPicksBtnDisabled(false);
         if (pickActions) pickActions.style.display = 'none';
         if (stageEl) stageEl.style.display = 'flex';
         setLiveStatusRps(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
       } else if (ds === 'reveal') {
-        if (startBtn) startBtn.disabled = false;
+        _clearTimer('dealer:preflight'); _clearTimer('dealer:pick');
+        clearPendingBtn(startBtn, '▶ Play'); flashBtn(startBtn, 'is-success');
+        for (const id of allPickIds) { const b = document.getElementById(id); if (b) clearPendingBtn(b); }
         setAllPicksBtnDisabled(false);
         if (pickActions) pickActions.style.display = 'none';
         if (stageEl) stageEl.style.display = 'flex';
@@ -782,16 +890,31 @@ export function renderInteractionCardTemplate(params) {
       }
       if (statusEl) {
         const mode = String(prediction.state || 'idle');
+        const _buyYes = document.getElementById('prediction-buy-yes');
+        const _buyNo  = document.getElementById('prediction-buy-no');
+        const _quote  = document.getElementById('prediction-quote');
         if (mode === 'pending') {
           setStationStatus(statusEl, 'Submitting order...', 'neutral');
         } else if (mode === 'error') {
+          _clearTimer('prediction:buy'); _clearTimer('prediction:quote');
+          if (_buyYes) { flashBtn(_buyYes, 'is-failed'); clearPendingBtn(_buyYes, 'YES'); }
+          if (_buyNo)  { flashBtn(_buyNo,  'is-failed'); clearPendingBtn(_buyNo,  'NO');  }
+          if (_quote)  { clearPendingBtn(_quote,  'Get quote'); }
           setStationStatus(statusEl, String(prediction.lastReasonText || 'Prediction request failed.'), 'warning');
         } else if (mode === 'filled') {
+          _clearTimer('prediction:buy'); _clearTimer('prediction:quote');
+          if (_buyYes) { flashBtn(_buyYes, 'is-success'); clearPendingBtn(_buyYes, 'YES'); }
+          if (_buyNo)  { flashBtn(_buyNo,  'is-success'); clearPendingBtn(_buyNo,  'NO');  }
+          if (_quote)  { clearPendingBtn(_quote,  'Get quote'); }
           setStationStatus(statusEl, 'Order filled.', 'success');
-        } else if (markets.length === 0) {
-          setStationStatus(statusEl, 'No active markets. Refresh and sync from admin if needed.', 'warning');
         } else {
-          setStationStatus(statusEl, 'Quote a side or place an order.');
+          _clearTimer('prediction:quote');
+          if (_quote) clearPendingBtn(_quote, 'Get quote');
+          if (markets.length === 0) {
+            setStationStatus(statusEl, 'No active markets. Refresh and sync from admin if needed.', 'warning');
+          } else {
+            setStationStatus(statusEl, 'Quote a side or place an order.');
+          }
         }
       }
       if (quoteEl) {
@@ -940,14 +1063,33 @@ export function renderInteractionCardTemplate(params) {
       sendBtn.onclick = () => {
         const gameType = gameEl instanceof HTMLSelectElement ? gameEl.value : state.ui.challenge.gameType;
         const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
+        setPendingBtn(sendBtn, 'Sending…');
+        _startTimer('challenge:send', () => {
+          clearPendingBtn(sendBtn, 'Send Challenge (C)');
+          showToast('No server response. Try again.', 'error');
+        }, 7000);
         void challengeController.sendChallenge(getUiTargetId(), gameType, wager);
       };
     }
     if (acceptBtn instanceof HTMLButtonElement) {
-      acceptBtn.onclick = () => challengeController.respondToIncoming(true);
+      acceptBtn.onclick = () => {
+        setPendingBtn(acceptBtn, 'Accepting…');
+        _startTimer('challenge:respond', () => {
+          clearPendingBtn(acceptBtn, 'Accept (Y)');
+          showToast('No server response. Try again.', 'error');
+        }, 7000);
+        challengeController.respondToIncoming(true);
+      };
     }
     if (declineBtn instanceof HTMLButtonElement) {
-      declineBtn.onclick = () => challengeController.respondToIncoming(false);
+      declineBtn.onclick = () => {
+        setPendingBtn(declineBtn, 'Declining…');
+        _startTimer('challenge:respond', () => {
+          clearPendingBtn(declineBtn, 'Decline (N)');
+          showToast('No server response. Try again.', 'error');
+        }, 7000);
+        challengeController.respondToIncoming(false);
+      };
     }
   }
   } finally {

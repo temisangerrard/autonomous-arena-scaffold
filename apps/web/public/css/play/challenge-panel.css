@@ -198,3 +198,35 @@
       font: 12px/1.4 'Crimson Text', serif;
     }
 
+    /* ── Button action-feedback states ────────────────────────── */
+    .is-pending {
+      position: relative;
+      opacity: 0.78;
+      cursor: wait !important;
+    }
+
+    .is-pending::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      border: 2px solid rgba(198, 152, 49, 0.65);
+      animation: btn-pending-pulse 1.1s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes btn-pending-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.2; }
+    }
+
+    .is-success {
+      box-shadow: 0 0 0 2px rgba(47, 143, 94, 0.75) !important;
+      transition: box-shadow 0.15s;
+    }
+
+    .is-failed {
+      box-shadow: 0 0 0 2px rgba(180, 77, 60, 0.75) !important;
+      transition: box-shadow 0.15s;
+    }
+
