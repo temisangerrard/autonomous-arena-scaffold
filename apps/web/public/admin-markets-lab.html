@@ -217,8 +217,159 @@
       font-size: 13px;
       line-height: 1.5;
     }
+    .experience {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 12px;
+    }
+    .experience-card {
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      background: rgba(255, 253, 248, 0.95);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .experience-title {
+      margin: 0;
+      font: italic 700 20px/1 var(--display);
+    }
+    .narrator {
+      border: 1px solid rgba(198, 152, 49, 0.25);
+      border-radius: 10px;
+      background: linear-gradient(145deg, rgba(255, 249, 234, 0.88), rgba(247, 234, 202, 0.7));
+      padding: 10px 11px;
+      display: grid;
+      gap: 5px;
+    }
+    .narrator .name {
+      font: 600 11px/1 var(--mono);
+      color: #8a6725;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .narrator .line {
+      font-style: italic;
+      color: #4c3a1c;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .stepper {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .step-pill {
+      border: 1px solid var(--edge);
+      border-radius: 999px;
+      padding: 5px 9px;
+      font: 500 11px/1 var(--mono);
+      background: rgba(255, 251, 241, 0.96);
+      color: var(--muted);
+    }
+    .step-pill.active {
+      border-color: #b68624;
+      color: #3c2a0d;
+      background: rgba(232, 195, 112, 0.26);
+    }
+    .play-panel-shell {
+      border: 1px solid var(--edge);
+      border-radius: 12px;
+      background: linear-gradient(155deg, rgba(255, 252, 246, 0.95), rgba(247, 238, 220, 0.9));
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .station-ui__title {
+      font: italic 700 17px/1 var(--display);
+      color: #3b2a0d;
+    }
+    .station-ui__meta {
+      border: 1px solid var(--edge);
+      border-radius: 8px;
+      background: rgba(255, 251, 240, 0.9);
+      color: var(--muted);
+      padding: 7px 8px;
+      font-size: 13px;
+    }
+    .prediction-sides {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .prediction-side {
+      border: 1px solid var(--edge);
+      border-radius: 8px;
+      padding: 8px 9px;
+      font: 500 12px/1 var(--mono);
+      cursor: pointer;
+      background: rgba(255, 253, 248, 0.96);
+    }
+    .prediction-side--yes { color: var(--good); }
+    .prediction-side--no { color: var(--bad); }
+    .prediction-side.selected {
+      border-color: #b68624;
+      box-shadow: 0 0 0 2px rgba(182, 134, 36, 0.13);
+      background: rgba(250, 235, 199, 0.5);
+    }
+    .timeline {
+      max-height: 170px;
+      overflow: auto;
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      background: rgba(255, 253, 248, 0.95);
+      padding: 8px 10px;
+      display: grid;
+      gap: 7px;
+    }
+    .timeline-item {
+      font: 12px/1.4 var(--mono);
+      color: #5f4e2f;
+      border-left: 2px solid rgba(198, 152, 49, 0.4);
+      padding-left: 8px;
+    }
+    .timeline-item.flash {
+      animation: timelineFlash 700ms ease-out;
+    }
+    @keyframes timelineFlash {
+      from { background: rgba(232, 195, 112, 0.2); }
+      to { background: transparent; }
+    }
+    .live-embed {
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #1b1711;
+      min-height: 380px;
+      position: relative;
+    }
+    .live-embed iframe {
+      width: 100%;
+      height: 380px;
+      border: 0;
+      display: block;
+    }
+    .live-embed__placeholder {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #d7c6a2;
+      text-align: center;
+      padding: 20px;
+      gap: 10px;
+      background: radial-gradient(circle at 20% 12%, #312819 0%, #1b1711 65%);
+    }
+    .ops-only[hidden] { display: none !important; }
+    .preview-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
     @media (max-width: 980px) {
       .grid, .cap { grid-template-columns: 1fr 1fr; }
+      .experience { grid-template-columns: 1fr; }
     }
     @media (max-width: 680px) {
       .grid, .cap { grid-template-columns: 1fr; }
@@ -240,7 +391,69 @@
 
     <section id="status" class="status">Loading markets lab...</section>
 
-    <section class="grid">
+    <section class="panel">
+      <div class="row">
+        <h2 class="panel-heading">Game Experience Demo</h2>
+        <span class="badge live">Player Preview</span>
+      </div>
+      <div class="experience">
+        <article class="experience-card">
+          <h3 class="experience-title">Guided Round Flow</h3>
+          <div class="preview-controls">
+            <button id="demo-preview-toggle" class="btn" type="button">Player Preview Mode: On</button>
+            <select id="demo-outcome">
+              <option value="win">Outcome: Win</option>
+              <option value="loss">Outcome: Loss</option>
+              <option value="refund">Outcome: Refund</option>
+            </select>
+            <button id="demo-autoplay" class="btn" type="button">Autoplay Sequence</button>
+            <button id="demo-reset" class="btn" type="button">Reset</button>
+          </div>
+          <div class="narrator">
+            <div id="demo-narrator-name" class="name">Mara, Market Guide</div>
+            <div id="demo-narrator-line" class="line">Welcome to the market terminal. I will walk you through exactly what players experience in the arena.</div>
+          </div>
+          <div id="demo-stepper" class="stepper"></div>
+          <div class="play-panel-shell">
+            <div class="station-ui__title">Market Terminal <span class="mono" style="font-size:11px; color:var(--muted);">from /play patterns</span></div>
+            <div class="row">
+              <label class="mono" for="demo-market">Question</label>
+              <select id="demo-market"></select>
+              <label class="mono" for="demo-stake">Stake (USDC)</label>
+              <input id="demo-stake" type="number" min="1" max="10000" value="10" />
+            </div>
+            <div class="prediction-sides">
+              <button id="demo-buy-yes" class="prediction-side prediction-side--yes" type="button">YES</button>
+              <button id="demo-buy-no" class="prediction-side prediction-side--no" type="button">NO</button>
+            </div>
+            <div id="demo-status" class="station-ui__meta">Choose a market, pick YES/NO, then run the guided sequence.</div>
+            <div id="demo-quote" class="station-ui__meta" hidden></div>
+            <div id="demo-position" class="station-ui__meta" hidden></div>
+            <div class="row">
+              <button id="demo-prev" class="btn" type="button">Back Step</button>
+              <button id="demo-next" class="btn btn-gold" type="button">Next Step</button>
+            </div>
+          </div>
+          <div id="demo-timeline" class="timeline"></div>
+        </article>
+        <article class="experience-card">
+          <h3 class="experience-title">Live Arena Embed</h3>
+          <p class="sub" style="margin:0;">This is the real in-game runtime at <code>/play</code> embedded directly, so you can compare guided flow against actual player experience.</p>
+          <div class="live-embed">
+            <div id="live-embed-placeholder" class="live-embed__placeholder">
+              <div>Load the full Arena preview inside this page.</div>
+              <button id="load-live-play" class="btn btn-gold" type="button">Load Embedded /play</button>
+            </div>
+            <iframe id="live-play-frame" title="Embedded Arena Play Preview" loading="lazy" hidden></iframe>
+          </div>
+          <div class="row">
+            <a class="btn" href="/play" target="_blank" rel="noopener">Open /play full screen</a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="grid ops-only" id="ops-kpis">
       <article class="kpi"><div class="label">Enabled Markets</div><div class="value" id="kpi-enabled">0</div></article>
       <article class="kpi"><div class="label">Active Markets</div><div class="value" id="kpi-active">0</div></article>
       <article class="kpi"><div class="label">Live API Markets</div><div class="value" id="kpi-live">0</div></article>
@@ -249,7 +462,7 @@
       <article class="kpi"><div class="label">API Access</div><div class="value mono" id="kpi-auth">Public</div></article>
     </section>
 
-    <section class="cap">
+    <section class="cap ops-only" id="ops-capabilities">
       <article>
         <h3>What You Can Do</h3>
         <p>Browse live Polymarket feed, search BTC/events, and promote a live market into your enabled list for gameplay.</p>
@@ -264,7 +477,7 @@
       </article>
     </section>
 
-    <section class="panel">
+    <section class="panel ops-only" id="ops-enabled-markets">
       <div class="row">
         <h2 class="panel-heading">Enabled In-App</h2>
         <button id="sync-markets" class="btn" type="button">Sync From Polymarket</button>
@@ -284,7 +497,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel ops-only" id="ops-live-feed">
       <div class="row">
         <h2 class="panel-heading">Live Polymarket Feed</h2>
         <input id="live-query" type="text" placeholder="Search (btc, election, sports)" />
@@ -312,7 +525,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel ops-only" id="ops-stake-sim">
       <h2 class="panel-heading">Stake Simulator</h2>
       <div class="row">
         <select id="sim-market"></select>
