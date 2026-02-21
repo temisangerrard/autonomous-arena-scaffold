@@ -459,16 +459,18 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
     avatar.add(badge);
   }
 
-  // Name tag
-  const nameTag = createNameTag(THREE, initialName);
+  // Name tag: keep for remote/NPC avatars; local player already has top-left identity HUD.
+  const nameTag = isLocal ? null : createNameTag(THREE, initialName);
 
   // Assemble avatar
   avatar.add(
     body, head, hair, faceGroup,
     leftArm, rightArm, leftHand, rightHand,
-    leftLeg, rightLeg, leftFoot, rightFoot,
-    nameTag.sprite
+    leftLeg, rightLeg, leftFoot, rightFoot
   );
+  if (nameTag?.sprite) {
+    avatar.add(nameTag.sprite);
+  }
   avatar.scale.setScalar(AVATAR_WORLD_SCALE);
 
   return {
@@ -484,7 +486,7 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
     rightLeg,
     leftFoot,
     rightFoot,
-    setName: nameTag.setText
+    setName: nameTag?.setText || (() => {})
   };
 }
 
