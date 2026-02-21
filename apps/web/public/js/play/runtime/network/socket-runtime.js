@@ -296,7 +296,12 @@ export async function connectSocketRuntime(deps) {
           side: String(view.side || ''),
           price: Number(view.price || 0),
           shares: Number(view.shares || 0),
-          potentialPayout: Number(view.potentialPayout || 0)
+          potentialPayout: Number(view.potentialPayout || 0),
+          estimatedPayout: Number(view.estimatedPayout || 0),
+          minPayout: Number(view.minPayout || 0),
+          liquidityOpposite: Number(view.liquidityOpposite || 0),
+          liquiditySameSide: Number(view.liquiditySameSide || 0),
+          liquidityWarning: String(view.liquidityWarning || '')
         };
         return;
       }
@@ -316,7 +321,12 @@ export async function connectSocketRuntime(deps) {
           side: String(view.side || ''),
           price: Number(view.price || 0),
           shares: Number(view.shares || 0),
-          potentialPayout: Number(view.potentialPayout || 0)
+          potentialPayout: Number(view.potentialPayout || 0),
+          estimatedPayout: Number(view.estimatedPayout || 0),
+          minPayout: Number(view.minPayout || 0),
+          liquidityOpposite: Number(view.liquidityOpposite || 0),
+          liquiditySameSide: Number(view.liquiditySameSide || 0),
+          liquidityWarning: String(view.liquidityWarning || '')
         };
         showToast('Prediction order filled.');
         return;

@@ -51,6 +51,11 @@ export async function handlePredictionStationAction(params: {
   }
 
   if (payload.action === 'prediction_markets_open') {
+    await marketService.recordPredictionEvent({
+      playerId,
+      stationId: station.id,
+      eventType: 'prediction_markets_open'
+    });
     const markets = await marketService.listActiveMarketsForPlayer();
     respond({
       ok: true,
@@ -62,6 +67,11 @@ export async function handlePredictionStationAction(params: {
   }
 
   if (payload.action === 'prediction_positions_open') {
+    await marketService.recordPredictionEvent({
+      playerId,
+      stationId: station.id,
+      eventType: 'prediction_positions_open'
+    });
     const [positions, marketState] = await Promise.all([
       marketService.listPlayerPositions(playerId),
       marketService.getAdminState()
@@ -82,12 +92,30 @@ export async function handlePredictionStationAction(params: {
   }
 
   if (payload.action === 'prediction_market_quote') {
+    await marketService.recordPredictionEvent({
+      playerId,
+      stationId: station.id,
+      marketId: payload.marketId,
+      eventType: 'prediction_quote_requested',
+      side: payload.side,
+      stake: payload.stake
+    });
     const quoted = await marketService.quote({
       marketId: payload.marketId,
       side: payload.side,
       stake: payload.stake
     });
     if (!quoted.ok || !quoted.market) {
+      await marketService.recordPredictionEvent({
+        playerId,
+        stationId: station.id,
+        marketId: payload.marketId,
+        eventType: 'prediction_quote_failed',
+        side: payload.side,
+        stake: payload.stake,
+        reason: quoted.reason,
+        reasonCode: quoted.reasonCode
+      });
       respond(
         toPredictionError({
           reason: quoted.reason,
@@ -106,7 +134,26 @@ export async function handlePredictionStationAction(params: {
       price: quoted.price,
       shares: quoted.shares,
       potentialPayout: quoted.potentialPayout,
+      estimatedPayout: quoted.estimatedPayout,
+      minPayout: quoted.minPayout,
+      liquidityOpposite: quoted.liquidityOpposite,
+      liquiditySameSide: quoted.liquiditySameSide,
+      liquidityWarning: quoted.liquidityWarning,
       markets: [toMarketView(quoted.market)]
+    });
+    await marketService.recordPredictionEvent({
+      playerId,
+      stationId: station.id,
+      marketId: quoted.market.id,
+      eventType: 'prediction_quote_returned',
+      side: payload.side,
+      stake: quoted.stake,
+      oppositeLiquidityAtCommit: quoted.liquidityOpposite ?? null,
+      closeAt: quoted.market.closeAt,
+      metaJson: {
+        estimatedPayout: quoted.estimatedPayout ?? null,
+        minPayout: quoted.minPayout ?? null
+      }
     });
     return;
   }
@@ -124,6 +171,14 @@ export async function handlePredictionStationAction(params: {
   }
 
   const side = payload.action === 'prediction_market_buy_yes' ? 'yes' : 'no';
+  await marketService.recordPredictionEvent({
+    playerId,
+    stationId: station.id,
+    marketId: payload.marketId,
+    eventType: 'prediction_commit_requested',
+    side,
+    stake: payload.stake
+  });
   respond({
     ok: true,
     state: 'prediction_order_pending',
@@ -137,9 +192,20 @@ export async function handlePredictionStationAction(params: {
     walletId,
     marketId: payload.marketId,
     side,
-    stake: payload.stake
+    stake: payload.stake,
+    stationId: station.id
   });
   if (!opened.ok || !opened.position || !opened.quote?.market) {
+    await marketService.recordPredictionEvent({
+      playerId,
+      stationId: station.id,
+      marketId: payload.marketId,
+      eventType: 'prediction_commit_failed',
+      side,
+      stake: payload.stake,
+      reason: opened.reason,
+      reasonCode: opened.reasonCode
+    });
     respond(
       toPredictionError({
         reason: opened.reason,
@@ -159,6 +225,11 @@ export async function handlePredictionStationAction(params: {
     price: opened.position.price,
     shares: opened.position.shares,
     potentialPayout: Number((opened.position.stake / Math.max(0.01, opened.position.price)).toFixed(6)),
+    estimatedPayout: opened.quote.estimatedPayout,
+    minPayout: opened.quote.minPayout,
+    liquidityOpposite: opened.quote.liquidityOpposite,
+    liquiditySameSide: opened.quote.liquiditySameSide,
+    liquidityWarning: opened.quote.liquidityWarning,
     positionStatus: opened.position.status,
     markets: [toMarketView(opened.quote.market)],
     positions: [

@@ -15,6 +15,15 @@ function buildServiceState(input?: {
     async listMarkets() {
       return [...markets];
     },
+    async listOpenMarketPositions() {
+      return [];
+    },
+    async insertMarketInteractionEvent() {
+      return;
+    },
+    async listMarketInteractionCounts() {
+      return [];
+    },
     async listMarketActivations() {
       return [...activations.values()];
     },
@@ -212,5 +221,142 @@ describe('MarketService active market guarantee', () => {
     expect(markets[0]?.id).toBe('fallback_train_world_market');
     expect(markets[0]?.active).toBe(true);
     expect(serviceState.getUpsertCount()).toBe(1);
+  });
+});
+
+describe('MarketService settlement liquidity behavior', () => {
+  it('refunds winning positions when no opposite liquidity exists', async () => {
+    const now = Date.now();
+    const settled: Array<{ positionId: string; status: string; payout?: number | null; settlementReason?: string | null }> = [];
+    const db = {
+      async listOpenMarketPositions() {
+        return [
+          {
+            id: 'pos_1',
+            marketId: 'm_1',
+            playerId: 'p_1',
+            walletId: 'w_1',
+            side: 'yes' as const,
+            stake: 10,
+            price: 0.5,
+            shares: 20,
+            status: 'open' as const,
+            escrowBetId: 'bet_1',
+            estimatedPayoutAtOpen: 10,
+            minPayoutAtOpen: 10,
+            payout: null,
+            settlementReason: null,
+            createdAt: now,
+            settledAt: null
+          }
+        ];
+      },
+      async listMarkets() {
+        return [
+          {
+            id: 'm_1',
+            slug: 'm_1',
+            question: 'Will X happen?',
+            category: 'test',
+            closeAt: now - 1000,
+            resolveAt: now,
+            status: 'resolved' as const,
+            oracleSource: 'polymarket_gamma',
+            oracleMarketId: 'm_1',
+            outcome: 'yes' as const,
+            yesPrice: 0.5,
+            noPrice: 0.5
+          }
+        ];
+      },
+      async settleMarketPosition(params: { positionId: string; status: string; payout?: number | null; settlementReason?: string | null }) {
+        settled.push(params);
+      },
+      async insertMarketInteractionEvent() {
+        return;
+      }
+    };
+    const escrow = {
+      async refund() {
+        return { ok: true };
+      },
+      async resolve() {
+        return { ok: false };
+      }
+    };
+    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+
+    const result = await service.settleResolvedMarkets();
+
+    expect(result.settled).toBe(1);
+    expect(settled[0]?.status).toBe('won');
+    expect(settled[0]?.settlementReason).toBe('won_refund_only');
+    expect(settled[0]?.payout).toBe(10);
+  });
+
+  it('voids positions for cancelled markets', async () => {
+    const now = Date.now();
+    const settled: Array<{ positionId: string; status: string; payout?: number | null; settlementReason?: string | null }> = [];
+    const db = {
+      async listOpenMarketPositions() {
+        return [
+          {
+            id: 'pos_c_1',
+            marketId: 'm_c_1',
+            playerId: 'p_2',
+            walletId: 'w_2',
+            side: 'no' as const,
+            stake: 12,
+            price: 0.5,
+            shares: 24,
+            status: 'open' as const,
+            escrowBetId: 'bet_c_1',
+            estimatedPayoutAtOpen: 12,
+            minPayoutAtOpen: 12,
+            payout: null,
+            settlementReason: null,
+            createdAt: now,
+            settledAt: null
+          }
+        ];
+      },
+      async listMarkets() {
+        return [
+          {
+            id: 'm_c_1',
+            slug: 'm_c_1',
+            question: 'Cancelled market',
+            category: 'test',
+            closeAt: now - 1000,
+            resolveAt: now,
+            status: 'cancelled' as const,
+            oracleSource: 'polymarket_gamma',
+            oracleMarketId: 'm_c_1',
+            outcome: null,
+            yesPrice: 0.5,
+            noPrice: 0.5
+          }
+        ];
+      },
+      async settleMarketPosition(params: { positionId: string; status: string; payout?: number | null; settlementReason?: string | null }) {
+        settled.push(params);
+      },
+      async insertMarketInteractionEvent() {
+        return;
+      }
+    };
+    const escrow = {
+      async refund() {
+        return { ok: true };
+      }
+    };
+    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+
+    const result = await service.settleResolvedMarkets();
+
+    expect(result.settled).toBe(1);
+    expect(settled[0]?.status).toBe('voided');
+    expect(settled[0]?.settlementReason).toBe('voided');
+    expect(settled[0]?.payout).toBe(12);
   });
 });

@@ -218,6 +218,49 @@ export const MIGRATIONS: Migration[] = [
       DROP TABLE IF EXISTS market_positions;
       DROP TABLE IF EXISTS markets;
     `
+  },
+  {
+    version: 7,
+    name: 'prediction_liquidity_and_events',
+    up: `
+      ALTER TABLE market_positions ADD COLUMN IF NOT EXISTS estimated_payout_at_open NUMERIC;
+      ALTER TABLE market_positions ADD COLUMN IF NOT EXISTS min_payout_at_open NUMERIC;
+      ALTER TABLE market_positions ADD COLUMN IF NOT EXISTS payout NUMERIC;
+      ALTER TABLE market_positions ADD COLUMN IF NOT EXISTS settlement_reason TEXT;
+
+      CREATE TABLE IF NOT EXISTS market_interaction_events (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL,
+        station_id TEXT NOT NULL,
+        market_id TEXT,
+        event_type TEXT NOT NULL,
+        side TEXT,
+        stake NUMERIC,
+        opposite_liquidity_at_commit NUMERIC,
+        close_at TIMESTAMPTZ,
+        reason TEXT,
+        reason_code TEXT,
+        meta_json JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_market_interaction_events_player_created
+        ON market_interaction_events(player_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_market_interaction_events_market_created
+        ON market_interaction_events(market_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_market_interaction_events_event_created
+        ON market_interaction_events(event_type, created_at DESC);
+    `,
+    down: `
+      DROP INDEX IF EXISTS idx_market_interaction_events_event_created;
+      DROP INDEX IF EXISTS idx_market_interaction_events_market_created;
+      DROP INDEX IF EXISTS idx_market_interaction_events_player_created;
+      DROP TABLE IF EXISTS market_interaction_events;
+      ALTER TABLE market_positions DROP COLUMN IF EXISTS settlement_reason;
+      ALTER TABLE market_positions DROP COLUMN IF EXISTS payout;
+      ALTER TABLE market_positions DROP COLUMN IF EXISTS min_payout_at_open;
+      ALTER TABLE market_positions DROP COLUMN IF EXISTS estimated_payout_at_open;
+    `
   }
 ];
 

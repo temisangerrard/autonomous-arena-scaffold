@@ -43,10 +43,55 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
     {
       id: 'station_dealer_prediction_a',
       kind: 'dealer_prediction',
-      displayName: 'Prediction Dealer',
+      displayName: 'Prediction Dealer A',
       x: (WORLD_SECTION_SPAWNS[4]?.x ?? -80) + 10,
       z: (WORLD_SECTION_SPAWNS[4]?.z ?? 45) - 2,
       yaw: 0,
+      actions: [
+        'prediction_markets_open',
+        'prediction_market_quote',
+        'prediction_market_buy_yes',
+        'prediction_market_buy_no',
+        'prediction_positions_open'
+      ] satisfies StationActionId[]
+    },
+    {
+      id: 'station_dealer_prediction_b',
+      kind: 'dealer_prediction',
+      displayName: 'Prediction Dealer B',
+      x: (WORLD_SECTION_SPAWNS[1]?.x ?? -25) + 8,
+      z: (WORLD_SECTION_SPAWNS[1]?.z ?? -30) + 2,
+      yaw: 0,
+      actions: [
+        'prediction_markets_open',
+        'prediction_market_quote',
+        'prediction_market_buy_yes',
+        'prediction_market_buy_no',
+        'prediction_positions_open'
+      ] satisfies StationActionId[]
+    },
+    {
+      id: 'station_dealer_prediction_c',
+      kind: 'dealer_prediction',
+      displayName: 'Prediction Dealer C',
+      x: (WORLD_SECTION_SPAWNS[6]?.x ?? 25) - 8,
+      z: (WORLD_SECTION_SPAWNS[6]?.z ?? 30) - 2,
+      yaw: 0,
+      actions: [
+        'prediction_markets_open',
+        'prediction_market_quote',
+        'prediction_market_buy_yes',
+        'prediction_market_buy_no',
+        'prediction_positions_open'
+      ] satisfies StationActionId[]
+    },
+    {
+      id: 'station_dealer_prediction_d',
+      kind: 'dealer_prediction',
+      displayName: 'Prediction Dealer D',
+      x: (WORLD_SECTION_SPAWNS[3]?.x ?? 80) - 12,
+      z: (WORLD_SECTION_SPAWNS[3]?.z ?? -45) + 14,
+      yaw: 0.2,
       actions: [
         'prediction_markets_open',
         'prediction_market_quote',

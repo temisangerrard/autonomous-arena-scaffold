@@ -289,6 +289,8 @@ export interface PredictionMarketView {
   yesPrice: number;
   noPrice: number;
   maxWager: number;
+  yesLiquidity?: number;
+  noLiquidity?: number;
 }
 
 export interface PredictionPositionView {
@@ -300,6 +302,11 @@ export interface PredictionPositionView {
   price: number;
   shares: number;
   potentialPayout: number;
+  estimatedPayout?: number;
+  minPayout?: number;
+  payout?: number;
+  settlementReason?: string | null;
+  liquidityFloor?: number;
   status: 'open' | 'won' | 'lost' | 'voided';
   createdAt: number;
   settledAt: number | null;
@@ -332,6 +339,11 @@ export interface StationUiView {
   price?: number;
   shares?: number;
   potentialPayout?: number;
+  estimatedPayout?: number;
+  minPayout?: number;
+  liquidityOpposite?: number;
+  liquiditySameSide?: number;
+  liquidityWarning?: string;
   positionStatus?: 'open' | 'won' | 'lost' | 'voided';
   settlementStatus?: 'pending' | 'settled' | 'error';
   markets?: PredictionMarketView[];

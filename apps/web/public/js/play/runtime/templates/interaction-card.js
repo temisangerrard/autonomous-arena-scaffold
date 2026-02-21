@@ -787,18 +787,22 @@ export function renderInteractionCardTemplate(params) {
         } else if (mode === 'error') {
           setStationStatus(statusEl, String(prediction.lastReasonText || 'Prediction request failed.'), 'warning');
         } else if (mode === 'filled') {
-          setStationStatus(statusEl, 'Order filled.', 'success');
+          const warning = String(prediction.quote?.liquidityWarning || '').trim();
+          setStationStatus(statusEl, warning || 'Order filled.', warning ? 'warning' : 'success');
         } else if (markets.length === 0) {
           setStationStatus(statusEl, 'No active markets. Refresh and sync from admin if needed.', 'warning');
         } else {
-          setStationStatus(statusEl, 'Quote a side or place an order.');
+          setStationStatus(statusEl, 'Quote a side or place an order. If opposite liquidity is missing at close, your stake is refunded.');
         }
       }
       if (quoteEl) {
         const quote = prediction.quote;
         if (quote && quote.marketId) {
           quoteEl.hidden = false;
-          quoteEl.textContent = `${String(quote.side || '').toUpperCase()} @ ${formatPredictionPrice(Number(quote.price || 0))} · ${Number(quote.shares || 0).toFixed(2)} shares · payout ${formatUsdAmount(Number(quote.potentialPayout || 0))}`;
+          const estimated = Number(quote.estimatedPayout || quote.potentialPayout || 0);
+          const minReturn = Number(quote.minPayout || 0);
+          const opposite = Number(quote.liquidityOpposite || 0);
+          quoteEl.textContent = `${String(quote.side || '').toUpperCase()} @ ${formatPredictionPrice(Number(quote.price || 0))} · ${Number(quote.shares || 0).toFixed(2)} shares · est ${formatUsdAmount(estimated)} · floor ${formatUsdAmount(minReturn)} · opposite ${formatUsdAmount(opposite)}`;
         } else {
           quoteEl.hidden = true;
           quoteEl.textContent = '';
@@ -814,7 +818,9 @@ export function renderInteractionCardTemplate(params) {
             .slice(0, 4)
             .map((entry) => {
               const question = String(entry.question || entry.marketId || '').slice(0, 44);
-              return `<div class="prediction-position">${question}<span class="prediction-position__side prediction-position__side--${String(entry.side || '').toLowerCase()}">${String(entry.side || '').toUpperCase()}</span> · ${formatUsdAmount(Number(entry.stake || 0))} · ${String(entry.status || 'open')}</div>`;
+              const payout = Number(entry.payout || 0);
+              const settlement = String(entry.settlementReason || '');
+              return `<div class="prediction-position">${question}<span class="prediction-position__side prediction-position__side--${String(entry.side || '').toLowerCase()}">${String(entry.side || '').toUpperCase()}</span> · ${formatUsdAmount(Number(entry.stake || 0))} · ${String(entry.status || 'open')}${payout > 0 ? ` · payout ${formatUsdAmount(payout)}` : ''}${settlement ? ` · ${settlement}` : ''}</div>`;
             })
             .join('');
         }
@@ -827,7 +833,9 @@ export function renderInteractionCardTemplate(params) {
               .map((entry) => {
                 const question = String(entry.question || entry.marketId || '').slice(0, 42);
                 const yes = formatPredictionPrice(Number(entry.yesPrice || 0));
-                return `<span class="prediction-pill"><strong>${question}</strong><span>YES ${yes}</span></span>`;
+                const yesLiq = formatUsdAmount(Number(entry.yesLiquidity || 0));
+                const noLiq = formatUsdAmount(Number(entry.noLiquidity || 0));
+                return `<span class="prediction-pill"><strong>${question}</strong><span>YES ${yes} · LQ Y ${yesLiq} / N ${noLiq}</span></span>`;
               })
               .join('');
       }
