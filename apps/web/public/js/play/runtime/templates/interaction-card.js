@@ -146,31 +146,30 @@ export function renderInteractionCardTemplate(params) {
         stationUi.dataset.predictionMode = kioskMode ? 'kiosk' : 'dealer';
         stationUi.innerHTML = `
           <div class="prediction-panel">
-            <div class="prediction-panel__head">
-              <div class="station-ui__title">${kioskMode ? 'Prediction Market Board' : 'Prediction Dealer'}</div>
-              <div class="prediction-panel__subhead">${kioskMode ? 'Browse live Polymarket outcomes from this terminal.' : 'Trade live YES/NO outcomes with market pricing.'}</div>
+            <div class="prediction-header">
+              <span class="prediction-header__source">Polymarket</span>
+              <span class="prediction-header__label">${kioskMode ? 'Market board' : 'Live markets'}</span>
             </div>
-            <div class="prediction-panel__ticker" id="prediction-market-strip"></div>
             <div class="station-ui__row">
-              <label for="prediction-market-select">Market</label>
+              <label for="prediction-market-select">Question</label>
               <select id="prediction-market-select"></select>
             </div>
             <div class="station-ui__row">
-              <label for="prediction-stake">Stake (USDC)</label>
-              <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" />
+              <label for="prediction-stake">Stake <span class="game-panel__currency">USDC</span></label>
+              <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" class="game-panel__wager-input" />
             </div>
+            <div class="prediction-sides">
+              <button id="prediction-buy-yes" class="prediction-side prediction-side--yes" type="button">YES</button>
+              <button id="prediction-buy-no" class="prediction-side prediction-side--no" type="button">NO</button>
+            </div>
+            <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Fetching markets…'}</div>
+            <div class="station-ui__meta" id="prediction-quote-view" hidden></div>
+            <div class="station-ui__meta" id="prediction-positions-view" hidden></div>
             <div class="station-ui__actions">
-              <button id="prediction-refresh" class="btn-ghost" type="button">${kioskMode ? 'Refresh Board' : 'Refresh Markets'}</button>
-              <button id="prediction-positions" class="btn-ghost" type="button">My Positions</button>
-              <button id="prediction-quote" class="btn-ghost" type="button">Quote YES</button>
+              <button id="prediction-quote" class="btn-ghost" type="button">Get quote</button>
+              <button id="prediction-positions" class="btn-ghost" type="button">My positions</button>
+              <button id="prediction-refresh" class="btn-ghost" type="button">Refresh</button>
             </div>
-            <div class="station-ui__actions">
-              <button id="prediction-buy-yes" class="btn-gold" type="button">Buy YES</button>
-              <button id="prediction-buy-no" class="btn-gold" type="button">Buy NO</button>
-            </div>
-            <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Load markets, then quote or place a side.'}</div>
-            <div class="station-ui__meta" id="prediction-quote-view"></div>
-            <div class="station-ui__meta" id="prediction-positions-view"></div>
           </div>
         `;
 
@@ -798,21 +797,27 @@ export function renderInteractionCardTemplate(params) {
       if (quoteEl) {
         const quote = prediction.quote;
         if (quote && quote.marketId) {
-          quoteEl.textContent = `Quote ${String(quote.side || '').toUpperCase()} · Price ${formatPredictionPrice(Number(quote.price || 0))} · Shares ${Number(quote.shares || 0).toFixed(4)} · Payout ${formatUsdAmount(Number(quote.potentialPayout || 0))}`;
+          quoteEl.hidden = false;
+          quoteEl.textContent = `${String(quote.side || '').toUpperCase()} @ ${formatPredictionPrice(Number(quote.price || 0))} · ${Number(quote.shares || 0).toFixed(2)} shares · payout ${formatUsdAmount(Number(quote.potentialPayout || 0))}`;
         } else {
+          quoteEl.hidden = true;
           quoteEl.textContent = '';
         }
       }
       if (positionsEl) {
-        positionsEl.innerHTML = positions.length === 0
-          ? ''
-          : positions
-              .slice(0, 4)
-              .map((entry) => {
-                const question = String(entry.question || entry.marketId || '').slice(0, 46);
-                return `${question} · ${String(entry.side || '').toUpperCase()} · ${formatUsdAmount(Number(entry.stake || 0))} · ${String(entry.status || 'open')}`;
-              })
-              .join('<br/>');
+        if (positions.length === 0) {
+          positionsEl.hidden = true;
+          positionsEl.innerHTML = '';
+        } else {
+          positionsEl.hidden = false;
+          positionsEl.innerHTML = positions
+            .slice(0, 4)
+            .map((entry) => {
+              const question = String(entry.question || entry.marketId || '').slice(0, 44);
+              return `<div class="prediction-position">${question}<span class="prediction-position__side prediction-position__side--${String(entry.side || '').toLowerCase()}">${String(entry.side || '').toUpperCase()}</span> · ${formatUsdAmount(Number(entry.stake || 0))} · ${String(entry.status || 'open')}</div>`;
+            })
+            .join('');
+        }
       }
       if (tickerEl) {
         tickerEl.innerHTML = markets.length === 0

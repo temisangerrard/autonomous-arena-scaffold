@@ -5,32 +5,33 @@
       position: fixed;
       left: 50%;
       transform: translateX(-50%);
-      bottom: 100px;
+      bottom: 96px;
       z-index: 135;
       display: none;
-      padding: 12px 20px;
+      padding: 10px 22px;
       border-radius: 999px;
-      border: 1px solid rgba(201, 162, 39, 0.4);
-      background: rgba(253, 248, 237, 0.96);
-      color: #4a3612;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-      font: 700 14px/1.2 'Crimson Text', serif;
-      letter-spacing: 0.02em;
-      backdrop-filter: blur(8px);
-      animation: float-prompt 2s ease-in-out infinite;
+      border: 1px solid rgba(201, 162, 39, 0.38);
+      background: rgba(253, 248, 237, 0.95);
+      box-shadow: 0 8px 28px rgba(20, 12, 0, 0.18);
+      backdrop-filter: blur(10px);
+      animation: float-prompt 2.4s ease-in-out infinite;
+      white-space: nowrap;
     }
-    .interaction-prompt.visible { display: block; }
+    .interaction-prompt.visible { display: flex; align-items: center; gap: 0; }
     @keyframes float-prompt {
       0%, 100% { transform: translateX(-50%) translateY(0); }
-      50% { transform: translateX(-50%) translateY(-4px); }
+      50% { transform: translateX(-50%) translateY(-3px); }
     }
 
-    .interaction-prompt__key {
-      display: inline-block;
-      padding: 2px 8px;
-      background: rgba(201, 162, 39, 0.2);
-      border-radius: 4px;
-      font: 700 12px/1 'IBM Plex Mono', monospace;
-      margin: 0 2px;
+    .prompt-name {
+      font: italic 700 15px/1 'Crimson Text', serif;
+      color: #3b2b12;
+      letter-spacing: 0.01em;
+    }
+
+    .prompt-hint {
+      font: 400 13px/1 'Crimson Text', serif;
+      color: #8c7040;
+      letter-spacing: 0.01em;
     }
 

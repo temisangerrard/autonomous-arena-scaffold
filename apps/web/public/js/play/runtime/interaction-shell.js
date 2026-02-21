@@ -90,12 +90,19 @@ export function renderInteractionPromptLine(params) {
     setInteractOpen(false);
     return;
   }
-  const distance = state.nearbyDistances.get(targetId);
   const incoming = challengeController.currentIncomingChallenge();
   if (isStation(targetId)) {
-    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · Tab switch`;
+    const station = state.stations instanceof Map ? state.stations.get(targetId) : null;
+    const local = station?.localInteraction;
+    if (local?.title) {
+      // Named NPC host — show character name as the call-to-action
+      interactionPrompt.innerHTML = `<span class="prompt-name">${local.title}</span><span class="prompt-hint"> — press E to talk</span>`;
+    } else {
+      interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — press E to open</span>`;
+    }
   } else {
-    interactionPrompt.textContent = `Near ${labelFor(targetId)}${typeof distance === 'number' ? ` (${distance.toFixed(1)}m)` : ''}. E interact · C send · Tab switch${incoming ? ' · Y/N respond' : ''}`;
+    const hint = incoming ? ' · Y/N respond' : '';
+    interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — E interact · C challenge${hint}</span>`;
   }
   interactionPrompt.classList.add('visible');
 }

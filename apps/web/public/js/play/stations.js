@@ -19,8 +19,8 @@ function createStationTag(THREE, initialText) {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = '#3a2a05';
-    ctx.font = '700 11px "Inter", "Segoe UI", sans-serif';
+    ctx.fillStyle = '#3b2b12';
+    ctx.font = 'italic 600 11px "Crimson Text", Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const trimmed = String(text).slice(0, 20);
