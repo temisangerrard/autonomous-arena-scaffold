@@ -611,9 +611,16 @@ const stationRouter = createStationRouter({
   newSeedHex,
   marketService
 });
-const STATIONS = config.stationPluginRouterEnabled
-  ? stationRouter.stations
-  : stationRouter.stations.filter((station) => station.kind === 'dealer_coinflip' || station.kind === 'cashier_bank');
+const isLocalDevRuntime = !process.env.K_SERVICE && process.env.NODE_ENV !== 'production';
+if (!config.stationPluginRouterEnabled) {
+  const message = 'STATION_PLUGIN_ROUTER_ENABLED must be true. Partial station snapshots are not supported.';
+  if (isLocalDevRuntime) {
+    log.warn({ stationPluginRouterEnabled: config.stationPluginRouterEnabled }, message);
+  } else {
+    throw new Error(message);
+  }
+}
+const STATIONS = stationRouter.stations;
 const stationById = stationRouter.stationById;
 
 // Note: emitProximityEvents is imported from game/proximity.ts

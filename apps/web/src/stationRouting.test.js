@@ -14,7 +14,7 @@ function makeState() {
 }
 
 describe('station routing proxy resolution', () => {
-  it('uses nearest compatible server station for baked stations when cached proxy is too far', () => {
+  it('uses nearest compatible server station to baked kiosk position', () => {
     const state = makeState();
     state.serverStations.set('station_dealer_coinflip_a', {
       id: 'station_dealer_coinflip_a',
@@ -45,7 +45,37 @@ describe('station routing proxy resolution', () => {
     routing.mergeStations();
 
     const resolved = routing.resolveStationIdForSend('station_baked_coinflip_s7');
-    expect(resolved).toBe('station_dealer_coinflip_b');
+    expect(resolved).toBe('station_dealer_coinflip_a');
+  });
+
+  it('disables baked dealer interaction when nearest live station is too far', () => {
+    const state = makeState();
+    state.serverStations.set('station_dealer_coinflip_a', {
+      id: 'station_dealer_coinflip_a',
+      kind: 'dealer_coinflip',
+      x: -25,
+      z: -24,
+      radius: 8
+    });
+    state.bakedStations.set('station_baked_coinflip_far', {
+      id: 'station_baked_coinflip_far',
+      source: 'baked',
+      kind: 'dealer_coinflip',
+      x: 80,
+      z: 80,
+      proxyStationId: ''
+    });
+
+    const routing = createStationRouting({ state, hostStationProxyMap: {} });
+    routing.remapLocalStationProxies();
+    routing.mergeStations();
+
+    const baked = state.bakedStations.get('station_baked_coinflip_far');
+    expect(Boolean(baked?.proxyEligible)).toBe(false);
+    expect(baked?.proxyStationId || '').toBe('');
+
+    const resolved = routing.resolveStationIdForSend('station_baked_coinflip_far');
+    expect(resolved).toBe('');
   });
 
   it('keeps explicit proxy mapping for host stations', () => {

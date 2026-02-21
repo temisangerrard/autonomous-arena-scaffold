@@ -12,6 +12,17 @@ export function createWorldStationsController(params) {
   let worldRoot = null;
   let npcHosts = null;
 
+  function createDegradedBakedInteraction(baked, nearestHost) {
+    const sectionRole = String(nearestHost?.hostRole || baked.hostRole || 'info');
+    const destination = nearestHost?.displayName || 'nearest live host';
+    return {
+      title: `${baked.displayName || 'Section Kiosk'} Terminal`,
+      inspect: `This kiosk provides guidance only in this section. Live ${sectionRole} gameplay is available at ${destination}.`,
+      useLabel: 'Show Route',
+      use: `Walk to ${destination} to open the live station panel and place your wager.`
+    };
+  }
+
   function setupWorldNpcStations() {
     if (!worldRoot) return;
     if (npcHosts) {
@@ -21,6 +32,7 @@ export function createWorldStationsController(params) {
     npcHosts = createWorldNpcHosts({ THREE, scene });
     state.hostStations = new Map(npcHosts.hostStations);
     state.bakedStations = extractBakedNpcStations({ THREE, worldRoot });
+    remapLocalStationProxies();
     for (const baked of state.bakedStations.values()) {
       let nearestHost = null;
       let nearestDistance = Number.POSITIVE_INFINITY;
@@ -36,6 +48,19 @@ export function createWorldStationsController(params) {
         if (baked.kind === 'world_interactable' && nearestHost.localInteraction) {
           baked.localInteraction = { ...nearestHost.localInteraction };
         }
+      }
+      const hasLiveProxy = Boolean(String(baked.proxyStationId || '').trim());
+      const degradableKind = baked.kind !== 'world_interactable';
+      if (degradableKind && !hasLiveProxy) {
+        baked.originalKind = baked.kind;
+        baked.kind = 'world_interactable';
+        baked.degradedToLocal = true;
+        baked.radius = 8;
+        baked.actions = ['interact_open', 'interact_use'];
+        baked.interactionTag = `baked_info_${String(baked.hostRole || 'info')}`;
+        baked.localInteraction = createDegradedBakedInteraction(baked, nearestHost);
+      } else {
+        baked.degradedToLocal = false;
       }
     }
     remapLocalStationProxies();

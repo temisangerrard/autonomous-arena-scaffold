@@ -1283,3 +1283,23 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - Production deploy:
     - Netlify URL: `https://autobett.netlify.app`
     - Unique deploy: `https://6997113f246ec31814ebf967--autobett.netlify.app`
+
+- 2026-02-21: Station/NPC interaction reliability hardening pass.
+  - Added baked station proxy eligibility guard in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/station-routing.js`:
+    - baked proxies only attach when nearest matching live station is within 12 world units
+    - degraded baked dealer/cashier interactions no longer send invalid `station_interact` IDs.
+  - Added baked fallback downgrade in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/world-stations.js`:
+    - non-eligible baked dealer/cashier points convert to local `world_interactable` guidance kiosks.
+  - Updated station targeting priority in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/targeting.js`:
+    - host stations are preferred over server/baked points when multiple are nearby.
+  - Enforced full station snapshot mode in `/Users/temisan/Downloads/blender implementation/apps/server/src/index.ts`:
+    - warns in local dev and hard-fails in non-local runtime if `STATION_PLUGIN_ROUTER_ENABLED=false`.
+  - Added/updated tests:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/stationRouting.test.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/targeting.test.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/runtimeModularity.test.js`
+  - Validation:
+    - `npm run -w @arena/web test -- src/stationRouting.test.js src/runtimeModularity.test.js src/targeting.test.js` ✅
+    - `npm run -w @arena/server test -- src/game/stations/catalog.test.ts src/websocket/messages.test.ts` ✅
+    - `npm run -w @arena/web build` ✅
+    - `npm run -w @arena/server build` ✅

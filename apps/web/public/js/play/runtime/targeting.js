@@ -44,9 +44,19 @@ export function createTargetingController(params) {
     }
     let bestId = '';
     let bestDist = Number.POSITIVE_INFINITY;
+    let bestRank = Number.POSITIVE_INFINITY;
+    const sourceRank = (stationId) => {
+      const station = state.stations instanceof Map ? state.stations.get(stationId) : null;
+      if (station?.source === 'host') return 0;
+      if (station?.source === 'server') return 1;
+      if (station?.source === 'baked') return 2;
+      return 3;
+    };
     for (const id of nearbyStations) {
       const distance = Number(state.nearbyDistances.get(id) ?? Number.POSITIVE_INFINITY);
-      if (distance < bestDist) {
+      const rank = sourceRank(id);
+      if (rank < bestRank || (rank === bestRank && distance < bestDist)) {
+        bestRank = rank;
         bestDist = distance;
         bestId = id;
       }

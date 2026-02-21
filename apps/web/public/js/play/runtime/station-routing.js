@@ -4,6 +4,7 @@ export function createStationRouting(params) {
     hostStationProxyMap
   } = params;
 
+  const MAX_BAKED_PROXY_DISTANCE = 12;
   const localStationToProxy = new Map();
   const proxyToLocalStations = new Map();
 
@@ -56,6 +57,14 @@ export function createStationRouting(params) {
         const target = state.serverStations.get(explicitProxyId) || null;
         station.proxyStationId = target && target.kind === station.kind ? target.id : '';
         station.proxyMissing = !station.proxyStationId;
+        station.proxyEligible = Boolean(station.proxyStationId);
+        station.proxyDistance = station.proxyStationId
+          ? Math.hypot(
+              Number(station.x || 0) - Number(target?.x || 0),
+              Number(station.z || 0) - Number(target?.z || 0)
+            )
+          : null;
+        station.fallbackReason = station.proxyStationId ? '' : 'no_matching_station';
         if (!station.proxyStationId) {
           console.warn('host station proxy missing', {
             hostStationId: station.id,
@@ -66,11 +75,27 @@ export function createStationRouting(params) {
       } else {
         station.proxyStationId = '';
         station.proxyMissing = false;
+        station.proxyEligible = true;
+        station.proxyDistance = null;
+        station.fallbackReason = '';
       }
     }
     for (const station of state.bakedStations.values()) {
       const nearest = nearestServerStationForKind(station.kind, station.x, station.z);
-      station.proxyStationId = nearest ? nearest.id : '';
+      const distance = nearest
+        ? Math.hypot(
+            Number(station.x || 0) - Number(nearest.x || 0),
+            Number(station.z || 0) - Number(nearest.z || 0)
+          )
+        : Number.POSITIVE_INFINITY;
+      const withinRange = Boolean(nearest) && distance <= MAX_BAKED_PROXY_DISTANCE;
+      station.proxyEligible = withinRange;
+      station.proxyDistance = Number.isFinite(distance) ? distance : null;
+      station.proxyStationId = withinRange && nearest ? nearest.id : '';
+      station.proxyMissing = !station.proxyStationId;
+      station.fallbackReason = station.proxyStationId
+        ? ''
+        : (nearest ? 'proxy_too_far' : 'no_matching_station');
     }
     rebuildLocalStationProxyIndex();
   }
@@ -95,6 +120,9 @@ export function createStationRouting(params) {
     if (!id) return '';
 
     const station = stationObj || (state.stations instanceof Map ? state.stations.get(id) : null);
+    if (station?.source === 'baked' && station?.kind !== 'world_interactable' && !station?.proxyStationId) {
+      return '';
+    }
     const mappedProxyId = localStationToProxy.get(id) || '';
     if (mappedProxyId) {
       // Prefer the mapped proxy even when it's absent from the snapshot —
@@ -105,7 +133,7 @@ export function createStationRouting(params) {
 
     // For host/baked stations, prefer the nearest live server station of the same kind
     // relative to the player's current position to avoid stale/far proxy mismatches.
-    if (station?.kind) {
+    if (station?.kind && station?.source !== 'baked') {
       const me = state.playerId ? state.players.get(state.playerId) : null;
       const originX = Number(
         me?.x

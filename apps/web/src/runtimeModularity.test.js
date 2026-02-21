@@ -14,8 +14,8 @@ describe('runtime modular controls', () => {
     const rps = computeMobileControlVisibility({
       hasTarget: true,
       context: 'dealer_ready_rps',
-      interactionOpen: true,
-      interactionVisible: true,
+      interactionOpen: false,
+      interactionVisible: false,
       dealerState: 'ready'
     });
     expect(rps.rpsVisible).toBe(true);
