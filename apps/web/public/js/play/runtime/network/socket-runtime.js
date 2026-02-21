@@ -131,9 +131,18 @@ export async function connectSocketRuntime(deps) {
     startWalletSyncScheduler();
   });
 
-  socket.addEventListener('close', () => {
+  socket.addEventListener('close', (event) => {
     dispatch({ type: 'WS_CONNECTION_SET', connected: false });
-    addFeedEvent('system', 'Disconnected from game server.');
+    const code = Number(event?.code || 0);
+    const reason = String(event?.reason || '');
+    if (reason) {
+      addFeedEvent('system', `Disconnected from game server (${code}: ${reason}).`);
+    } else {
+      addFeedEvent('system', 'Disconnected from game server.');
+    }
+    if (code === 4401 || code === 4403 || reason.startsWith('ws_auth_')) {
+      showToast('Session auth expired or mismatched. Please sign in again.', 'warning');
+    }
     if (connectionState.presenceTimer) {
       window.clearInterval(connectionState.presenceTimer);
       connectionState.presenceTimer = null;

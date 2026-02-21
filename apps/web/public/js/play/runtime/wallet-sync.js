@@ -9,9 +9,14 @@ export function createWalletSyncController(params) {
   let walletSyncTimer = null;
   let walletSyncInFlight = null;
   let walletLastSyncAt = 0;
+  let walletMutedUntilMs = 0;
+  let walletFailureStreak = 0;
 
   async function syncWalletSummary(options = {}) {
     const keepLastOnFailure = options.keepLastOnFailure !== false;
+    if (Date.now() < walletMutedUntilMs) {
+      return false;
+    }
     if (walletSyncInFlight) {
       return walletSyncInFlight;
     }
@@ -30,12 +35,28 @@ export function createWalletSyncController(params) {
         });
         syncEscrowApprovalPolicy();
         walletLastSyncAt = Date.now();
+        walletFailureStreak = 0;
+        walletMutedUntilMs = 0;
         return true;
       } catch (error) {
+        const status = Number(error?.status || 0);
+        const retryAfterMs = Number(error?.retryAfterMs || 0);
+        walletFailureStreak += 1;
+        if (status === 429) {
+          walletMutedUntilMs = Date.now() + Math.max(20_000, retryAfterMs || 60_000);
+        } else if (status === 503 || status === 502 || status === 504) {
+          // Runtime/onchain backoff: avoid repeated noise while upstream is degraded.
+          const backoff = Math.min(120_000, 10_000 * walletFailureStreak);
+          walletMutedUntilMs = Date.now() + backoff;
+        } else {
+          walletMutedUntilMs = 0;
+        }
         if (!keepLastOnFailure) {
           dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId });
         }
-        console.warn('wallet summary sync failed', error);
+        if (status !== 429) {
+          console.warn('wallet summary sync failed', error);
+        }
         return false;
       } finally {
         walletSyncInFlight = null;

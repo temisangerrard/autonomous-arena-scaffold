@@ -271,7 +271,11 @@ export function renderInteractionCardTemplate(params) {
               clearPendingBtn(quoteBtn, 'Get quote');
               showToast('No response from prediction server.', 'error');
             }, 5000);
-            dispatchPrediction('prediction_market_quote', { marketId, side: 'yes', stake: currentStake() });
+            const sent = dispatchPrediction('prediction_market_quote', { marketId, side: 'yes', stake: currentStake() });
+            if (!sent) {
+              _clearTimer('prediction:quote');
+              clearPendingBtn(quoteBtn, 'Get quote');
+            }
           };
         }
         if (buyYesBtn) {
@@ -286,7 +290,12 @@ export function renderInteractionCardTemplate(params) {
               state.ui.prediction.state = 'error';
               showToast('No server response. Try again.', 'error');
             }, 7000);
-            dispatchPrediction('prediction_market_buy_yes', { marketId, stake: currentStake() });
+            const sent = dispatchPrediction('prediction_market_buy_yes', { marketId, stake: currentStake() });
+            if (!sent) {
+              _clearTimer('prediction:buy');
+              clearPredictionBuyBtns();
+              state.ui.prediction.state = 'error';
+            }
           };
         }
         if (buyNoBtn) {
@@ -301,7 +310,12 @@ export function renderInteractionCardTemplate(params) {
               state.ui.prediction.state = 'error';
               showToast('No server response. Try again.', 'error');
             }, 7000);
-            dispatchPrediction('prediction_market_buy_no', { marketId, stake: currentStake() });
+            const sent = dispatchPrediction('prediction_market_buy_no', { marketId, stake: currentStake() });
+            if (!sent) {
+              _clearTimer('prediction:buy');
+              clearPredictionBuyBtns();
+              state.ui.prediction.state = 'error';
+            }
           };
         }
         if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
@@ -708,9 +722,14 @@ export function renderInteractionCardTemplate(params) {
                 clearPendingBtn(useBtn, actionLabel);
                 showToast('No server response. Try again.', 'error');
               }, 4000);
-              void sendStationInteract(station, 'interact_use', {
+              const sent = sendStationInteract(station, 'interact_use', {
                 interactionTag: String(station.interactionTag || '')
               });
+              if (!sent) {
+                _clearTimer('world:use');
+                clearPendingBtn(useBtn, actionLabel);
+                return;
+              }
               if (detailEl) {
                 detailEl.textContent = 'Using interaction...';
               }
@@ -1068,7 +1087,11 @@ export function renderInteractionCardTemplate(params) {
           clearPendingBtn(sendBtn, 'Send Challenge (C)');
           showToast('No server response. Try again.', 'error');
         }, 7000);
-        void challengeController.sendChallenge(getUiTargetId(), gameType, wager);
+        const sent = challengeController.sendChallenge(getUiTargetId(), gameType, wager);
+        if (!sent) {
+          _clearTimer('challenge:send');
+          clearPendingBtn(sendBtn, 'Send Challenge (C)');
+        }
       };
     }
     if (acceptBtn instanceof HTMLButtonElement) {
@@ -1078,7 +1101,11 @@ export function renderInteractionCardTemplate(params) {
           clearPendingBtn(acceptBtn, 'Accept (Y)');
           showToast('No server response. Try again.', 'error');
         }, 7000);
-        challengeController.respondToIncoming(true);
+        const sent = challengeController.respondToIncoming(true);
+        if (!sent) {
+          _clearTimer('challenge:respond');
+          clearPendingBtn(acceptBtn, 'Accept (Y)');
+        }
       };
     }
     if (declineBtn instanceof HTMLButtonElement) {
@@ -1088,7 +1115,11 @@ export function renderInteractionCardTemplate(params) {
           clearPendingBtn(declineBtn, 'Decline (N)');
           showToast('No server response. Try again.', 'error');
         }, 7000);
-        challengeController.respondToIncoming(false);
+        const sent = challengeController.respondToIncoming(false);
+        if (!sent) {
+          _clearTimer('challenge:respond');
+          clearPendingBtn(declineBtn, 'Decline (N)');
+        }
       };
     }
   }

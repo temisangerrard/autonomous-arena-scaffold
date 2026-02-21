@@ -33,24 +33,24 @@ export function createChallengeController(deps) {
     return active;
   }
 
-  async function sendChallenge(targetId = null, gameType = null, wager = null) {
+  function sendChallenge(targetId = null, gameType = null, wager = null) {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       showToast('Not connected to server.');
-      return;
+      return false;
     }
     if (state.outgoingChallengeId) {
       showToast('You already have a pending outgoing challenge.');
-      return;
+      return false;
     }
     const resolvedTargetId = String(targetId || getUiTargetId() || closestNearbyPlayerId() || '').trim();
     if (!resolvedTargetId || isStation(resolvedTargetId) || resolvedTargetId === state.playerId) {
       showToast('Move near another player to challenge.');
-      return;
+      return false;
     }
     if (!state.nearbyIds?.has(resolvedTargetId)) {
       showToast('Move closer to that player, then retry challenge.');
-      return;
+      return false;
     }
     const resolvedGameType = normalizedChallengeGameType(
       gameType
@@ -76,7 +76,7 @@ export function createChallengeController(deps) {
       state.ui.challenge.approvalState = 'required';
       state.ui.challenge.approvalMessage = `Approve escrow for ${formatWagerInline(resolvedWager)} before sending.`;
       showToast(state.ui.challenge.approvalMessage);
-      return;
+      return false;
     }
 
     socket.send(
@@ -89,21 +89,22 @@ export function createChallengeController(deps) {
     );
     state.challengeStatus = 'sent';
     state.challengeMessage = `Sending ${resolvedGameType.toUpperCase()} challenge to ${labelFor(resolvedTargetId)} (${formatWagerInline(resolvedWager)}).`;
+    return true;
   }
 
   function respondToIncoming(accept) {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       showToast('Not connected to server.');
-      return;
+      return false;
     }
     if (state.respondingIncoming) {
-      return;
+      return false;
     }
     const incoming = currentIncomingChallenge();
     if (!incoming) {
       showToast('No incoming challenge to respond to.');
-      return;
+      return false;
     }
     state.respondingIncoming = true;
     state.challengeMessage = accept ? 'Accepting challenge...' : 'Declining challenge...';
@@ -114,6 +115,7 @@ export function createChallengeController(deps) {
         accept: Boolean(accept)
       })
     );
+    return true;
   }
 
   function canUseChallengeHotkeys() {
