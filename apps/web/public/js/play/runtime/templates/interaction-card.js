@@ -138,46 +138,33 @@ export function renderInteractionCardTemplate(params) {
         return best;
       }
 
-      function fallbackWorldInteraction(st) {
+      function serverWorldInteractionPreview(st) {
         const tag = String(st?.interactionTag || '').toLowerCase();
-        const role = String(st?.hostRole || 'info');
-        if (st?.degradedToLocal) {
-          return {
-            title: st?.displayName || 'Section Kiosk',
-            inspect: `This kiosk is guidance-only right now. Use the nearest live ${role} host for active gameplay.`,
-            useLabel: 'Show Route',
-            use: `Look for the nearest ${role} host marker on the map, then press E there to open live actions.`
-          };
-        }
-        if (tag.includes('info') || tag.includes('guide')) {
-          return {
-            title: st?.displayName || 'Info Kiosk',
-            inspect: 'Welcome. Explore each section to find live hosts for cashier, coinflip, rps, dice, and prediction markets.',
-            useLabel: 'What next?',
-            use: 'Start with cashier to check balance, then challenge at any nearby dealer station.'
-          };
-        }
         if (tag.includes('atm') || tag.includes('cashier')) {
           return {
-            title: st?.displayName || 'Cashier Terminal',
-            inspect: 'Use cashier hosts for funding, withdrawals, and transfers. Keep enough USDC for wagers.',
-            useLabel: 'Where is cashier?',
-            use: 'Head east toward the cashier host marker to open wallet actions.'
+            title: st?.displayName || 'ATM Terminal',
+            inspect: 'Quick account and world status terminal.',
+            useLabel: 'Run Check'
           };
         }
-        if (tag.includes('gate') || tag.includes('vendor')) {
+        if (tag.includes('gate')) {
           return {
-            title: st?.displayName || 'World Terminal',
-            inspect: 'This terminal is for world context. Gameplay happens at live host stations nearby.',
-            useLabel: 'Find live games',
-            use: 'Open your map, move toward host markers, and press E to start a game.'
+            title: st?.displayName || 'Train Gate',
+            inspect: 'Security gate for platform transit lanes.',
+            useLabel: 'Open Gate'
+          };
+        }
+        if (tag.includes('vendor')) {
+          return {
+            title: st?.displayName || 'Vendor Counter',
+            inspect: 'Fast snack vendor for roleplay interactions.',
+            useLabel: 'Order Snack'
           };
         }
         return {
-          title: st?.displayName || 'World Kiosk',
-          inspect: 'This interaction point gives directions to active stations in this zone.',
-          useLabel: 'Show Directions',
-          use: 'Use nearby host markers for live actions. If no host is in range, keep exploring this section.'
+          title: st?.displayName || 'Info Kiosk',
+          inspect: 'Local station information and travel tips.',
+          useLabel: 'Open Info'
         };
       }
 
@@ -614,16 +601,15 @@ export function renderInteractionCardTemplate(params) {
             interactionTitle.innerHTML = `Market Terminal<span class="interaction-card__subtitle">live board</span>`;
           }
           mountPredictionPanel({ routeStation, kioskMode: true });
-        } else {
-          const localInteraction = station.localInteraction || fallbackWorldInteraction(station);
+        } else if (station.localInteraction) {
+          const localInteraction = station.localInteraction;
           const detail = state.ui.world.stationId === station.id
             ? state.ui.world.detail
-            : (localInteraction.inspect || 'Open this kiosk for directions.');
+            : (localInteraction.inspect || 'Interaction ready.');
           const actionLabel = state.ui.world.stationId === station.id
             ? state.ui.world.actionLabel
-            : (localInteraction.useLabel || 'Show Directions');
+            : (localInteraction.useLabel || 'Use');
           const npcName = localInteraction.title || station.displayName;
-          // Show name + role subtitle in card header; strip outer station-ui box styling
           if (interactionTitle) {
             const tag = station.interactionTag ? station.interactionTag.replace(/_/g, ' ') : 'host';
             interactionTitle.innerHTML = `${npcName}<span class="interaction-card__subtitle">${tag}</span>`;
@@ -639,27 +625,40 @@ export function renderInteractionCardTemplate(params) {
           const detailEl = document.getElementById('world-interaction-detail');
           if (useBtn) {
             useBtn.onclick = () => {
-              if (renderGuideStationDetail(station, 'use')) {
-                if (detailEl) {
-                  detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
-                }
-                useBtn.textContent = 'Used';
-                useBtn.disabled = true;
-                return;
+              if (!renderGuideStationDetail(station, 'use')) return;
+              if (detailEl) {
+                detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
               }
-              if (localInteraction && typeof localInteraction.use === 'string' && localInteraction.use.trim()) {
-                state.ui.world.stationId = station.id;
-                state.ui.world.interactionTag = String(station.interactionTag || '');
-                state.ui.world.title = String(localInteraction.title || station.displayName || 'World Interaction');
-                state.ui.world.detail = String(localInteraction.use || 'Interaction complete.');
-                state.ui.world.actionLabel = 'Used';
-                if (detailEl) {
-                  detailEl.textContent = state.ui.world.detail;
-                }
-                useBtn.textContent = 'Used';
-                useBtn.disabled = true;
-                return;
-              }
+              useBtn.textContent = 'Used';
+              useBtn.disabled = true;
+            };
+          }
+          if (state.ui.world.stationId !== station.id) {
+            renderGuideStationDetail(station, 'inspect');
+          }
+        } else {
+          const preview = serverWorldInteractionPreview(station);
+          const detail = state.ui.world.stationId === station.id
+            ? state.ui.world.detail
+            : preview.inspect;
+          const actionLabel = state.ui.world.stationId === station.id
+            ? state.ui.world.actionLabel
+            : preview.useLabel;
+          if (interactionTitle) {
+            const tag = station.interactionTag ? station.interactionTag.replace(/_/g, ' ') : 'host';
+            interactionTitle.innerHTML = `${preview.title}<span class="interaction-card__subtitle">${tag}</span>`;
+          }
+          stationUi.classList.add('station-ui--npc');
+          stationUi.innerHTML = `
+            <div class="npc-speech__bubble" id="world-interaction-detail">${detail}</div>
+            <div class="station-ui__actions">
+              <button id="world-interaction-use" class="btn-gold" type="button">${actionLabel}</button>
+            </div>
+          `;
+          const useBtn = document.getElementById('world-interaction-use');
+          const detailEl = document.getElementById('world-interaction-detail');
+          if (useBtn) {
+            useBtn.onclick = () => {
               void sendStationInteract(station, 'interact_use', {
                 interactionTag: String(station.interactionTag || '')
               });
@@ -669,13 +668,11 @@ export function renderInteractionCardTemplate(params) {
             };
           }
           if (state.ui.world.stationId !== station.id) {
-            if (!renderGuideStationDetail(station, 'inspect')) {
-              state.ui.world.stationId = station.id;
-              state.ui.world.interactionTag = String(station.interactionTag || '');
-              state.ui.world.title = String(localInteraction.title || station.displayName || 'World Interaction');
-              state.ui.world.detail = String(localInteraction.inspect || detail);
-              state.ui.world.actionLabel = String(localInteraction.useLabel || actionLabel);
-            }
+            state.ui.world.stationId = station.id;
+            state.ui.world.interactionTag = String(station.interactionTag || '');
+            state.ui.world.title = String(preview.title || station.displayName || 'World Interaction');
+            state.ui.world.detail = String(preview.inspect || 'Interaction ready.');
+            state.ui.world.actionLabel = String(preview.useLabel || 'Use');
           }
         }
       } else {
