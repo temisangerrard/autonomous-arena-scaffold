@@ -138,6 +138,49 @@ export function renderInteractionCardTemplate(params) {
         return best;
       }
 
+      function fallbackWorldInteraction(st) {
+        const tag = String(st?.interactionTag || '').toLowerCase();
+        const role = String(st?.hostRole || 'info');
+        if (st?.degradedToLocal) {
+          return {
+            title: st?.displayName || 'Section Kiosk',
+            inspect: `This kiosk is guidance-only right now. Use the nearest live ${role} host for active gameplay.`,
+            useLabel: 'Show Route',
+            use: `Look for the nearest ${role} host marker on the map, then press E there to open live actions.`
+          };
+        }
+        if (tag.includes('info') || tag.includes('guide')) {
+          return {
+            title: st?.displayName || 'Info Kiosk',
+            inspect: 'Welcome. Explore each section to find live hosts for cashier, coinflip, rps, dice, and prediction markets.',
+            useLabel: 'What next?',
+            use: 'Start with cashier to check balance, then challenge at any nearby dealer station.'
+          };
+        }
+        if (tag.includes('atm') || tag.includes('cashier')) {
+          return {
+            title: st?.displayName || 'Cashier Terminal',
+            inspect: 'Use cashier hosts for funding, withdrawals, and transfers. Keep enough USDC for wagers.',
+            useLabel: 'Where is cashier?',
+            use: 'Head east toward the cashier host marker to open wallet actions.'
+          };
+        }
+        if (tag.includes('gate') || tag.includes('vendor')) {
+          return {
+            title: st?.displayName || 'World Terminal',
+            inspect: 'This terminal is for world context. Gameplay happens at live host stations nearby.',
+            useLabel: 'Find live games',
+            use: 'Open your map, move toward host markers, and press E to start a game.'
+          };
+        }
+        return {
+          title: st?.displayName || 'World Kiosk',
+          inspect: 'This interaction point gives directions to active stations in this zone.',
+          useLabel: 'Show Directions',
+          use: 'Use nearby host markers for live actions. If no host is in range, keep exploring this section.'
+        };
+      }
+
       function mountPredictionPanel(options = {}) {
         const routeStation = options.routeStation || station;
         const kioskMode = Boolean(options.kioskMode);
@@ -572,13 +615,13 @@ export function renderInteractionCardTemplate(params) {
           }
           mountPredictionPanel({ routeStation, kioskMode: true });
         } else {
-          const localInteraction = station.localInteraction || {};
+          const localInteraction = station.localInteraction || fallbackWorldInteraction(station);
           const detail = state.ui.world.stationId === station.id
             ? state.ui.world.detail
-            : (localInteraction.inspect || 'Interact with this world object.');
+            : (localInteraction.inspect || 'Open this kiosk for directions.');
           const actionLabel = state.ui.world.stationId === station.id
             ? state.ui.world.actionLabel
-            : (localInteraction.useLabel || 'Use');
+            : (localInteraction.useLabel || 'Show Directions');
           const npcName = localInteraction.title || station.displayName;
           // Show name + role subtitle in card header; strip outer station-ui box styling
           if (interactionTitle) {
@@ -604,6 +647,19 @@ export function renderInteractionCardTemplate(params) {
                 useBtn.disabled = true;
                 return;
               }
+              if (localInteraction && typeof localInteraction.use === 'string' && localInteraction.use.trim()) {
+                state.ui.world.stationId = station.id;
+                state.ui.world.interactionTag = String(station.interactionTag || '');
+                state.ui.world.title = String(localInteraction.title || station.displayName || 'World Interaction');
+                state.ui.world.detail = String(localInteraction.use || 'Interaction complete.');
+                state.ui.world.actionLabel = 'Used';
+                if (detailEl) {
+                  detailEl.textContent = state.ui.world.detail;
+                }
+                useBtn.textContent = 'Used';
+                useBtn.disabled = true;
+                return;
+              }
               void sendStationInteract(station, 'interact_use', {
                 interactionTag: String(station.interactionTag || '')
               });
@@ -613,7 +669,13 @@ export function renderInteractionCardTemplate(params) {
             };
           }
           if (state.ui.world.stationId !== station.id) {
-            renderGuideStationDetail(station, 'inspect');
+            if (!renderGuideStationDetail(station, 'inspect')) {
+              state.ui.world.stationId = station.id;
+              state.ui.world.interactionTag = String(station.interactionTag || '');
+              state.ui.world.title = String(localInteraction.title || station.displayName || 'World Interaction');
+              state.ui.world.detail = String(localInteraction.inspect || detail);
+              state.ui.world.actionLabel = String(localInteraction.useLabel || actionLabel);
+            }
           }
         }
       } else {

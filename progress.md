@@ -1303,3 +1303,10 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/server test -- src/game/stations/catalog.test.ts src/websocket/messages.test.ts` ✅
     - `npm run -w @arena/web build` ✅
     - `npm run -w @arena/server build` ✅
+- 2026-02-21: Guidance kiosk copy fix (world_interactable).
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card.js` so world kiosks no longer fall back to generic "Interact with this world object.".
+  - Added explicit fallback guidance copy by interaction tag (info/cashier/gate/vendor/degraded baked kiosk).
+  - Updated kiosk button handling to keep guidance interactions local when fallback guidance is present, instead of always routing to server.
+  - Validation:
+    - `npm run -w @arena/web test -- src/stationRouting.test.js src/runtimeModularity.test.js src/targeting.test.js` ✅
+    - `npm run -w @arena/web build` ✅
