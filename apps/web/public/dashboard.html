@@ -6,34 +6,36 @@
   <title>Player Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600;1,700&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/css/claude-corners.css">
   <script src="/runtime-config.js"></script>
   <style>
     :root {
-      --dash-ink: #141414;
-      --dash-cream: #f6f2e7;
-      --dash-gold: #d2a63d;
-      --dash-lav: #e6e6fa;
-      --dash-muted: #8d8577;
-      --dash-border: #d8c9a2;
-      --dash-panel: #fffcf4;
-      --dash-elevated: #24211a;
-      --dash-text-primary: #1f1a12;
-      --dash-text-secondary: #7b715f;
-      --dash-mono: 'JetBrains Mono', monospace;
-      --dash-sans: 'Syne', system-ui, sans-serif;
-      --dash-hero-overlay: rgba(31, 22, 10, 0.18);
-      --dash-card-edge: #cfbc8f;
-      --dash-panel-soft: rgba(255, 252, 244, 0.95);
+      --dash-ink:     #1f1a12;
+      --dash-gold:    #c69831;
+      --dash-edge:    rgba(198, 152, 49, 0.3);
+      --dash-panel:   rgba(253, 248, 237, 0.96);
+      --dash-muted:   #7a6b57;
+      --dash-good:    #2f8f5e;
+      --dash-bad:     #b44d3c;
+      --dash-mono:    'JetBrains Mono', monospace;
+      --dash-serif:   'Crimson Text', Georgia, serif;
+      --dash-display: 'Cormorant Garamond', 'Crimson Text', Georgia, serif;
+      --dash-card-edge:   rgba(198, 152, 49, 0.38);
+      --dash-panel-soft:  rgba(255, 252, 244, 0.97);
+      --dash-sidebar-bg:  #1a1510;
     }
+
+    *, *::before, *::after { box-sizing: border-box; }
 
     body {
       margin: 0;
-      background: radial-gradient(circle at 15% 8%, #fff8ea 0%, #f8f3e6 42%, #efe8d6 100%);
-      font-family: var(--dash-sans);
-      color: var(--dash-text-primary);
+      background: radial-gradient(circle at 15% 8%, #fff8ea 0%, #f6f1e4 42%, #ede8d6 100%);
+      font-family: var(--dash-serif);
+      color: var(--dash-ink);
+      font-size: 15px;
+      line-height: 1.5;
     }
 
     .dashboard-app,
@@ -41,7 +43,7 @@
     .dashboard-app input,
     .dashboard-app select,
     .dashboard-app textarea {
-      font-family: var(--dash-sans);
+      font-family: var(--dash-serif);
     }
 
     .dashboard-app {
@@ -50,14 +52,15 @@
       grid-template-columns: 220px minmax(0, 1fr);
     }
 
+    /* ── Sidebar ─────────────────────────────── */
     .dashboard-sidebar {
       position: sticky;
       top: 0;
       height: 100vh;
       display: flex;
       flex-direction: column;
-      background: #121212;
-      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--dash-sidebar-bg);
+      border-right: 1px solid rgba(255, 255, 255, 0.07);
       padding: 18px 14px;
       box-sizing: border-box;
       z-index: 20;
@@ -69,7 +72,7 @@
       gap: 10px;
       align-items: center;
       padding-bottom: 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.09);
       margin-bottom: 14px;
     }
 
@@ -77,8 +80,8 @@
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #ffc6a6 0%, #ff7f7f 100%);
-      border: 2px solid rgba(255, 255, 255, 0.26);
+      background: linear-gradient(135deg, #ffc6a6 0%, #d4845a 100%);
+      border: 2px solid rgba(198, 152, 49, 0.4);
       position: relative;
     }
 
@@ -87,28 +90,24 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      border: 1px solid #121212;
-      background: #22c55e;
+      border: 1px solid var(--dash-sidebar-bg);
+      background: #3ab86a;
       position: absolute;
       right: 0;
       bottom: 0;
     }
 
     .player-chip__name {
-      color: #fff5dd;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      color: #f5eacc;
+      font: italic 600 15px/1.2 var(--dash-display);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .player-chip__handle {
-      color: #bbb;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+      color: #9b8e78;
+      font: 400 11px/1.2 var(--dash-mono);
       margin-top: 2px;
       white-space: nowrap;
       overflow: hidden;
@@ -118,70 +117,65 @@
     .sidebar-balance {
       margin: 0 0 14px;
       border-radius: 10px;
-      border: 1px solid rgba(210, 166, 61, 0.25);
-      background: rgba(210, 166, 61, 0.08);
+      border: 1px solid rgba(198, 152, 49, 0.22);
+      background: rgba(198, 152, 49, 0.07);
       padding: 8px 10px;
     }
 
     .sidebar-balance__label {
       display: block;
-      font-size: 10px;
-      line-height: 1;
-      font-weight: 700;
-      letter-spacing: 0.08em;
+      font: 400 10px/1 var(--dash-mono);
+      letter-spacing: 0.07em;
       text-transform: uppercase;
-      color: #a69b84;
-      margin-bottom: 6px;
+      color: #9b8e78;
+      margin-bottom: 4px;
     }
 
     .sidebar-balance__value {
-      color: #e9bf67;
-      font-family: var(--dash-mono);
-      font-size: 14px;
-      font-weight: 700;
+      color: #e0b85a;
+      font: 500 14px/1 var(--dash-mono);
     }
 
     .sidebar-nav {
       display: grid;
-      gap: 8px;
+      gap: 4px;
     }
 
     .sidebar-nav button {
       width: 100%;
-      height: 42px;
+      height: 40px;
       border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid transparent;
       background: transparent;
-      color: #a8a095;
+      color: #9b8e78;
       text-align: left;
       padding: 0 10px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+      font: 600 14px/1 var(--dash-serif);
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 8px;
       border-left: 2px solid transparent;
+      transition: color 0.15s, background 0.15s;
     }
 
     .sidebar-nav button:hover {
-      border-color: rgba(255, 255, 255, 0.28);
-      color: #f0e6d4;
+      color: #e8d9bc;
+      background: rgba(255, 255, 255, 0.04);
     }
 
     .sidebar-nav button.active {
       border-left-color: var(--dash-gold);
-      background: var(--dash-elevated);
-      border-color: rgba(255, 255, 255, 0.14);
-      color: #fff8ea;
+      background: rgba(198, 152, 49, 0.08);
+      border-color: rgba(198, 152, 49, 0.14);
+      color: #f5eacc;
     }
 
     .nav-icon {
       width: 18px;
       text-align: center;
-      opacity: 0.9;
+      font: 400 11px/1 var(--dash-mono);
+      opacity: 0.65;
     }
 
     .sidebar-actions {
@@ -190,67 +184,67 @@
       gap: 8px;
     }
 
-    .sidebar-actions .btn {
+    .btn-enter {
       width: 100%;
+      display: flex;
+      align-items: center;
       justify-content: center;
+      min-height: 40px;
+      border-radius: 9px;
+      background: linear-gradient(125deg, rgba(198, 152, 49, 0.9), rgba(160, 110, 20, 0.9));
+      color: #1a1208;
+      font: 600 14px/1 var(--dash-serif);
+      border: 1px solid rgba(160, 121, 32, 0.7);
+      text-decoration: none;
+      cursor: pointer;
+      transition: filter 0.15s;
     }
 
+    .btn-enter:hover { filter: brightness(1.08); }
+
+    /* ── Content ─────────────────────────────── */
     .dashboard-content {
       background: transparent;
       padding: 24px 28px;
-      box-sizing: border-box;
     }
 
     .content-inner {
-      max-width: 1200px;
+      max-width: 1180px;
       margin: 0 auto;
       display: grid;
-      gap: 12px;
+      gap: 14px;
     }
 
+    /* ── Hero Card ───────────────────────────── */
     .hero-card {
-      background:
-        linear-gradient(145deg, var(--dash-hero-overlay) 0%, rgba(255, 255, 255, 0) 45%),
-        var(--dash-panel-soft);
+      background: var(--dash-panel-soft);
       border: 1px solid var(--dash-card-edge);
       border-radius: 14px;
-      padding: 16px 18px;
-      box-shadow: 0 10px 26px rgba(41, 30, 9, 0.1);
-    }
-
-    .hero-card__kicker {
-      margin: 0 0 6px;
-      font: 700 11px/1 var(--dash-mono);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: #8f6f1d;
+      padding: 16px 20px;
+      box-shadow: 0 4px 18px rgba(41, 30, 9, 0.07);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
     }
 
     .hero-card h1 {
       margin: 0;
-      font-family: var(--dash-sans);
-      font-size: 30px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      color: var(--dash-text-primary);
+      font: italic 700 28px/1 var(--dash-display);
+      color: var(--dash-ink);
+      letter-spacing: 0.01em;
     }
 
-    .hero-card p {
-      margin: 8px 0 0;
-      color: #5f5546;
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 1.45;
+    .hero-card__sub {
+      margin: 4px 0 0;
+      color: var(--dash-muted);
+      font: italic 400 14px/1.4 var(--dash-serif);
     }
 
     .status-line {
       position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
       overflow: hidden;
       clip: rect(0, 0, 0, 0);
       white-space: nowrap;
@@ -260,128 +254,67 @@
     .dash-view { display: none; }
     .dash-view.active { display: block; }
 
+    /* ── Layout helpers ──────────────────────── */
     .card-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
 
+    .stack { display: grid; gap: 10px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .muted { color: var(--dash-muted); }
+
+    /* ── Panels ──────────────────────────────── */
     .panel {
       background: var(--dash-panel-soft);
       border: 1px solid var(--dash-card-edge);
       border-radius: 12px;
-      padding: 13px;
+      padding: 14px 16px;
     }
 
     .panel h2 {
       margin: 0 0 10px;
-      font-size: 19px;
-      font-weight: 700;
-      line-height: 1.1;
-      color: var(--dash-text-primary);
+      font: italic 600 20px/1 var(--dash-display);
+      color: var(--dash-ink);
+      letter-spacing: 0.01em;
     }
 
-    .muted { color: var(--dash-muted); }
-
-    .bot-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
+    .panel h3 {
+      margin: 0 0 8px;
+      font: italic 600 17px/1 var(--dash-display);
+      color: var(--dash-ink);
     }
 
-    .bot-card {
-      min-height: 200px;
-      background: #fff;
-      border: 2px solid var(--dash-lav);
-      border-radius: 12px;
-      padding: 12px;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-      cursor: pointer;
-      display: grid;
-      align-content: start;
-      gap: 10px;
-    }
-
-    .bot-card:hover {
-      border-color: #9ad4b4;
-      box-shadow: 0 8px 26px rgba(45, 75, 59, 0.12);
-    }
-
-    .bot-card__head {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .bot-avatar {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      border: 2px solid rgba(0, 0, 0, 0.1);
-    }
-    .bot-avatar.personality-conservative { background: #9ad4b4; }
-    .bot-avatar.personality-aggressive { background: #ff7f7f; }
-    .bot-avatar.personality-social { background: #e6e6fa; }
-    .bot-avatar.personality-shark { background: #f2cc66; }
-    .bot-avatar.personality-chaos { background: #9f8cf0; }
-
-    .bot-name {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 700;
-      line-height: 1;
-      color: #2b241b;
-    }
-
-    .bot-sub {
-      margin: 3px 0 0;
-      font-size: 12px;
-      font-weight: 600;
-      color: #756a59;
-      word-break: break-word;
-    }
-
-    .badge {
-      border-radius: 999px;
-      padding: 4px 8px;
-      font-size: 10px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: 0.06em;
+    /* ── Forms ───────────────────────────────── */
+    .label {
+      display: block;
+      margin-bottom: 5px;
+      font: 400 10px/1 var(--dash-mono);
+      letter-spacing: 0.07em;
       text-transform: uppercase;
-    }
-    .badge.active { background: rgba(34, 197, 94, 0.2); color: #0f7a36; }
-    .badge.idle { background: rgba(148, 163, 184, 0.2); color: #5d6674; }
-    .badge.disconnected { background: rgba(239, 68, 68, 0.2); color: #b91c1c; }
-
-    .pill-row {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
+      color: var(--dash-muted);
     }
 
-    .pill {
-      border-radius: 999px;
-      border: 1px solid #e4d8bb;
-      background: #fffaf0;
-      color: #5f5039;
-      padding: 4px 9px;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1;
+    .field, select.field, textarea.field {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid rgba(198, 152, 49, 0.32);
+      background: rgba(255, 252, 244, 0.95);
+      color: var(--dash-ink);
+      padding: 9px 11px;
+      font: 400 14px/1.3 var(--dash-serif);
+      min-height: 40px;
     }
 
-    .wager-box {
-      border-radius: 10px;
-      border: 1px solid #e4c470;
-      background: rgba(241, 212, 128, 0.24);
-      color: #6f4e1d;
-      padding: 8px;
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1.2;
+    .field:focus, select.field:focus, textarea.field:focus {
+      outline: none;
+      border-color: rgba(198, 152, 49, 0.6);
+      box-shadow: 0 0 0 2px rgba(198, 152, 49, 0.1);
     }
+
+    textarea.field { resize: vertical; }
 
     .input-row {
       display: grid;
@@ -396,76 +329,167 @@
       align-items: end;
     }
 
-    .stack { display: grid; gap: 10px; }
-
-    .label {
-      display: block;
-      margin-bottom: 5px;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: #6a5b45;
-    }
-
-    .field, select.field, textarea.field {
-      width: 100%;
-      box-sizing: border-box;
-      border-radius: 10px;
-      border: 1px solid #dfcfac;
-      background: #fff;
-      color: #2f2517;
-      padding: 10px 11px;
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 1.2;
-      min-height: 42px;
-    }
-
-    textarea.field { resize: vertical; }
-
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
+    /* ── Buttons ─────────────────────────────── */
     .btn-gold,
-    .btn-green,
     .btn-coral,
+    .btn-green,
     .btn-ghost,
     .btn-dark,
     .btn-danger-ghost {
-      border-radius: 9px;
-      min-height: 40px;
+      border-radius: 8px;
+      min-height: 38px;
       border: 1px solid transparent;
-      padding: 0 14px;
-      font-size: 12px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      padding: 0 16px;
+      font: 600 14px/1 var(--dash-serif);
       cursor: pointer;
       text-decoration: none;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      box-sizing: border-box;
+      gap: 6px;
+      transition: filter 0.14s, background 0.14s;
     }
 
-    .btn-gold { background: #d2a63d; color: #2a200f; }
-    .btn-gold:hover { background: #ba8f2a; }
-    .btn-green { background: #22c55e; color: #08230f; }
-    .btn-green:hover { background: #18aa4f; }
-    .btn-coral { background: #d2a63d; color: #2a200f; }
-    .btn-coral:hover { background: #ba8f2a; }
-    .btn-ghost { border-color: #d2a63d; background: transparent; color: #6a531f; }
-    .btn-dark { background: #2a2a2a; color: #efe7d1; border-color: #3b3b3b; }
-    .btn-danger-ghost { border-color: #dc2626; color: #b91c1c; background: transparent; }
+    .btn-gold,
+    .btn-coral {
+      background: linear-gradient(125deg, rgba(198, 152, 49, 0.95), rgba(160, 110, 20, 0.9));
+      color: #1a1208;
+      border-color: #a87920;
+    }
+    .btn-gold:hover,
+    .btn-coral:hover { filter: brightness(1.06); }
 
-    .super-bar {
-      border: 2px solid #ffd700;
-      background: rgba(30, 30, 30, 0.95);
-      color: #f3e8c8;
+    .btn-green {
+      background: rgba(47, 143, 94, 0.88);
+      color: #051a0b;
+      border-color: rgba(47, 143, 94, 0.45);
+    }
+    .btn-green:hover { filter: brightness(1.06); }
+
+    .btn-ghost {
+      border: 1px solid rgba(198, 152, 49, 0.48);
+      background: transparent;
+      color: #7a5c1a;
+    }
+    .btn-ghost:hover { background: rgba(198, 152, 49, 0.07); }
+
+    .btn-dark {
+      background: #2a2218;
+      color: #e8d9bc;
+      border-color: #3d3024;
+    }
+    .btn-dark:hover { background: #35291d; }
+
+    .btn-danger-ghost {
+      border: 1px solid rgba(180, 77, 60, 0.45);
+      color: var(--dash-bad);
+      background: transparent;
+    }
+    .btn-danger-ghost:hover { background: rgba(180, 77, 60, 0.06); }
+
+    /* ── Bot Cards ───────────────────────────── */
+    .bot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .bot-card {
+      background: var(--dash-panel-soft);
+      border: 1px solid var(--dash-card-edge);
       border-radius: 12px;
       padding: 14px;
+      cursor: pointer;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+
+    .bot-card:hover {
+      border-color: rgba(198, 152, 49, 0.6);
+      box-shadow: 0 6px 20px rgba(41, 30, 9, 0.1);
+    }
+
+    .bot-card__head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .bot-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid rgba(198, 152, 49, 0.28);
+    }
+
+    .bot-avatar.personality-conservative { background: linear-gradient(135deg, #9ad4b4, #5dba8e); }
+    .bot-avatar.personality-aggressive   { background: linear-gradient(135deg, #e8846a, #c04830); }
+    .bot-avatar.personality-social       { background: linear-gradient(135deg, #b8b4e8, #7e7acc); }
+    .bot-avatar.personality-shark        { background: linear-gradient(135deg, #f2cc66, #cf9c20); }
+    .bot-avatar.personality-chaos        { background: linear-gradient(135deg, #b49fe0, #8058c0); }
+
+    .bot-name {
+      margin: 0;
+      font: italic 600 17px/1.1 var(--dash-display);
+      color: var(--dash-ink);
+    }
+
+    .bot-sub {
+      margin: 2px 0 0;
+      font: 400 11px/1.4 var(--dash-mono);
+      color: var(--dash-muted);
+      word-break: break-word;
+    }
+
+    /* ── Badges & Pills ──────────────────────── */
+    .badge {
+      border-radius: 999px;
+      padding: 3px 8px;
+      font: 400 10px/1 var(--dash-mono);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+
+    .badge.active       { background: rgba(47, 143, 94, 0.1);  color: var(--dash-good); border: 1px solid rgba(47, 143, 94, 0.28); }
+    .badge.idle         { background: rgba(148, 163, 184, 0.1); color: #6e7a8a;          border: 1px solid rgba(148, 163, 184, 0.28); }
+    .badge.disconnected { background: rgba(180, 77, 60, 0.1);   color: var(--dash-bad);  border: 1px solid rgba(180, 77, 60, 0.28); }
+
+    .pill-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      border-radius: 999px;
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      background: rgba(198, 152, 49, 0.06);
+      color: #7a5c1a;
+      padding: 3px 8px;
+      font: 400 10px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .wager-box {
+      border-radius: 8px;
+      border: 1px solid rgba(198, 152, 49, 0.32);
+      background: rgba(198, 152, 49, 0.07);
+      color: #6f4e1d;
+      padding: 7px 10px;
+      font: 400 12px/1.3 var(--dash-mono);
+    }
+
+    /* ── Chief / Super Bar ───────────────────── */
+    .super-bar {
+      background: #1e1a14;
+      border: 1px solid rgba(198, 152, 49, 0.28);
+      border-radius: 12px;
+      padding: 16px;
     }
 
     .super-head {
@@ -477,79 +501,145 @@
 
     .super-title {
       margin: 0;
-      color: #ffd700;
-      font-size: 24px;
-      font-weight: 700;
-      line-height: 1;
+      font: italic 700 20px/1 var(--dash-display);
+      color: #e8d4a0;
     }
 
     .ready {
       border-radius: 999px;
       padding: 3px 8px;
-      background: rgba(34, 197, 94, 0.2);
-      color: #9af2bc;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1;
+      background: rgba(47, 143, 94, 0.14);
+      color: #7adaaa;
+      font: 400 10px/1 var(--dash-mono);
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
+      border: 1px solid rgba(47, 143, 94, 0.28);
     }
 
     .quick-pills {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
       margin: 8px 0;
     }
 
     .quick-pills button {
-      border-radius: 8px;
-      border: 1px solid #454545;
-      background: #333;
-      color: #9fe4c8;
-      min-height: 34px;
+      border-radius: 6px;
+      border: 1px solid rgba(198, 152, 49, 0.22);
+      background: rgba(198, 152, 49, 0.07);
+      color: #d4bc82;
+      min-height: 30px;
       padding: 0 10px;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      font: 400 11px/1 var(--dash-mono);
       cursor: pointer;
+      transition: border-color 0.12s;
+    }
+
+    .quick-pills button:hover {
+      border-color: rgba(198, 152, 49, 0.5);
+      color: #e8d09a;
     }
 
     .super-response {
       margin-top: 10px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(0, 0, 0, 0.25);
-      color: #f6efdb;
-      padding: 10px;
-      min-height: 120px;
-      max-height: 260px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(0, 0, 0, 0.2);
+      color: #e0d2b6;
+      padding: 10px 12px;
+      min-height: 90px;
+      max-height: 240px;
       overflow: auto;
       white-space: pre-wrap;
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1.4;
+      font: 400 13px/1.5 var(--dash-serif);
     }
 
+    /* ── Wallet ──────────────────────────────── */
+    .wallet-hero {
+      background: linear-gradient(145deg, #1a1510 0%, #1f1b14 100%);
+      border-color: rgba(198, 152, 49, 0.22);
+    }
+
+    .wallet-hero h2 { color: #e8d9bc; }
+    .wallet-hero .label { color: #9b8a70; }
+
+    .wallet-hero .field {
+      background: rgba(0, 0, 0, 0.3);
+      border-color: rgba(198, 152, 49, 0.22);
+      color: #e0d2b6;
+    }
+
+    .wallet-hero .field:focus {
+      border-color: rgba(198, 152, 49, 0.5);
+    }
+
+    .wallet-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 0 0 12px;
+    }
+
+    .wallet-tab {
+      border-radius: 999px;
+      border: 1px solid rgba(198, 152, 49, 0.28);
+      color: #b0a08c;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 6px 14px;
+      min-height: 36px;
+      font: 400 13px/1 var(--dash-serif);
+      cursor: pointer;
+      transition: background 0.14s;
+    }
+
+    .wallet-tab.active {
+      background: rgba(198, 152, 49, 0.88);
+      color: #1a1208;
+      border-color: transparent;
+      font-weight: 600;
+    }
+
+    .wallet-pane { display: none; }
+    .wallet-pane.active { display: block; }
+
     .balance-label {
-      color: var(--dash-text-secondary);
-      font-size: 10px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: 0.08em;
+      font: 400 10px/1 var(--dash-mono);
+      letter-spacing: 0.07em;
       text-transform: uppercase;
+      color: #b0a08c;
       margin-bottom: 6px;
     }
 
     .balance-value {
-      color: #fff;
-      font-family: var(--dash-mono);
-      font-size: 38px;
-      font-weight: 700;
-      line-height: 1;
+      color: #f0e6d0;
+      font: 500 36px/1 var(--dash-mono);
       margin: 0;
+    }
+
+    .balance-stat__meta {
+      color: #9b8a70;
+      margin-top: 6px;
+      font: 400 12px/1 var(--dash-mono);
+    }
+
+    .balance-underline {
+      margin-top: 10px;
+      width: 100%;
+      max-width: 320px;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(198, 152, 49, 0.7) 0%, transparent 100%);
+    }
+
+    .wallet-hero__head {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 10px;
+    }
+
+    .wallet-ids {
+      padding-top: 12px;
+      border-top: 1px solid rgba(198, 152, 49, 0.18);
     }
 
     .wallet-id-row {
@@ -560,237 +650,52 @@
       margin-top: 10px;
     }
 
-    .danger-zone {
-      border-radius: 12px;
-      border: 1px solid #fca5a5;
-      background: #fef2f2;
-      padding: 12px;
-      margin-top: 12px;
-    }
-
-    .danger-zone h3 {
-      margin: 0 0 8px;
-      color: #b91c1c;
-      font-size: 18px;
-      font-weight: 700;
-      line-height: 1.1;
-    }
-
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.45);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      box-sizing: border-box;
-      z-index: 200;
-    }
-
-    .modal-backdrop.open { display: flex; }
-
-    .modal {
-      width: min(620px, 100%);
-      background: #fff;
-      border-radius: 14px;
-      border: 2px solid var(--dash-lav);
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
-      padding: 16px;
-    }
-
-    .modal-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .modal h3 {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 700;
-      line-height: 1;
-      color: #2f2519;
-    }
-
-    .modal-close {
-      border: 1px solid #d9c8a5;
-      background: #fffaf0;
-      color: #6b5626;
-      border-radius: 8px;
-      min-height: 34px;
-      padding: 0 10px;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-
-    .mono {
-      font-family: var(--dash-mono);
-      font-size: 12px;
-      word-break: break-all;
-    }
-
-    /* Wallet Hero Styles */
-    .wallet-hero {
-      background: linear-gradient(145deg, #181512 0%, #1e1a15 100%);
-      border-color: #31271a;
-      color: #f5ead1;
-    }
-
-    .wallet-hero__head {
-      display: flex;
-      justify-content: flex-start;
-      align-items: flex-start;
-      gap: 20px;
-      margin-bottom: 10px;
-    }
-
-    .gas-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 0;
-      background: transparent;
-      border: 0;
-    }
-
-    .gas-indicator__icon {
-      font-size: 14px;
-    }
-
-    .gas-indicator__label {
-      color: #b7a78e;
-      font-family: var(--dash-mono);
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1.2;
-    }
-
-    .gas-indicator__value {
-      color: #d5c9b0;
-      font-family: var(--dash-mono);
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1.2;
-    }
-
     .wallet-actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-      margin: 14px 0;
-      padding: 14px;
+      gap: 12px;
+      margin: 12px 0;
+      padding: 12px;
       background: rgba(255, 255, 255, 0.03);
-      border-radius: 10px;
-      border: 1px solid rgba(210, 166, 61, 0.25);
+      border-radius: 8px;
+      border: 1px solid rgba(198, 152, 49, 0.14);
     }
 
-    .wallet-action-group {
-      display: grid;
-      gap: 6px;
-    }
-
-    .wallet-ids {
-      padding-top: 12px;
-      border-top: 1px solid rgba(210, 166, 61, 0.3);
-    }
-
-    .wallet-tabs {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin: 0 0 10px;
-    }
-
-    .wallet-tab {
-      border-radius: 999px;
-      border: 1px solid rgba(210, 166, 61, 0.45);
-      color: #c7b89c;
-      background: rgba(255, 255, 255, 0.02);
-      padding: 7px 12px;
-      min-height: 40px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-
-    .wallet-tab.active {
-      background: #d2a63d;
-      color: #1b150d;
-      border-color: transparent;
-    }
-
-    .wallet-pane {
-      display: none;
-    }
-
-    .wallet-pane.active {
-      display: block;
-    }
-
-    .balance-stat__meta {
-      color: #b9aa8e;
-      margin-top: 8px;
-      font-family: var(--dash-mono);
-      font-size: 12px;
-    }
-
-    .balance-underline {
-      margin-top: 10px;
-      width: 100%;
-      max-width: 340px;
-      height: 1px;
-      background: linear-gradient(90deg, rgba(210, 166, 61, 1) 0%, rgba(210, 166, 61, 0) 100%);
-    }
+    .wallet-action-group { display: grid; gap: 6px; }
 
     .wallet-code {
-      border-radius: 10px;
-      border: 1px solid rgba(210, 166, 61, 0.25);
-      background: rgba(12, 10, 8, 0.55);
-      color: #efe6d2;
-      padding: 10px 11px;
-      min-height: 42px;
+      border-radius: 8px;
+      border: 1px solid rgba(198, 152, 49, 0.18);
+      background: rgba(12, 10, 8, 0.5);
+      color: #ded3bc;
+      padding: 9px 11px;
+      min-height: 40px;
       display: flex;
       align-items: center;
+      font: 400 11px/1.4 var(--dash-mono);
     }
 
     .wallet-transfer-hint {
-      color: #b9aa8e;
-      font-size: 12px;
+      color: #9b8a70;
+      font: italic 400 12px/1.4 var(--dash-serif);
       margin-top: 6px;
     }
 
-    .escrow-empty {
-      padding: 18px 12px;
-      border: 1px dashed #d6c39b;
-      border-radius: 10px;
-      text-align: center;
-      color: #6e634f;
+    /* ── Gas indicator ───────────────────────── */
+    .gas-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      margin-top: 6px;
     }
 
-    .escrow-empty strong {
-      display: block;
-      margin-top: 8px;
-      color: #463827;
-    }
+    .gas-indicator__label { color: #9b8a70; font: 400 11px/1 var(--dash-mono); }
+    .gas-indicator__value { color: #c8baa0; font: 400 11px/1 var(--dash-mono); }
 
-    .escrow-empty a {
-      margin-top: 10px;
-      display: inline-block;
-      color: #8a6a1d;
-      font-size: 13px;
-      text-decoration: none;
-      border-bottom: 1px solid rgba(138, 106, 29, 0.35);
-    }
-
-    /* Transaction History Styles */
+    /* ── Transaction History ─────────────────── */
     .tx-history {
       max-height: 320px;
       overflow: auto;
@@ -802,81 +707,158 @@
       gap: 12px;
       align-items: center;
       padding: 10px 0;
-      border-bottom: 1px solid #e4d8bb;
+      border-bottom: 1px solid rgba(198, 152, 49, 0.14);
     }
 
-    .tx-item:last-child {
-      border-bottom: none;
-    }
+    .tx-item:last-child { border-bottom: none; }
 
     .tx-icon {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 14px;
     }
 
-    .tx-icon.in { background: rgba(34, 197, 94, 0.15); }
-    .tx-icon.out { background: rgba(239, 68, 68, 0.15); }
-    .tx-icon.challenge { background: rgba(168, 85, 247, 0.15); }
-    .tx-icon.refund { background: rgba(59, 130, 246, 0.15); }
+    .tx-icon.in        { background: rgba(47, 143, 94, 0.12); }
+    .tx-icon.out       { background: rgba(180, 77, 60, 0.12); }
+    .tx-icon.challenge { background: rgba(168, 85, 247, 0.1); }
+    .tx-icon.refund    { background: rgba(59, 130, 246, 0.1); }
 
-    .tx-details {
-      min-width: 0;
-    }
+    .tx-details { min-width: 0; }
 
     .tx-type {
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1.2;
-      color: #2a2114;
+      font: 600 13px/1.2 var(--dash-serif);
+      color: var(--dash-ink);
     }
 
     .tx-time {
-      font-family: var(--dash-mono);
-      font-size: 11px;
-      font-weight: 500;
-      line-height: 1.2;
-      color: #8d8577;
+      font: 400 11px/1.2 var(--dash-mono);
+      color: var(--dash-muted);
       margin-top: 2px;
     }
 
     .tx-amount {
-      font-family: var(--dash-mono);
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1;
+      font: 500 13px/1 var(--dash-mono);
       text-align: right;
     }
 
-    .tx-amount.positive { color: #16a34a; }
-    .tx-amount.negative { color: #dc2626; }
+    .tx-amount.positive { color: var(--dash-good); }
+    .tx-amount.negative { color: var(--dash-bad); }
 
+    /* ── Escrow empty state ──────────────────── */
+    .escrow-empty {
+      padding: 20px 14px;
+      border: 1px dashed rgba(198, 152, 49, 0.28);
+      border-radius: 10px;
+      text-align: center;
+      color: var(--dash-muted);
+      font-style: italic;
+    }
+
+    .escrow-empty strong {
+      display: block;
+      margin-top: 8px;
+      color: var(--dash-ink);
+      font-style: normal;
+    }
+
+    .escrow-empty a {
+      margin-top: 10px;
+      display: inline-block;
+      color: #8a6a1d;
+      font: 400 13px/1 var(--dash-serif);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(138, 106, 29, 0.32);
+    }
+
+    /* ── Danger Zone ─────────────────────────── */
+    .danger-zone {
+      border-radius: 12px;
+      border: 1px solid rgba(180, 77, 60, 0.28);
+      background: rgba(180, 77, 60, 0.04);
+      padding: 14px 16px;
+      margin-top: 14px;
+    }
+
+    .danger-zone h3 {
+      margin: 0 0 8px;
+      font: italic 600 18px/1 var(--dash-display);
+      color: var(--dash-bad);
+    }
+
+    /* ── Modal ───────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.48);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      z-index: 200;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(600px, 100%);
+      background: var(--dash-panel-soft);
+      border-radius: 14px;
+      border: 1px solid var(--dash-card-edge);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+      padding: 18px;
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .modal h3 {
+      margin: 0;
+      font: italic 700 22px/1 var(--dash-display);
+      color: var(--dash-ink);
+    }
+
+    .modal-close {
+      border: 1px solid rgba(198, 152, 49, 0.38);
+      background: transparent;
+      color: var(--dash-muted);
+      border-radius: 6px;
+      min-height: 32px;
+      padding: 0 10px;
+      font: 400 11px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+
+    .mono {
+      font-family: var(--dash-mono);
+      font-size: 11px;
+      word-break: break-all;
+    }
+
+    /* ── Responsive ──────────────────────────── */
     @media (max-width: 1024px) {
       .dashboard-app { grid-template-columns: 60px minmax(0, 1fr); }
       .dashboard-sidebar { padding: 10px 8px; }
       .player-chip,
       .sidebar-balance,
       .sidebar-nav button span:not(.nav-icon),
-      .sidebar-actions .btn span { display: none; }
+      .sidebar-actions span { display: none; }
       .sidebar-nav button,
-      .sidebar-actions .btn {
-        padding: 0;
-        justify-content: center;
-      }
-      .sidebar-nav button::before { font-size: 16px; }
+      .sidebar-actions .btn-enter { padding: 0; justify-content: center; }
       .nav-icon { display: inline; }
-      #dashboard-enter-play::before {
-        content: "▶";
-        font-size: 16px;
-      }
-      .card-grid,
-      .bot-grid { grid-template-columns: 1fr; }
-      .input-row,
-      .input-row-3 { grid-template-columns: 1fr; }
+      #dashboard-enter-play::before { content: "▶"; font-size: 14px; }
+      .card-grid, .bot-grid { grid-template-columns: 1fr; }
+      .input-row, .input-row-3 { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 768px) {
@@ -886,40 +868,28 @@
       }
       .dashboard-sidebar {
         position: fixed;
-        top: auto;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        top: auto; bottom: 0; left: 0; right: 0;
         height: auto;
         z-index: 90;
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 8px;
+        gap: 6px;
         padding: 8px;
       }
-      .player-chip,
-      .sidebar-balance { display: none; }
-      .sidebar-nav,
-      .sidebar-actions {
-        display: contents;
-      }
-      .sidebar-nav button,
-      .sidebar-actions .btn {
-        min-height: 44px;
-        border-radius: 10px;
-      }
-      .sidebar-actions .btn span { display: inline; }
+      .player-chip, .sidebar-balance { display: none; }
+      .sidebar-nav, .sidebar-actions { display: contents; }
+      .sidebar-nav button, .sidebar-actions .btn-enter { min-height: 44px; border-radius: 10px; }
+      .sidebar-actions span { display: inline; }
       #dashboard-enter-play::before { content: none; }
-      .dashboard-content {
-        padding: 18px 14px 88px;
-      }
-      .hero-card h1 { font-size: 25px; }
+      .dashboard-content { padding: 18px 14px 88px; }
+      .hero-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .hero-card h1 { font-size: 24px; }
       .wallet-actions { grid-template-columns: 1fr; }
       .wallet-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .wallet-tab { border-radius: 10px; min-height: 42px; }
+      .wallet-tab { border-radius: 8px; min-height: 40px; }
       .wallet-id-row { grid-template-columns: 1fr; }
       .wallet-id-row button { width: 100%; }
-      .tx-item { grid-template-columns: 1fr; gap: 8px; }
+      .tx-item { grid-template-columns: 1fr; gap: 6px; }
       .tx-amount { text-align: left; }
     }
   </style>
@@ -934,6 +904,7 @@
           <div class="player-chip__handle" id="sidebar-handle">@player</div>
         </div>
       </div>
+
       <div class="sidebar-balance">
         <span class="sidebar-balance__label">Balance</span>
         <span class="sidebar-balance__value" id="sidebar-wallet">0.00</span>
@@ -943,34 +914,36 @@
         <button type="button" data-view="bots" class="active"><span class="nav-icon">BT</span><span>My Bots</span></button>
         <button type="button" data-view="wallet"><span class="nav-icon">WL</span><span>Wallet</span></button>
         <button type="button" data-view="settings"><span class="nav-icon">ST</span><span>Settings</span></button>
-        <button type="button" data-view="super"><span class="nav-icon">CH</span><span>Chief Of Staff</span></button>
+        <button type="button" data-view="super"><span class="nav-icon">CH</span><span>Chief</span></button>
       </nav>
 
       <div class="sidebar-actions">
-        <a id="dashboard-enter-play" class="btn-gold" href="/play?world=mega"><span>Enter Arena</span></a>
+        <a id="dashboard-enter-play" class="btn-enter" href="/play?world=mega"><span>Enter Arena</span></a>
       </div>
     </aside>
 
     <section class="dashboard-content">
       <div class="content-inner">
+
         <section class="hero-card">
-          <p class="hero-card__kicker">Train World Arena</p>
-          <h1>Command Center</h1>
-          <p>Run your bot economy with clear controls for strategy, wallet actions, and autonomous play continuity.</p>
-          <div id="dashboard-status" class="status-line" aria-live="polite"></div>
+          <div>
+            <h1>Command Center</h1>
+            <p class="hero-card__sub">Your arena, your bots, your economy.</p>
+            <div id="dashboard-status" class="status-line" aria-live="polite"></div>
+          </div>
+          <a class="btn-gold" href="/play?world=mega" id="hero-enter-play" style="white-space:nowrap;">Enter Arena</a>
         </section>
 
+        <!-- Bots View -->
         <section id="view-bots" class="dash-view active">
           <div class="card-grid" style="margin-bottom:14px;">
             <article class="panel">
-              <h2>Your Character Bot</h2>
-              <p class="muted" style="margin:0;">
-                One player, one character, one offline bot. Tune its personality and it will keep playing while you are offline.
-              </p>
+              <h2>Your Character</h2>
+              <p class="muted" style="margin:0;font-style:italic;">One player, one bot. Tune its personality and it keeps playing while you're offline.</p>
             </article>
 
             <article class="panel">
-              <h2>Onboarding Checklist</h2>
+              <h2>Onboarding</h2>
               <ul id="onboarding-list" class="welcome-checks" style="margin:0;"></ul>
               <div style="margin-top:10px;" class="actions">
                 <a class="btn-ghost" href="/viewer?world=mega">World Viewer</a>
@@ -985,11 +958,12 @@
 
           <article class="super-bar" id="chief-inline">
             <div class="super-head">
-              <h2 class="super-title">Your Chief (player-scoped)</h2>
+              <h2 class="super-title">Chief of Staff</h2>
               <span class="ready">Ready</span>
             </div>
-            <p class="muted" style="margin:0 0 8px;color:#cfb985;">Player-scoped assistant for your wallet + bot tuning (no admin powers).</p>
-            <textarea id="super-agent-message" class="field" rows="3" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="Try: status, fund 10, withdraw 5, set personality social"></textarea>
+            <textarea id="super-agent-message" class="field" rows="2"
+              style="background:rgba(0,0,0,0.28);color:#e0d2b6;border-color:rgba(198,152,49,0.2);"
+              placeholder="fund 10 · set personality aggressive · status"></textarea>
             <div class="actions" style="margin-top:8px;">
               <button id="super-agent-send" class="btn-gold" type="button">Send</button>
               <button id="super-agent-quick-status" class="btn-dark" type="button">Status</button>
@@ -998,6 +972,7 @@
           </article>
         </section>
 
+        <!-- Wallet View -->
         <section id="view-wallet" class="dash-view">
           <div style="margin-bottom:14px;">
             <article class="panel wallet-hero">
@@ -1019,22 +994,21 @@
                   </div>
                 </div>
                 <div class="gas-indicator" id="gas-indicator" style="display:none;">
-                  <div class="gas-indicator__icon">Gas</div>
                   <div class="gas-indicator__label">Gas:</div>
                   <div class="gas-indicator__value"><span id="gas-balance">0.00000</span> ETH</div>
                 </div>
                 <div class="wallet-ids">
                   <div class="wallet-id-row">
                     <div>
-                      <span class="muted" style="font-size:11px;">Wallet ID</span>
-                      <div class="wallet-code mono" id="me-wallet" style="margin-top:4px;">-</div>
+                      <span class="label">Wallet ID</span>
+                      <div class="wallet-code mono" id="me-wallet" style="margin-top:4px;">—</div>
                     </div>
                     <button id="copy-wallet" class="btn-ghost" type="button">Copy</button>
                   </div>
                   <div class="wallet-id-row" style="margin-top:8px;">
                     <div>
-                      <span class="muted" style="font-size:11px;">Address</span>
-                      <div class="wallet-code mono" id="me-wallet-address" style="margin-top:4px;">-</div>
+                      <span class="label">Address</span>
+                      <div class="wallet-code mono" id="me-wallet-address" style="margin-top:4px;">—</div>
                     </div>
                     <button id="copy-wallet-address" class="btn-ghost" type="button">Copy</button>
                   </div>
@@ -1075,7 +1049,7 @@
                   </div>
                   <div>
                     <label class="label" for="wallet-transfer-wallet-id">Or Wallet ID</label>
-                    <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="Paste wallet id">
+                    <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="Paste wallet ID">
                   </div>
                   <div>
                     <label class="label" for="wallet-transfer-amount">Amount (mUSDC)</label>
@@ -1083,7 +1057,7 @@
                       <input id="wallet-transfer-amount" class="field" type="number" min="1" step="1" value="2">
                       <button id="wallet-transfer" class="btn-gold" type="button">Send</button>
                     </div>
-                    <p class="wallet-transfer-hint">Transfer to another player wallet. Use a player selection or paste a wallet ID.</p>
+                    <p class="wallet-transfer-hint">Transfer by player selection or wallet ID.</p>
                   </div>
                 </div>
               </section>
@@ -1092,10 +1066,11 @@
 
           <article id="wallet-escrow-panel" class="panel">
             <h2>Escrow Activity</h2>
-            <div id="escrow-history" class="tx-history muted">Loading escrow activity...</div>
+            <div id="escrow-history" class="tx-history muted">Loading...</div>
           </article>
         </section>
 
+        <!-- Settings View -->
         <section id="view-settings" class="dash-view">
           <div class="card-grid">
             <article class="panel">
@@ -1114,11 +1089,20 @@
             </article>
 
             <article class="panel">
-              <h2>Identity</h2>
+              <h2>Account</h2>
               <div class="stack">
-                <div><span class="muted">Email</span><div id="me-email"></div></div>
-                <div><span class="muted">Role</span><div id="me-role"></div></div>
-                <div><span class="muted">Profile</span><div id="me-profile"></div></div>
+                <div>
+                  <span class="label">Email</span>
+                  <div id="me-email" class="muted"></div>
+                </div>
+                <div>
+                  <span class="label">Role</span>
+                  <div id="me-role" class="muted"></div>
+                </div>
+                <div>
+                  <span class="label">Profile ID</span>
+                  <div id="me-profile" class="muted mono"></div>
+                </div>
                 <div>
                   <label class="label" for="invite-link">Invite Link</label>
                   <input id="invite-link" class="field mono" type="text" readonly>
@@ -1130,25 +1114,28 @@
 
           <article class="danger-zone">
             <h3>Danger Zone</h3>
-            <p class="muted" style="margin:0 0 8px;color:#7f1d1d;">Export private key only for recovery. Keep this offline and secure.</p>
+            <p class="muted" style="margin:0 0 10px;font-style:italic;">Export your private key for recovery only. Keep it offline and secure.</p>
             <div class="actions">
               <button id="export-private-key" class="btn-danger-ghost" type="button">Export Private Key</button>
             </div>
           </article>
         </section>
 
+        <!-- Chief View -->
         <section id="view-super" class="dash-view">
           <article class="super-bar">
             <div class="super-head">
-              <h2 class="super-title">Your Chief Desk (player-scoped)</h2>
+              <h2 class="super-title">Chief of Staff</h2>
               <span class="ready">Ready</span>
             </div>
-            <p class="muted" style="margin:0 0 8px;color:#cfb985;">This is your in-game chief of staff: wallets, gas, and tuning your bot while you are offline.</p>
+            <p class="muted" style="margin:0 0 8px;color:#b09870;font-style:italic;">Wallet, gas, and bot tuning while offline.</p>
             <div class="quick-pills">
               <button type="button" data-quick-cmd="status">status</button>
               <button type="button" data-quick-cmd="help">help</button>
             </div>
-            <textarea id="super-agent-message-alt" class="field" rows="4" style="background:#2a2a2a;color:#f5ecda;border-color:#3b3b3b;" placeholder="Try: fund 10, set personality aggressive, set target any"></textarea>
+            <textarea id="super-agent-message-alt" class="field" rows="3"
+              style="background:rgba(0,0,0,0.28);color:#e0d2b6;border-color:rgba(198,152,49,0.2);"
+              placeholder="fund 10 · set personality aggressive · set target any"></textarea>
             <div class="actions" style="margin-top:8px;">
               <button id="super-agent-send-alt" class="btn-gold" type="button">Send</button>
               <button id="super-agent-quick-status-alt" class="btn-dark" type="button">Status</button>
@@ -1156,18 +1143,20 @@
             <pre id="super-agent-response-alt" class="super-response">Chief ready.</pre>
           </article>
         </section>
+
       </div>
     </section>
   </main>
 
+  <!-- Bot Edit Modal -->
   <div id="bot-modal" class="modal-backdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bot-modal-title">
       <div class="modal-head">
         <h3 id="bot-modal-title">Edit Bot</h3>
         <button id="bot-modal-close" class="modal-close" type="button">Close</button>
       </div>
-      <p id="bot-modal-sub" class="muted" style="margin:0 0 10px;">Configure behavior and wager policy.</p>
-      <div class="input-row" style="margin-bottom:8px;">
+      <p id="bot-modal-sub" class="muted" style="margin:0 0 14px;font-style:italic;">Configure behavior and wager policy.</p>
+      <div class="input-row" style="margin-bottom:10px;">
         <div>
           <label class="label" for="bot-personality">Personality</label>
           <select id="bot-personality" class="field">
@@ -1185,7 +1174,7 @@
           </select>
         </div>
       </div>
-      <div class="input-row" style="margin-bottom:8px;">
+      <div class="input-row" style="margin-bottom:10px;">
         <div>
           <label class="label" for="bot-cooldown">Challenge Cooldown (ms)</label>
           <input id="bot-cooldown" class="field" type="number" min="1200" step="100" value="2600">
@@ -1198,9 +1187,15 @@
           </select>
         </div>
       </div>
-      <div class="input-row" style="margin-bottom:8px;">
-        <input id="bot-base-wager" class="field" type="number" min="1" step="1" value="1" placeholder="Base wager">
-        <input id="bot-max-wager" class="field" type="number" min="1" step="1" value="3" placeholder="Max wager">
+      <div class="input-row" style="margin-bottom:14px;">
+        <div>
+          <label class="label" for="bot-base-wager">Base Wager</label>
+          <input id="bot-base-wager" class="field" type="number" min="1" step="1" value="1">
+        </div>
+        <div>
+          <label class="label" for="bot-max-wager">Max Wager</label>
+          <input id="bot-max-wager" class="field" type="number" min="1" step="1" value="3">
+        </div>
       </div>
       <div class="actions">
         <button id="bot-save" class="btn-gold" type="button">Save Bot</button>
