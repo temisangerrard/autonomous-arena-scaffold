@@ -331,12 +331,14 @@ export class MarketService {
     const query = String(params?.query || '').trim().toLowerCase();
     try {
       const fetched = await this.feed.fetchMarkets(limit);
+      const now = Date.now();
+      const openOnly = fetched.filter((entry) => entry.status === 'open' && entry.closeAt > now);
       const filtered = query
-        ? fetched.filter((entry) => {
+        ? openOnly.filter((entry) => {
             const haystack = `${entry.question} ${entry.slug} ${entry.category}`.toLowerCase();
             return haystack.includes(query);
           })
-        : fetched;
+        : openOnly;
       const markets = filtered.map((entry) => ({
         marketId: entry.id,
         slug: entry.slug,
@@ -373,7 +375,16 @@ export class MarketService {
       this.db.listMarkets(300),
       this.activationMap()
     ]);
-    const views = markets.map((m) => this.marketViewOf(m, activation.get(m.id) || null));
+    const views = markets
+      .map((m) => this.marketViewOf(m, activation.get(m.id) || null))
+      .sort((a, b) => {
+        const aPlayable = this.isPlayableNow(a) ? 1 : 0;
+        const bPlayable = this.isPlayableNow(b) ? 1 : 0;
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        if (aPlayable !== bPlayable) return bPlayable - aPlayable;
+        if (a.closeAt !== b.closeAt) return a.closeAt - b.closeAt;
+        return String(a.question || '').localeCompare(String(b.question || ''));
+      });
     return {
       ok: true,
       lastSyncAt: this.lastSyncAt,
