@@ -276,6 +276,50 @@ export class MarketService {
     }
   }
 
+  async syncAndAutoActivate(limit = 60): Promise<{ ok: boolean; synced: number; activated: number; error?: string }> {
+    const syncResult = await this.syncFromOracle(limit);
+    if (!syncResult.ok) {
+      return {
+        ok: false,
+        synced: 0,
+        activated: 0,
+        error: syncResult.error || 'oracle_sync_failed'
+      };
+    }
+
+    try {
+      const [allMarkets, activations] = await Promise.all([
+        this.db.listMarkets(300),
+        this.activationMap()
+      ]);
+      const now = Date.now();
+      let activated = 0;
+
+      for (const market of allMarkets) {
+        // Preserve manual overrides if this market already has an activation record.
+        if (activations.has(market.id)) continue;
+        if (market.status !== 'open' || market.closeAt <= now) continue;
+        await this.db.setMarketActivation({
+          marketId: market.id,
+          active: true,
+          maxWager: DEFAULT_MAX_WAGER,
+          houseSpreadBps: DEFAULT_SPREAD_BPS,
+          updatedBy: 'auto-sync'
+        });
+        activated += 1;
+      }
+
+      return { ok: true, synced: syncResult.synced, activated };
+    } catch (error) {
+      return {
+        ok: false,
+        synced: syncResult.synced,
+        activated: 0,
+        error: String((error as Error)?.message || error)
+      };
+    }
+  }
+
   async previewLiveMarkets(params?: { limit?: number; query?: string }): Promise<{
     ok: boolean;
     source: 'polymarket_gamma';

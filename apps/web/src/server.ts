@@ -17,6 +17,18 @@ import { cookieSessionId, createSessionStore, type IdentityRecord, type Role, ty
 
 loadEnvFromFile();
 
+function resolveInternalServiceToken(): string {
+  const explicit = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
+  if (explicit) return explicit;
+  const superAgentKey = String(
+    process.env.ESCROW_RESOLVER_PRIVATE_KEY
+    ?? process.env.DEPLOYER_PRIVATE_KEY
+    ?? ''
+  ).trim();
+  if (!superAgentKey) return '';
+  return `sa_${createHash('sha256').update(superAgentKey).digest('hex')}`;
+}
+
 const port = Number(process.env.PORT ?? 3000);
 const googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
 const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
@@ -42,7 +54,7 @@ const allowedAuthOrigins = new Set(
     .filter(Boolean)
 );
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
-const internalToken = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
+const internalToken = resolveInternalServiceToken();
 const redisUrl = process.env.REDIS_URL?.trim() || '';
 const adminEmails = new Set(
   (process.env.ADMIN_EMAILS ?? process.env.SUPER_ADMIN_EMAIL ?? '')
@@ -394,10 +406,12 @@ async function serverGet<T>(pathname: string): Promise<T> {
   const response = await fetch(`${serverBase}${pathname}`, {
     headers: internalToken ? { 'x-internal-token': internalToken } : undefined
   });
+  const payload = await response.json().catch(() => null) as { reason?: unknown; error?: unknown } | null;
   if (!response.ok) {
-    throw new Error(`server_get_${response.status}`);
+    const reason = String(payload?.reason || payload?.error || '').trim();
+    throw new Error(reason ? `server_get_${response.status}:${reason}` : `server_get_${response.status}`);
   }
-  return response.json() as Promise<T>;
+  return (payload as T | null) as T;
 }
 
 async function serverPost<T>(pathname: string, body: unknown): Promise<T> {
@@ -411,9 +425,37 @@ async function serverPost<T>(pathname: string, body: unknown): Promise<T> {
   });
   const payload = await response.json().catch(() => null) as T | null;
   if (!response.ok || !payload) {
-    throw new Error(`server_post_${response.status}`);
+    const reason = String((payload as { reason?: unknown; error?: unknown } | null)?.reason || (payload as { reason?: unknown; error?: unknown } | null)?.error || '').trim();
+    throw new Error(reason ? `server_post_${response.status}:${reason}` : `server_post_${response.status}`);
   }
   return payload;
+}
+
+function upstreamErrorJson(error: unknown, fallbackReason: string, fallbackStatus = 400) {
+  const message = String((error as Error)?.message || error || '').trim();
+  const match = message.match(/^server_(get|post)_(\d+)(?::(.+))?$/i);
+  if (match) {
+    const status = Number(match[2] || fallbackStatus);
+    const reason = String(match[3] || fallbackReason).trim() || fallbackReason;
+    return {
+      status: Number.isFinite(status) ? status : fallbackStatus,
+      body: {
+        ok: false,
+        reason,
+        upstreamStatus: Number.isFinite(status) ? status : fallbackStatus,
+        source: 'server_proxy'
+      }
+    };
+  }
+  return {
+    status: fallbackStatus,
+    body: {
+      ok: false,
+      reason: fallbackReason,
+      detail: message || fallbackReason,
+      source: 'server_proxy'
+    }
+  };
 }
 
 const chiefService = createChiefService({
@@ -1937,8 +1979,9 @@ const server = createServer(async (req, res) => {
       try {
         const payload = await serverGet('/admin/markets');
         sendJson(res, payload);
-      } catch {
-        sendJson(res, { ok: false, reason: 'server_unavailable' }, 400);
+      } catch (error) {
+        const upstream = upstreamErrorJson(error, 'server_unavailable', 400);
+        sendJson(res, upstream.body, upstream.status);
       }
       return;
     }
@@ -1952,8 +1995,9 @@ const server = createServer(async (req, res) => {
       try {
         const payload = await serverGet(`/admin/markets/live?${queryBits.toString()}`);
         sendJson(res, payload);
-      } catch {
-        sendJson(res, { ok: false, reason: 'server_unavailable' }, 400);
+      } catch (error) {
+        const upstream = upstreamErrorJson(error, 'server_unavailable', 400);
+        sendJson(res, upstream.body, upstream.status);
       }
       return;
     }
@@ -1968,8 +2012,9 @@ const server = createServer(async (req, res) => {
       try {
         const payload = await serverPost(`/admin${subpath}`, body ?? {});
         sendJson(res, payload);
-      } catch {
-        sendJson(res, { ok: false, reason: 'server_request_failed' }, 400);
+      } catch (error) {
+        const upstream = upstreamErrorJson(error, 'server_request_failed', 400);
+        sendJson(res, upstream.body, upstream.status);
       }
       return;
     }

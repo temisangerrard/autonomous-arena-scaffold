@@ -94,17 +94,17 @@ function renderEnabled() {
       return `
         <tr>
           <td>
-            <div style="font-weight:650;">${escapeHtml(entry.question || marketId)}</div>
-            <div class="mono" style="color:#7a6b57;">${escapeHtml(marketId)}</div>
+            <div class="question-text">${escapeHtml(entry.question || marketId)}</div>
+            <div class="id-text">${escapeHtml(marketId)}</div>
           </td>
           <td>
             <span class="badge ${entry.active ? 'live' : 'off'}">${entry.active ? 'active' : 'inactive'}</span>
-            <div class="mono" style="margin-top:6px; color:#726754;">${escapeHtml(entry.status || '-')}</div>
-            <div class="mono" style="margin-top:4px; color:#726754;">close ${escapeHtml(formatDate(entry.closeAt))}</div>
+            <div class="mono" style="margin-top:5px;">${escapeHtml(entry.status || '-')} · ${escapeHtml(formatDate(entry.closeAt))}</div>
           </td>
           <td>
-            <div>YES ${escapeHtml(formatPrice(entry.yesPrice))} / NO ${escapeHtml(formatPrice(entry.noPrice))}</div>
-            <div class="mono" style="margin-top:6px; color:#726754;">max ${Number(entry.maxWager || 0).toFixed(0)} · spread ${Number(entry.houseSpreadBps || 0)} bps</div>
+            <span class="price-yes">Y ${escapeHtml(formatPrice(entry.yesPrice))}</span>
+            &nbsp;<span class="price-no">N ${escapeHtml(formatPrice(entry.noPrice))}</span>
+            <div class="mono" style="margin-top:5px;">max ${Number(entry.maxWager || 0).toFixed(0)} · ${Number(entry.houseSpreadBps || 0)} bps</div>
           </td>
           <td>
             <div class="row">
@@ -131,11 +131,11 @@ function renderLive() {
       return `
         <tr>
           <td>
-            <div style="font-weight:650;">${escapeHtml(entry.question || marketId)}</div>
-            <div class="mono" style="color:#7a6b57;">${escapeHtml(marketId)}</div>
+            <div class="question-text">${escapeHtml(entry.question || marketId)}</div>
+            <div class="id-text">${escapeHtml(marketId)}</div>
           </td>
-          <td>${escapeHtml(entry.category || '-')}</td>
-          <td>YES ${escapeHtml(formatPrice(entry.yesPrice))} / NO ${escapeHtml(formatPrice(entry.noPrice))}</td>
+          <td><span class="mono">${escapeHtml((entry.category || '-').toUpperCase())}</span></td>
+          <td><span class="price-yes">Y ${escapeHtml(formatPrice(entry.yesPrice))}</span> &nbsp;<span class="price-no">N ${escapeHtml(formatPrice(entry.noPrice))}</span></td>
           <td class="mono">${escapeHtml(formatDate(entry.closeAt))}</td>
           <td><button class="btn btn-gold" data-action="promote" data-market-id="${escapeHtml(marketId)}">Enable In App</button></td>
         </tr>

@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chief Ops Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600;1,700&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/css/claude-corners.css">
   <link rel="stylesheet" href="/css/admin-chief.css">
@@ -103,10 +106,21 @@
 
         <article class="view" id="view-markets">
           <h3>Markets</h3>
-          <details open>
-            <summary>Quick market actions</summary>
-            <div class="chips" data-tool-group="markets"></div>
-          </details>
+          <div class="markets-toolbar">
+            <span id="markets-sync-status">—</span>
+            <button id="markets-sync-btn" type="button">Sync from Polymarket</button>
+            <button id="markets-autoactivate-btn" type="button">Auto-activate open</button>
+          </div>
+          <div class="markets-filter">
+            <select id="markets-filter-status">
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <input id="markets-search" type="search" placeholder="Search question..." />
+          </div>
+          <div id="markets-table" class="markets-table"></div>
+          <div id="markets-detail" class="markets-detail" hidden></div>
         </article>
 
         <article class="view" id="view-users">
