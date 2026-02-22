@@ -8,6 +8,7 @@ const state = {
   latestTraceId: '',
   latestSessionId: '',
   latestStatus: null,
+  latestOnchainStatus: null,
   latestChallenges: [],
   latestUsers: [],
   latestSuperStatus: null,
@@ -89,6 +90,17 @@ const el = {
   houseTransferAmount: document.getElementById('house-transfer-amount'),
   houseTransfer: document.getElementById('house-transfer'),
   houseLedger: document.getElementById('house-ledger'),
+  onchainChainId: document.getElementById('onchain-chain-id'),
+  onchainTokenAddress: document.getElementById('onchain-token-address'),
+  onchainEscrowAddress: document.getElementById('onchain-escrow-address'),
+  onchainEscrowEth: document.getElementById('onchain-escrow-eth'),
+  onchainSponsorAddress: document.getElementById('onchain-sponsor-address'),
+  onchainSponsorEth: document.getElementById('onchain-sponsor-eth'),
+  onchainPrepareWallets: document.getElementById('onchain-prepare-wallets'),
+  onchainPrepareAmount: document.getElementById('onchain-prepare-amount'),
+  onchainPrepareRun: document.getElementById('onchain-prepare-run'),
+  onchainPrepareResult: document.getElementById('onchain-prepare-result'),
+  treasuryWalletsBody: document.getElementById('treasury-wallets-body'),
 
   usersBody: document.getElementById('users-body'),
 
@@ -577,6 +589,45 @@ function renderBots() {
   }
 }
 
+function renderTreasuryAssets() {
+  const onchain = state.latestOnchainStatus || {};
+  if (el.onchainChainId) el.onchainChainId.value = String(onchain.chainId ?? '-');
+  if (el.onchainTokenAddress) el.onchainTokenAddress.value = String(onchain.tokenAddress || '-');
+  if (el.onchainEscrowAddress) el.onchainEscrowAddress.value = String(onchain.escrowAddress || '-');
+  if (el.onchainEscrowEth) el.onchainEscrowEth.value = onchain.escrowBalanceEth == null ? '-' : `${Number(onchain.escrowBalanceEth).toFixed(6)} ETH`;
+  if (el.onchainSponsorAddress) el.onchainSponsorAddress.value = String(onchain.sponsorAddress || '-');
+  if (el.onchainSponsorEth) el.onchainSponsorEth.value = onchain.sponsorBalanceEth == null ? '-' : `${Number(onchain.sponsorBalanceEth).toFixed(6)} ETH`;
+
+  if (!el.treasuryWalletsBody) return;
+  el.treasuryWalletsBody.innerHTML = '';
+  const rows = Array.isArray(onchain.wallets) ? onchain.wallets : [];
+  for (const entry of rows) {
+    const tr = document.createElement('tr');
+    const walletId = String(entry?.id || '');
+    const owner = String(entry?.ownerProfileId || '-');
+    const address = String(entry?.address || '-');
+    const runtimeBal = Number(entry?.runtimeBalance || 0);
+    const tokenBal = Number(entry?.onchain?.tokenBalance || 0);
+    const ethBal = Number(entry?.onchain?.nativeBalanceEth || 0);
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(walletId || '-')}</td>
+      <td class="mono">${escapeHtml(owner)}</td>
+      <td class="mono">${escapeHtml(address)}</td>
+      <td>${runtimeBal.toFixed(2)}</td>
+      <td>${Number.isFinite(tokenBal) ? tokenBal.toFixed(2) : '-'}</td>
+      <td>${Number.isFinite(ethBal) ? ethBal.toFixed(6) : '-'}</td>
+      <td>
+        <div class="btn-row" style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button data-action="treasury-fund" data-wallet-id="${escapeHtml(walletId)}">+10</button>
+          <button data-action="treasury-withdraw" data-wallet-id="${escapeHtml(walletId)}">-5</button>
+          <button data-action="treasury-export" data-wallet-id="${escapeHtml(walletId)}" data-profile-id="${escapeHtml(owner)}">Export</button>
+        </div>
+      </td>
+    `;
+    el.treasuryWalletsBody.appendChild(tr);
+  }
+}
+
 function renderUsers() {
   if (!el.usersBody) return;
   el.usersBody.innerHTML = '';
@@ -680,6 +731,7 @@ function renderAll() {
   populateControlValues();
   renderProfiles();
   renderBots();
+  renderTreasuryAssets();
   renderUsers();
   renderActivity();
 }
@@ -733,18 +785,20 @@ async function refreshAll({ silent = false } = {}) {
   state.loading = true;
   if (!silent) setStatus('Refreshing admin workspace...');
 
-  const [statusRes, challengesRes, usersRes, superRes, bootstrapRes] = await Promise.all([
+  const [statusRes, onchainRes, challengesRes, usersRes, superRes, bootstrapRes] = await Promise.all([
     safeFetch('status', () => apiGet('/api/admin/runtime/status')),
+    safeFetch('onchain', () => apiGet('/api/admin/runtime/onchain/status')),
     safeFetch('challenges', () => apiGet('/api/admin/challenges/recent?limit=80')),
     safeFetch('users', () => apiGet('/api/admin/users')),
     safeFetch('superStatus', () => apiGet('/api/admin/runtime/super-agent/status')),
     safeFetch('bootstrap', () => loadBootstrap())
   ]);
 
-  const failures = [statusRes, challengesRes, usersRes, superRes, bootstrapRes].filter((r) => !r.ok);
+  const failures = [statusRes, onchainRes, challengesRes, usersRes, superRes, bootstrapRes].filter((r) => !r.ok);
   state.errors = failures.map((f) => `${f.name}: ${f.error}`);
 
   if (statusRes.ok) state.latestStatus = statusRes.data;
+  if (onchainRes.ok) state.latestOnchainStatus = onchainRes.data;
   if (challengesRes.ok) state.latestChallenges = challengesRes.data?.recent || [];
   if (usersRes.ok) state.latestUsers = usersRes.data?.users || [];
   if (superRes.ok) state.latestSuperStatus = superRes.data;
@@ -1103,6 +1157,67 @@ function bindTreasuryActions() {
       setStatus('House transfer complete.');
     } catch (error) {
       setStatus(`Failed: ${String(error?.message || error)}`);
+    }
+  });
+
+  el.treasuryWalletsBody?.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const action = String(target.dataset.action || '').trim();
+    const walletId = String(target.dataset.walletId || '').trim();
+    const profileId = String(target.dataset.profileId || '').trim();
+    if (!action || !walletId) return;
+
+    try {
+      if (action === 'treasury-fund') {
+        await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/fund`, { amount: 10 });
+        addActivity('write', `Funded wallet ${walletId} (+10)`);
+        await refreshAll({ silent: true });
+        setStatus('Wallet funded.');
+        return;
+      }
+      if (action === 'treasury-withdraw') {
+        await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/withdraw`, { amount: 5 });
+        addActivity('write', `Withdrew wallet ${walletId} (-5)`);
+        await refreshAll({ silent: true });
+        setStatus('Wallet withdrawn.');
+        return;
+      }
+      if (action === 'treasury-export') {
+        if (!window.confirm(`Export private key for wallet ${walletId}?`)) return;
+        const result = await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/export-key`, { profileId });
+        window.alert(`Wallet ${walletId}\nAddress: ${result.address}\nPrivate key: ${result.privateKey}`);
+        addActivity('write', `Exported private key for ${walletId}`);
+      }
+    } catch (error) {
+      setStatus(`Failed: ${String(error?.message || error)}`);
+    }
+  });
+
+  el.onchainPrepareRun?.addEventListener('click', async () => {
+    const walletIds = String(el.onchainPrepareWallets?.value || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const amount = Number(el.onchainPrepareAmount?.value || 0);
+    if (walletIds.length === 0 || amount <= 0) {
+      setStatus('Prepare requires wallet ids and amount > 0.');
+      return;
+    }
+    try {
+      const payload = await apiPost('/api/admin/runtime/wallets/onchain/prepare-escrow', { walletIds, amount });
+      if (el.onchainPrepareResult) {
+        el.onchainPrepareResult.textContent = JSON.stringify(payload, null, 2);
+      }
+      addActivity('write', `Ran escrow prepare for ${walletIds.join(', ')}`, `amount=${amount}`);
+      await refreshAll({ silent: true });
+      setStatus('Escrow prepare completed.');
+    } catch (error) {
+      const msg = String(error?.message || error);
+      if (el.onchainPrepareResult) {
+        el.onchainPrepareResult.textContent = `error: ${msg}`;
+      }
+      setStatus(`Prepare failed: ${msg}`);
     }
   });
 }

@@ -1952,7 +1952,7 @@ const server = createServer(async (req, res) => {
     }
 
     const subpath = pathname.slice('/api/admin/runtime'.length) || '/';
-    const allowGet = new Set(['/status', '/super-agent/status', '/super-agent/ethskills', '/house/status']);
+    const allowGet = new Set(['/status', '/super-agent/status', '/super-agent/ethskills', '/house/status', '/onchain/status']);
     const allowPostExact = new Set([
       '/super-agent/config',
       '/capabilities/wallet',
@@ -1962,6 +1962,7 @@ const server = createServer(async (req, res) => {
       '/house/config',
       '/house/transfer',
       '/house/refill',
+      '/wallets/onchain/prepare-escrow',
       '/profiles/create',
       '/agents/reconcile',
       '/super-agent/chat'

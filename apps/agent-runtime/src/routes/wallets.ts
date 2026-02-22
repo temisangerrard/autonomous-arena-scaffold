@@ -1,4 +1,4 @@
-import { Contract, parseUnits } from 'ethers';
+import { Contract, formatEther, parseUnits } from 'ethers';
 import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
 import type { EscrowLockRecord, WalletDenied, WalletRecord } from '@arena/shared';
 
@@ -52,6 +52,73 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     nativeBalanceEth?: string;
   }>;
 }) {
+  router.get('/onchain/status', async (req, res) => {
+    if (!deps.isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+
+    const configured = Boolean(deps.onchainProvider && deps.onchainTokenAddress && deps.onchainEscrowAddress);
+    if (!configured) {
+      sendJson(res, {
+        ok: true,
+        configured: false,
+        chainId: null,
+        tokenAddress: deps.onchainTokenAddress || null,
+        escrowAddress: deps.onchainEscrowAddress || null,
+        tokenDecimals: deps.onchainTokenDecimals,
+        tokenSymbol: null,
+        sponsorAddress: deps.gasFunderSigner()?.address || null,
+        sponsorBalanceEth: null,
+        escrowBalanceEth: null,
+        wallets: [...deps.wallets.values()].map((wallet) => ({
+          id: wallet.id,
+          ownerProfileId: wallet.ownerProfileId,
+          address: wallet.address,
+          runtimeBalance: wallet.balance,
+          onchain: null
+        }))
+      });
+      return;
+    }
+
+    const provider = deps.onchainProvider as {
+      getNetwork: () => Promise<{ chainId?: unknown }>;
+      getBalance: (address: string) => Promise<bigint>;
+    };
+    const chainId = await provider.getNetwork().then((net) => Number(net.chainId ?? NaN)).catch(() => null);
+    const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, provider) as Contract & { symbol: () => Promise<string> };
+    const sponsorAddress = deps.gasFunderSigner()?.address || null;
+    const [tokenSymbol, sponsorBalanceEth, escrowBalanceEth, walletOnchain] = await Promise.all([
+      token.symbol().catch(() => 'TOKEN'),
+      sponsorAddress ? provider.getBalance(sponsorAddress).then((v) => formatEther(v)).catch(() => null) : Promise.resolve(null),
+      provider.getBalance(deps.onchainEscrowAddress).then((v) => formatEther(v)).catch(() => null),
+      Promise.all(
+        [...deps.wallets.values()].map(async (wallet) => ({
+          id: wallet.id,
+          ownerProfileId: wallet.ownerProfileId,
+          address: wallet.address,
+          runtimeBalance: wallet.balance,
+          onchain: await deps.onchainWalletSummary(wallet).catch(() => null)
+        }))
+      )
+    ]);
+
+    sendJson(res, {
+      ok: true,
+      configured: true,
+      chainId: Number.isFinite(chainId) ? chainId : null,
+      tokenAddress: deps.onchainTokenAddress,
+      escrowAddress: deps.onchainEscrowAddress,
+      tokenDecimals: deps.onchainTokenDecimals,
+      tokenSymbol: tokenSymbol || 'TOKEN',
+      sponsorAddress,
+      sponsorBalanceEth,
+      escrowBalanceEth,
+      wallets: walletOnchain
+    });
+  });
+
   router.get('/wallets', (_req, res) => {
     sendJson(res, { wallets: [...deps.wallets.values()].map((entry) => deps.walletSummary(entry)) });
   });

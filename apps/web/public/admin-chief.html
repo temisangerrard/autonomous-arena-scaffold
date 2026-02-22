@@ -327,6 +327,70 @@
               <pre id="house-ledger" style="margin-top:10px;">Loading house ledger...</pre>
             </div>
           </div>
+          <div class="view-section">
+            <h4 class="section-label">Onchain Contracts</h4>
+            <div class="form-row form-row-3">
+              <div>
+                <label class="form-label">Chain</label>
+                <input id="onchain-chain-id" type="text" readonly value="-">
+              </div>
+              <div>
+                <label class="form-label">Token</label>
+                <input id="onchain-token-address" type="text" readonly value="-">
+              </div>
+              <div>
+                <label class="form-label">Escrow Contract</label>
+                <input id="onchain-escrow-address" type="text" readonly value="-">
+              </div>
+            </div>
+            <div class="form-row form-row-3">
+              <div>
+                <label class="form-label">Escrow Contract ETH</label>
+                <input id="onchain-escrow-eth" type="text" readonly value="-">
+              </div>
+              <div>
+                <label class="form-label">Sponsor Wallet</label>
+                <input id="onchain-sponsor-address" type="text" readonly value="-">
+              </div>
+              <div>
+                <label class="form-label">Sponsor ETH</label>
+                <input id="onchain-sponsor-eth" type="text" readonly value="-">
+              </div>
+            </div>
+            <div class="form-row">
+              <div>
+                <label class="form-label" for="onchain-prepare-wallets">Prepare Escrow Wallet IDs (comma-separated)</label>
+                <input id="onchain-prepare-wallets" type="text" placeholder="wallet_2,wallet_9">
+              </div>
+              <div>
+                <label class="form-label" for="onchain-prepare-amount">Wager Amount</label>
+                <input id="onchain-prepare-amount" type="number" min="0.01" step="0.01" value="1">
+              </div>
+              <div style="align-self:end;">
+                <button id="onchain-prepare-run" type="button" class="primary" style="width:100%;">Prepare Escrow</button>
+              </div>
+            </div>
+            <pre id="onchain-prepare-result">No prepare run yet.</pre>
+          </div>
+          <div class="view-section">
+            <h4 class="section-label">Controlled Wallets</h4>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Wallet</th>
+                    <th>Owner</th>
+                    <th>Address</th>
+                    <th>Runtime</th>
+                    <th>Token</th>
+                    <th>ETH</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="treasury-wallets-body"></tbody>
+              </table>
+            </div>
+          </div>
         </article>
 
         <!-- MARKETS -->
