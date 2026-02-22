@@ -4,9 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "prebuild": "npm run -w @arena/shared build",
     "build": "tsc -p tsconfig.json",
+    "prestart": "npm run -w @arena/shared build",
     "start": "node dist/apps/agent-runtime/src/index.js",
     "lint": "eslint src --ext .ts",
+    "pretest": "npm run -w @arena/shared build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
