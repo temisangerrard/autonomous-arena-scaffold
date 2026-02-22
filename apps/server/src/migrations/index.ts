@@ -261,6 +261,16 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE market_positions DROP COLUMN IF EXISTS min_payout_at_open;
       ALTER TABLE market_positions DROP COLUMN IF EXISTS estimated_payout_at_open;
     `
+  },
+  {
+    version: 8,
+    name: 'market_positions_clob',
+    up: `
+      ALTER TABLE market_positions ADD COLUMN IF NOT EXISTS clob_order_id TEXT;
+    `,
+    down: `
+      ALTER TABLE market_positions DROP COLUMN IF EXISTS clob_order_id;
+    `
   }
 ];
 

@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { Database, MarketActivationRecord, MarketPositionRecord, MarketRecord } from '../Database.js';
 import type { EscrowAdapter } from '../EscrowAdapter.js';
+import { log as rootLog } from '../logger.js';
 import { METRIC_NAMES, metrics } from '../metrics.js';
 import { PolymarketFeed, type PolymarketNormalizedMarket } from './PolymarketFeed.js';
+import type { PolymarketClobClient } from './PolymarketClobClient.js';
+
+const log = rootLog.child({ module: 'market-service' });
 
 export type MarketView = MarketRecord & {
   active: boolean;
@@ -72,7 +76,8 @@ export class MarketService {
     private readonly db: Database,
     private readonly escrowAdapter: EscrowAdapter,
     private readonly feed: PolymarketFeed,
-    private readonly getHouseWalletId: () => string | null
+    private readonly getHouseWalletId: () => string | null,
+    private readonly clobClient?: PolymarketClobClient
   ) {}
 
   private normalizedPrice(price: number): number {
@@ -692,6 +697,16 @@ export class MarketService {
     const created = (await this.db.listPlayerMarketPositions(params.playerId, 10)).find((p) => p.id === positionId) || null;
     if (!created) {
       return { ok: false, reason: 'position_create_failed', reasonText: 'Position write failed.' };
+    }
+
+    // Fire-and-forget hedge on Polymarket CLOB — never blocks or fails the player response
+    if (this.clobClient && quote.market?.oracleMarketId) {
+      const conditionId = quote.market.oracleMarketId;
+      const createdId   = created.id;
+      this.clobClient
+        .placeHedge(conditionId, params.side, quote.stake)
+        .then(({ orderId }) => this.db.setPositionClobOrder(createdId, orderId))
+        .catch((err: unknown) => log.warn({ err, positionId: createdId }, 'clob hedge failed (non-fatal)'));
     }
 
     return { ok: true, position: created, quote };

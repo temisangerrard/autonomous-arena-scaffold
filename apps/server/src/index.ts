@@ -30,6 +30,7 @@ import { computeCoinflipFromSeeds, sha256Hex } from './coinflip.js';
 import { createStationRouter } from './game/stations/router.js';
 import { PolymarketFeed } from './markets/PolymarketFeed.js';
 import { MarketService } from './markets/MarketService.js';
+import { PolymarketClobClient } from './markets/PolymarketClobClient.js';
 import { SettlementWorker } from './markets/SettlementWorker.js';
 import { runStartupValidation } from './middleware/security.js';
 
@@ -69,11 +70,19 @@ const escrowAdapter = new EscrowAdapter(
   }
 );
 const marketFeed = new PolymarketFeed();
+const clobClient = config.polymarketHedgeEnabled && config.polymarketHedgePrivateKey
+  ? new PolymarketClobClient(
+      config.polymarketClobUrl,
+      config.polymarketHedgePrivateKey,
+      config.polymarketHedgeFraction
+    )
+  : undefined;
 const marketService = new MarketService(
   database,
   escrowAdapter,
   marketFeed,
-  () => houseWalletId || walletIdFor('system_house')
+  () => houseWalletId || walletIdFor('system_house'),
+  clobClient
 );
 const settlementWorker = new SettlementWorker(marketService);
 

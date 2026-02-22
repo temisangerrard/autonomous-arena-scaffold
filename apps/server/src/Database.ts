@@ -42,6 +42,7 @@ export type MarketPositionRecord = {
   minPayoutAtOpen: number | null;
   payout: number | null;
   settlementReason: string | null;
+  clobOrderId: string | null;
   createdAt: number;
   settledAt: number | null;
 };
@@ -638,7 +639,8 @@ export class Database {
       const safeLimit = Math.max(1, Math.min(500, Number(limit || 100)));
       const result = await this.pool.query(
         `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id,
-                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason, created_at, settled_at
+                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason,
+                clob_order_id, created_at, settled_at
          FROM market_positions
          WHERE player_id = $1
          ORDER BY created_at DESC
@@ -660,6 +662,7 @@ export class Database {
         minPayoutAtOpen: row.min_payout_at_open != null ? Number(row.min_payout_at_open) : null,
         payout: row.payout != null ? Number(row.payout) : null,
         settlementReason: row.settlement_reason != null ? String(row.settlement_reason) : null,
+        clobOrderId: row.clob_order_id != null ? String(row.clob_order_id) : null,
         createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
         settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
       }));
@@ -675,7 +678,8 @@ export class Database {
       const safeLimit = Math.max(1, Math.min(5000, Number(limit || 500)));
       const result = await this.pool.query(
         `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id,
-                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason, created_at, settled_at
+                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason,
+                clob_order_id, created_at, settled_at
          FROM market_positions
          WHERE status = 'open'
          ORDER BY created_at ASC
@@ -697,6 +701,7 @@ export class Database {
         minPayoutAtOpen: row.min_payout_at_open != null ? Number(row.min_payout_at_open) : null,
         payout: row.payout != null ? Number(row.payout) : null,
         settlementReason: row.settlement_reason != null ? String(row.settlement_reason) : null,
+        clobOrderId: row.clob_order_id != null ? String(row.clob_order_id) : null,
         createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
         settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
       }));
@@ -722,6 +727,18 @@ export class Database {
       );
     } catch (err) {
       log.error({ err, positionId: params.positionId }, 'failed to settle market position');
+    }
+  }
+
+  async setPositionClobOrder(positionId: string, orderId: string): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        'UPDATE market_positions SET clob_order_id = $2 WHERE id = $1',
+        [positionId, orderId]
+      );
+    } catch (err) {
+      log.error({ err, positionId, orderId }, 'failed to set clob_order_id on position');
     }
   }
 

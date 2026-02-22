@@ -75,6 +75,12 @@ export const config = {
   escrowTokenDecimals: Number(process.env.ESCROW_TOKEN_DECIMALS ?? 6),
   deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY,
   
+  // Polymarket CLOB hedge (Polygon mainnet)
+  polymarketHedgeEnabled:    (process.env.POLYMARKET_HEDGE_ENABLED ?? 'false') === 'true',
+  polymarketHedgePrivateKey: process.env.POLYMARKET_HEDGE_PRIVATE_KEY?.trim() || '',
+  polymarketClobUrl:         process.env.POLYMARKET_CLOB_URL?.trim() || 'https://clob.polymarket.com',
+  polymarketHedgeFraction:   Math.max(0, Math.min(1, Number(process.env.POLYMARKET_HEDGE_FRACTION ?? 1))),
+
   // Auth
   wsAuthSecret: process.env.GAME_WS_AUTH_SECRET?.trim() || '',
   webAuthUrl: process.env.WEB_AUTH_URL?.trim() || '',
