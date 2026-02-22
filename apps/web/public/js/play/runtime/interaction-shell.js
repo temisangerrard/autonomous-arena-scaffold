@@ -18,15 +18,27 @@ export function setInteractOpenState(params) {
   interactionCard.classList.toggle('open', state.ui.interactOpen);
   interactionCard.setAttribute('aria-hidden', state.ui.interactOpen ? 'false' : 'true');
   if (state.ui.interactOpen) {
-    const stationFirst = closestNearbyStationId();
-    if (stationFirst) {
-      state.ui.targetId = stationFirst;
+    const preferredTargetId = String(state.ui?.targetId || '');
+    const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
+    const nearbyPlayers = state.nearbyIds instanceof Set ? state.nearbyIds : new Set();
+    if (preferredTargetId && nearbyStations.has(preferredTargetId)) {
       state.ui.interactionMode = 'station';
-    } else if (closestNearbyPlayerId()) {
-      state.ui.targetId = closestNearbyPlayerId();
+    } else if (preferredTargetId && nearbyPlayers.has(preferredTargetId)) {
       state.ui.interactionMode = 'player';
     } else {
-      state.ui.interactionMode = 'none';
+      const stationFirst = closestNearbyStationId();
+      if (stationFirst) {
+        state.ui.targetId = stationFirst;
+        state.ui.interactionMode = 'station';
+      } else {
+        const nearbyPlayer = closestNearbyPlayerId();
+        if (nearbyPlayer) {
+          state.ui.targetId = nearbyPlayer;
+          state.ui.interactionMode = 'player';
+        } else {
+          state.ui.interactionMode = 'none';
+        }
+      }
     }
     try {
       document.activeElement?.blur?.();
@@ -94,9 +106,17 @@ export function renderInteractionPromptLine(params) {
   if (isStation(targetId)) {
     const station = state.stations instanceof Map ? state.stations.get(targetId) : null;
     const local = station?.localInteraction;
+    const gameHintByKind = {
+      dealer_coinflip: ' — press E to play Coin Flip',
+      dealer_rps: ' — press E to play Rock Paper Scissors',
+      dealer_dice_duel: ' — press E to play Dice Duel',
+      dealer_prediction: ' — press E to trade prediction markets',
+      cashier_bank: ' — press E to open cashier'
+    };
+    const stationHint = gameHintByKind[String(station?.kind || '')] || '';
     if (local?.title) {
       // Named NPC host — show character name as the call-to-action
-      interactionPrompt.innerHTML = `<span class="prompt-name">${local.title}</span><span class="prompt-hint"> — press E to talk</span>`;
+      interactionPrompt.innerHTML = `<span class="prompt-name">${local.title}</span><span class="prompt-hint">${stationHint || ' — press E to talk'}</span>`;
     } else {
       interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — press E to open</span>`;
     }
