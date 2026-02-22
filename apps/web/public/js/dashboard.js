@@ -1,3 +1,9 @@
+import {
+  isRequestBackoffActive,
+  setRequestBackoffFromError,
+  clearRequestBackoff
+} from './shared/request-backoff.js';
+
 const statusLine = document.getElementById('dashboard-status');
 const playLink = document.getElementById('dashboard-enter-play');
 
@@ -72,6 +78,7 @@ let bootstrapCtx = null;
 let playerDirectory = [];
 let selectedBotId = '';
 let walletSummaryCtx = null;
+const WALLET_SUMMARY_BACKOFF_KEY = 'dashboard_wallet_summary';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -124,9 +131,33 @@ async function api(path, init = {}) {
     throw new Error('unauthorized');
   }
   if (!response.ok) {
-    throw new Error(payload?.reason || `status_${response.status}`);
+    const reason = String(payload?.reason || `status_${response.status}`);
+    const error = new Error(reason);
+    error.status = Number(response.status || 0);
+    error.reason = reason;
+    const retryAfter = response.headers.get('retry-after');
+    if (retryAfter) {
+      const asSeconds = Number(retryAfter);
+      if (Number.isFinite(asSeconds) && asSeconds > 0) {
+        error.retryAfterMs = Math.max(1_000, Math.floor(asSeconds * 1_000));
+      } else {
+        const retryAt = Date.parse(retryAfter);
+        if (Number.isFinite(retryAt)) {
+          error.retryAfterMs = Math.max(1_000, retryAt - Date.now());
+        }
+      }
+    }
+    throw error;
   }
   return payload;
+}
+
+function getRequestStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function parseAmount(el, fallback = 1) {
@@ -341,10 +372,22 @@ function renderEscrowHistory(entries, errorMessage = '') {
 }
 
 async function refreshContext() {
+  const requestStorage = getRequestStorage();
+  const walletSummaryPromise = isRequestBackoffActive(requestStorage, WALLET_SUMMARY_BACKOFF_KEY)
+    ? Promise.resolve(null)
+    : api('/api/player/wallet/summary')
+      .then((payload) => {
+        clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
+        return payload;
+      })
+      .catch((error) => {
+        setRequestBackoffFromError(requestStorage, WALLET_SUMMARY_BACKOFF_KEY, error);
+        return null;
+      });
   const [ctx, bootstrap, walletSummary] = await Promise.all([
     api('/api/player/me'),
     api('/api/player/bootstrap?world=mega'),
-    api('/api/player/wallet/summary').catch(() => null)
+    walletSummaryPromise
   ]);
   const canSeeDirectory = String(ctx?.user?.role || '') === 'admin';
   const directory = canSeeDirectory
