@@ -1,3 +1,11 @@
+import {
+  isRequestBackoffActive,
+  setRequestBackoffFromError,
+  clearRequestBackoff
+} from '../../shared/request-backoff.js';
+
+const WALLET_SUMMARY_BACKOFF_KEY = 'play_wallet_summary';
+
 export function createWalletSyncController(params) {
   const {
     apiJson,
@@ -12,9 +20,22 @@ export function createWalletSyncController(params) {
   let walletMutedUntilMs = 0;
   let walletFailureStreak = 0;
 
+  function getRequestStorage() {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  }
+
   async function syncWalletSummary(options = {}) {
     const keepLastOnFailure = options.keepLastOnFailure !== false;
-    if (Date.now() < walletMutedUntilMs) {
+    const now = Date.now();
+    const requestStorage = getRequestStorage();
+    if (isRequestBackoffActive(requestStorage, WALLET_SUMMARY_BACKOFF_KEY, now)) {
+      return false;
+    }
+    if (now < walletMutedUntilMs) {
       return false;
     }
     if (walletSyncInFlight) {
@@ -33,6 +54,7 @@ export function createWalletSyncController(params) {
           chainId: Number.isFinite(chainId) ? chainId : state.walletChainId,
           balance: nextBalance
         });
+        clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
         syncEscrowApprovalPolicy();
         walletLastSyncAt = Date.now();
         walletFailureStreak = 0;
@@ -51,10 +73,18 @@ export function createWalletSyncController(params) {
         } else {
           walletMutedUntilMs = 0;
         }
+        const sharedBackoffUntil = setRequestBackoffFromError(
+          requestStorage,
+          WALLET_SUMMARY_BACKOFF_KEY,
+          error
+        );
+        if (Number.isFinite(sharedBackoffUntil) && sharedBackoffUntil > 0) {
+          walletMutedUntilMs = Math.max(walletMutedUntilMs, sharedBackoffUntil);
+        }
         if (!keepLastOnFailure) {
           dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId });
         }
-        if (status !== 429) {
+        if (status !== 429 && status !== 502 && status !== 503 && status !== 504) {
           console.warn('wallet summary sync failed', error);
         }
         return false;
