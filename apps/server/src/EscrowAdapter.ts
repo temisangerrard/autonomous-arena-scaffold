@@ -177,12 +177,26 @@ export class EscrowAdapter {
   private async lockStakeOnchain(params: LockParams): Promise<EscrowResult> {
     const escrow = this.escrowContract;
     if (!escrow) {
-      return { ok: false, reason: 'onchain_config_missing' };
+      return {
+        ok: false,
+        reason: 'onchain_config_missing',
+        raw: {
+          reasonCode: 'RPC_UNAVAILABLE',
+          reasonText: 'Escrow contract is not configured on the game server. Operator must set CHAIN_RPC_URL, ESCROW_CONTRACT_ADDRESS, and ESCROW_RESOLVER_PRIVATE_KEY.'
+        }
+      };
     }
     const challengerAddress = await this.walletAddressById(params.challengerWalletId);
     const opponentAddress = await this.walletAddressById(params.opponentWalletId);
     if (!challengerAddress || !opponentAddress) {
-      return { ok: false, reason: 'wallet_address_missing' };
+      return {
+        ok: false,
+        reason: 'wallet_address_missing',
+        raw: {
+          reasonCode: 'PLAYER_SIGNER_UNAVAILABLE',
+          reasonText: 'Could not resolve wallet address for escrow lock. Reconnect wallet and retry.'
+        }
+      };
     }
     try {
       const preflight = await this.preflightStake({
@@ -425,7 +439,14 @@ export class EscrowAdapter {
   private async resolveOnchain(params: ResolveParams): Promise<EscrowResult> {
     const escrow = this.escrowContract;
     if (!escrow) {
-      return { ok: false, reason: 'onchain_config_missing' };
+      return {
+        ok: false,
+        reason: 'onchain_config_missing',
+        raw: {
+          reasonCode: 'RPC_UNAVAILABLE',
+          reasonText: 'Escrow contract is not configured on the game server. Operator must set CHAIN_RPC_URL, ESCROW_CONTRACT_ADDRESS, and ESCROW_RESOLVER_PRIVATE_KEY.'
+        }
+      };
     }
     const winnerAddress = await this.walletAddressById(params.winnerWalletId!);
     if (!winnerAddress) {
@@ -443,7 +464,14 @@ export class EscrowAdapter {
   private async refundOnchain(challengeId: string): Promise<EscrowResult> {
     const escrow = this.escrowContract;
     if (!escrow) {
-      return { ok: false, reason: 'onchain_config_missing' };
+      return {
+        ok: false,
+        reason: 'onchain_config_missing',
+        raw: {
+          reasonCode: 'RPC_UNAVAILABLE',
+          reasonText: 'Escrow contract is not configured on the game server. Operator must set CHAIN_RPC_URL, ESCROW_CONTRACT_ADDRESS, and ESCROW_RESOLVER_PRIVATE_KEY.'
+        }
+      };
     }
     try {
       const tx = await escrow.refundBet(this.betIdFor(challengeId));
