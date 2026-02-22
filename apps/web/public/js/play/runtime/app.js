@@ -369,7 +369,8 @@ async function connectSocket() {
     showResultSplash,
     refreshWalletBalanceAndShowDelta,
     handleChallenge,
-    localAvatarParts
+    localAvatarParts,
+    challengeReasonLabel: (reason) => challengeReasonLabel(reason)
   });
 }
 

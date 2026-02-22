@@ -29,7 +29,8 @@ export async function connectSocketRuntime(deps) {
     showResultSplash,
     refreshWalletBalanceAndShowDelta,
     handleChallenge,
-    localAvatarParts
+    localAvatarParts,
+    challengeReasonLabel
   } = deps;
   const wsUrlObj = new URL(await resolveWsBaseUrl());
   // Never forward cookie-session query fallbacks to game WS.
@@ -458,6 +459,23 @@ export async function connectSocketRuntime(deps) {
   }
 
   if (payload.type === 'challenge_feed' && payload.event) {
+    if (payload.event === 'busy') {
+      const reason = String(payload.reason || '');
+      const message = typeof challengeReasonLabel === 'function'
+        ? String(challengeReasonLabel(reason) || '')
+        : '';
+      const fallback = reason === 'player_busy'
+        ? 'Target is already in a match.'
+        : (reason ? `Challenge unavailable: ${reason}` : 'Challenge unavailable right now.');
+      const resolved = message || fallback;
+      dispatch({
+        type: 'CHALLENGE_STATUS_SET',
+        status: 'declined',
+        message: resolved
+      });
+      showToast(resolved, 'warning');
+    }
+
     const challenge = payload.challenge || null;
     if (challenge && state.playerId) {
       const involvesMe =

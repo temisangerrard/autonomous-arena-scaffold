@@ -94,25 +94,36 @@ export function createCharacterGlbPool(THREE) {
   const loader = new GLTFLoader();
   const prefabCache = new Map();
   const fileAvailabilityCache = new Map();
+  const fileAvailabilityInFlight = new Map();
   let characterAssetsEnabled = null;
+  let probePromise = null;
 
   async function isCharacterFileAvailable(file) {
     if (!file) return false;
     if (fileAvailabilityCache.has(file)) {
       return fileAvailabilityCache.get(file);
     }
-    try {
-      const response = await fetch(`/assets/characters/${file}`, {
-        method: 'HEAD',
-        cache: 'no-store'
-      });
-      const ok = Boolean(response?.ok);
-      fileAvailabilityCache.set(file, ok);
-      return ok;
-    } catch {
-      fileAvailabilityCache.set(file, false);
-      return false;
+    if (fileAvailabilityInFlight.has(file)) {
+      return fileAvailabilityInFlight.get(file);
     }
+    const pending = (async () => {
+      try {
+        const response = await fetch(`/assets/characters/${file}`, {
+          method: 'HEAD',
+          cache: 'no-store'
+        });
+        const ok = Boolean(response?.ok);
+        fileAvailabilityCache.set(file, ok);
+        return ok;
+      } catch {
+        fileAvailabilityCache.set(file, false);
+        return false;
+      } finally {
+        fileAvailabilityInFlight.delete(file);
+      }
+    })();
+    fileAvailabilityInFlight.set(file, pending);
+    return pending;
   }
 
   async function resolveAvailableConfig(entityId, configOverride = null) {
@@ -135,9 +146,17 @@ export function createCharacterGlbPool(THREE) {
     if (characterAssetsEnabled != null) {
       return characterAssetsEnabled;
     }
-    const available = await resolveAvailableConfig('probe', null);
-    characterAssetsEnabled = Boolean(available);
-    return characterAssetsEnabled;
+    if (probePromise) {
+      return probePromise;
+    }
+    probePromise = (async () => {
+      const available = await resolveAvailableConfig('probe', null);
+      characterAssetsEnabled = Boolean(available);
+      return characterAssetsEnabled;
+    })().finally(() => {
+      probePromise = null;
+    });
+    return probePromise;
   }
 
   async function loadPrefab(url) {
