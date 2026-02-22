@@ -59,9 +59,7 @@ const challengeService = new ChallengeService(
 const internalServiceToken = resolveInternalServiceToken();
 const escrowAdapter = new EscrowAdapter(
   config.agentRuntimeUrl,
-  config.escrowFeeBps,
   {
-    mode: config.escrowExecutionMode,
     rpcUrl: config.chainRpcUrl,
     resolverPrivateKey: config.escrowResolverPrivateKey,
     escrowContractAddress: config.escrowContractAddress,

@@ -21,7 +21,6 @@ type EscrowResult = {
   raw?: Record<string, unknown>;
 };
 
-type EscrowExecutionMode = 'runtime' | 'onchain';
 type EscrowOnchainReasonCode =
   | 'BET_ID_ALREADY_USED'
   | 'INVALID_WAGER'
@@ -63,7 +62,6 @@ export type EscrowPreflightResult = {
 };
 
 type OnchainEscrowConfig = {
-  mode: EscrowExecutionMode;
   rpcUrl?: string;
   resolverPrivateKey?: string;
   escrowContractAddress?: string;
@@ -89,7 +87,6 @@ const ESCROW_ABI = [
 ];
 
 export class EscrowAdapter {
-  private readonly mode: EscrowExecutionMode;
   private readonly provider: JsonRpcProvider | null;
   private readonly signer: Wallet | null;
   private readonly escrowContract: EscrowContractApi | null;
@@ -100,15 +97,12 @@ export class EscrowAdapter {
 
   constructor(
     private readonly runtimeBaseUrl: string,
-    private readonly feeBps: number,
     onchain?: OnchainEscrowConfig
   ) {
-    this.mode = onchain?.mode ?? 'runtime';
     this.tokenDecimals = Math.max(0, Math.min(18, Number(onchain?.tokenDecimals ?? 6)));
     this.internalToken = onchain?.internalToken ?? '';
 
     if (
-      this.mode === 'onchain' &&
       onchain?.rpcUrl &&
       onchain?.resolverPrivateKey &&
       onchain?.escrowContractAddress
@@ -124,11 +118,7 @@ export class EscrowAdapter {
   }
 
   async lockStake(params: LockParams): Promise<EscrowResult> {
-    if (this.mode === 'onchain') {
-      return this.lockStakeOnchain(params);
-    }
-    const res = await this.post('/wallets/escrow/lock', params);
-    return res;
+    return this.lockStakeOnchain(params);
   }
 
   async preflightStake(params: {
@@ -136,9 +126,6 @@ export class EscrowAdapter {
     opponentWalletId: string;
     amount: number;
   }): Promise<EscrowPreflightResult> {
-    if (this.mode !== 'onchain') {
-      return { ok: true, preflight: { playerOk: true, houseOk: true } };
-    }
     const prepared = await this.prepareWalletsForOnchainEscrow([
       params.challengerWalletId,
       params.opponentWalletId
@@ -162,23 +149,11 @@ export class EscrowAdapter {
     if (!params.winnerWalletId) {
       return this.refund(params.challengeId);
     }
-
-    if (this.mode === 'onchain') {
-      return this.resolveOnchain(params);
-    }
-
-    return this.post('/wallets/escrow/resolve', {
-      challengeId: params.challengeId,
-      winnerWalletId: params.winnerWalletId,
-      feeBps: this.feeBps
-    });
+    return this.resolveOnchain(params);
   }
 
   async refund(challengeId: string): Promise<EscrowResult> {
-    if (this.mode === 'onchain') {
-      return this.refundOnchain(challengeId);
-    }
-    return this.post('/wallets/escrow/refund', { challengeId });
+    return this.refundOnchain(challengeId);
   }
 
   private async walletAddressById(walletId: string): Promise<string | null> {
@@ -256,35 +231,49 @@ export class EscrowAdapter {
     }
 
     const run = (async (): Promise<EscrowResult> => {
-      try {
-      const response = await fetch(`${this.runtimeBaseUrl}/wallets/onchain/prepare-escrow`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(this.internalToken ? { 'x-internal-token': this.internalToken } : {})
-        },
-        signal: AbortSignal.timeout(10_000),
-        body: JSON.stringify({ walletIds, amount })
-      });
-      const payload = await response.json().catch(() => null) as { ok?: boolean; reason?: string } | null;
-      if (!response.ok || !payload?.ok) {
-        const failed = {
-          ok: false,
-          reason: payload?.reason ?? `wallet_prepare_http_${response.status}`,
-          raw: payload as Record<string, unknown> | undefined
-        };
-        this.cachePreflightResult(key, failed);
-        return failed;
+      const maxAttempts = 3;
+      let lastFailure: EscrowResult = { ok: false, reason: 'wallet_prepare_unreachable' };
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const response = await fetch(`${this.runtimeBaseUrl}/wallets/onchain/prepare-escrow`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              ...(this.internalToken ? { 'x-internal-token': this.internalToken } : {})
+            },
+            signal: AbortSignal.timeout(10_000),
+            body: JSON.stringify({ walletIds, amount })
+          });
+          const payload = await response.json().catch(() => null) as { ok?: boolean; reason?: string } | null;
+          if (response.ok && payload?.ok) {
+            const ok = { ok: true, raw: payload as Record<string, unknown> };
+            this.cachePreflightResult(key, ok);
+            return ok;
+          }
+
+          lastFailure = {
+            ok: false,
+            reason: payload?.reason ?? `wallet_prepare_http_${response.status}`,
+            raw: payload as Record<string, unknown> | undefined
+          };
+          if (!this.shouldRetryPrepareFailure(lastFailure.reason, response.status) || attempt >= maxAttempts) {
+            this.cachePreflightResult(key, lastFailure);
+            return lastFailure;
+          }
+        } catch (error) {
+          const timeout = String((error as { name?: string }).name || '').toLowerCase().includes('timeout');
+          lastFailure = { ok: false, reason: timeout ? 'wallet_prepare_timeout' : 'wallet_prepare_unreachable' };
+          if (attempt >= maxAttempts) {
+            this.cachePreflightResult(key, lastFailure);
+            return lastFailure;
+          }
+        }
+
+        await this.delayPrepareRetry(attempt);
       }
-      const ok = { ok: true, raw: payload as Record<string, unknown> };
-      this.cachePreflightResult(key, ok);
-      return ok;
-      } catch (error) {
-      const timeout = String((error as { name?: string }).name || '').toLowerCase().includes('timeout');
-      const failed = { ok: false, reason: timeout ? 'wallet_prepare_timeout' : 'wallet_prepare_unreachable' };
-      this.cachePreflightResult(key, failed);
-      return failed;
-      }
+
+      this.cachePreflightResult(key, lastFailure);
+      return lastFailure;
     })();
 
     this.preflightInFlight.set(key, run);
@@ -412,6 +401,25 @@ export class EscrowAdapter {
         raw: result.raw ? { ...result.raw } : undefined
       }
     });
+  }
+
+  private shouldRetryPrepareFailure(reason: string | undefined, status: number): boolean {
+    const normalizedReason = String(reason || '').toLowerCase();
+    if (status === 429 || status >= 500) {
+      return true;
+    }
+    return (
+      normalizedReason.includes('timeout')
+      || normalizedReason.includes('unreachable')
+      || normalizedReason.includes('transport')
+      || normalizedReason.includes('rate')
+      || normalizedReason.includes('too_many')
+    );
+  }
+
+  private async delayPrepareRetry(attempt: number): Promise<void> {
+    const ms = Math.max(50, Math.min(250, attempt * 75));
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async resolveOnchain(params: ResolveParams): Promise<EscrowResult> {
@@ -549,29 +557,4 @@ export class EscrowAdapter {
     return String(message).slice(0, 180);
   }
 
-  private async post(pathname: string, body: unknown): Promise<EscrowResult> {
-    try {
-      const response = await fetch(`${this.runtimeBaseUrl}${pathname}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const payload = await response.json().catch(() => null) as
-        | { ok?: boolean; reason?: string; txHash?: string; fee?: number; payout?: number }
-        | null;
-      if (!response.ok || !payload?.ok) {
-        return { ok: false, reason: payload?.reason ?? `http_${response.status}` };
-      }
-      return {
-        ok: true,
-        txHash: typeof payload.txHash === 'string' ? payload.txHash : undefined,
-        fee: typeof payload.fee === 'number' ? payload.fee : undefined,
-        payout: typeof payload.payout === 'number' ? payload.payout : undefined,
-        raw: payload as Record<string, unknown>
-      };
-    } catch {
-      return { ok: false, reason: 'escrow_unreachable' };
-    }
-  }
 }

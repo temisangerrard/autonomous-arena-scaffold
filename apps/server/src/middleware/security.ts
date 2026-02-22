@@ -242,16 +242,30 @@ export function validateProductionStartup(env: NodeJS.ProcessEnv): StartupValida
     warnings.push('OPENROUTER_API_KEY is not set. Super Agent LLM features will be disabled.');
   }
 
-  // Validate escrow configuration if onchain mode
-  if (env.ESCROW_EXECUTION_MODE === 'onchain') {
-    if (!env.CHAIN_RPC_URL?.trim()) {
-      errors.push('CHAIN_RPC_URL must be set when ESCROW_EXECUTION_MODE=onchain');
-    }
-    if (!env.ESCROW_CONTRACT_ADDRESS?.trim()) {
-      errors.push('ESCROW_CONTRACT_ADDRESS must be set when ESCROW_EXECUTION_MODE=onchain');
-    }
-    if (!env.ESCROW_RESOLVER_PRIVATE_KEY?.trim()) {
-      errors.push('ESCROW_RESOLVER_PRIVATE_KEY must be set when ESCROW_EXECUTION_MODE=onchain');
+  const requestedEscrowMode = String(env.ESCROW_EXECUTION_MODE ?? 'onchain').trim().toLowerCase();
+  if (requestedEscrowMode !== 'onchain') {
+    errors.push('ESCROW_EXECUTION_MODE must be "onchain"; runtime escrow mode is no longer supported');
+  }
+  if (!env.CHAIN_RPC_URL?.trim()) {
+    errors.push('CHAIN_RPC_URL must be set when ESCROW_EXECUTION_MODE=onchain');
+  }
+  if (!env.ESCROW_CONTRACT_ADDRESS?.trim()) {
+    errors.push('ESCROW_CONTRACT_ADDRESS must be set when ESCROW_EXECUTION_MODE=onchain');
+  }
+  if (!env.ESCROW_RESOLVER_PRIVATE_KEY?.trim()) {
+    errors.push('ESCROW_RESOLVER_PRIVATE_KEY must be set when ESCROW_EXECUTION_MODE=onchain');
+  }
+  const runtimeUrl = (env.AGENT_RUNTIME_URL ?? env.WEB_AGENT_RUNTIME_BASE_URL ?? '').trim();
+  if (!runtimeUrl) {
+    errors.push('AGENT_RUNTIME_URL must be set when ESCROW_EXECUTION_MODE=onchain');
+  } else {
+    const lower = runtimeUrl.toLowerCase();
+    const isLocalhost = lower.includes('://localhost')
+      || lower.includes('://127.0.0.1')
+      || lower.startsWith('localhost:')
+      || lower.startsWith('127.0.0.1:');
+    if (isLocalhost && env.NODE_ENV === 'production') {
+      errors.push('AGENT_RUNTIME_URL must not point to localhost in production when ESCROW_EXECUTION_MODE=onchain');
     }
   }
 

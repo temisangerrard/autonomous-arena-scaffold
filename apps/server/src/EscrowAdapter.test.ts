@@ -20,7 +20,7 @@ describe('EscrowAdapter preflight mapping', () => {
       })
     })) as unknown as typeof fetch);
 
-    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
     const result = await adapter.preflightStake({
       challengerWalletId: 'wallet_player',
       opponentWalletId: 'wallet_house',
@@ -46,7 +46,7 @@ describe('EscrowAdapter preflight mapping', () => {
       })
     })) as unknown as typeof fetch);
 
-    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
     const result = await adapter.preflightStake({
       challengerWalletId: 'wallet_player',
       opponentWalletId: 'wallet_house',
@@ -65,7 +65,7 @@ describe('EscrowAdapter preflight mapping', () => {
       json: async () => ({ ok: false, reason: 'wallet_prepare_http_401' })
     })) as unknown as typeof fetch);
 
-    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
     const result = await adapter.preflightStake({
       challengerWalletId: 'wallet_player',
       opponentWalletId: 'wallet_house',
@@ -81,7 +81,7 @@ describe('EscrowAdapter preflight mapping', () => {
       throw new Error('socket hang up');
     }) as unknown as typeof fetch);
 
-    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
     const result = await adapter.preflightStake({
       challengerWalletId: 'wallet_player',
       opponentWalletId: 'wallet_house',
@@ -99,7 +99,7 @@ describe('EscrowAdapter preflight mapping', () => {
       json: async () => ({ ok: false, reason: 'wallet_prepare_http_429' })
     })) as unknown as typeof fetch);
 
-    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
     const result = await adapter.preflightStake({
       challengerWalletId: 'wallet_player',
       opponentWalletId: 'wallet_house',
@@ -122,7 +122,7 @@ describe('EscrowAdapter preflight mapping', () => {
     }) as unknown as typeof fetch;
     vi.stubGlobal('fetch', fetchMock);
 
-    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
     const [a, b] = await Promise.all([
       adapter.preflightStake({
         challengerWalletId: 'wallet_player',
@@ -139,6 +139,28 @@ describe('EscrowAdapter preflight mapping', () => {
     expect(a.ok).toBe(true);
     expect(b.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries transient runtime transport failures before returning failure', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('socket hang up'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, results: [] })
+      }) as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchMock);
+
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
+    const result = await adapter.preflightStake({
+      challengerWalletId: 'wallet_player',
+      opponentWalletId: 'wallet_house',
+      amount: 1
+    });
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
 });
@@ -185,8 +207,7 @@ describe('EscrowAdapter onchain error decoding', () => {
   }
 
   function newOnchainAdapter(): EscrowAdapter {
-    return new EscrowAdapter('http://runtime.local', 100, {
-      mode: 'onchain',
+    return new EscrowAdapter('http://runtime.local', {
       tokenDecimals: 6,
       rpcUrl: 'http://localhost:8545',
       resolverPrivateKey: '0x0123456789012345678901234567890123456789012345678901234567890123',

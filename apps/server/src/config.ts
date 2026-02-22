@@ -67,8 +67,6 @@ export const config = {
   
   // Escrow
   agentRuntimeUrl: process.env.AGENT_RUNTIME_URL ?? process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100',
-  escrowFeeBps: Math.max(0, Math.min(10_000, Number(process.env.ESCROW_FEE_BPS ?? 0))),
-  escrowExecutionMode: (process.env.ESCROW_EXECUTION_MODE === 'onchain' ? 'onchain' : 'runtime') as 'onchain' | 'runtime',
   chainRpcUrl: process.env.CHAIN_RPC_URL,
   escrowResolverPrivateKey: process.env.ESCROW_RESOLVER_PRIVATE_KEY,
   escrowContractAddress: process.env.ESCROW_CONTRACT_ADDRESS,

@@ -112,12 +112,12 @@ export const CODEBASE_CONTEXT = {
     },
     'wallet balance not updating': {
       causes: [
-        'Runtime wallet vs onchain mode mismatch',
+        'Onchain preflight/approval failed',
         'Escrow lock failed',
         'Challenge not properly resolved'
       ],
       solutions: [
-        'Check ESCROW_EXECUTION_MODE env var',
+        'Verify ESCROW_EXECUTION_MODE=onchain and runtime /wallets/onchain/prepare-escrow health',
         'Review escrow events in /wallets/escrow/history',
         'Verify challenge resolution in database'
       ]
@@ -165,8 +165,8 @@ export const CODEBASE_CONTEXT = {
       'LOCAL_AUTH_ENABLED': 'Enable local admin login (dev only)',
       'ADMIN_USERNAME': 'Local admin username',
       'ADMIN_PASSWORD': 'Local admin password',
-      'ESCROW_EXECUTION_MODE': 'runtime or onchain',
-      'CHAIN_RPC_URL': 'Ethereum RPC URL for onchain mode',
+      'ESCROW_EXECUTION_MODE': 'onchain only (runtime unsupported)',
+      'CHAIN_RPC_URL': 'Ethereum RPC URL for onchain escrow',
       'ESCROW_CONTRACT_ADDRESS': 'Escrow contract address',
       'ESCROW_RESOLVER_PRIVATE_KEY': 'Private key for escrow resolution',
       'OPENROUTER_API_KEY': 'API key for LLM advisory',

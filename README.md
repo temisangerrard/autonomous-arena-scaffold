@@ -147,10 +147,10 @@ Installed skill ids include:
 Super-agent ETH skills source:
 - `https://ethskills.com/` (synced into runtime cache via `/super-agent/ethskills/sync`)
 
-## Escrow Execution Modes
-Default mode is runtime escrow simulation (fast scaffold).
+## Onchain Escrow
+Escrow is onchain-only.
 
-Set these env vars for optional onchain execution mode:
+Required env vars:
 - `ESCROW_EXECUTION_MODE=onchain`
 - `CHAIN_RPC_URL`
 - `ESCROW_RESOLVER_PRIVATE_KEY`
@@ -159,7 +159,7 @@ Set these env vars for optional onchain execution mode:
 - `ESCROW_TOKEN_DECIMALS` (default `6`)
 - `INTERNAL_SERVICE_TOKEN` (same value on server + agent-runtime)
 
-When onchain mode is enabled, server escrow adapter calls `BettingEscrow` contract methods:
+Server escrow adapter calls `BettingEscrow` contract methods:
 - `createBet`
 - `resolveBet`
 - `refundBet`
