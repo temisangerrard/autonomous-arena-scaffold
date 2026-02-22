@@ -1,5 +1,24 @@
 Original prompt: yes there's a file called train world or so , thats the base world we will use so we can scaffold that in so we start seeing the game, dont forget various entry points required
 
+- 2026-02-22: Polymarket CLOB hedge path shipped — house can now mirror player prediction bets on Polygon.
+  - NEW: `apps/server/src/markets/PolymarketClobClient.ts`
+    - L1 EIP-712 auth against `ClobAuthDomain` → derives Polymarket API key once per process (cached).
+    - Token ID lookup via `GET /clob.polymarket.com/markets/{conditionId}` with YES/NO outcome extraction; detects NegRisk CTF vs standard CTF Exchange automatically (cached per market).
+    - EIP-712 order signing with `ethers v6 Wallet.signTypedData` against CTF Exchange contract (`0x4bFb...`) on Polygon (chainId 137).
+    - L2 HMAC-SHA256 per-request auth header set.
+    - FOK market-buy order via `POST /order`; throws on API error so caller's `.catch` handles gracefully.
+  - Migration 8 (`market_positions_clob`): `ALTER TABLE market_positions ADD COLUMN IF NOT EXISTS clob_order_id TEXT`.
+  - `Database.ts`: `clobOrderId` field on `MarketPositionRecord`; `setPositionClobOrder()` helper; `clob_order_id` selected in both `listPlayerMarketPositions` and `listOpenMarketPositions`.
+  - `MarketService.ts`: optional 5th `clobClient` constructor param; fire-and-forget `placeHedge()` call wired after position is written in `openPosition()` — failure is logged as warn, never blocks player response.
+  - `config.ts`: four new env vars with safe defaults (feature off by default):
+    - `POLYMARKET_HEDGE_ENABLED` (default `false`)
+    - `POLYMARKET_HEDGE_PRIVATE_KEY` (Polygon wallet with USDC.e)
+    - `POLYMARKET_CLOB_URL` (default `https://clob.polymarket.com`)
+    - `POLYMARKET_HEDGE_FRACTION` (default `1.0`, range 0–1)
+  - `index.ts`: instantiates `PolymarketClobClient` and passes to `MarketService` when hedge is enabled.
+  - No new npm dependencies — uses `ethers` v6 already in `apps/server/package.json`.
+  - Commit: `4f230f8` feat(markets): add Polymarket CLOB client and fire-and-forget hedge path
+
 - 2026-02-19: Built parallel PI-style Chief Ops Agent surface at `/admin/chief` (admin-only, standalone).
   - Added new admin Chief workspace UI:
     - `/Users/temisan/Downloads/blender implementation/apps/web/public/admin-chief.html`
@@ -1310,3 +1329,17 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - Validation:
     - `npm run -w @arena/web test -- src/stationRouting.test.js src/runtimeModularity.test.js src/targeting.test.js` ✅
     - `npm run -w @arena/web build` ✅
+- 2026-02-21: Fresh app-state assessment + collaboration sync.
+  - Repo state: `main` is clean (`git status --short --branch` shows no working-tree changes).
+  - Verification (fresh run):
+    - `npm run lint` ✅
+    - `npm run typecheck` ✅
+    - `npm run test` ✅
+  - Admin migration sanity checks confirmed in source:
+    - Netlify routes include `/admin -> /admin-chief.html` and `/admin-markets-lab -> /admin-markets-lab.html`, with `/agents -> /admin 301` in `/Users/temisan/Downloads/blender implementation/scripts/netlify-build.mjs`.
+    - `admin-chief` defaults to Overview and has admin session gate in `/Users/temisan/Downloads/blender implementation/apps/web/public/admin-chief.html`.
+    - Markets requests in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/admin-chief.js` resolve to `/api/admin/runtime/*` (no duplicated `/admin` segment).
+  - Markets Lab guided demo remains present (guided flow + embedded `/play` panel) in:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/admin-markets-lab.html`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/admin-markets-lab.js`
+  - Added collaboration snapshot document at `/Users/temisan/Downloads/blender implementation/collaboration.md`.
