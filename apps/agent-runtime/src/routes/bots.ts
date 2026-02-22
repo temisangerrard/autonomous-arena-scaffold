@@ -32,7 +32,7 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
       return;
     }
 
-    const body = await readJsonBody<Partial<AgentBehaviorConfig> & { displayName?: string; managedBySuperAgent?: boolean }>(req);
+    const body = await readJsonBody<Partial<AgentBehaviorConfig> & { displayName?: string; managedBySuperAgent?: boolean; autoplayEnabled?: boolean }>(req);
     if (!body) {
       sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
       return;
@@ -79,6 +79,16 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
       }
       if (typeof body.managedBySuperAgent === 'boolean') {
         record.managedBySuperAgent = body.managedBySuperAgent;
+      }
+      if (typeof body.autoplayEnabled === 'boolean') {
+        record.autoplayEnabled = body.autoplayEnabled;
+        if (!record.autoplayEnabled) {
+          bot.updateBehavior({
+            mode: 'passive',
+            challengeEnabled: false,
+            targetPreference: 'human_only'
+          });
+        }
       }
     }
 

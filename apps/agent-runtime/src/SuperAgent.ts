@@ -38,9 +38,9 @@ export function createDefaultSuperAgentConfig(id: string): SuperAgentConfig {
   return {
     id,
     mode: 'balanced',
-    challengeEnabled: true,
+    challengeEnabled: false,
     defaultChallengeCooldownMs: 5000,
-    workerTargetPreference: 'any',
+    workerTargetPreference: 'human_only',
     llmPolicy: {
       enabled: true,
       provider: 'openrouter',

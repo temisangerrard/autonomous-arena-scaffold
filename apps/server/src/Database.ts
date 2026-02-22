@@ -371,10 +371,14 @@ export class Database {
     winnerId: string | null;
     gameType: string;
     wager: number;
+    activitySource: 'house_station' | 'owner_bot_autoplay' | 'player_pvp';
+    challengerBotId: string | null;
+    opponentBotId: string | null;
   }>> {
     if (!this.pool) return [];
     try {
       const safeLimit = Math.max(1, Math.min(300, Number(params.limit || 60)));
+      const botPrefix = `agent_${params.playerId}`;
       const result = await this.pool.query(
         `SELECT
            e.challenge_id,
@@ -392,12 +396,28 @@ export class Database {
            c.wager
          FROM escrow_events e
          JOIN challenges c ON c.id = e.challenge_id
-         WHERE c.challenger_id = $1 OR c.opponent_id = $1
+         WHERE c.challenger_id = $1
+            OR c.opponent_id = $1
+            OR c.challenger_id = $3
+            OR c.opponent_id = $3
+            OR c.challenger_id LIKE $4
+            OR c.opponent_id LIKE $4
          ORDER BY e.created_at DESC
          LIMIT $2`,
-        [params.playerId, safeLimit]
+        [params.playerId, safeLimit, botPrefix, `${botPrefix}_%`]
       );
-      return result.rows.map((row) => ({
+      return result.rows.map((row) => {
+        const challengerId = String(row.challenger_id || '');
+        const opponentId = String(row.opponent_id || '');
+        const challengerBotId = challengerId.startsWith('agent_') ? challengerId : null;
+        const opponentBotId = opponentId.startsWith('agent_') ? opponentId : null;
+        const activitySource =
+          challengerId === 'system_house' || opponentId === 'system_house'
+            ? 'house_station'
+            : (challengerBotId || opponentBotId)
+                ? 'owner_bot_autoplay'
+                : 'player_pvp';
+        return {
         challengeId: String(row.challenge_id || ''),
         phase: String(row.phase || 'unknown'),
         ok: Boolean(row.ok),
@@ -406,12 +426,16 @@ export class Database {
         fee: row.fee == null ? null : Number(row.fee),
         payout: row.payout == null ? null : Number(row.payout),
         at: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
-        challengerId: String(row.challenger_id || ''),
-        opponentId: String(row.opponent_id || ''),
+        challengerId,
+        opponentId,
         winnerId: row.winner_id == null ? null : String(row.winner_id),
         gameType: String(row.game_type || 'unknown'),
-        wager: Number(row.wager ?? 0)
-      }));
+        wager: Number(row.wager ?? 0),
+        activitySource,
+        challengerBotId,
+        opponentBotId
+      };
+      });
     } catch (err) {
       log.error({ err, playerId: params.playerId }, 'failed to query escrow events for player');
       return [];

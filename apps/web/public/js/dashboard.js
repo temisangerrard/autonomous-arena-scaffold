@@ -359,11 +359,25 @@ function renderEscrowHistory(entries, errorMessage = '') {
       const shortTx = txHash ? `${txHash.slice(0, 10)}...${txHash.slice(-8)}` : 'n/a';
       const signClass = payoutValue > 0 ? 'positive' : 'negative';
       const emoji = payoutValue > 0 ? '↗' : '↘';
+      const source = String(entry?.activitySource || '');
+      const sourceLabel =
+        source === 'house_station'
+          ? 'house station'
+          : source === 'owner_bot_autoplay'
+            ? 'your bot autoplay'
+            : source === 'player_pvp'
+              ? 'player pvp'
+              : 'unknown source';
+      const botBits = [entry?.challengerBotId, entry?.opponentBotId]
+        .filter((item) => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => String(item).replace(/^agent_/, '@'))
+        .join(' vs ');
+      const sourceLine = botBits ? `${sourceLabel} · ${botBits}` : sourceLabel;
       return `<div class="tx-item">
         <div class="tx-icon ${ok === 'ok' ? 'in' : 'out'}">${emoji}</div>
         <div class="tx-details">
           <div class="tx-type">${escapeHtml(outcome)} · ${escapeHtml(challengeId)}</div>
-          <div class="tx-time">${escapeHtml(at)} · tx ${escapeHtml(shortTx)}</div>
+          <div class="tx-time">${escapeHtml(at)} · tx ${escapeHtml(shortTx)} · ${escapeHtml(sourceLine)}</div>
         </div>
         <div class="tx-amount ${signClass}">${escapeHtml(amount)} / ${escapeHtml(payout)}</div>
       </div>`;

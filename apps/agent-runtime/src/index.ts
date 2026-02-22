@@ -464,6 +464,19 @@ function makeBehaviorForDuty(duty: BotRecord['duty'], index: number, patrolSecti
       maxWager: 3
     };
   }
+  if (duty === 'owner') {
+    return {
+      personality: personalities[index % personalities.length] ?? 'social',
+      mode: 'passive',
+      challengeEnabled: false,
+      challengeCooldownMs: Math.max(2000, superAgentConfig.defaultChallengeCooldownMs),
+      targetPreference: 'human_only',
+      patrolSection: patrolSection ?? 0,
+      patrolRadius,
+      baseWager: 1,
+      maxWager: 2
+    };
+  }
   return {
     personality: personalities[index % personalities.length] ?? 'social',
     mode: 'active',
@@ -577,6 +590,10 @@ function reconcileOwnerBotsViaSuperAgent(): void {
       existingBot?.getStatus().behavior
       ?? makeBehaviorForDuty('owner', patrolSection, patrolSection);
 
+    if (existingRecord && existingRecord.duty === 'owner' && typeof existingRecord.autoplayEnabled !== 'boolean') {
+      existingRecord.autoplayEnabled = false;
+    }
+
     registerBot(
       primaryBotId,
       behavior,
@@ -586,6 +603,7 @@ function reconcileOwnerBotsViaSuperAgent(): void {
         displayName: pickDisplayName(`${profile.displayName} Bot`),
         createdAt: Date.now(),
         managedBySuperAgent: true,
+        autoplayEnabled: false,
         duty: 'owner',
         patrolSection,
         walletId
@@ -613,6 +631,15 @@ function applySuperAgentDelegation(): void {
     }
     if (record.duty === 'npc') {
       // Keep section NPCs static; do not override via delegation.
+      continue;
+    }
+    if (record.duty === 'owner' && !record.autoplayEnabled) {
+      bots.get(directive.botId)?.updateBehavior({
+        ...makeBehaviorForDuty('owner', 0, record.patrolSection),
+        mode: 'passive',
+        challengeEnabled: false,
+        targetPreference: 'human_only'
+      });
       continue;
     }
     if (!record.managedBySuperAgent) {
@@ -1692,7 +1719,11 @@ function createProfileWithBot(params: {
     {
       ...makeBehaviorForDuty('owner', patrolSection, patrolSection),
       personality: params.personality ?? 'social',
-      targetPreference: params.targetPreference ?? 'human_first'
+      targetPreference: params.targetPreference ?? 'human_only',
+      mode: 'passive',
+      challengeEnabled: false,
+      baseWager: 1,
+      maxWager: 2
     },
     {
       id: botId,
@@ -1700,6 +1731,7 @@ function createProfileWithBot(params: {
       displayName: pickDisplayName(`${profile.displayName} Bot`),
       createdAt: Date.now(),
       managedBySuperAgent: true,
+      autoplayEnabled: false,
       duty: 'owner',
       patrolSection,
       walletId: wallet.id
@@ -1818,8 +1850,9 @@ function createOwnerBotForProfile(profile: Profile, body: {
     {
       ...makeBehaviorForDuty('owner', patrolSection, patrolSection),
       personality: body?.personality ?? 'social',
-      targetPreference: body?.targetPreference ?? 'human_first',
-      mode: body?.mode ?? 'active',
+      targetPreference: body?.targetPreference ?? 'human_only',
+      mode: body?.mode ?? 'passive',
+      challengeEnabled: false,
       baseWager,
       maxWager
     },
@@ -1829,6 +1862,7 @@ function createOwnerBotForProfile(profile: Profile, body: {
       displayName: body?.displayName?.trim() || pickDisplayName(`${profile.displayName} Bot ${profile.ownedBotIds.length + 1}`),
       createdAt: Date.now(),
       managedBySuperAgent: body?.managedBySuperAgent ?? true,
+      autoplayEnabled: false,
       duty: 'owner',
       patrolSection,
       walletId: profile.walletId
