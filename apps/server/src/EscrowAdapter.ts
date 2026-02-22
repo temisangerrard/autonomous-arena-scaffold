@@ -95,6 +95,8 @@ export class EscrowAdapter {
   private readonly escrowContract: EscrowContractApi | null;
   private readonly tokenDecimals: number;
   private readonly internalToken: string;
+  private readonly preflightInFlight = new Map<string, Promise<EscrowResult>>();
+  private readonly preflightCache = new Map<string, { expiresAt: number; result: EscrowResult }>();
 
   constructor(
     private readonly runtimeBaseUrl: string,
@@ -240,7 +242,21 @@ export class EscrowAdapter {
   }
 
   private async prepareWalletsForOnchainEscrow(walletIds: string[], amount: number): Promise<EscrowResult> {
-    try {
+    const key = this.preflightKey(walletIds, amount);
+    const now = Date.now();
+    const cached = this.preflightCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return { ...cached.result, raw: cached.result.raw ? { ...cached.result.raw } : undefined };
+    }
+
+    const inFlight = this.preflightInFlight.get(key);
+    if (inFlight) {
+      const shared = await inFlight;
+      return { ...shared, raw: shared.raw ? { ...shared.raw } : undefined };
+    }
+
+    const run = (async (): Promise<EscrowResult> => {
+      try {
       const response = await fetch(`${this.runtimeBaseUrl}/wallets/onchain/prepare-escrow`, {
         method: 'POST',
         headers: {
@@ -252,12 +268,30 @@ export class EscrowAdapter {
       });
       const payload = await response.json().catch(() => null) as { ok?: boolean; reason?: string } | null;
       if (!response.ok || !payload?.ok) {
-        return { ok: false, reason: payload?.reason ?? `wallet_prepare_http_${response.status}`, raw: payload as Record<string, unknown> | undefined };
+        const failed = {
+          ok: false,
+          reason: payload?.reason ?? `wallet_prepare_http_${response.status}`,
+          raw: payload as Record<string, unknown> | undefined
+        };
+        this.cachePreflightResult(key, failed);
+        return failed;
       }
-      return { ok: true, raw: payload as Record<string, unknown> };
-    } catch (error) {
+      const ok = { ok: true, raw: payload as Record<string, unknown> };
+      this.cachePreflightResult(key, ok);
+      return ok;
+      } catch (error) {
       const timeout = String((error as { name?: string }).name || '').toLowerCase().includes('timeout');
-      return { ok: false, reason: timeout ? 'wallet_prepare_timeout' : 'wallet_prepare_unreachable' };
+      const failed = { ok: false, reason: timeout ? 'wallet_prepare_timeout' : 'wallet_prepare_unreachable' };
+      this.cachePreflightResult(key, failed);
+      return failed;
+      }
+    })();
+
+    this.preflightInFlight.set(key, run);
+    try {
+      return await run;
+    } finally {
+      this.preflightInFlight.delete(key);
     }
   }
 
@@ -301,6 +335,13 @@ export class EscrowAdapter {
     if (detail.includes('wallet_prepare_http_401') || detail.includes('wallet_prepare_http_403')) {
       reasonCode = 'INTERNAL_AUTH_FAILED';
       reasonText = 'Internal runtime auth failed. Verify INTERNAL_SERVICE_TOKEN parity.';
+    } else if (
+      detail.includes('wallet_prepare_http_429')
+      || detail.includes('too_many')
+      || detail.includes('rate')
+    ) {
+      reasonCode = 'INTERNAL_TRANSPORT_ERROR';
+      reasonText = 'Escrow precheck is rate-limited. Retry shortly.';
     } else if (
       detail.includes('wallet_prepare_http_5')
       || detail.includes('wallet_prepare_timeout')
@@ -350,6 +391,27 @@ export class EscrowAdapter {
       raw: params.raw
     };
     return result;
+  }
+
+  private preflightKey(walletIds: string[], amount: number): string {
+    const normalizedAmount = Number.isFinite(amount) ? Number(amount) : 0;
+    const ids = walletIds.map((entry) => String(entry || '').trim()).filter(Boolean).sort();
+    return `${ids.join('|')}::${normalizedAmount}`;
+  }
+
+  private cachePreflightResult(key: string, result: EscrowResult): void {
+    const reason = String(result.reason || '').toLowerCase();
+    let ttlMs = result.ok ? 1_500 : 800;
+    if (!result.ok && (reason.includes('429') || reason.includes('rate') || reason.includes('too_many'))) {
+      ttlMs = 2_500;
+    }
+    this.preflightCache.set(key, {
+      expiresAt: Date.now() + ttlMs,
+      result: {
+        ...result,
+        raw: result.raw ? { ...result.raw } : undefined
+      }
+    });
   }
 
   private async resolveOnchain(params: ResolveParams): Promise<EscrowResult> {

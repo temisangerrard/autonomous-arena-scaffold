@@ -195,6 +195,7 @@ export function renderInteractionCardTemplate(params) {
               <label for="prediction-market-select">Question</label>
               <select id="prediction-market-select"></select>
             </div>
+            <div class="prediction-market-preview" id="prediction-market-preview" aria-live="polite"></div>
             <div class="station-ui__row">
               <label for="prediction-stake">Stake <span class="game-panel__currency">USDC</span></label>
               <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" class="game-panel__wager-input" />
@@ -890,21 +891,41 @@ export function renderInteractionCardTemplate(params) {
       const positions = Array.isArray(prediction.positions) ? prediction.positions : [];
       const selectedMarketId = String(prediction.selectedMarketId || markets[0]?.marketId || '');
       const selectEl = document.getElementById('prediction-market-select');
+      const previewEl = document.getElementById('prediction-market-preview');
       const statusEl = document.getElementById('prediction-status');
       const quoteEl = document.getElementById('prediction-quote-view');
       const positionsEl = document.getElementById('prediction-positions-view');
       const tickerEl = document.getElementById('prediction-market-strip');
       if (selectEl instanceof HTMLSelectElement) {
-        const options = markets.map((market) => {
+        selectEl.innerHTML = '';
+        markets.forEach((market) => {
           const marketId = String(market.marketId || '');
           const question = String(market.question || marketId);
+          const compactQuestion = question.length > 64 ? `${question.slice(0, 61)}...` : question;
           const yes = formatPredictionPrice(Number(market.yesPrice || 0));
           const close = formatPredictionClose(Number(market.closeAt || 0));
-          return `<option value="${marketId}">${question.slice(0, 64)} · YES ${yes} · ${close}</option>`;
+          const option = document.createElement('option');
+          option.value = marketId;
+          option.textContent = `${compactQuestion} · YES ${yes} · ${close}`;
+          option.title = `${question} · YES ${yes} · ${close}`;
+          selectEl.appendChild(option);
         });
-        selectEl.innerHTML = options.join('');
         if (selectedMarketId) {
           selectEl.value = selectedMarketId;
+        }
+      }
+      if (previewEl) {
+        const selected = markets.find((market) => String(market.marketId || '') === selectedMarketId) || markets[0];
+        if (!selected) {
+          previewEl.hidden = true;
+          previewEl.textContent = '';
+        } else {
+          const question = String(selected.question || selected.marketId || 'Untitled market');
+          const yes = formatPredictionPrice(Number(selected.yesPrice || 0));
+          const close = formatPredictionClose(Number(selected.closeAt || 0));
+          previewEl.hidden = false;
+          previewEl.textContent = `${question} · YES ${yes} · ${close}`;
+          previewEl.title = question;
         }
       }
       if (statusEl) {

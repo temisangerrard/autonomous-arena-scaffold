@@ -7,12 +7,14 @@
       bottom: 120px;
       transform: translateX(-50%);
       width: min(420px, calc(100vw - 32px));
+      max-height: calc(100vh - 152px);
       background: rgba(253, 248, 237, 0.98);
       border: 1px solid rgba(198, 152, 49, 0.45);
       border-radius: 16px;
       box-shadow: 0 20px 50px rgba(25, 20, 10, 0.3);
       z-index: 95;
       display: none;
+      overflow: auto;
       backdrop-filter: blur(12px);
     }
     body.interaction-focus::before {
@@ -120,6 +122,7 @@
       padding: 13px;
       display: grid;
       gap: 12px;
+      min-width: 0;
     }
 
     /* NPC world_interactable: no outer box, content sits directly in card body */
@@ -138,9 +141,14 @@
 
     .station-ui__row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 96px minmax(0, 1fr);
       gap: 10px;
       align-items: center;
+      min-width: 0;
+    }
+
+    .station-ui__row > * {
+      min-width: 0;
     }
 
     .station-ui__row label {
@@ -155,6 +163,7 @@
       gap: 8px;
       flex-wrap: wrap;
       align-items: center;
+      min-width: 0;
     }
 
     .station-ui__meta {
@@ -164,6 +173,8 @@
       border: 1px solid rgba(198, 152, 49, 0.22);
       background: rgba(255, 255, 255, 0.62);
       padding: 10px 11px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .station-ui__meta--warning {
@@ -182,6 +193,7 @@
     .prediction-panel {
       display: grid;
       gap: 10px;
+      min-width: 0;
     }
 
     .prediction-panel__head {
@@ -240,6 +252,11 @@
       grid-template-columns: 1fr 1fr;
       gap: 10px;
       align-items: center;
+      min-width: 0;
+    }
+
+    .interaction-row > * {
+      min-width: 0;
     }
 
     .interaction-row label {
@@ -252,6 +269,8 @@
     .interaction-row select,
     .interaction-row input {
       height: 38px;
+      width: 100%;
+      min-width: 0;
       border-radius: 10px;
       border: 1px solid rgba(163, 128, 40, 0.35);
       background: rgba(255, 255, 255, 0.85);
@@ -272,6 +291,20 @@
       grid-template-columns: 1fr auto;
       gap: 10px;
       align-items: center;
+      min-width: 0;
+    }
+
+    .station-ui__row select,
+    .station-ui__row input,
+    #prediction-market-select {
+      width: 100%;
+      min-width: 0;
+    }
+
+    #prediction-market-select {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .btn-gold {
@@ -577,10 +610,21 @@
     .prediction-position {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 6px;
       font: 12px/1.4 'IBM Plex Mono', monospace;
       color: #3a2e1e;
       padding: 3px 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .prediction-market-preview {
+      font: 500 11px/1.4 'IBM Plex Sans', sans-serif;
+      color: rgba(68, 48, 14, 0.8);
+      margin-top: -4px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .prediction-position__side {
@@ -630,4 +674,34 @@
     .is-failed {
       box-shadow: 0 0 0 2px rgba(180, 77, 60, 0.75) !important;
       transition: box-shadow 0.15s;
+    }
+
+    @media (pointer: coarse), (max-width: 720px) {
+      .interaction-card {
+        width: calc(100vw - 12px);
+        bottom: 76px;
+        max-height: calc(100vh - 88px);
+        border-radius: 14px;
+      }
+
+      .interaction-card__head {
+        padding: 12px 12px 8px;
+      }
+
+      .interaction-card__body {
+        padding: 10px 12px 12px;
+      }
+
+      .station-ui {
+        padding: 10px;
+      }
+
+      .station-ui__row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .prediction-sides {
+        grid-template-columns: 1fr;
+      }
     }

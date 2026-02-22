@@ -92,6 +92,55 @@ describe('EscrowAdapter preflight mapping', () => {
     expect(result.reasonCode).toBe('INTERNAL_TRANSPORT_ERROR');
   });
 
+  it('maps runtime 429 throttling to INTERNAL_TRANSPORT_ERROR', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({ ok: false, reason: 'wallet_prepare_http_429' })
+    })) as unknown as typeof fetch);
+
+    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const result = await adapter.preflightStake({
+      challengerWalletId: 'wallet_player',
+      opponentWalletId: 'wallet_house',
+      amount: 1
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reasonCode).toBe('INTERNAL_TRANSPORT_ERROR');
+    expect(result.reasonText).toContain('rate-limited');
+  });
+
+  it('deduplicates concurrent preflight calls for same wallet pair and amount', async () => {
+    const fetchMock = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, results: [] })
+      };
+    }) as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchMock);
+
+    const adapter = new EscrowAdapter('http://runtime.local', 100, { mode: 'onchain', tokenDecimals: 6 });
+    const [a, b] = await Promise.all([
+      adapter.preflightStake({
+        challengerWalletId: 'wallet_player',
+        opponentWalletId: 'wallet_house',
+        amount: 1
+      }),
+      adapter.preflightStake({
+        challengerWalletId: 'wallet_player',
+        opponentWalletId: 'wallet_house',
+        amount: 1
+      })
+    ]);
+
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
 });
 
 describe('EscrowAdapter onchain error decoding', () => {
