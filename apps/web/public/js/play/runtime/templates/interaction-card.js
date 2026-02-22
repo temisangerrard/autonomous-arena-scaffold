@@ -39,6 +39,22 @@ function flashBtn(el, cls, ms = 700) {
   setTimeout(() => el.classList.remove(cls), ms);
 }
 
+export function showNpcInfoPanel(el) {
+  if (!el) return;
+  el.hidden = false;
+  if (el.style) {
+    el.style.display = 'grid';
+  }
+}
+
+export function hideNpcInfoPanel(el) {
+  if (!el) return;
+  el.hidden = true;
+  if (el.style) {
+    el.style.display = 'none';
+  }
+}
+
 export function renderInteractionCardTemplate(params) {
   const {
     state,
@@ -124,9 +140,7 @@ export function renderInteractionCardTemplate(params) {
     ? `${station.id}:${station.kind}:${station.proxyStationId || ''}:${station.proxyMissing ? 'missing' : 'ready'}`
     : '';
 
-  if (interactionNpcInfo) {
-    interactionNpcInfo.hidden = true;
-  }
+  hideNpcInfoPanel(interactionNpcInfo);
   if (!stationUi) {
     return;
   }
@@ -1006,8 +1020,7 @@ export function renderInteractionCardTemplate(params) {
   interactionStationRenderKey = '';
   if (interactionNpcInfo && targetPlayer && state.ui.interactionMode === 'player') {
     interactionTitle.textContent = `Challenge: ${labelFor(targetId)}`;
-    interactionNpcInfo.hidden = false;
-    interactionNpcInfo.style.display = 'grid';
+    showNpcInfoPanel(interactionNpcInfo);
     const incoming = challengeController.currentIncomingChallenge();
     const outgoingPending = Boolean(state.outgoingChallengeId);
     const targetNearby = state.nearbyIds instanceof Set && state.nearbyIds.has(targetId);

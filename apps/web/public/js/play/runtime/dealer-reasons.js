@@ -10,8 +10,23 @@ export function dealerReasonLabel(reason, reasonCode) {
   if (code === 'PLAYER_BALANCE_LOW' || raw.includes('insufficient_balance')) {
     return 'Insufficient balance for this wager. Lower wager or fund wallet.';
   }
-  if (code === 'PLAYER_APPROVAL_REQUIRED' || raw.includes('approval')) {
+  if (code === 'PLAYER_APPROVAL_REQUIRED' || code === 'PLAYER_ALLOWANCE_LOW' || raw.includes('approval') || raw.includes('allowance')) {
     return 'Escrow approval required. Approve and retry.';
+  }
+  if (code === 'HOUSE_ALLOWANCE_LOW') {
+    return 'House escrow approval is not ready. House operator should refresh allowance, then retry.';
+  }
+  if (code === 'PLAYER_SIGNER_UNAVAILABLE') {
+    return 'Player wallet signer unavailable. Reconnect wallet session and retry.';
+  }
+  if (code === 'HOUSE_SIGNER_UNAVAILABLE') {
+    return 'House wallet signer unavailable. House operator must restore signer, then retry.';
+  }
+  if (code === 'RPC_UNAVAILABLE' || raw.includes('rpc') || raw.includes('network')) {
+    return 'Onchain network is unavailable right now. Retry in a moment.';
+  }
+  if (code === 'UNKNOWN_PRECHECK_FAILURE') {
+    return 'Escrow precheck failed. Retry once; if it persists, inspect runtime preflight logs.';
   }
   if (raw === 'not_near_station') {
     return 'Move closer to this station, then start the round again.';

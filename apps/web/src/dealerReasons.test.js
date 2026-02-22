@@ -18,4 +18,10 @@ describe('dealerReasonLabel', () => {
     expect(dealerReasonLabel('wallet_prepare_timeout', 'INTERNAL_TRANSPORT_ERROR')).toContain('network');
     expect(dealerReasonLabel('wallet_prepare_http_401', 'INTERNAL_AUTH_FAILED')).toContain('auth');
   });
+
+  it('maps onchain preflight allowance and signer failures', () => {
+    expect(dealerReasonLabel('allowance_too_low', 'PLAYER_ALLOWANCE_LOW')).toContain('approval');
+    expect(dealerReasonLabel('wallet_signer_unavailable', 'PLAYER_SIGNER_UNAVAILABLE')).toContain('wallet');
+    expect(dealerReasonLabel('wallet_signer_unavailable', 'HOUSE_SIGNER_UNAVAILABLE')).toContain('House');
+  });
 });
