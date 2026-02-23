@@ -83,11 +83,15 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     }
 
     const provider = deps.onchainProvider as {
-      getNetwork: () => Promise<{ chainId?: unknown }>;
-      getBalance: (address: string) => Promise<bigint>;
+      getNetwork?: () => Promise<{ chainId?: unknown }>;
+      getBalance?: (address: string) => Promise<bigint>;
     };
+    if (!provider?.getNetwork || !provider?.getBalance) {
+      sendJson(res, { ok: false, reason: 'onchain_provider_unavailable' }, 503);
+      return;
+    }
     const chainId = await provider.getNetwork().then((net) => Number(net.chainId ?? NaN)).catch(() => null);
-    const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, provider) as Contract & { symbol: () => Promise<string> };
+    const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, deps.onchainProvider as any) as Contract & { symbol: () => Promise<string> };
     const sponsorAddress = deps.gasFunderSigner()?.address || null;
     const [tokenSymbol, sponsorBalanceEth, escrowBalanceEth, walletOnchain] = await Promise.all([
       token.symbol().catch(() => 'TOKEN'),
