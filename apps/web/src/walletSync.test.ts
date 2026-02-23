@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - runtime JS module is exercised directly in tests.
 import { createWalletSyncController } from '../public/js/play/runtime/wallet-sync.js';
 
 type MemoryStorage = {
