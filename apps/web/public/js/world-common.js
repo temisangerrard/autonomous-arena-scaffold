@@ -6,7 +6,7 @@ export { THREE };
 
 let worldManifestPromise = null;
 const CANONICAL_WORLD_ALIAS = 'mega';
-const CANONICAL_WORLD_BASE_FALLBACK = 'https://storage.googleapis.com/junipalee-arena-assets';
+const CANONICAL_WORLD_BASE_FALLBACK = '';
 const WORLD_FILENAME_FALLBACK = {
   train_world: 'train_station_mega_world.glb',
   'train-world': 'train_station_mega_world.glb',
@@ -66,19 +66,14 @@ async function resolveWorldUrl(alias) {
   const configuredBase = window.__ARENA_CONFIG?.worldAssetBaseUrl || window.ARENA_CONFIG?.worldAssetBaseUrl || '';
   const worldBaseUrl = params.get('worldBase') || configuredBase || CANONICAL_WORLD_BASE_FALLBACK;
   const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
-  const gcsMode = normalizedBase.includes('storage.googleapis.com') || normalizedBase.startsWith('gs://');
 
   const manifest = await loadWorldManifest();
-  const filenameByAlias = manifest.filenameByAlias || WORLD_FILENAME_FALLBACK;
   const versionByAlias = manifest.versionByAlias || WORLD_VERSION_FALLBACK;
-  const filename = filenameByAlias?.[loaderAlias] || filenameByAlias?.[CANONICAL_WORLD_ALIAS] || `${CANONICAL_WORLD_ALIAS}.glb`;
   const version = String(versionByAlias?.[loaderAlias] || versionByAlias?.[CANONICAL_WORLD_ALIAS] || '');
 
   let rawUrl = '';
   if (!normalizedBase) {
     rawUrl = `/assets/world/${loaderAlias}.glb`;
-  } else if (gcsMode) {
-    rawUrl = `${normalizedBase}/world/${filename}`;
   } else {
     rawUrl = `${normalizedBase}/assets/world/${loaderAlias}.glb`;
   }

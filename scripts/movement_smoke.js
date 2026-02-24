@@ -12,8 +12,8 @@ const { chromium } = require("playwright");
 
 const DEFAULT_URL =
   "http://localhost:5173/play?world=train_station_world" +
-  "&ws=wss://arena-server-mfpf3lbsba-uc.a.run.app/ws" +
-  "&worldBase=https://storage.googleapis.com/junipalee-arena-assets" +
+  "&ws=wss://arena-server-fresh-02240816.fly.dev/ws" +
+  "&worldBase=https://arena-web-api-fresh-02240816.fly.dev" +
   "&test=1&name=MoveSmoke&walletId=wallet_test&clientId=client_test";
 
 function sleep(ms) {

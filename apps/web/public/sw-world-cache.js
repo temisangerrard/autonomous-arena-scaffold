@@ -1,7 +1,6 @@
 const CACHE_NAME = 'arena-world-cache-v1';
 const META_URL = 'https://world-cache.local/__meta__';
 const MAX_WORLDS = 1;
-const WORLD_GCS_HOST = 'storage.googleapis.com';
 const CANONICAL_WORLD_KEY = 'train_station_mega_world.glb';
 
 function normalizeWorldKey(name) {
@@ -18,9 +17,6 @@ function isWorldRequest(url, selfOrigin) {
     return false;
   }
   if (url.origin === selfOrigin && url.pathname.startsWith('/assets/world/')) {
-    return true;
-  }
-  if (url.hostname === WORLD_GCS_HOST && url.pathname.includes('/world/')) {
     return true;
   }
   return false;

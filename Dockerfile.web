@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.base.json ./
 COPY eslint.config.mjs ./
+COPY train_station_mega_world.glb ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 RUN npm install

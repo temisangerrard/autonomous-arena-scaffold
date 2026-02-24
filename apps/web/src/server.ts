@@ -38,7 +38,7 @@ const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
-const defaultWorldAssetBaseUrl = 'https://storage.googleapis.com/junipalee-arena-assets';
+const defaultWorldAssetBaseUrl = '';
 const allowedAuthOrigins = new Set(
   (process.env.ALLOWED_AUTH_ORIGINS?.trim()
     ? process.env.ALLOWED_AUTH_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)
@@ -1112,7 +1112,7 @@ const server = createServer(async (req, res) => {
       googleAuthEnabled,
       emailAuthEnabled,
       localAuthEnabled,
-      // Used by the static Netlify client to connect to Cloud Run infra.
+      // Used by the static frontend to connect to backend infra.
       gameWsUrl: publicGameWsUrl,
       worldAssetBaseUrl: publicWorldAssetBaseUrl,
       escrowApprovalPolicy: {
@@ -2409,13 +2409,23 @@ const server = createServer(async (req, res) => {
     if (!worldPath) {
       const canonicalFilename = worldFilenameForAlias(alias) || worldFilenameForAlias('mega') || 'train_station_mega_world.glb';
       const normalizedBase = String(publicWorldAssetBaseUrl || defaultWorldAssetBaseUrl).replace(/\/+$/, '');
-      const gcsMode = normalizedBase.includes('storage.googleapis.com') || normalizedBase.startsWith('gs://');
+      if (!normalizedBase) {
+        log.error(
+          {
+            reason: 'local_world_missing_no_fallback',
+            alias,
+            canonicalFilename
+          },
+          'world asset missing locally and no fallback base configured'
+        );
+        res.statusCode = 404;
+        res.end('World asset unavailable');
+        return;
+      }
       const versionByAlias = worldVersionByAlias();
       const normalizedAlias = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
       const version = String(versionByAlias[normalizedAlias] || versionByAlias.mega || '');
-      let fallbackUrl = gcsMode
-        ? `${normalizedBase}/world/${canonicalFilename}`
-        : `${normalizedBase}/assets/world/mega.glb`;
+      let fallbackUrl = `${normalizedBase}/assets/world/mega.glb`;
       if (version) {
         fallbackUrl += `${fallbackUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}`;
       }

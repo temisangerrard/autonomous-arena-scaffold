@@ -3,6 +3,18 @@ const CLIENT_KEY = 'arena_google_client_id';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
 let googleShellNoncePromise = null;
 let googleShellInitInFlight = false;
+const GOOGLE_AUTH_ALLOWED_ORIGINS = new Set([
+  'https://autobett-fly-fresh-0224.netlify.app',
+  'https://autobett.netlify.app',
+  'https://main--autobett.netlify.app',
+  'https://main--autobett-fly-fresh-0224.netlify.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+]);
+
+function isGoogleOriginAllowed() {
+  return GOOGLE_AUTH_ALLOWED_ORIGINS.has(window.location.origin);
+}
 
 // Test harness can load pages without going through auth.
 // Skip auth-shell behavior (including Google scripts) to avoid noisy console errors.
@@ -276,7 +288,7 @@ function renderAuthState(config, user) {
     return;
   }
 
-  const googleEnabled = Boolean(config?.googleAuthEnabled && config?.googleClientId);
+  const googleEnabled = Boolean(config?.googleAuthEnabled && config?.googleClientId && isGoogleOriginAllowed());
   const emailEnabled = Boolean(config?.emailAuthEnabled);
   if (!googleEnabled && !emailEnabled) {
     authContainer.innerHTML = '<span class="global-shell__hint">Sign-in is not configured on this environment.</span>';
@@ -311,7 +323,7 @@ function renderAuthState(config, user) {
 
 async function loadConfig() {
   try {
-    const cfg = await fetchJson('/api/config');
+    const cfg = await fetchJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
     if (cfg.googleClientId) {
       localStorage.setItem(CLIENT_KEY, cfg.googleClientId);
     }
@@ -343,8 +355,8 @@ async function boot() {
     return;
   }
   const cfg = await loadConfig();
-  const clientId = cfg.googleClientId || localStorage.getItem(CLIENT_KEY) || '';
-  const googleEnabled = Boolean(clientId) && Boolean(cfg.googleAuthEnabled ?? cfg.authEnabled);
+  const clientId = cfg.googleClientId || '';
+  const googleEnabled = Boolean(clientId) && Boolean(cfg.googleAuthEnabled ?? cfg.authEnabled) && isGoogleOriginAllowed();
   const emailEnabled = Boolean(cfg.emailAuthEnabled);
   const finalCfg = {
     ...cfg,

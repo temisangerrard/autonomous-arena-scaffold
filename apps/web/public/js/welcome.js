@@ -19,6 +19,18 @@ let config = {
 };
 let googleWelcomeNoncePromise = null;
 let googleWelcomeInitInFlight = false;
+const GOOGLE_AUTH_ALLOWED_ORIGINS = new Set([
+  'https://autobett-fly-fresh-0224.netlify.app',
+  'https://autobett.netlify.app',
+  'https://main--autobett.netlify.app',
+  'https://main--autobett-fly-fresh-0224.netlify.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+]);
+
+function isGoogleOriginAllowed() {
+  return GOOGLE_AUTH_ALLOWED_ORIGINS.has(window.location.origin);
+}
 
 function setStoredUser(user) {
   if (user) {
@@ -32,6 +44,7 @@ async function requestJson(path, init = {}) {
   const headers = new Headers(init.headers || {});
   const response = await fetch(path, {
     credentials: 'include',
+    cache: init.cache || 'default',
     ...init,
     headers
   });
@@ -87,7 +100,7 @@ function renderSignedOut() {
     return;
   }
 
-  const googleEnabled = Boolean(config.googleAuthEnabled && config.googleClientId);
+  const googleEnabled = Boolean(config.googleAuthEnabled && config.googleClientId && isGoogleOriginAllowed());
   const emailEnabled = Boolean(config.emailAuthEnabled);
   if (!googleEnabled && !emailEnabled) {
     hint.textContent = 'Sign-in is not configured in this environment.';
@@ -268,7 +281,7 @@ adminLoginBtn?.addEventListener('click', async () => {
 
 (async function init() {
   try {
-    config = await requestJson('/api/config');
+    config = await requestJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
     config.googleAuthEnabled = Boolean(config.googleAuthEnabled ?? config.authEnabled);
     config.emailAuthEnabled = Boolean(config.emailAuthEnabled);
   } catch {

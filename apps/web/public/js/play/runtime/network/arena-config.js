@@ -1,4 +1,4 @@
-const CANONICAL_WORLD_BASE_FALLBACK = 'https://storage.googleapis.com/junipalee-arena-assets';
+const CANONICAL_WORLD_BASE_FALLBACK = '';
 
 export function createArenaConfigRuntime(params) {
   const {

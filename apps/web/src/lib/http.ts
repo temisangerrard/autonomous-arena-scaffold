@@ -158,6 +158,7 @@ export async function sendFileCached(
     if (options?.cacheControl) {
       res.setHeader('cache-control', options.cacheControl);
     }
+    res.setHeader('accept-ranges', 'bytes');
 
     if (ifNoneMatch && ifNoneMatch === etag) {
       res.statusCode = 304;
@@ -174,8 +175,45 @@ export async function sendFileCached(
       }
     }
 
+    const size = Number(info.size || 0);
+    const range = String(req.headers.range || '').trim();
+    let start = 0;
+    let end = Math.max(0, size - 1);
+
+    if (range.startsWith('bytes=')) {
+      const [rawStart, rawEnd] = range.slice('bytes='.length).split('-', 2);
+      const parsedStart = rawStart ? Number(rawStart) : Number.NaN;
+      const parsedEnd = rawEnd ? Number(rawEnd) : Number.NaN;
+
+      if (Number.isFinite(parsedStart)) {
+        start = Math.max(0, Math.min(size - 1, parsedStart));
+      }
+      if (Number.isFinite(parsedEnd)) {
+        end = Math.max(start, Math.min(size - 1, parsedEnd));
+      }
+      if (rawStart === '' && Number.isFinite(parsedEnd)) {
+        const suffixLen = Math.max(0, parsedEnd);
+        start = Math.max(0, size - suffixLen);
+        end = Math.max(start, size - 1);
+      }
+
+      if (start > end || start >= size) {
+        res.statusCode = 416;
+        res.setHeader('content-range', `bytes */${size}`);
+        res.end();
+        return;
+      }
+
+      res.statusCode = 206;
+      res.setHeader('content-range', `bytes ${start}-${end}/${size}`);
+      res.setHeader('content-length', String(end - start + 1));
+    } else {
+      res.statusCode = 200;
+      res.setHeader('content-length', String(size));
+    }
+
     // Stream large assets (world GLBs) to avoid buffering in memory.
-    const stream = createReadStream(filePath);
+    const stream = createReadStream(filePath, { start, end });
     stream.on('error', () => {
       if (!res.headersSent) {
         res.statusCode = 404;

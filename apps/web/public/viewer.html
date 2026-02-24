@@ -603,21 +603,6 @@
             }
         }
 
-        async function loadWorldManifest() {
-            try {
-                const res = await fetch('/api/worlds', { credentials: 'include' });
-                if (!res.ok) return null;
-                const payload = await res.json();
-                return payload?.filenameByAlias || null;
-            } catch {
-                return null;
-            }
-        }
-
-        function isGcsBase(base) {
-            return typeof base === 'string' && base.includes('storage.googleapis.com');
-        }
-
         // Load world
         const params = new URLSearchParams(window.location.search);
         const worldAlias = params.get('world') || 'mega';
@@ -631,11 +616,9 @@
         let materialCount = new Set();
 
         const cfg = await loadConfig();
-        const manifest = await loadWorldManifest();
         const base = String(cfg?.worldAssetBaseUrl || '').replace(/\/+$/, '');
-        const filename = manifest?.[String(worldAlias).toLowerCase().replace(/\.glb$/i,'')] || `${worldAlias}.glb`;
         const worldUrl = base
-            ? `${base}/${isGcsBase(base) ? 'world' : 'assets/world'}/${isGcsBase(base) ? filename : `${worldAlias}.glb`}`
+            ? `${base}/assets/world/${worldAlias}.glb`
             : `/assets/world/${worldAlias}.glb`;
 
         loader.load(

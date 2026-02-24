@@ -34,15 +34,15 @@ function mustUrl(label, value) {
 
 const webApiOrigin = mustUrl(
   'ARENA_WEB_API_ORIGIN',
-  env('ARENA_WEB_API_ORIGIN', 'https://arena-web-api-mfpf3lbsba-uc.a.run.app')
+  env('ARENA_WEB_API_ORIGIN', 'https://arena-web-api-fresh-02240816.fly.dev')
 );
 const serverOrigin = mustUrl(
   'ARENA_SERVER_ORIGIN',
-  env('ARENA_SERVER_ORIGIN', 'https://arena-server-mfpf3lbsba-uc.a.run.app')
+  env('ARENA_SERVER_ORIGIN', 'https://arena-server-fresh-02240816.fly.dev')
 );
 const runtimeOrigin = mustUrl(
   'ARENA_RUNTIME_ORIGIN',
-  env('ARENA_RUNTIME_ORIGIN', 'https://arena-runtime-mfpf3lbsba-uc.a.run.app')
+  env('ARENA_RUNTIME_ORIGIN', 'https://arena-runtime-fresh-02240816.fly.dev')
 );
 
 // Write runtime-config.js so browser code can discover current origins without hardcoding.

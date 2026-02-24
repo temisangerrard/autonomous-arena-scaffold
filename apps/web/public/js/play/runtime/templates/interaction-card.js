@@ -89,6 +89,7 @@ export function renderInteractionCardTemplate(params) {
   } = params;
 
   let interactionStationRenderKey = String(stateful?.interactionStationRenderKey || '');
+  let interactionPlayerRenderKey = String(stateful?.interactionPlayerRenderKey || '');
 
   try {
   if (!interactionCard || !interactionTitle) {
@@ -146,6 +147,7 @@ export function renderInteractionCardTemplate(params) {
   }
 
   if (station && state.ui.interactionMode === 'station') {
+    interactionPlayerRenderKey = '';
     interactionTitle.textContent = station.displayName || 'Station';
     stationUi.hidden = false;
     stationUi.style.display = 'grid';
@@ -1043,7 +1045,25 @@ export function renderInteractionCardTemplate(params) {
     const incomingLabel = incoming
       ? `${labelFor(incoming.challengerId)} challenged you (${incoming.gameType.toUpperCase()}, ${formatWagerInline(incoming.wager)}).`
       : '';
-    interactionNpcInfo.innerHTML = `
+    const playerRenderKey = [
+      targetId,
+      selectedGame,
+      selectedWager,
+      approvalMode,
+      approvalState,
+      approvalMessage,
+      Number(state.ui?.challenge?.approvalWager || 0),
+      incoming?.id || '',
+      incoming?.challengerId || '',
+      incoming?.gameType || '',
+      incoming?.wager || '',
+      outgoingPending ? 'outgoing' : 'idle',
+      targetNearby ? 'nearby' : 'far',
+      canSend ? 'send' : 'blocked'
+    ].join('|');
+    if (interactionPlayerRenderKey !== playerRenderKey) {
+      interactionPlayerRenderKey = playerRenderKey;
+      interactionNpcInfo.innerHTML = `
       <div class="station-ui__title">${labelFor(targetId)}</div>
       <div class="station-ui__row">
         <label for="player-challenge-game">Game</label>
@@ -1074,92 +1094,97 @@ export function renderInteractionCardTemplate(params) {
       <div class="station-ui__meta">${incomingLabel || `${targetNearby ? 'Pick a game and send a challenge.' : 'Move closer to this player, then send challenge.'} ${outgoingPending ? 'You already have a pending outgoing challenge.' : ''}`}</div>
       <div class="station-ui__meta">${approvalHint}</div>
     `;
-    const gameEl = document.getElementById('player-challenge-game');
-    const wagerEl = document.getElementById('player-challenge-wager');
-    const approveBtn = document.getElementById('player-challenge-approve');
-    const sendBtn = document.getElementById('player-challenge-send');
-    const acceptBtn = document.getElementById('player-challenge-accept');
-    const declineBtn = document.getElementById('player-challenge-decline');
-    if (gameEl instanceof HTMLSelectElement) {
-      gameEl.onchange = () => {
-        state.ui.challenge.gameType = normalizedChallengeGameType(gameEl.value);
-      };
+      const renderedTargetId = targetId;
+      const gameEl = document.getElementById('player-challenge-game');
+      const wagerEl = document.getElementById('player-challenge-wager');
+      const approveBtn = document.getElementById('player-challenge-approve');
+      const sendBtn = document.getElementById('player-challenge-send');
+      const acceptBtn = document.getElementById('player-challenge-accept');
+      const declineBtn = document.getElementById('player-challenge-decline');
+      if (gameEl instanceof HTMLSelectElement) {
+        gameEl.onchange = () => {
+          state.ui.challenge.gameType = normalizedChallengeGameType(gameEl.value);
+        };
+      }
+      if (wagerEl instanceof HTMLInputElement) {
+        wagerEl.oninput = () => {
+          const wager = normalizedChallengeWager(wagerEl.value, 1);
+          state.ui.challenge.wager = wager;
+          if (wager <= 0) {
+            state.ui.challenge.approvalState = 'idle';
+            state.ui.challenge.approvalMessage = '';
+            state.ui.challenge.approvalWager = 0;
+            return;
+          }
+          if (approvalModeAuto) {
+            state.ui.challenge.approvalState = 'ready';
+            state.ui.challenge.approvalWager = wager;
+            state.ui.challenge.approvalMessage = 'Testnet mode: approvals handled automatically.';
+            return;
+          }
+          if (Number(state.ui.challenge.approvalWager || 0) < wager) {
+            state.ui.challenge.approvalState = 'required';
+          }
+        };
+      }
+      if (approveBtn instanceof HTMLButtonElement) {
+        approveBtn.onclick = () => {
+          const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
+          void ensureEscrowApproval(wager);
+        };
+      }
+      if (sendBtn instanceof HTMLButtonElement) {
+        sendBtn.onclick = () => {
+          const gameType = gameEl instanceof HTMLSelectElement ? gameEl.value : state.ui.challenge.gameType;
+          const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
+          setPendingBtn(sendBtn, 'Sending…');
+          _startTimer('challenge:send', () => {
+            clearPendingBtn(sendBtn, 'Send Challenge (C)');
+            showToast('No server response. Try again.', 'error');
+          }, 7000);
+          const sent = challengeController.sendChallenge(renderedTargetId, gameType, wager);
+          if (!sent) {
+            _clearTimer('challenge:send');
+            clearPendingBtn(sendBtn, 'Send Challenge (C)');
+          }
+        };
+      }
+      if (acceptBtn instanceof HTMLButtonElement) {
+        acceptBtn.onclick = () => {
+          setPendingBtn(acceptBtn, 'Accepting…');
+          _startTimer('challenge:respond', () => {
+            clearPendingBtn(acceptBtn, 'Accept (Y)');
+            showToast('No server response. Try again.', 'error');
+          }, 7000);
+          const sent = challengeController.respondToIncoming(true);
+          if (!sent) {
+            _clearTimer('challenge:respond');
+            clearPendingBtn(acceptBtn, 'Accept (Y)');
+          }
+        };
+      }
+      if (declineBtn instanceof HTMLButtonElement) {
+        declineBtn.onclick = () => {
+          setPendingBtn(declineBtn, 'Declining…');
+          _startTimer('challenge:respond', () => {
+            clearPendingBtn(declineBtn, 'Decline (N)');
+            showToast('No server response. Try again.', 'error');
+          }, 7000);
+          const sent = challengeController.respondToIncoming(false);
+          if (!sent) {
+            _clearTimer('challenge:respond');
+            clearPendingBtn(declineBtn, 'Decline (N)');
+          }
+        };
+      }
     }
-    if (wagerEl instanceof HTMLInputElement) {
-      wagerEl.oninput = () => {
-        const wager = normalizedChallengeWager(wagerEl.value, 1);
-        state.ui.challenge.wager = wager;
-        if (wager <= 0) {
-          state.ui.challenge.approvalState = 'idle';
-          state.ui.challenge.approvalMessage = '';
-          state.ui.challenge.approvalWager = 0;
-          return;
-        }
-        if (approvalModeAuto) {
-          state.ui.challenge.approvalState = 'ready';
-          state.ui.challenge.approvalWager = wager;
-          state.ui.challenge.approvalMessage = 'Testnet mode: approvals handled automatically.';
-          return;
-        }
-        if (Number(state.ui.challenge.approvalWager || 0) < wager) {
-          state.ui.challenge.approvalState = 'required';
-        }
-      };
-    }
-    if (approveBtn instanceof HTMLButtonElement) {
-      approveBtn.onclick = () => {
-        const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
-        void ensureEscrowApproval(wager);
-      };
-    }
-    if (sendBtn instanceof HTMLButtonElement) {
-      sendBtn.onclick = () => {
-        const gameType = gameEl instanceof HTMLSelectElement ? gameEl.value : state.ui.challenge.gameType;
-        const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
-        setPendingBtn(sendBtn, 'Sending…');
-        _startTimer('challenge:send', () => {
-          clearPendingBtn(sendBtn, 'Send Challenge (C)');
-          showToast('No server response. Try again.', 'error');
-        }, 7000);
-        const sent = challengeController.sendChallenge(getUiTargetId(), gameType, wager);
-        if (!sent) {
-          _clearTimer('challenge:send');
-          clearPendingBtn(sendBtn, 'Send Challenge (C)');
-        }
-      };
-    }
-    if (acceptBtn instanceof HTMLButtonElement) {
-      acceptBtn.onclick = () => {
-        setPendingBtn(acceptBtn, 'Accepting…');
-        _startTimer('challenge:respond', () => {
-          clearPendingBtn(acceptBtn, 'Accept (Y)');
-          showToast('No server response. Try again.', 'error');
-        }, 7000);
-        const sent = challengeController.respondToIncoming(true);
-        if (!sent) {
-          _clearTimer('challenge:respond');
-          clearPendingBtn(acceptBtn, 'Accept (Y)');
-        }
-      };
-    }
-    if (declineBtn instanceof HTMLButtonElement) {
-      declineBtn.onclick = () => {
-        setPendingBtn(declineBtn, 'Declining…');
-        _startTimer('challenge:respond', () => {
-          clearPendingBtn(declineBtn, 'Decline (N)');
-          showToast('No server response. Try again.', 'error');
-        }, 7000);
-        const sent = challengeController.respondToIncoming(false);
-        if (!sent) {
-          _clearTimer('challenge:respond');
-          clearPendingBtn(declineBtn, 'Decline (N)');
-        }
-      };
-    }
+  } else {
+    interactionPlayerRenderKey = '';
   }
   } finally {
     if (stateful && typeof stateful === 'object') {
       stateful.interactionStationRenderKey = interactionStationRenderKey;
+      stateful.interactionPlayerRenderKey = interactionPlayerRenderKey;
     }
   }
 }

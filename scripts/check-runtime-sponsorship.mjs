@@ -1,4 +1,4 @@
-const runtimeUrl = String(process.env.RUNTIME_URL || 'https://arena-runtime-mfpf3lbsba-uc.a.run.app').replace(/\/+$/, '');
+const runtimeUrl = String(process.env.RUNTIME_URL || 'https://arena-runtime-fresh-02240816.fly.dev').replace(/\/+$/, '');
 const internalToken = String(process.env.INTERNAL_SERVICE_TOKEN || '');
 const playerWalletId = String(process.env.PLAYER_WALLET_ID || '');
 const houseWalletId = String(process.env.HOUSE_WALLET_ID || '');
