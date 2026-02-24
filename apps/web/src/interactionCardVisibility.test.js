@@ -28,4 +28,12 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('const renderedTargetId = targetId;')).toBe(true);
     expect(source.includes('challengeController.sendChallenge(renderedTargetId, gameType, wager)')).toBe(true);
   });
+
+  it('clears challenge timeout timers after server state advances', () => {
+    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    expect(source.includes("if (outgoingPending || state.challengeStatus === 'active')")).toBe(true);
+    expect(source.includes("_clearTimer('challenge:send');")).toBe(true);
+    expect(source.includes('if (!state.respondingIncoming)')).toBe(true);
+    expect(source.includes("_clearTimer('challenge:respond');")).toBe(true);
+  });
 });

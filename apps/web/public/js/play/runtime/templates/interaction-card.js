@@ -1101,6 +1101,15 @@ export function renderInteractionCardTemplate(params) {
       const sendBtn = document.getElementById('player-challenge-send');
       const acceptBtn = document.getElementById('player-challenge-accept');
       const declineBtn = document.getElementById('player-challenge-decline');
+      if (outgoingPending || state.challengeStatus === 'active') {
+        _clearTimer('challenge:send');
+        clearPendingBtn(sendBtn, 'Send Challenge (C)');
+      }
+      if (!state.respondingIncoming) {
+        _clearTimer('challenge:respond');
+        clearPendingBtn(acceptBtn, 'Accept (Y)');
+        clearPendingBtn(declineBtn, 'Decline (N)');
+      }
       if (gameEl instanceof HTMLSelectElement) {
         gameEl.onchange = () => {
           state.ui.challenge.gameType = normalizedChallengeGameType(gameEl.value);
