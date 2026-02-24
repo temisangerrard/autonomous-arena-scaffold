@@ -156,13 +156,27 @@ export class EscrowAdapter {
     return this.refundOnchain(challengeId);
   }
 
+  private walletAddressCache = new Map<string, { address: string; fetchedAt: number }>();
+  private static readonly WALLET_CACHE_TTL_MS = 30_000;
+
   private async walletAddressById(walletId: string): Promise<string | null> {
+    const cached = this.walletAddressCache.get(walletId);
+    if (cached && (Date.now() - cached.fetchedAt) < EscrowAdapter.WALLET_CACHE_TTL_MS) {
+      return cached.address;
+    }
     try {
       const response = await fetch(`${this.runtimeBaseUrl}/wallets`);
       if (!response.ok) {
         return null;
       }
       const payload = (await response.json()) as { wallets?: Array<{ id?: string; address?: string }> };
+      const now = Date.now();
+      // Cache all fetched wallets to avoid repeated full-list fetches
+      for (const entry of payload.wallets ?? []) {
+        if (entry?.id && typeof entry.address === 'string') {
+          this.walletAddressCache.set(entry.id, { address: entry.address, fetchedAt: now });
+        }
+      }
       const wallet = payload.wallets?.find((entry) => entry?.id === walletId);
       return typeof wallet?.address === 'string' ? wallet.address : null;
     } catch {

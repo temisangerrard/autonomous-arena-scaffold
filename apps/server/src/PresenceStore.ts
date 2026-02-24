@@ -22,6 +22,7 @@ type RedisLike = {
   del: (key: string) => Promise<number>;
   expire: (key: string, seconds: number) => Promise<boolean>;
   keys: (pattern: string) => Promise<string[]>;
+  scanIterator: (options: { MATCH: string; COUNT: number }) => AsyncIterable<string>;
   set: (key: string, value: string, options?: { EX?: number }) => Promise<string | null>;
   get: (key: string) => Promise<string | null>;
   connect: () => Promise<unknown>;
@@ -141,7 +142,16 @@ export class PresenceStore {
     if (!this.redis) {
       return [...this.memory.values()];
     }
-    const keys = await this.redis.keys(`${PRESENCE_KEY_PREFIX}*`);
+    const keys: string[] = [];
+    try {
+      for await (const key of this.redis.scanIterator({ MATCH: `${PRESENCE_KEY_PREFIX}*`, COUNT: 100 })) {
+        keys.push(key);
+      }
+    } catch {
+      // Fallback to KEYS if scanIterator is unavailable (e.g. older Redis client)
+      const fallbackKeys = await this.redis.keys(`${PRESENCE_KEY_PREFIX}*`);
+      keys.push(...fallbackKeys);
+    }
     if (keys.length === 0) {
       return [];
     }

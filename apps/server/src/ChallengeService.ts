@@ -248,7 +248,13 @@ export class ChallengeService {
 
       if (challenge.status === 'active' && now >= challenge.expiresAt) {
         if (challenge.gameType === 'rps') {
-          if (challenge.challengerMove && !challenge.opponentMove) {
+          if (challenge.challengerMove && challenge.opponentMove
+            && this.isRpsMove(challenge.challengerMove) && this.isRpsMove(challenge.opponentMove)) {
+            challenge.winnerId = this.rpsWinner(
+              challenge.challengerMove, challenge.opponentMove,
+              challenge.challengerId, challenge.opponentId
+            );
+          } else if (challenge.challengerMove && !challenge.opponentMove) {
             challenge.winnerId = challenge.challengerId;
           } else if (!challenge.challengerMove && challenge.opponentMove) {
             challenge.winnerId = challenge.opponentId;
@@ -273,14 +279,6 @@ export class ChallengeService {
         }
 
         if (challenge.gameType === 'coinflip') {
-          if (challenge.challengerMove && !challenge.opponentMove) {
-            challenge.winnerId = challenge.challengerId;
-          } else if (!challenge.challengerMove && challenge.opponentMove) {
-            challenge.winnerId = challenge.opponentId;
-          } else {
-            challenge.winnerId = null;
-          }
-
           challenge.status = 'resolved';
           challenge.resolvedAt = now;
           const override = this.coinflipResultOverride.get(challenge.id);
@@ -290,20 +288,19 @@ export class ChallengeService {
           } else {
             challenge.coinflipResult = this.random() < 0.5 ? 'heads' : 'tails';
           }
-          this.clearPlayerLocks(challenge);
-          events.push(
-            this.withLog({
-              type: 'challenge',
-              event: 'resolved',
-              challengeId: challenge.id,
-              challenge,
-              to: [challenge.challengerId, challenge.opponentId],
-              reason: 'timeout_resolution'
-            })
-          );
-        }
-        if (challenge.gameType === 'dice_duel') {
-          if (challenge.challengerMove && !challenge.opponentMove) {
+
+          if (challenge.challengerMove && challenge.opponentMove) {
+            // Both moves present — evaluate against the coin result
+            if (challenge.challengerMove === challenge.opponentMove) {
+              challenge.winnerId = null;
+            } else if (challenge.challengerMove === challenge.coinflipResult) {
+              challenge.winnerId = challenge.challengerId;
+            } else if (challenge.opponentMove === challenge.coinflipResult) {
+              challenge.winnerId = challenge.opponentId;
+            } else {
+              challenge.winnerId = null;
+            }
+          } else if (challenge.challengerMove && !challenge.opponentMove) {
             challenge.winnerId = challenge.challengerId;
           } else if (!challenge.challengerMove && challenge.opponentMove) {
             challenge.winnerId = challenge.opponentId;
@@ -311,8 +308,6 @@ export class ChallengeService {
             challenge.winnerId = null;
           }
 
-          challenge.status = 'resolved';
-          challenge.resolvedAt = now;
           this.clearPlayerLocks(challenge);
           events.push(
             this.withLog({
@@ -324,6 +319,62 @@ export class ChallengeService {
               reason: 'timeout_resolution'
             })
           );
+          continue;
+        }
+        if (challenge.gameType === 'dice_duel') {
+          challenge.status = 'resolved';
+          challenge.resolvedAt = now;
+
+          // Roll the die even on timeout so diceResult is populated
+          const fromProvablyFair =
+            challenge.provablyFair?.revealSeed
+            && challenge.provablyFair?.playerSeed
+            ? Number.parseInt(
+                createHash('sha256')
+                  .update(`${challenge.provablyFair.revealSeed}|${challenge.provablyFair.playerSeed}|${challenge.id}|dice_duel`)
+                  .digest('hex')
+                  .slice(0, 2),
+                16
+              )
+            : Number.NaN;
+          const rolled = Number.isFinite(fromProvablyFair)
+            ? ((fromProvablyFair % 6) + 1)
+            : (Math.floor(this.random() * 6) + 1);
+          challenge.diceResult = rolled;
+
+          if (challenge.challengerMove && challenge.opponentMove
+            && this.isDiceDuelMove(challenge.challengerMove) && this.isDiceDuelMove(challenge.opponentMove)) {
+            const challengerValue = Number(challenge.challengerMove.slice(1));
+            const opponentValue = Number(challenge.opponentMove.slice(1));
+            const challengerMatch = challengerValue === rolled;
+            const opponentMatch = opponentValue === rolled;
+            if (challengerMatch && !opponentMatch) {
+              challenge.winnerId = challenge.challengerId;
+            } else if (!challengerMatch && opponentMatch) {
+              challenge.winnerId = challenge.opponentId;
+            } else {
+              challenge.winnerId = null;
+            }
+          } else if (challenge.challengerMove && !challenge.opponentMove) {
+            challenge.winnerId = challenge.challengerId;
+          } else if (!challenge.challengerMove && challenge.opponentMove) {
+            challenge.winnerId = challenge.opponentId;
+          } else {
+            challenge.winnerId = null;
+          }
+
+          this.clearPlayerLocks(challenge);
+          events.push(
+            this.withLog({
+              type: 'challenge',
+              event: 'resolved',
+              challengeId: challenge.id,
+              challenge,
+              to: [challenge.challengerId, challenge.opponentId],
+              reason: 'timeout_resolution'
+            })
+          );
+          continue;
         }
       }
     }
