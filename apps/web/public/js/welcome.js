@@ -12,6 +12,8 @@ const adminStatus = document.getElementById('admin-login-status');
 
 let config = {
   authEnabled: false,
+  googleAuthEnabled: false,
+  emailAuthEnabled: false,
   googleClientId: '',
   localAuthEnabled: true
 };
@@ -85,15 +87,39 @@ function renderSignedOut() {
     return;
   }
 
-  if (!config.authEnabled || !config.googleClientId) {
-    hint.textContent = 'Google sign-in is not configured in this environment.';
+  const googleEnabled = Boolean(config.googleAuthEnabled && config.googleClientId);
+  const emailEnabled = Boolean(config.emailAuthEnabled);
+  if (!googleEnabled && !emailEnabled) {
+    hint.textContent = 'Sign-in is not configured in this environment.';
     ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><a class="btn btn--secondary" href="/viewer?world=mega">Explore Viewer</a>';
     return;
   }
 
-  hint.textContent = 'Sign in with Google to create your player bot and wallet.';
-  ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><div id="google-signin-welcome"></div>';
-  if (window.google?.accounts?.id) {
+  hint.textContent = 'Sign in to create your player bot and wallet.';
+  ctaRoot.innerHTML = `
+    <a class="btn btn--primary" href="/play?world=mega">Enter Arena</a>
+    ${emailEnabled ? `
+      <div class="welcome-email-auth">
+        <input id="welcome-email" class="form-input" type="email" placeholder="Email" autocomplete="email">
+        <input id="welcome-password" class="form-input" type="password" placeholder="Password" autocomplete="current-password">
+        <div class="welcome-email-auth__actions">
+          <button id="welcome-email-login" class="btn btn--secondary" type="button">Email Login</button>
+          <button id="welcome-email-signup" class="btn btn--secondary" type="button">Email Signup</button>
+        </div>
+      </div>
+    ` : ''}
+    ${googleEnabled ? '<div id="google-signin-welcome"></div>' : ''}
+  `;
+  if (emailEnabled) {
+    ctaRoot.querySelector('#welcome-email-login')?.addEventListener('click', () => {
+      void handleEmailAuth('login');
+    });
+    ctaRoot.querySelector('#welcome-email-signup')?.addEventListener('click', () => {
+      void handleEmailAuth('signup');
+    });
+  }
+
+  if (googleEnabled && window.google?.accounts?.id) {
     void (async () => {
       if (googleWelcomeInitInFlight) return;
       googleWelcomeInitInFlight = true;
@@ -131,6 +157,27 @@ function renderSignedOut() {
   }
 }
 
+async function handleEmailAuth(mode) {
+  showAuthError('');
+  const email = String(ctaRoot?.querySelector('#welcome-email')?.value || '').trim().toLowerCase();
+  const password = String(ctaRoot?.querySelector('#welcome-password')?.value || '').trim();
+  if (!email || !password) {
+    showAuthError('Enter email and password.');
+    return;
+  }
+  try {
+    const result = await requestJson('/api/auth/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password, mode })
+    });
+    setStoredUser(result.user || null);
+    window.location.href = result.redirectTo || '/dashboard';
+  } catch (error) {
+    showAuthError(`Sign-in failed: ${String(error.message || error)}`);
+  }
+}
+
 async function handleGoogleCredential(credential) {
   showAuthError('');
   try {
@@ -147,7 +194,7 @@ async function handleGoogleCredential(credential) {
 }
 
 async function loadGoogleScriptIfNeeded() {
-  if (!config.authEnabled || !config.googleClientId || window.google?.accounts?.id) {
+  if (!config.googleAuthEnabled || !config.googleClientId || window.google?.accounts?.id) {
     return;
   }
 
@@ -222,8 +269,10 @@ adminLoginBtn?.addEventListener('click', async () => {
 (async function init() {
   try {
     config = await requestJson('/api/config');
+    config.googleAuthEnabled = Boolean(config.googleAuthEnabled ?? config.authEnabled);
+    config.emailAuthEnabled = Boolean(config.emailAuthEnabled);
   } catch {
-    config = { authEnabled: false, googleClientId: '', localAuthEnabled: true };
+    config = { authEnabled: false, googleAuthEnabled: false, emailAuthEnabled: false, googleClientId: '', localAuthEnabled: true };
   }
 
   if (!config.localAuthEnabled) {

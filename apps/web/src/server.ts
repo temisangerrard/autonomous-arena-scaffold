@@ -31,6 +31,9 @@ function resolveInternalServiceToken(): string {
 
 const port = Number(process.env.PORT ?? 3000);
 const googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
+const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY?.trim() ?? '';
+const emailAuthEnabled = firebaseWebApiKey.length > 0;
+const googleAuthEnabled = googleClientId.length > 0;
 const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
@@ -573,6 +576,12 @@ type GoogleTokenInfo = {
   email_verified?: string | boolean;
 };
 
+type FirebaseAuthResult = {
+  localId: string;
+  email: string;
+  displayName?: string;
+};
+
 async function googleTokenInfo(idToken: string): Promise<GoogleTokenInfo> {
   if (!googleClientId) {
     throw new Error('invalid_google_token');
@@ -596,6 +605,88 @@ async function googleTokenInfo(idToken: string): Promise<GoogleTokenInfo> {
     nonce: payload.nonce,
     email_verified: payload.email_verified
   };
+}
+
+function mapFirebaseAuthError(message: string): { reason: string; status: number } {
+  const normalized = String(message || '').trim().toUpperCase();
+  if (!normalized) {
+    return { reason: 'firebase_auth_failed', status: 502 };
+  }
+  if (normalized === 'EMAIL_EXISTS') {
+    return { reason: 'email_exists', status: 409 };
+  }
+  if (normalized === 'EMAIL_NOT_FOUND' || normalized === 'INVALID_PASSWORD' || normalized === 'INVALID_LOGIN_CREDENTIALS') {
+    return { reason: 'invalid_credentials', status: 401 };
+  }
+  if (normalized === 'USER_DISABLED') {
+    return { reason: 'user_disabled', status: 403 };
+  }
+  if (normalized === 'TOO_MANY_ATTEMPTS_TRY_LATER') {
+    return { reason: 'too_many_attempts', status: 429 };
+  }
+  if (normalized.startsWith('WEAK_PASSWORD')) {
+    return { reason: 'weak_password', status: 400 };
+  }
+  if (normalized === 'INVALID_EMAIL') {
+    return { reason: 'invalid_email', status: 400 };
+  }
+  if (normalized === 'OPERATION_NOT_ALLOWED') {
+    return { reason: 'email_auth_disabled', status: 403 };
+  }
+  return { reason: `firebase_${normalized.toLowerCase()}`, status: 502 };
+}
+
+async function firebaseIdentityAuth(
+  mode: 'signup' | 'login',
+  email: string,
+  password: string
+): Promise<{ ok: true; result: FirebaseAuthResult } | { ok: false; reason: string; status: number }> {
+  if (!firebaseWebApiKey) {
+    return { ok: false, reason: 'email_auth_disabled', status: 403 };
+  }
+
+  const endpoint = mode === 'signup' ? 'accounts:signUp' : 'accounts:signInWithPassword';
+  try {
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/${endpoint}?key=${encodeURIComponent(firebaseWebApiKey)}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        returnSecureToken: true
+      })
+    });
+    const payload = await response.json().catch(() => ({})) as {
+      localId?: unknown;
+      email?: unknown;
+      displayName?: unknown;
+      error?: { message?: unknown };
+    };
+    if (!response.ok) {
+      const mapped = mapFirebaseAuthError(String(payload?.error?.message || ''));
+      return { ok: false, reason: mapped.reason, status: mapped.status };
+    }
+
+    const localId = String(payload.localId || '').trim();
+    const normalizedEmail = String(payload.email || email || '').trim().toLowerCase();
+    if (!localId || !normalizedEmail) {
+      return { ok: false, reason: 'firebase_invalid_payload', status: 502 };
+    }
+
+    const displayName = String(payload.displayName || '').trim();
+    return {
+      ok: true,
+      result: {
+        localId,
+        email: normalizedEmail,
+        displayName: displayName || undefined
+      }
+    };
+  } catch {
+    return { ok: false, reason: 'firebase_unreachable', status: 503 };
+  }
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -1017,7 +1108,9 @@ const server = createServer(async (req, res) => {
   if (pathname === '/api/config') {
     sendJson(res, {
       googleClientId,
-      authEnabled: googleClientId.length > 0,
+      authEnabled: googleAuthEnabled || emailAuthEnabled,
+      googleAuthEnabled,
+      emailAuthEnabled,
       localAuthEnabled,
       // Used by the static Netlify client to connect to Cloud Run infra.
       gameWsUrl: publicGameWsUrl,
@@ -1037,7 +1130,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/auth/google/nonce' && req.method === 'GET') {
-    if (!googleClientId) {
+    if (!googleAuthEnabled) {
       sendJson(res, { ok: false, reason: 'google_auth_disabled' }, 403);
       return;
     }
@@ -1137,7 +1230,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/auth/google' && req.method === 'POST') {
-    if (!googleClientId) {
+    if (!googleAuthEnabled) {
       sendJson(res, { ok: false, reason: 'google_auth_disabled' }, 403);
       return;
     }
@@ -1264,6 +1357,88 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: String((error as Error).message || 'auth_failed') }, 401);
       return;
     }
+  }
+
+  if (pathname === '/api/auth/email' && req.method === 'POST') {
+    if (!emailAuthEnabled) {
+      sendJson(res, { ok: false, reason: 'email_auth_disabled' }, 403);
+      return;
+    }
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, { ok: false, reason: 'origin_mismatch' }, 403);
+      return;
+    }
+
+    const body = await readJsonBody<{ email?: string; password?: string; mode?: string; name?: string }>(req);
+    const email = String(body?.email || '').trim().toLowerCase();
+    const password = String(body?.password || '').trim();
+    const mode = String(body?.mode || '').trim().toLowerCase();
+    const requestedName = String(body?.name || '').trim();
+    if (!email || !password || (mode !== 'signup' && mode !== 'login')) {
+      sendJson(res, { ok: false, reason: 'email_credentials_required' }, 400);
+      return;
+    }
+    if (mode === 'signup' && password.length < 6) {
+      sendJson(res, { ok: false, reason: 'weak_password' }, 400);
+      return;
+    }
+
+    const authResult = await firebaseIdentityAuth(mode === 'signup' ? 'signup' : 'login', email, password);
+    if (!authResult.ok) {
+      sendJson(res, { ok: false, reason: authResult.reason }, authResult.status);
+      return;
+    }
+
+    const now = Date.now();
+    const token = authResult.result;
+    const sub = `firebase:${token.localId}`;
+    const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
+    const existing = await sessionStore.getIdentity(sub);
+    const fallbackName = requestedName || token.displayName || token.email.split('@')[0] || 'Player';
+    const identity: IdentityRecord = existing ?? {
+      sub,
+      email: token.email,
+      name: fallbackName,
+      picture: '',
+      role,
+      profileId: null,
+      walletId: null,
+      username: null,
+      displayName: null,
+      createdAt: now,
+      lastLoginAt: now
+    };
+
+    identity.email = token.email;
+    identity.name = identity.name || fallbackName;
+    if (mode === 'signup' && requestedName) {
+      identity.name = requestedName;
+    }
+    identity.role = role;
+    identity.lastLoginAt = now;
+
+    await ensurePlayerProvisioned(identity);
+    await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+    if (identity.profileId) {
+      await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+    }
+
+    const sid = randomBytes(24).toString('hex');
+    const session: SessionRecord = {
+      id: sid,
+      sub: identity.sub,
+      expiresAt: now + SESSION_TTL_MS
+    };
+    await sessionStore.setSession(session, SESSION_TTL_MS);
+    await sessionStore.addSessionForSub(identity.sub, sid, SESSION_TTL_MS);
+    setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
+
+    sendJson(res, {
+      ok: true,
+      user: sanitizeUser(identity),
+      redirectTo: '/dashboard'
+    });
+    return;
   }
 
   if (pathname === '/api/logout' && req.method === 'POST') {

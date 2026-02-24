@@ -147,6 +147,48 @@ async function handleGoogleCredential(response, config) {
   }
 }
 
+async function handleEmailAuth(mode, config) {
+  const authContainer = document.getElementById('global-shell-auth');
+  if (!authContainer) {
+    return;
+  }
+  const emailInput = authContainer.querySelector('#shell-email');
+  const passwordInput = authContainer.querySelector('#shell-password');
+  const statusEl = authContainer.querySelector('#shell-auth-status');
+  const email = String(emailInput?.value || '').trim().toLowerCase();
+  const password = String(passwordInput?.value || '').trim();
+
+  if (!email || !password) {
+    if (statusEl) {
+      statusEl.textContent = 'Enter email and password.';
+    }
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.textContent = mode === 'signup' ? 'Creating account...' : 'Signing in...';
+  }
+  try {
+    const payload = await fetchJson('/api/auth/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password, mode })
+    });
+    if (!payload?.ok || !payload?.user) {
+      throw new Error(payload?.reason || 'auth_failed');
+    }
+    writeUser(payload.user);
+    renderAuthState(config, payload.user);
+    if (statusEl) {
+      statusEl.textContent = '';
+    }
+  } catch (error) {
+    if (statusEl) {
+      statusEl.textContent = `Sign-in failed: ${String(error?.message || error)}`;
+    }
+  }
+}
+
 async function handleLogout(config) {
   try {
     await fetchJson('/api/logout', {
@@ -169,13 +211,10 @@ function renderGoogleButton(config) {
   if (!authContainer) {
     return;
   }
-
-  if (!config?.authEnabled || !config?.googleClientId) {
-    authContainer.innerHTML = '<span class="global-shell__hint">Set GOOGLE_CLIENT_ID to enable Google login</span>';
+  const mount = authContainer.querySelector('#google-signin-shell');
+  if (!mount) {
     return;
   }
-
-  authContainer.innerHTML = '<div id="google-signin-shell"></div>';
   if (!window.google?.accounts?.id) {
     return;
   }
@@ -237,7 +276,37 @@ function renderAuthState(config, user) {
     return;
   }
 
-  renderGoogleButton(config);
+  const googleEnabled = Boolean(config?.googleAuthEnabled && config?.googleClientId);
+  const emailEnabled = Boolean(config?.emailAuthEnabled);
+  if (!googleEnabled && !emailEnabled) {
+    authContainer.innerHTML = '<span class="global-shell__hint">Sign-in is not configured on this environment.</span>';
+    return;
+  }
+
+  authContainer.innerHTML = `
+    ${emailEnabled ? `
+      <div class="global-shell__email-auth">
+        <input id="shell-email" class="global-shell__input" type="email" placeholder="email" autocomplete="email">
+        <input id="shell-password" class="global-shell__input" type="password" placeholder="password" autocomplete="current-password">
+        <button id="shell-email-login" type="button">Email Login</button>
+        <button id="shell-email-signup" type="button">Email Signup</button>
+        <span id="shell-auth-status" class="global-shell__hint"></span>
+      </div>
+    ` : ''}
+    ${googleEnabled ? '<div id="google-signin-shell"></div>' : ''}
+  `;
+
+  if (emailEnabled) {
+    authContainer.querySelector('#shell-email-login')?.addEventListener('click', () => {
+      void handleEmailAuth('login', config);
+    });
+    authContainer.querySelector('#shell-email-signup')?.addEventListener('click', () => {
+      void handleEmailAuth('signup', config);
+    });
+  }
+  if (googleEnabled) {
+    renderGoogleButton(config);
+  }
 }
 
 async function loadConfig() {
@@ -248,7 +317,7 @@ async function loadConfig() {
     }
     return cfg;
   } catch {
-    return { authEnabled: false, googleClientId: '' };
+    return { authEnabled: false, googleAuthEnabled: false, emailAuthEnabled: false, googleClientId: '' };
   }
 }
 
@@ -275,7 +344,15 @@ async function boot() {
   }
   const cfg = await loadConfig();
   const clientId = cfg.googleClientId || localStorage.getItem(CLIENT_KEY) || '';
-  const finalCfg = { ...cfg, googleClientId: clientId, authEnabled: Boolean(clientId) };
+  const googleEnabled = Boolean(clientId) && Boolean(cfg.googleAuthEnabled ?? cfg.authEnabled);
+  const emailEnabled = Boolean(cfg.emailAuthEnabled);
+  const finalCfg = {
+    ...cfg,
+    googleClientId: clientId,
+    googleAuthEnabled: googleEnabled,
+    emailAuthEnabled: emailEnabled,
+    authEnabled: googleEnabled || emailEnabled
+  };
   const session = await getSessionUser();
   if (session.source === 'server') {
     if (session.user) {
@@ -287,7 +364,7 @@ async function boot() {
     writeUser(null);
   }
 
-  if (finalCfg.authEnabled && !window.google?.accounts?.id) {
+  if (finalCfg.googleAuthEnabled && !window.google?.accounts?.id) {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
