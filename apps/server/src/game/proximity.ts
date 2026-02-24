@@ -104,7 +104,8 @@ export function clearPlayerProximityPairs(
   playerId: string
 ): void {
   for (const key of [...activeProximityPairs]) {
-    if (key.includes(`${playerId}|`) || key.includes(`|${playerId}`)) {
+    const [a, b] = key.split('|');
+    if (a === playerId || b === playerId) {
       activeProximityPairs.delete(key);
     }
   }

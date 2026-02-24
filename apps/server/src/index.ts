@@ -1237,7 +1237,7 @@ wss.on('connection', (ws, request) => {
         if (accepted.challenge && accepted.challenge.status === 'active') {
           const move = autoNpcMove(
             accepted.challenge.id,
-            accepted.challenge.gameType === 'coinflip' ? 'coinflip' : 'rps'
+            accepted.challenge.gameType
           );
           const moveEvent = challengeService.submitMove(accepted.challenge.id, payload.targetId, move);
           await dispatchChallengeEventWithEscrow(withActorRecipient(moveEvent, payload.targetId));

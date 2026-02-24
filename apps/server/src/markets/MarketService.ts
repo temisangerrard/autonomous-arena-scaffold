@@ -147,8 +147,8 @@ export class MarketService {
 
   private quotePriceForSide(market: MarketView, side: 'yes' | 'no'): number {
     const raw = side === 'yes' ? market.yesPrice : market.noPrice;
-    const spread = market.houseSpreadBps / 10_000;
-    return this.normalizedPrice(raw + spread);
+    const halfSpread = (market.houseSpreadBps / 10_000) / 2;
+    return this.normalizedPrice(raw + halfSpread);
   }
 
   private isPlayableNow(market: MarketRecord): boolean {
@@ -762,7 +762,8 @@ export class MarketService {
           finalStatus = 'voided';
           settlementReason = 'voided';
           payout = Number(position.stake || 0);
-        } else if (isWinner && (noOppositeLiquidity || insufficientOppositeLiquidity)) {
+        } else if (isWinner && noOppositeLiquidity) {
+          // No losing-side liquidity at all — refund the winner's stake
           const refunded = await this.escrowAdapter.refund(position.escrowBetId);
           if (!refunded.ok) {
             failed += 1;
@@ -772,6 +773,28 @@ export class MarketService {
           finalStatus = 'won';
           settlementReason = 'won_refund_only';
           payout = Number(position.stake || 0);
+        } else if (isWinner && insufficientOppositeLiquidity) {
+          // Partial losing-side liquidity — pay out stake + proportional share of the losing pool
+          const winnerWalletId = position.walletId;
+          if (!winnerWalletId) {
+            failed += 1;
+            continue;
+          }
+          const resolved = await this.escrowAdapter.resolve({
+            challengeId: position.escrowBetId,
+            winnerWalletId
+          });
+          if (!resolved.ok) {
+            failed += 1;
+            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'won' });
+            continue;
+          }
+          const stake = Number(position.stake || 0);
+          const share = winningPool > 0 ? stake / winningPool : 0;
+          const partialWinnings = losingPool * share;
+          finalStatus = 'won';
+          settlementReason = 'won_partial_liquidity';
+          payout = Number(resolved.payout ?? (stake + partialWinnings));
         } else {
           const winnerWalletId = isWinner ? position.walletId : this.getHouseWalletId();
           if (!winnerWalletId) {

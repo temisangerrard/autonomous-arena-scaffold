@@ -153,7 +153,13 @@ export async function connectSocketRuntime(deps) {
   });
 
   socket.addEventListener('message', (event) => {
-  const payload = JSON.parse(event.data);
+  let payload;
+  try {
+    payload = JSON.parse(event.data);
+  } catch {
+    console.warn('[socket] failed to parse incoming message', event.data);
+    return;
+  }
 
   if (payload.type === 'welcome') {
     state.playerId = payload.playerId;
