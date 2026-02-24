@@ -425,9 +425,11 @@ export function renderInteractionCardTemplate(params) {
         if (tailsBtn) tailsBtn.onclick = () => { setPendingBtn(tailsBtn, 'Tails…'); sendPick('tails'); };
 
         const ds = state.ui.dealer.state;
+        if (ds !== 'preflight') {
+          _clearTimer('dealer:preflight');
+        }
         const stationReady = ds === 'ready' && dealerStationMatches(station);
         if (stationReady) {
-          _clearTimer('dealer:preflight');
           if (stageEl) stageEl.style.display = 'none';
           if (pickActions) pickActions.style.display = 'flex';
           setPicksLocked(false);
@@ -546,9 +548,11 @@ export function renderInteractionCardTemplate(params) {
         }
 
         const ds = state.ui.dealer.state;
+        if (ds !== 'preflight') {
+          _clearTimer('dealer:preflight');
+        }
         const stationReady = ds === 'ready' && dealerStationMatches(station);
         if (stationReady) {
-          _clearTimer('dealer:preflight');
           if (stageEl) stageEl.style.display = 'none';
           if (pickActions) pickActions.style.display = 'flex';
           setAllPicksLocked(false);
@@ -784,8 +788,10 @@ export function renderInteractionCardTemplate(params) {
       }
 
       const ds = state.ui.dealer.state;
-      if (ds === 'ready' && dealerStationMatchesLive(station)) {
+      if (ds !== 'preflight') {
         _clearTimer('dealer:preflight');
+      }
+      if (ds === 'ready' && dealerStationMatchesLive(station)) {
         if (startBtn) startBtn.disabled = false;
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
@@ -860,8 +866,10 @@ export function renderInteractionCardTemplate(params) {
       }
 
       const ds = state.ui.dealer.state;
-      if (ds === 'ready' && dealerStationMatchesLiveRps(station)) {
+      if (ds !== 'preflight') {
         _clearTimer('dealer:preflight');
+      }
+      if (ds === 'ready' && dealerStationMatchesLiveRps(station)) {
         if (startBtn) startBtn.disabled = false;
         setAllPicksBtnDisabled(false);
         if (stageEl) stageEl.style.display = 'none';

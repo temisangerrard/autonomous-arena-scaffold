@@ -43,6 +43,7 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('const DEALER_PICK_TIMEOUT_MS = 45_000;')).toBe(true);
     expect(source.includes("_startTimer('dealer:preflight', onCoinflipTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);")).toBe(true);
     expect(source.includes("_startTimer('dealer:pick', onCoinflipTimeout, DEALER_PICK_TIMEOUT_MS);")).toBe(true);
+    expect(source.includes("if (ds !== 'preflight') {")).toBe(true);
     expect(source.includes("_clearTimer('dealer:preflight');")).toBe(true);
   });
 });
