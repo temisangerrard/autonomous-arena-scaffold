@@ -36,4 +36,13 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('if (!state.respondingIncoming)')).toBe(true);
     expect(source.includes("_clearTimer('challenge:respond');")).toBe(true);
   });
+
+  it('uses longer dealer timeouts and clears preflight timeout on ready state', () => {
+    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    expect(source.includes('const DEALER_PREFLIGHT_TIMEOUT_MS = 20_000;')).toBe(true);
+    expect(source.includes('const DEALER_PICK_TIMEOUT_MS = 45_000;')).toBe(true);
+    expect(source.includes("_startTimer('dealer:preflight', onCoinflipTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);")).toBe(true);
+    expect(source.includes("_startTimer('dealer:pick', onCoinflipTimeout, DEALER_PICK_TIMEOUT_MS);")).toBe(true);
+    expect(source.includes("_clearTimer('dealer:preflight');")).toBe(true);
+  });
 });

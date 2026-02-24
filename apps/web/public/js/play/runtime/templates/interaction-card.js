@@ -1,5 +1,7 @@
 /* ── Button action feedback helpers ──────────────────────── */
 const _actionTimers = new Map();
+const DEALER_PREFLIGHT_TIMEOUT_MS = 20_000;
+const DEALER_PICK_TIMEOUT_MS = 45_000;
 
 function _startTimer(key, onTimeout, ms) {
   _clearTimer(key);
@@ -406,7 +408,7 @@ export function renderInteractionCardTemplate(params) {
           setPendingBtn(startBtn, 'Locking in…');
           setPicksLocked(true);
           setGameStatus('Locking in…', 'loading');
-          _startTimer('dealer:preflight', onCoinflipTimeout, 7000);
+          _startTimer('dealer:preflight', onCoinflipTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);
         }
 
         function sendPick(pick) {
@@ -415,7 +417,7 @@ export function renderInteractionCardTemplate(params) {
           state.ui.dealer.state = 'dealing';
           setPicksLocked(true);
           setGameStatus(`Flipping… you picked ${pick.toUpperCase()}`, 'loading');
-          _startTimer('dealer:pick', onCoinflipTimeout, 7000);
+          _startTimer('dealer:pick', onCoinflipTimeout, DEALER_PICK_TIMEOUT_MS);
         }
 
         if (startBtn) startBtn.onclick = () => sendStart();
@@ -425,6 +427,7 @@ export function renderInteractionCardTemplate(params) {
         const ds = state.ui.dealer.state;
         const stationReady = ds === 'ready' && dealerStationMatches(station);
         if (stationReady) {
+          _clearTimer('dealer:preflight');
           if (stageEl) stageEl.style.display = 'none';
           if (pickActions) pickActions.style.display = 'flex';
           setPicksLocked(false);
@@ -522,7 +525,7 @@ export function renderInteractionCardTemplate(params) {
             state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
             setPendingBtn(startBtn, 'Locking in…');
             setGameStatus('Locking in…', 'loading');
-            _startTimer('dealer:preflight', onRpsTimeout, 7000);
+            _startTimer('dealer:preflight', onRpsTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);
           };
         }
 
@@ -538,13 +541,14 @@ export function renderInteractionCardTemplate(params) {
             setPendingBtn(btn, isRps ? `${pick.charAt(0).toUpperCase()}…` : `${pick.replace('d', '')}…`);
             setAllPicksLocked(true);
             setGameStatus(`You picked ${isRps ? pick : pick.replace('d', '')} — rolling…`, 'loading');
-            _startTimer('dealer:pick', onRpsTimeout, 7000);
+            _startTimer('dealer:pick', onRpsTimeout, DEALER_PICK_TIMEOUT_MS);
           };
         }
 
         const ds = state.ui.dealer.state;
         const stationReady = ds === 'ready' && dealerStationMatches(station);
         if (stationReady) {
+          _clearTimer('dealer:preflight');
           if (stageEl) stageEl.style.display = 'none';
           if (pickActions) pickActions.style.display = 'flex';
           setAllPicksLocked(false);
@@ -781,6 +785,7 @@ export function renderInteractionCardTemplate(params) {
 
       const ds = state.ui.dealer.state;
       if (ds === 'ready' && dealerStationMatchesLive(station)) {
+        _clearTimer('dealer:preflight');
         if (startBtn) startBtn.disabled = false;
         if (headsBtn) headsBtn.disabled = false;
         if (tailsBtn) tailsBtn.disabled = false;
@@ -856,6 +861,7 @@ export function renderInteractionCardTemplate(params) {
 
       const ds = state.ui.dealer.state;
       if (ds === 'ready' && dealerStationMatchesLiveRps(station)) {
+        _clearTimer('dealer:preflight');
         if (startBtn) startBtn.disabled = false;
         setAllPicksBtnDisabled(false);
         if (stageEl) stageEl.style.display = 'none';
