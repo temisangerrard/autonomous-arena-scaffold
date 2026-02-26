@@ -4,9 +4,3 @@
   # Netlify hosts the static frontend; APIs/WebSocket are proxied to Cloud Run via `apps/web/public/_redirects`.
   publish = "apps/web/public"
   command = "node scripts/netlify-build.mjs"
-
-[[redirects]]
-  from = "/*"
-  to = "https://arena-web.fly.dev/:splat"
-  status = 301
-  force = true
