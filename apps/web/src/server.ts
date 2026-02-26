@@ -2,8 +2,7 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { OAuth2Client } from 'google-auth-library';
+import { createHash, randomBytes } from 'node:crypto';
 import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { createChief2Service } from './chief2/index.js';
@@ -12,7 +11,7 @@ import { log } from './logger.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
-import { clearCookie, clearSessionCookie, parseCookies, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setCookie, setSessionCookieWithOptions } from './lib/http.js';
+import { clearSessionCookie, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setSessionCookieWithOptions } from './lib/http.js';
 import { cookieSessionId, createSessionStore, type IdentityRecord, type Role, type SessionRecord } from './sessionStore.js';
 
 loadEnvFromFile();
@@ -27,10 +26,8 @@ function resolveInternalServiceToken(): string {
 }
 
 const port = Number(process.env.PORT ?? 3000);
-const googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
 const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY?.trim() ?? '';
 const emailAuthEnabled = firebaseWebApiKey.length > 0;
-const googleAuthEnabled = googleClientId.length > 0;
 const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
@@ -105,11 +102,6 @@ const escrowApprovalResolved = resolveEscrowApprovalPolicy({
   autoApproveMaxWager: escrowAutoApproveMaxWager,
   autoApproveDailyCap: escrowAutoApproveDailyCap
 });
-const googleNonceSecret =
-  process.env.GOOGLE_NONCE_SECRET?.trim()
-  || wsAuthSecret
-  || internalToken
-  || randomBytes(32).toString('hex');
 const chiefCooModeEnabled = process.env.CHIEF_COO_MODE_ENABLED === 'true';
 const chiefDbGatewayEnabled = process.env.CHIEF_DB_GATEWAY_ENABLED === 'true';
 const chiefSkillCatalogRoots = String(process.env.CHIEF_SKILL_ROOTS || '.agents/skills')
@@ -151,10 +143,6 @@ if (isProduction && adminEmails.size === 0) {
 }
 if (!isProduction && adminEmails.size === 0) {
   log.warn('ADMIN_EMAILS is empty. No Google account can access /admin or /users.');
-}
-if (isProduction && googleClientId && !process.env.GOOGLE_NONCE_SECRET?.trim() && !wsAuthSecret && !internalToken) {
-  log.fatal('GOOGLE_NONCE_SECRET (or GAME_WS_AUTH_SECRET / INTERNAL_SERVICE_TOKEN) must be set in production when GOOGLE_CLIENT_ID is enabled.');
-  process.exit(1);
 }
 const webStateFile = process.env.WEB_STATE_FILE
   ? path.resolve(process.cwd(), process.env.WEB_STATE_FILE)
@@ -226,14 +214,7 @@ type RuntimeStatusPayload = {
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COOKIE_NAME = 'arena_sid';
-const GOOGLE_NONCE_COOKIE = 'arena_google_nonce';
-const googleNonceTtlSecRaw = Number(process.env.GOOGLE_NONCE_TTL_SEC ?? Number.NaN);
-const GOOGLE_NONCE_TTL_SEC = Number.isFinite(googleNonceTtlSecRaw) && googleNonceTtlSecRaw > 0
-  ? Math.max(60, Math.floor(googleNonceTtlSecRaw))
-  : 15 * 60;
 const IDENTITY_TTL_MS = 1000 * 60 * 60 * 24 * 30;
-const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
-const googleAuthClient = new OAuth2Client(googleClientId || undefined);
 
 const sessionStore = await createSessionStore({
   redisUrl,
@@ -574,48 +555,11 @@ async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> 
   identity.displayName = created.profile.displayName;
 }
 
-type GoogleTokenInfo = {
-  sub: string;
-  email: string;
-  name?: string;
-  picture?: string;
-  aud: string;
-  exp: string;
-  iss?: string;
-  nonce?: string;
-  email_verified?: string | boolean;
-};
-
 type FirebaseAuthResult = {
   localId: string;
   email: string;
   displayName?: string;
 };
-
-async function googleTokenInfo(idToken: string): Promise<GoogleTokenInfo> {
-  if (!googleClientId) {
-    throw new Error('invalid_google_token');
-  }
-  const ticket = await googleAuthClient.verifyIdToken({
-    idToken,
-    audience: googleClientId
-  });
-  const payload = ticket.getPayload();
-  if (!payload?.sub || !payload.email) {
-    throw new Error('invalid_google_token');
-  }
-  return {
-    sub: payload.sub,
-    email: payload.email,
-    name: payload.name,
-    picture: payload.picture,
-    aud: Array.isArray(payload.aud) ? String(payload.aud[0] || '') : String(payload.aud || ''),
-    exp: String(payload.exp || ''),
-    iss: payload.iss,
-    nonce: payload.nonce,
-    email_verified: payload.email_verified
-  };
-}
 
 function mapFirebaseAuthError(message: string): { reason: string; status: number } {
   const normalized = String(message || '').trim().toUpperCase();
@@ -699,72 +643,6 @@ async function firebaseIdentityAuth(
   }
 }
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  const parts = String(token || '').split('.');
-  if (parts.length !== 3) {
-    return null;
-  }
-  try {
-    const payload = parts[1] || '';
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
-    const decoded = Buffer.from(`${normalized}${pad}`, 'base64').toString('utf8');
-    const parsed = JSON.parse(decoded) as Record<string, unknown>;
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function signGoogleNonce(rawNonce: string): string {
-  return createHmac('sha256', googleNonceSecret).update(rawNonce).digest('hex');
-}
-
-function issueGoogleNonceToken(now = Date.now()): string {
-  const payload = `${now}.${randomBytes(16).toString('hex')}`;
-  const sig = signGoogleNonce(payload);
-  return `${payload}.${sig}`;
-}
-
-function verifyGoogleNonceToken(
-  nonceToken: string,
-  now = Date.now()
-): { valid: boolean; expired: boolean; signatureValid: boolean } {
-  const token = String(nonceToken || '').trim();
-  const parts = token.split('.');
-  if (parts.length !== 3) {
-    return { valid: false, expired: false, signatureValid: false };
-  }
-  const ts = parts[0] || '';
-  const rand = parts[1] || '';
-  const sig = parts[2] || '';
-  if (!/^\d{13}$/.test(ts) || !/^[a-f0-9]{32}$/.test(rand) || !/^[a-f0-9]{64}$/.test(sig)) {
-    return { valid: false, expired: false, signatureValid: false };
-  }
-  const issuedAt = Number(ts);
-  if (!Number.isFinite(issuedAt)) {
-    return { valid: false, expired: false, signatureValid: false };
-  }
-  if (issuedAt > now + 30_000) {
-    return { valid: false, expired: false, signatureValid: false };
-  }
-  if (now - issuedAt > GOOGLE_NONCE_TTL_SEC * 1000) {
-    return { valid: false, expired: true, signatureValid: false };
-  }
-  const payload = `${ts}.${rand}`;
-  const expected = signGoogleNonce(payload);
-  const got = Buffer.from(sig, 'utf8');
-  const want = Buffer.from(expected, 'utf8');
-  if (got.length !== want.length) {
-    return { valid: false, expired: false, signatureValid: false };
-  }
-  const signatureValid = timingSafeEqual(got, want);
-  return {
-    valid: signatureValid,
-    expired: false,
-    signatureValid
-  };
-}
 
 function isSameOriginRequest(req: import('node:http').IncomingMessage): boolean {
   const host = String(req.headers.host ?? '').trim().toLowerCase();
@@ -1116,23 +994,10 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/config') {
-    const allowedOrigins = [...allowedAuthOrigins];
-    const currentOriginRaw = String(req.headers.origin || '').trim().toLowerCase();
-    const currentOrigin = currentOriginRaw ? (() => {
-      try {
-        return new URL(currentOriginRaw).origin.toLowerCase();
-      } catch {
-        return '';
-      }
-    })() : '';
     sendJson(res, {
-      googleClientId,
-      authEnabled: googleAuthEnabled || emailAuthEnabled,
-      googleAuthEnabled,
+      authEnabled: emailAuthEnabled,
       emailAuthEnabled,
       localAuthEnabled,
-      allowedAuthOrigins: allowedOrigins,
-      googleOriginAllowed: !googleAuthEnabled || !currentOrigin || allowedOrigins.includes(currentOrigin),
       // Used by the static frontend to connect to backend infra.
       gameWsUrl: publicGameWsUrl,
       worldAssetBaseUrl: publicWorldAssetBaseUrl,
@@ -1147,22 +1012,6 @@ const server = createServer(async (req, res) => {
         effective: escrowApprovalResolved
       }
     });
-    return;
-  }
-
-  if (pathname === '/api/auth/google/nonce' && req.method === 'GET') {
-    if (!googleAuthEnabled) {
-      sendJson(res, { ok: false, reason: 'google_auth_disabled' }, 403);
-      return;
-    }
-    const nonce = issueGoogleNonceToken();
-    setCookie(res, GOOGLE_NONCE_COOKIE, nonce, {
-      ttlSec: GOOGLE_NONCE_TTL_SEC,
-      httpOnly: true,
-      sameSite: 'Lax',
-      secure: isSecureRequest(req)
-    });
-    sendJson(res, { ok: true, nonce });
     return;
   }
 
@@ -1235,7 +1084,7 @@ const server = createServer(async (req, res) => {
     }
     setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
 
-    // Allow local admins to play too (same as Google users).
+    // Allow local admins to play too.
     await ensurePlayerProvisioned(identity);
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
     if (identity.profileId) {
@@ -1250,135 +1099,6 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === '/api/auth/google' && req.method === 'POST') {
-    if (!googleAuthEnabled) {
-      sendJson(res, { ok: false, reason: 'google_auth_disabled' }, 403);
-      return;
-    }
-    if (!isSameOriginRequest(req)) {
-      sendJson(res, { ok: false, reason: 'origin_mismatch' }, 403);
-      return;
-    }
-    const body = await readJsonBody<{ credential?: string }>(req);
-    const credential = body?.credential?.trim();
-    if (!credential) {
-      sendJson(res, { ok: false, reason: 'credential_required' }, 400);
-      return;
-    }
-
-    try {
-      const cookieNonce = parseCookies(req)[GOOGLE_NONCE_COOKIE] || '';
-      const jwtPayload = decodeJwtPayload(credential);
-      const jwtNonce = String(jwtPayload?.nonce || '').trim();
-      const cookieNonceToken = verifyGoogleNonceToken(cookieNonce);
-      const jwtNonceToken = verifyGoogleNonceToken(jwtNonce);
-      const hasCookieNonce = cookieNonce.length > 0;
-      const hasJwtNonce = jwtNonce.length > 0;
-      const nonceEqual = hasCookieNonce && hasJwtNonce && cookieNonce === jwtNonce;
-      const cookieNonceValid = hasCookieNonce && nonceEqual && cookieNonceToken.valid;
-      const jwtOnlyNonceValid = !hasCookieNonce && hasJwtNonce && jwtNonceToken.valid;
-      if (!cookieNonceValid && !jwtOnlyNonceValid) {
-        log.warn(
-          {
-            reason: 'nonce_mismatch',
-            hasCookieNonce,
-            hasJwtNonce,
-            nonceEqual,
-            nonceTokenValid: cookieNonceToken.valid,
-            nonceExpired: cookieNonceToken.expired,
-            jwtNonceTokenValid: jwtNonceToken.valid,
-            jwtNonceExpired: jwtNonceToken.expired
-          },
-          'google auth nonce validation failed'
-        );
-        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-        sendJson(res, { ok: false, reason: 'nonce_mismatch' }, 401);
-        return;
-      }
-
-      const token = await googleTokenInfo(credential);
-      if (!token.sub || !token.email) {
-        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-        sendJson(res, { ok: false, reason: 'invalid_token_payload' }, 401);
-        return;
-      }
-      if (googleClientId && token.aud !== googleClientId) {
-        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-        sendJson(res, { ok: false, reason: 'audience_mismatch' }, 401);
-        return;
-      }
-      if (!token.iss || !GOOGLE_ISSUERS.has(token.iss)) {
-        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-        sendJson(res, { ok: false, reason: 'issuer_mismatch' }, 401);
-        return;
-      }
-      if (String(token.email_verified ?? '').toLowerCase() !== 'true') {
-        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-        sendJson(res, { ok: false, reason: 'email_not_verified' }, 401);
-        return;
-      }
-      const tokenExpSec = Number(token.exp || '0');
-      if (!Number.isFinite(tokenExpSec) || tokenExpSec * 1000 <= Date.now()) {
-        clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-        sendJson(res, { ok: false, reason: 'token_expired' }, 401);
-        return;
-      }
-
-      const now = Date.now();
-      const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
-      const existing = await sessionStore.getIdentity(token.sub);
-      const identity: IdentityRecord = existing ?? {
-        sub: token.sub,
-        email: token.email,
-        name: token.name ?? token.email.split('@')[0] ?? 'Player',
-        picture: token.picture ?? '',
-        role,
-        profileId: null,
-        walletId: null,
-        username: null,
-        displayName: null,
-        createdAt: now,
-        lastLoginAt: now
-      };
-
-      identity.email = token.email;
-      identity.name = token.name ?? identity.name;
-      identity.picture = token.picture ?? identity.picture;
-      identity.role = role;
-      identity.lastLoginAt = now;
-
-      // Admins should still be able to play; provision a player profile/wallet/bot for any Google user.
-      await ensurePlayerProvisioned(identity);
-
-      await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
-      if (identity.profileId) {
-        await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
-      }
-
-      const sid = randomBytes(24).toString('hex');
-      const session: SessionRecord = {
-        id: sid,
-        sub: identity.sub,
-        expiresAt: now + SESSION_TTL_MS
-      };
-      await sessionStore.setSession(session, SESSION_TTL_MS);
-      await sessionStore.addSessionForSub(identity.sub, sid, SESSION_TTL_MS);
-      setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
-      clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-
-      sendJson(res, {
-        ok: true,
-        user: sanitizeUser(identity),
-        // Always go to the dashboard first; admin entry points live there.
-        redirectTo: '/dashboard'
-      });
-      return;
-    } catch (error) {
-      clearCookie(res, GOOGLE_NONCE_COOKIE, { httpOnly: true, sameSite: 'Lax', secure: isSecureRequest(req) });
-      sendJson(res, { ok: false, reason: String((error as Error).message || 'auth_failed') }, 401);
-      return;
-    }
-  }
 
   if (pathname === '/api/auth/email' && req.method === 'POST') {
     if (!emailAuthEnabled) {

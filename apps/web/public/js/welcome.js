@@ -12,17 +12,9 @@ const adminStatus = document.getElementById('admin-login-status');
 
 let config = {
   authEnabled: false,
-  googleAuthEnabled: false,
   emailAuthEnabled: false,
-  googleClientId: '',
-  localAuthEnabled: true,
-  googleOriginAllowed: true
+  localAuthEnabled: true
 };
-let googleWelcomeNoncePromise = null;
-let googleWelcomeInitInFlight = false;
-function isGoogleOriginAllowed() {
-  return Boolean(config.googleOriginAllowed);
-}
 
 function setStoredUser(user) {
   if (user) {
@@ -109,9 +101,8 @@ function renderSignedOut() {
     return;
   }
 
-  const googleEnabled = Boolean(config.googleAuthEnabled && config.googleClientId && isGoogleOriginAllowed());
   const emailEnabled = Boolean(config.emailAuthEnabled);
-  if (!googleEnabled && !emailEnabled) {
+  if (!emailEnabled) {
     hint.textContent = 'Sign-in is not configured in this environment.';
     ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><a class="btn btn--secondary" href="/viewer?world=mega">Explore Viewer</a>';
     return;
@@ -130,7 +121,6 @@ function renderSignedOut() {
         </div>
       </div>
     ` : ''}
-    ${googleEnabled ? '<div id="google-signin-welcome"></div>' : ''}
   `;
   if (emailEnabled) {
     ctaRoot.querySelector('#welcome-email-login')?.addEventListener('click', () => {
@@ -141,42 +131,6 @@ function renderSignedOut() {
     });
   }
 
-  if (googleEnabled && window.google?.accounts?.id) {
-    void (async () => {
-      if (googleWelcomeInitInFlight) return;
-      googleWelcomeInitInFlight = true;
-      try {
-        if (!googleWelcomeNoncePromise) {
-          googleWelcomeNoncePromise = requestJson('/api/auth/google/nonce')
-            .then((payload) => String(payload?.nonce || '').trim())
-            .catch(() => {
-              googleWelcomeNoncePromise = null;
-              return '';
-            });
-        }
-        const nonce = await googleWelcomeNoncePromise;
-        if (!nonce) {
-          showAuthError('Sign-in setup failed. Refresh and try again.');
-          return;
-        }
-        window.google.accounts.id.initialize({
-          client_id: config.googleClientId,
-          nonce,
-          callback: (response) => {
-            void handleGoogleCredential(response.credential || '');
-          }
-        });
-        window.google.accounts.id.renderButton(document.getElementById('google-signin-welcome'), {
-          theme: 'outline',
-          size: 'large',
-          text: 'signin_with',
-          width: 260
-        });
-      } finally {
-        googleWelcomeInitInFlight = false;
-      }
-    })();
-  }
 }
 
 async function handleEmailAuth(mode) {
@@ -200,37 +154,6 @@ async function handleEmailAuth(mode) {
   }
 }
 
-async function handleGoogleCredential(credential) {
-  showAuthError('');
-  try {
-    const result = await requestJson('/api/auth/google', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ credential })
-    });
-    setStoredUser(result.user || null);
-    window.location.href = result.redirectTo || '/dashboard';
-  } catch (error) {
-    showAuthError(`Sign-in failed: ${String(error.message || error)}`);
-  }
-}
-
-async function loadGoogleScriptIfNeeded() {
-  if (!config.googleAuthEnabled || !config.googleClientId || window.google?.accounts?.id) {
-    return;
-  }
-
-  await new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  }).catch(() => undefined);
-}
-
 async function render() {
   showAuthError('');
   const session = await requestJson('/api/session').catch(() => null);
@@ -241,7 +164,6 @@ async function render() {
     renderSignedIn(user);
   } else {
     setStoredUser(null);
-    await loadGoogleScriptIfNeeded();
     renderSignedOut();
   }
 }
@@ -291,10 +213,9 @@ adminLoginBtn?.addEventListener('click', async () => {
 (async function init() {
   try {
     config = await requestJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
-    config.googleAuthEnabled = Boolean(config.googleAuthEnabled ?? config.authEnabled);
     config.emailAuthEnabled = Boolean(config.emailAuthEnabled);
   } catch {
-    config = { authEnabled: false, googleAuthEnabled: false, emailAuthEnabled: false, googleClientId: '', localAuthEnabled: true };
+    config = { authEnabled: false, emailAuthEnabled: false, localAuthEnabled: true };
   }
 
   if (!config.localAuthEnabled) {

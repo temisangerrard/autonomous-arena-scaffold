@@ -1,14 +1,5 @@
 const AUTH_KEY = 'arena_auth_user';
-const CLIENT_KEY = 'arena_google_client_id';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
-let googleShellNoncePromise = null;
-let googleShellInitInFlight = false;
-function isGoogleOriginAllowed(config) {
-  if (config && typeof config.googleOriginAllowed === 'boolean') {
-    return config.googleOriginAllowed;
-  }
-  return true;
-}
 
 // Test harness can load pages without going through auth.
 // Skip auth-shell behavior (including Google scripts) to avoid noisy console errors.
@@ -147,29 +138,6 @@ function markActiveLink(user) {
   }
 }
 
-async function handleGoogleCredential(response, config) {
-  try {
-    const payload = await fetchJson('/api/auth/google', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ credential: response.credential || '' })
-    });
-    if (!payload?.ok || !payload?.user) {
-      throw new Error(payload?.reason || 'auth_failed');
-    }
-    writeUser(payload.user);
-    renderAuthState(config, payload.user);
-    if (window.location.pathname === '/welcome' && payload.redirectTo) {
-      window.location.href = payload.redirectTo;
-    }
-  } catch (error) {
-    const authContainer = document.getElementById('global-shell-auth');
-    if (authContainer) {
-      authContainer.innerHTML = `<span class="global-shell__hint">Sign-in failed: ${String((error).message || error)}</span>`;
-    }
-  }
-}
-
 async function handleEmailAuth(mode, config) {
   const authContainer = document.getElementById('global-shell-auth');
   if (!authContainer) {
@@ -229,57 +197,6 @@ async function handleLogout(config) {
   }
 }
 
-function renderGoogleButton(config) {
-  const authContainer = document.getElementById('global-shell-auth');
-  if (!authContainer) {
-    return;
-  }
-  const mount = authContainer.querySelector('#google-signin-shell');
-  if (!mount) {
-    return;
-  }
-  if (!window.google?.accounts?.id) {
-    return;
-  }
-  void (async () => {
-    try {
-      if (googleShellInitInFlight) {
-        return;
-      }
-      googleShellInitInFlight = true;
-      if (!googleShellNoncePromise) {
-        googleShellNoncePromise = fetchJson('/api/auth/google/nonce')
-          .then((payload) => String(payload?.nonce || '').trim())
-          .catch((error) => {
-            googleShellNoncePromise = null;
-            throw error;
-          });
-      }
-      const nonce = await googleShellNoncePromise;
-      if (!nonce) {
-        throw new Error('nonce_missing');
-      }
-      window.google.accounts.id.initialize({
-        client_id: config.googleClientId,
-        nonce,
-        callback: (response) => {
-          void handleGoogleCredential(response, config);
-        }
-      });
-      window.google.accounts.id.renderButton(document.getElementById('google-signin-shell'), {
-        theme: 'outline',
-        size: 'small',
-        type: 'standard',
-        text: 'signin_with'
-      });
-    } catch (error) {
-      authContainer.innerHTML = `<span class="global-shell__hint">Sign-in setup failed: ${String((error).message || error)}</span>`;
-    } finally {
-      googleShellInitInFlight = false;
-    }
-  })();
-}
-
 function renderAuthState(config, user) {
   const authContainer = document.getElementById('global-shell-auth');
   if (!authContainer) {
@@ -299,9 +216,8 @@ function renderAuthState(config, user) {
     return;
   }
 
-  const googleEnabled = Boolean(config?.googleAuthEnabled && config?.googleClientId && isGoogleOriginAllowed(config));
   const emailEnabled = Boolean(config?.emailAuthEnabled);
-  if (!googleEnabled && !emailEnabled) {
+  if (!emailEnabled) {
     authContainer.innerHTML = '<span class="global-shell__hint">Sign-in is not configured on this environment.</span>';
     return;
   }
@@ -316,7 +232,6 @@ function renderAuthState(config, user) {
         <span id="shell-auth-status" class="global-shell__hint"></span>
       </div>
     ` : ''}
-    ${googleEnabled ? '<div id="google-signin-shell"></div>' : ''}
   `;
 
   if (emailEnabled) {
@@ -327,20 +242,13 @@ function renderAuthState(config, user) {
       void handleEmailAuth('signup', config);
     });
   }
-  if (googleEnabled) {
-    renderGoogleButton(config);
-  }
 }
 
 async function loadConfig() {
   try {
-    const cfg = await fetchJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
-    if (cfg.googleClientId) {
-      localStorage.setItem(CLIENT_KEY, cfg.googleClientId);
-    }
-    return cfg;
+    return await fetchJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
   } catch {
-    return { authEnabled: false, googleAuthEnabled: false, emailAuthEnabled: false, googleClientId: '' };
+    return { authEnabled: false, emailAuthEnabled: false };
   }
 }
 
@@ -366,15 +274,11 @@ async function boot() {
     return;
   }
   const cfg = await loadConfig();
-  const clientId = cfg.googleClientId || '';
-  const googleEnabled = Boolean(clientId) && Boolean(cfg.googleAuthEnabled ?? cfg.authEnabled) && isGoogleOriginAllowed(cfg);
   const emailEnabled = Boolean(cfg.emailAuthEnabled);
   const finalCfg = {
     ...cfg,
-    googleClientId: clientId,
-    googleAuthEnabled: googleEnabled,
     emailAuthEnabled: emailEnabled,
-    authEnabled: googleEnabled || emailEnabled
+    authEnabled: emailEnabled
   };
   const session = await getSessionUser();
   if (session.source === 'server') {
@@ -385,15 +289,6 @@ async function boot() {
     }
   } else if (!session.user) {
     writeUser(null);
-  }
-
-  if (finalCfg.googleAuthEnabled && !window.google?.accounts?.id) {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => renderAuthState(finalCfg, readUser());
-    document.head.appendChild(script);
   }
 
   renderAuthState(finalCfg, readUser());
