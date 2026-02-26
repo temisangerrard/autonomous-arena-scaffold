@@ -1,13 +1,12 @@
 const AUTH_KEY = 'arena_auth_user';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
-let firebaseGoogleClientPromise = null;
 
-// Test harness can load pages without going through auth.
-// Skip auth-shell behavior (including Google scripts) to avoid noisy console errors.
+let firebaseGoogleClientPromise = null;
+let legacyGoogleInitInFlight = false;
+
 const __authParams = new URL(window.location.href).searchParams;
 const __skipAuthShell = __authParams.get('test') === '1';
 if (__skipAuthShell) {
-  // Ensure we don't leave a stale nav visible from previous pages.
   document.getElementById('global-shell-nav')?.remove();
 }
 
@@ -53,7 +52,6 @@ async function fetchJson(url, init = {}) {
       fetchError = error;
       if (attempt === 0) {
         await new Promise((resolve) => setTimeout(resolve, 250));
-        continue;
       }
     }
   }
@@ -73,6 +71,10 @@ function firebaseGoogleEnabled(config) {
     && config?.firebaseWebApiKey
     && config?.firebaseAuthDomain
   );
+}
+
+function legacyGoogleEnabled(config) {
+  return Boolean(config?.googleAuthEnabled && config?.googleClientId);
 }
 
 async function getFirebaseGoogleClient(config) {
@@ -97,14 +99,28 @@ async function getFirebaseGoogleClient(config) {
   return firebaseGoogleClientPromise;
 }
 
+async function loadLegacyGoogleScriptIfNeeded(config) {
+  if (!legacyGoogleEnabled(config) || window.google?.accounts?.id) {
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  }).catch(() => undefined);
+}
+
 function currentPath() {
   return window.location.pathname;
 }
 
 function ensureShell() {
   if (shouldHideShell(window.location.pathname)) {
-    const staleShell = document.getElementById('global-shell-nav');
-    staleShell?.remove();
+    document.getElementById('global-shell-nav')?.remove();
     return null;
   }
   let shell = document.getElementById('global-shell-nav');
@@ -145,8 +161,7 @@ function markActiveLink(user) {
     return;
   }
 
-  const links = buildNav(user);
-  linksWrap.innerHTML = links
+  linksWrap.innerHTML = buildNav(user)
     .map((entry) => `<a data-link="${entry.key}" href="${entry.href}">${entry.label}</a>`)
     .join('');
 
@@ -182,15 +197,14 @@ async function handleEmailAuth(mode, config) {
   const password = String(passwordInput?.value || '').trim();
 
   if (!email || !password) {
-    if (statusEl) {
-      statusEl.textContent = 'Enter email and password.';
-    }
+    if (statusEl) statusEl.textContent = 'Enter email and password.';
     return;
   }
 
   if (statusEl) {
     statusEl.textContent = mode === 'signup' ? 'Creating account...' : 'Signing in...';
   }
+
   try {
     const payload = await fetchJson('/api/auth/email', {
       method: 'POST',
@@ -202,22 +216,17 @@ async function handleEmailAuth(mode, config) {
     }
     writeUser(payload.user);
     renderAuthState(config, payload.user);
-    if (statusEl) {
-      statusEl.textContent = '';
-    }
+    if (statusEl) statusEl.textContent = '';
   } catch (error) {
-    if (statusEl) {
-      statusEl.textContent = `Sign-in failed: ${String(error?.message || error)}`;
-    }
+    if (statusEl) statusEl.textContent = `Sign-in failed: ${String(error?.message || error)}`;
   }
 }
 
-async function handleGoogleAuth(config) {
+async function handleGoogleFirebaseAuth(config) {
   const authContainer = document.getElementById('global-shell-auth');
   const statusEl = authContainer?.querySelector('#shell-auth-status');
-  if (statusEl) {
-    statusEl.textContent = 'Opening Google...';
-  }
+  if (statusEl) statusEl.textContent = 'Opening Google...';
+
   try {
     const { auth, provider, signInWithPopup } = await getFirebaseGoogleClient(config);
     const credential = await signInWithPopup(auth, provider);
@@ -235,13 +244,56 @@ async function handleGoogleAuth(config) {
     }
     writeUser(payload.user);
     renderAuthState(config, payload.user);
-    if (statusEl) {
-      statusEl.textContent = '';
-    }
+    if (statusEl) statusEl.textContent = '';
   } catch (error) {
-    if (statusEl) {
-      statusEl.textContent = `Sign-in failed: ${String(error?.message || error)}`;
+    if (statusEl) statusEl.textContent = `Sign-in failed: ${String(error?.message || error)}`;
+  }
+}
+
+async function handleGoogleCredential(credential, config) {
+  const authContainer = document.getElementById('global-shell-auth');
+  const statusEl = authContainer?.querySelector('#shell-auth-status');
+  if (statusEl) statusEl.textContent = 'Signing in with Google...';
+
+  try {
+    const payload = await fetchJson('/api/auth/google', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ credential })
+    });
+    if (!payload?.ok || !payload?.user) {
+      throw new Error(payload?.reason || 'auth_failed');
     }
+    writeUser(payload.user);
+    renderAuthState(config, payload.user);
+    if (statusEl) statusEl.textContent = '';
+  } catch (error) {
+    if (statusEl) statusEl.textContent = `Sign-in failed: ${String(error?.message || error)}`;
+  }
+}
+
+function renderLegacyGoogleButton(config) {
+  const mount = document.getElementById('google-signin-shell');
+  if (!mount || !window.google?.accounts?.id || !legacyGoogleEnabled(config) || legacyGoogleInitInFlight) {
+    return;
+  }
+  legacyGoogleInitInFlight = true;
+  try {
+    window.google.accounts.id.initialize({
+      client_id: config.googleClientId,
+      callback: (response) => {
+        void handleGoogleCredential(response?.credential || '', config);
+      }
+    });
+    mount.innerHTML = '';
+    window.google.accounts.id.renderButton(mount, {
+      theme: 'outline',
+      size: 'small',
+      type: 'standard',
+      text: 'signin_with'
+    });
+  } finally {
+    legacyGoogleInitInFlight = false;
   }
 }
 
@@ -253,7 +305,7 @@ async function handleLogout(config) {
       body: '{}'
     });
   } catch {
-    // best effort: clear client state even if request fails
+    // best effort
   }
   writeUser(null);
   renderAuthState(config, null);
@@ -282,7 +334,10 @@ function renderAuthState(config, user) {
   }
 
   const emailEnabled = Boolean(config?.emailAuthEnabled);
-  const googleEnabled = firebaseGoogleEnabled(config);
+  const firebaseGoogle = firebaseGoogleEnabled(config);
+  const legacyGoogle = legacyGoogleEnabled(config) && !firebaseGoogle;
+  const googleEnabled = firebaseGoogle || legacyGoogle;
+
   if (!emailEnabled && !googleEnabled) {
     authContainer.innerHTML = '<span class="global-shell__hint">Sign-in is not configured on this environment.</span>';
     return;
@@ -298,7 +353,8 @@ function renderAuthState(config, user) {
         <span id="shell-auth-status" class="global-shell__hint"></span>
       </div>
     ` : ''}
-    ${googleEnabled ? '<button id="shell-google-login" type="button">Google Login</button>' : ''}
+    ${firebaseGoogle ? '<button id="shell-google-login" type="button">Google Login</button>' : ''}
+    ${legacyGoogle ? '<div id="google-signin-shell"></div>' : ''}
   `;
 
   if (emailEnabled) {
@@ -309,10 +365,13 @@ function renderAuthState(config, user) {
       void handleEmailAuth('signup', config);
     });
   }
-  if (googleEnabled) {
+  if (firebaseGoogle) {
     authContainer.querySelector('#shell-google-login')?.addEventListener('click', () => {
-      void handleGoogleAuth(config);
+      void handleGoogleFirebaseAuth(config);
     });
+  }
+  if (legacyGoogle) {
+    renderLegacyGoogleButton(config);
   }
 }
 
@@ -323,6 +382,8 @@ async function loadConfig() {
     return {
       authEnabled: false,
       emailAuthEnabled: false,
+      googleAuthEnabled: false,
+      googleClientId: '',
       firebaseGoogleAuthEnabled: false,
       firebaseWebApiKey: '',
       firebaseAuthDomain: '',
@@ -352,18 +413,24 @@ async function boot() {
   if (!shell) {
     return;
   }
+
   const cfg = await loadConfig();
-  const emailEnabled = Boolean(cfg.emailAuthEnabled);
-  const googleEnabled = firebaseGoogleEnabled(cfg);
   const finalCfg = {
     ...cfg,
-    emailAuthEnabled: emailEnabled,
-    firebaseGoogleAuthEnabled: googleEnabled,
+    emailAuthEnabled: Boolean(cfg.emailAuthEnabled),
+    googleAuthEnabled: Boolean(cfg.googleAuthEnabled),
+    googleClientId: String(cfg.googleClientId || ''),
+    firebaseGoogleAuthEnabled: firebaseGoogleEnabled(cfg),
     firebaseWebApiKey: String(cfg.firebaseWebApiKey || ''),
     firebaseAuthDomain: String(cfg.firebaseAuthDomain || ''),
     firebaseProjectId: String(cfg.firebaseProjectId || ''),
-    authEnabled: emailEnabled || googleEnabled
+    authEnabled: Boolean(cfg.emailAuthEnabled) || firebaseGoogleEnabled(cfg) || Boolean(cfg.googleAuthEnabled && cfg.googleClientId)
   };
+
+  if (legacyGoogleEnabled(finalCfg)) {
+    await loadLegacyGoogleScriptIfNeeded(finalCfg);
+  }
+
   const session = await getSessionUser();
   if (session.source === 'server') {
     if (session.user) {

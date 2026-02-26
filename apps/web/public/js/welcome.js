@@ -13,13 +13,17 @@ const adminStatus = document.getElementById('admin-login-status');
 let config = {
   authEnabled: false,
   emailAuthEnabled: false,
+  googleAuthEnabled: false,
+  googleClientId: '',
   firebaseGoogleAuthEnabled: false,
   firebaseWebApiKey: '',
   firebaseAuthDomain: '',
   firebaseProjectId: '',
   localAuthEnabled: true
 };
+
 let firebaseGoogleClientPromise = null;
+let legacyGoogleInitInFlight = false;
 
 function setStoredUser(user) {
   if (user) {
@@ -47,7 +51,6 @@ async function requestJson(path, init = {}) {
       fetchError = error;
       if (attempt === 0) {
         await new Promise((resolve) => setTimeout(resolve, 250));
-        continue;
       }
     }
   }
@@ -75,6 +78,10 @@ function firebaseGoogleEnabled() {
   );
 }
 
+function legacyGoogleEnabled() {
+  return Boolean(config.googleAuthEnabled && config.googleClientId);
+}
+
 async function getFirebaseGoogleClient() {
   if (firebaseGoogleClientPromise) {
     return firebaseGoogleClientPromise;
@@ -97,6 +104,21 @@ async function getFirebaseGoogleClient() {
   return firebaseGoogleClientPromise;
 }
 
+async function loadLegacyGoogleScriptIfNeeded() {
+  if (!legacyGoogleEnabled() || window.google?.accounts?.id) {
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  }).catch(() => undefined);
+}
+
 async function logout() {
   try {
     await requestJson('/api/logout', {
@@ -111,8 +133,7 @@ async function logout() {
   await render();
 }
 
-function continueTarget(user) {
-  // Always go to dashboard; admin tools can be opened from there.
+function continueTarget() {
   return '/dashboard';
 }
 
@@ -123,7 +144,7 @@ function renderSignedIn(user) {
   hint.textContent = `Signed in as ${user.name || user.email} (${user.role}).`;
   ctaRoot.innerHTML = `
     <a class="btn btn--primary" href="/play?world=mega">Enter Arena</a>
-    <a class="btn btn--secondary" href="${continueTarget(user)}">Open Dashboard</a>
+    <a class="btn btn--secondary" href="${continueTarget()}">Open Dashboard</a>
     <button id="welcome-logout" class="btn btn--ghost" type="button">Logout</button>
   `;
   ctaRoot.querySelector('#welcome-logout')?.addEventListener('click', () => {
@@ -137,7 +158,10 @@ function renderSignedOut() {
   }
 
   const emailEnabled = Boolean(config.emailAuthEnabled);
-  const googleEnabled = firebaseGoogleEnabled();
+  const firebaseGoogle = firebaseGoogleEnabled();
+  const legacyGoogle = legacyGoogleEnabled() && !firebaseGoogle;
+  const googleEnabled = firebaseGoogle || legacyGoogle;
+
   if (!emailEnabled && !googleEnabled) {
     hint.textContent = 'Sign-in is not configured in this environment.';
     ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><a class="btn btn--secondary" href="/viewer?world=mega">Explore Viewer</a>';
@@ -157,8 +181,10 @@ function renderSignedOut() {
         </div>
       </div>
     ` : ''}
-    ${googleEnabled ? '<button id="welcome-google-login" class="btn btn--secondary" type="button">Continue with Google</button>' : ''}
+    ${firebaseGoogle ? '<button id="welcome-google-login" class="btn btn--secondary" type="button">Continue with Google</button>' : ''}
+    ${legacyGoogle ? '<div id="google-signin-welcome"></div>' : ''}
   `;
+
   if (emailEnabled) {
     ctaRoot.querySelector('#welcome-email-login')?.addEventListener('click', () => {
       void handleEmailAuth('login');
@@ -167,12 +193,41 @@ function renderSignedOut() {
       void handleEmailAuth('signup');
     });
   }
-  if (googleEnabled) {
+
+  if (firebaseGoogle) {
     ctaRoot.querySelector('#welcome-google-login')?.addEventListener('click', () => {
       void handleGoogleFirebaseAuth();
     });
   }
 
+  if (legacyGoogle && window.google?.accounts?.id) {
+    void renderLegacyGoogleButton();
+  }
+}
+
+async function renderLegacyGoogleButton() {
+  const mount = document.getElementById('google-signin-welcome');
+  if (!mount || !window.google?.accounts?.id || !legacyGoogleEnabled() || legacyGoogleInitInFlight) {
+    return;
+  }
+  legacyGoogleInitInFlight = true;
+  try {
+    window.google.accounts.id.initialize({
+      client_id: config.googleClientId,
+      callback: (response) => {
+        void handleGoogleCredential(response?.credential || '');
+      }
+    });
+    mount.innerHTML = '';
+    window.google.accounts.id.renderButton(mount, {
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
+      width: 260
+    });
+  } finally {
+    legacyGoogleInitInFlight = false;
+  }
 }
 
 async function handleEmailAuth(mode) {
@@ -217,6 +272,21 @@ async function handleGoogleFirebaseAuth() {
   }
 }
 
+async function handleGoogleCredential(credential) {
+  showAuthError('');
+  try {
+    const result = await requestJson('/api/auth/google', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ credential })
+    });
+    setStoredUser(result.user || null);
+    window.location.href = result.redirectTo || '/dashboard';
+  } catch (error) {
+    showAuthError(`Sign-in failed: ${String(error.message || error)}`);
+  }
+}
+
 async function render() {
   showAuthError('');
   const session = await requestJson(`/api/player/me?optional=1&t=${Date.now()}`).catch(() => null);
@@ -227,6 +297,9 @@ async function render() {
     renderSignedIn(user);
   } else {
     setStoredUser(null);
+    if (legacyGoogleEnabled()) {
+      await loadLegacyGoogleScriptIfNeeded();
+    }
     renderSignedOut();
   }
 }
@@ -277,6 +350,8 @@ adminLoginBtn?.addEventListener('click', async () => {
   try {
     config = await requestJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
     config.emailAuthEnabled = Boolean(config.emailAuthEnabled);
+    config.googleAuthEnabled = Boolean(config.googleAuthEnabled);
+    config.googleClientId = String(config.googleClientId || '');
     config.firebaseGoogleAuthEnabled = Boolean(config.firebaseGoogleAuthEnabled);
     config.firebaseWebApiKey = String(config.firebaseWebApiKey || '');
     config.firebaseAuthDomain = String(config.firebaseAuthDomain || '');
@@ -285,6 +360,8 @@ adminLoginBtn?.addEventListener('click', async () => {
     config = {
       authEnabled: false,
       emailAuthEnabled: false,
+      googleAuthEnabled: false,
+      googleClientId: '',
       firebaseGoogleAuthEnabled: false,
       firebaseWebApiKey: '',
       firebaseAuthDomain: '',

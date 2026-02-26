@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomBytes } from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { createChief2Service } from './chief2/index.js';
@@ -26,6 +27,8 @@ function resolveInternalServiceToken(): string {
 }
 
 const port = Number(process.env.PORT ?? 3000);
+const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim() ?? '';
+const googleAuthEnabled = googleClientId.length > 0;
 const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY?.trim() ?? '';
 const firebaseAuthDomain = process.env.FIREBASE_AUTH_DOMAIN?.trim() ?? '';
 const firebaseProjectId = process.env.FIREBASE_PROJECT_ID?.trim() ?? '';
@@ -113,6 +116,7 @@ const chiefSkillCatalogRoots = String(process.env.CHIEF_SKILL_ROOTS || '.agents/
   .split(',')
   .map((entry) => entry.trim())
   .filter(Boolean);
+const googleAuthClient = new OAuth2Client(googleClientId || undefined);
 
 // --- Startup secret validation ---
 if (localAuthEnabled && !localAdminPassword) {
@@ -569,6 +573,17 @@ type FirebaseLookupResult = {
   emailVerified: boolean;
 };
 
+type GoogleTokenInfo = {
+  sub: string;
+  email: string;
+  name?: string;
+  picture?: string;
+  aud: string;
+  exp: string;
+  iss?: string;
+  email_verified?: string | boolean;
+};
+
 function mapFirebaseAuthError(message: string): { reason: string; status: number } {
   const normalized = String(message || '').trim().toUpperCase();
   if (!normalized) {
@@ -698,6 +713,30 @@ async function firebaseLookupIdToken(
   } catch {
     return { ok: false, reason: 'firebase_unreachable', status: 503 };
   }
+}
+
+async function googleTokenInfo(idToken: string): Promise<GoogleTokenInfo> {
+  if (!googleClientId) {
+    throw new Error('invalid_google_token');
+  }
+  const ticket = await googleAuthClient.verifyIdToken({
+    idToken,
+    audience: googleClientId
+  });
+  const payload = ticket.getPayload();
+  if (!payload?.sub || !payload.email) {
+    throw new Error('invalid_google_token');
+  }
+  return {
+    sub: payload.sub,
+    email: payload.email,
+    name: payload.name,
+    picture: payload.picture,
+    aud: Array.isArray(payload.aud) ? String(payload.aud[0] || '') : String(payload.aud || ''),
+    exp: String(payload.exp || ''),
+    iss: payload.iss,
+    email_verified: payload.email_verified
+  };
 }
 
 
@@ -1054,8 +1093,10 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/config') {
     sendJson(res, {
-      authEnabled: emailAuthEnabled,
+      authEnabled: emailAuthEnabled || firebaseGoogleAuthEnabled || googleAuthEnabled,
       emailAuthEnabled,
+      googleAuthEnabled,
+      googleClientId,
       firebaseGoogleAuthEnabled,
       firebaseWebApiKey,
       firebaseAuthDomain,
@@ -1312,6 +1353,88 @@ const server = createServer(async (req, res) => {
 
     identity.email = token.email;
     identity.name = token.displayName || identity.name || fallbackName;
+    identity.picture = token.picture || identity.picture;
+    identity.role = role;
+    identity.lastLoginAt = now;
+
+    try {
+      await ensurePlayerProvisioned(identity);
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+      return;
+    }
+    await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+    if (identity.profileId) {
+      await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+    }
+
+    const sid = randomBytes(24).toString('hex');
+    const session: SessionRecord = {
+      id: sid,
+      sub: identity.sub,
+      expiresAt: now + SESSION_TTL_MS
+    };
+    await sessionStore.setSession(session, SESSION_TTL_MS);
+    await sessionStore.addSessionForSub(identity.sub, sid, SESSION_TTL_MS);
+    setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
+
+    sendJson(res, {
+      ok: true,
+      user: sanitizeUser(identity),
+      redirectTo: '/dashboard'
+    });
+    return;
+  }
+
+  if (pathname === '/api/auth/google' && req.method === 'POST') {
+    if (!googleAuthEnabled) {
+      sendJson(res, { ok: false, reason: 'google_auth_disabled' }, 403);
+      return;
+    }
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, { ok: false, reason: 'origin_mismatch' }, 403);
+      return;
+    }
+    const body = await readJsonBody<{ credential?: string }>(req);
+    const credential = String(body?.credential || '').trim();
+    if (!credential) {
+      sendJson(res, { ok: false, reason: 'credential_required' }, 400);
+      return;
+    }
+
+    let token: GoogleTokenInfo;
+    try {
+      token = await googleTokenInfo(credential);
+    } catch {
+      sendJson(res, { ok: false, reason: 'invalid_google_token' }, 401);
+      return;
+    }
+    const emailVerified = String(token.email_verified ?? '').toLowerCase();
+    if (emailVerified && emailVerified !== 'true') {
+      sendJson(res, { ok: false, reason: 'email_not_verified' }, 401);
+      return;
+    }
+
+    const now = Date.now();
+    const sub = `google:${token.sub}`;
+    const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
+    const existing = await sessionStore.getIdentity(sub);
+    const fallbackName = token.name || token.email.split('@')[0] || 'Player';
+    const identity: IdentityRecord = existing ?? {
+      sub,
+      email: token.email,
+      name: fallbackName,
+      picture: token.picture || '',
+      role,
+      profileId: null,
+      walletId: null,
+      username: null,
+      displayName: null,
+      createdAt: now,
+      lastLoginAt: now
+    };
+    identity.email = token.email;
+    identity.name = token.name || identity.name || fallbackName;
     identity.picture = token.picture || identity.picture;
     identity.role = role;
     identity.lastLoginAt = now;
