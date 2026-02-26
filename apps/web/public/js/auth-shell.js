@@ -45,11 +45,28 @@ function writeUser(user) {
 
 async function fetchJson(url, init = {}) {
   const headers = new Headers(init.headers || {});
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...init,
-    headers
-  });
+  let response;
+  let fetchError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        credentials: 'include',
+        ...init,
+        headers
+      });
+      fetchError = null;
+      break;
+    } catch (error) {
+      fetchError = error;
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+    }
+  }
+  if (!response) {
+    throw new Error(fetchError ? `network_unreachable:${String(fetchError.message || fetchError)}` : 'network_unreachable');
+  }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload?.reason || `status_${response.status}`);

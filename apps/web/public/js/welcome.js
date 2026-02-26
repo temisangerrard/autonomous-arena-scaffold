@@ -34,12 +34,29 @@ function setStoredUser(user) {
 
 async function requestJson(path, init = {}) {
   const headers = new Headers(init.headers || {});
-  const response = await fetch(path, {
-    credentials: 'include',
-    cache: init.cache || 'default',
-    ...init,
-    headers
-  });
+  let response;
+  let fetchError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      response = await fetch(path, {
+        credentials: 'include',
+        cache: init.cache || 'default',
+        ...init,
+        headers
+      });
+      fetchError = null;
+      break;
+    } catch (error) {
+      fetchError = error;
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+    }
+  }
+  if (!response) {
+    throw new Error(fetchError ? `network_unreachable:${String(fetchError.message || fetchError)}` : 'network_unreachable');
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload?.reason || `status_${response.status}`);
