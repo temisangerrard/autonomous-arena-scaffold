@@ -117,12 +117,25 @@ function setWalletTab(nextTab) {
 }
 
 async function api(path, init = {}) {
+  const requestUrl = path.startsWith('/api/')
+    ? `${path}${path.includes('?') ? '&' : '?'}t=${Date.now()}`
+    : path;
   const headers = new Headers(init.headers || {});
-  const response = await fetch(path, {
+  let response = await fetch(requestUrl, {
     credentials: 'include',
+    cache: 'no-store',
     ...init,
     headers
   });
+  if (response.status === 401 || response.status === 403) {
+    // Netlify edge can occasionally serve a stale auth response; retry once before redirecting.
+    response = await fetch(`${requestUrl}${requestUrl.includes('?') ? '&' : '?'}retry=1`, {
+      credentials: 'include',
+      cache: 'no-store',
+      ...init,
+      headers
+    });
+  }
   const payload = await response.json().catch(() => ({}));
   if (response.status === 401 || response.status === 403) {
     try {
