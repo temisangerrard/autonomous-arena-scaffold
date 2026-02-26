@@ -529,9 +529,13 @@ async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> 
     return;
   }
 
-  // If canonical lookup is currently unavailable, avoid accidental duplicate provisioning.
-  if (linkLookupFailed && identity.profileId && identity.walletId) {
-    return;
+  // If canonical lookup is currently unavailable, never create or relink profiles.
+  // This avoids duplicate subject->profile assignments during transient runtime failures.
+  if (linkLookupFailed) {
+    if (identity.profileId && identity.walletId) {
+      return;
+    }
+    throw new Error('continuity_lookup_unavailable');
   }
 
   const externalSubject = externalSubjectFromIdentity(identity);
@@ -1239,7 +1243,12 @@ const server = createServer(async (req, res) => {
     identity.role = role;
     identity.lastLoginAt = now;
 
-    await ensurePlayerProvisioned(identity);
+    try {
+      await ensurePlayerProvisioned(identity);
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+      return;
+    }
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
     if (identity.profileId) {
       await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
@@ -1316,7 +1325,12 @@ const server = createServer(async (req, res) => {
     identity.role = role;
     identity.lastLoginAt = now;
 
-    await ensurePlayerProvisioned(identity);
+    try {
+      await ensurePlayerProvisioned(identity);
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+      return;
+    }
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
     if (identity.profileId) {
       await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
@@ -1429,25 +1443,20 @@ const server = createServer(async (req, res) => {
     }
     let profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
     if (!profile) {
-      // Runtime can restart while Redis session survives; reprovision and retry once.
-      identity.profileId = null;
-      identity.walletId = null;
-      try {
-        await ensurePlayerProvisioned(identity);
+      // Preserve identity continuity: relink from canonical subject mapping
+      // instead of creating a new profile on transient list misses.
+      const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => null);
+      if (canonicalLink?.profileId && canonicalLink?.walletId) {
+        identity.profileId = canonicalLink.profileId;
+        identity.walletId = canonicalLink.walletId;
         await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
-      } catch {
-        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
-        return;
+        if (identity.profileId) {
+          await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+        profile = profiles.find((entry) => entry.id === identity.profileId) ?? null;
       }
-      try {
-        profiles = await runtimeProfiles();
-      } catch {
-        sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
-        return;
-      }
-      profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
       if (!profile) {
-        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        sendJson(res, { ok: false, reason: 'profile_unavailable' }, 503);
         return;
       }
     }
