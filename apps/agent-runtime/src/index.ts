@@ -102,7 +102,24 @@ const runtimeStateFile = process.env.AGENT_RUNTIME_STATE_FILE
   ? path.resolve(process.cwd(), process.env.AGENT_RUNTIME_STATE_FILE)
   : path.resolve(process.cwd(), 'output', 'agent-runtime-state.json');
 
-const encryptionKey = createEncryptionKey(process.env.WALLET_ENCRYPTION_KEY ?? 'arena-dev-wallet-key');
+// Validate wallet encryption key in production
+const walletEncryptionKey = process.env.WALLET_ENCRYPTION_KEY ?? '';
+if (process.env.NODE_ENV === 'production') {
+  if (!walletEncryptionKey.trim()) {
+    console.error('WALLET_ENCRYPTION_KEY is required in production. Generate with: openssl rand -hex 32');
+    process.exit(1);
+  }
+  if (walletEncryptionKey === 'arena-dev-wallet-key') {
+    console.error('WALLET_ENCRYPTION_KEY is using the default development value. Generate a secure key for production with: openssl rand -hex 32');
+    process.exit(1);
+  }
+  if (walletEncryptionKey.length < 32) {
+    console.error('WALLET_ENCRYPTION_KEY must be at least 32 characters (use: openssl rand -hex 32)');
+    process.exit(1);
+  }
+}
+const encryptionKey = createEncryptionKey(walletEncryptionKey || 'arena-dev-wallet-key');
+
 const internalToken = resolveInternalServiceToken();
 if (process.env.NODE_ENV === 'production' && !internalToken) {
   console.error('INTERNAL_SERVICE_TOKEN is required in production. Refusing to start.');
@@ -113,7 +130,12 @@ const onchainTokenAddress = process.env.ESCROW_TOKEN_ADDRESS ?? '';
 const onchainEscrowAddress = process.env.ESCROW_CONTRACT_ADDRESS ?? '';
 const onchainTokenDecimals = Math.max(0, Math.min(18, Number(process.env.ESCROW_TOKEN_DECIMALS ?? 6)));
 const onchainProvider = onchainRpcUrl ? new JsonRpcProvider(onchainRpcUrl) : null;
-const gasFunderPrivateKey = process.env.GAS_FUNDING_PRIVATE_KEY || process.env.ESCROW_RESOLVER_PRIVATE_KEY || '';
+// SECURITY: Never reuse private keys across different roles
+const gasFunderPrivateKey = process.env.GAS_FUNDING_PRIVATE_KEY ?? '';
+if (process.env.NODE_ENV === 'production' && onchainProvider && !gasFunderPrivateKey.trim()) {
+  console.error('GAS_FUNDING_PRIVATE_KEY is required in production when onchain is enabled. Must be separate from ESCROW_RESOLVER_PRIVATE_KEY.');
+  process.exit(1);
+}
 const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
 const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
 const walletGasTopupMaxEth = process.env.WALLET_GAS_TOPUP_MAX_ETH ?? '0.02';
@@ -185,15 +207,14 @@ async function refreshSponsorGasDiagnostics(): Promise<void> {
 }
 
 function resolveInternalServiceToken(): string {
+  // SECURITY: Never derive tokens from private keys (predictable if key is compromised)
+  // Always explicitly set INTERNAL_SERVICE_TOKEN
   const configured = process.env.INTERNAL_SERVICE_TOKEN?.trim();
   if (configured) {
     return configured;
   }
-  const superAgentKey = (process.env.ESCROW_RESOLVER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY || '').trim();
-  if (!superAgentKey) {
-    return '';
-  }
-  return createInternalTokenFromKey(superAgentKey);
+  // Removed insecure derivation from private keys
+  return '';
 }
 
 const bots = new Map<string, AgentBot>();
@@ -2245,7 +2266,7 @@ registerRuntimeRoutes(router, {
 });
 
 const server = createServer(async (req, res) => {
-  setCorsHeaders(res);
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;

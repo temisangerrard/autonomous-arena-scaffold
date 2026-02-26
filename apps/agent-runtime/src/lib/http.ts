@@ -7,11 +7,37 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 /**
  * Set CORS headers for cross-origin requests
+ * SECURITY: Uses explicit allowed origins list, never '*' with credentials
  */
-export function setCorsHeaders(res: ServerResponse): void {
-  res.setHeader('access-control-allow-origin', '*');
+export function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
+  const allowedOrigins = getAllowedCorsOrigins();
+  const origin = req.headers.origin;
+
+  // Check if origin is in allowed list
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('access-control-allow-origin', origin);
+  } else if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
+    // Development fallback only
+    res.setHeader('access-control-allow-origin', '*');
+  }
+
   res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
-  res.setHeader('access-control-allow-headers', 'content-type');
+  res.setHeader('access-control-allow-headers', 'content-type,x-internal-token');
+}
+
+/**
+ * Get allowed CORS origins from environment
+ */
+function getAllowedCorsOrigins(): string[] {
+  const originsEnv = process.env.CORS_ALLOWED_ORIGINS?.trim();
+  if (!originsEnv) {
+    // Default to localhost for development
+    if (process.env.NODE_ENV !== 'production') {
+      return ['http://localhost:3000', 'http://localhost:4000', 'http://localhost:4100'];
+    }
+    return [];
+  }
+  return originsEnv.split(',').map(o => o.trim()).filter(Boolean);
 }
 
 /**

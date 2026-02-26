@@ -98,17 +98,15 @@ export const config = {
 } as const;
 
 /**
- * Resolve internal service token from config or derive from private key
+ * Resolve internal service token from config
+ * SECURITY: Never derive tokens from private keys (predictable if key is compromised)
  */
 export function resolveInternalServiceToken(): string {
   if (config.internalServiceToken) {
     return config.internalServiceToken;
   }
-  
-  const superAgentKey = (config.escrowResolverPrivateKey || config.deployerPrivateKey || '').trim();
-  if (!superAgentKey) {
-    return '';
-  }
-  
-  return `sa_${createHash('sha256').update(superAgentKey).digest('hex')}`;
+
+  // Removed insecure derivation from private keys
+  // Always explicitly set INTERNAL_SERVICE_TOKEN in production
+  return '';
 }

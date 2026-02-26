@@ -134,6 +134,31 @@ async function refreshHouseWalletId(): Promise<void> {
 void refreshHouseWalletId();
 setInterval(() => void refreshHouseWalletId(), 60_000);
 
+/**
+ * Validate and sanitize display name
+ * SECURITY: Prevent XSS, phishing, and abuse via display names
+ */
+function validateDisplayName(name: string | undefined | null): string | null {
+  if (!name || typeof name !== 'string') return null;
+
+  const trimmed = name.trim();
+
+  // Length check
+  if (trimmed.length === 0 || trimmed.length > 32) return null;
+
+  // Alphanumeric + spaces + dashes + underscores only (no special chars, emojis, or unicode)
+  if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmed)) return null;
+
+  // Reject names that match admin/system keywords (case-insensitive)
+  const forbidden = ['admin', 'system', 'bot', 'moderator', 'support', 'official', 'staff'];
+  const lowerName = trimmed.toLowerCase();
+  for (const word of forbidden) {
+    if (lowerName.includes(word)) return null;
+  }
+
+  return trimmed;
+}
+
 function stationErrorFromEscrowFailure(input: {
   reason?: string;
   raw?: Record<string, unknown>;
@@ -774,9 +799,16 @@ wss.on('connection', (ws, request) => {
   }
 
   sockets.set(playerId, ws);
+
+  // Validate and sanitize display name
+  const validatedName = validateDisplayName(preferredName);
+  const finalDisplayName = validatedName
+    ? validatedName
+    : (role === 'agent' ? playerId : `Player ${playerId}`);
+
   metaByPlayer.set(playerId, {
     role,
-    displayName: preferredName && preferredName.length > 0 ? preferredName : (role === 'agent' ? playerId : `Player ${playerId}`),
+    displayName: finalDisplayName,
     walletId
   });
 
@@ -1127,6 +1159,16 @@ wss.on('connection', (ws, request) => {
     }
 
     if (payload.type === 'challenge_send') {
+      // SECURITY: Prevent self-challenges (money laundering, collusion risk)
+      if (playerId === payload.targetId) {
+        sendTo(playerId, {
+          type: 'challenge',
+          event: 'invalid',
+          reason: 'cannot_challenge_self'
+        });
+        return;
+      }
+
       const targetLocal = sockets.has(payload.targetId);
       const targetPresence = targetLocal ? null : await presenceStore.get(payload.targetId);
       if (!targetLocal && !targetPresence) {

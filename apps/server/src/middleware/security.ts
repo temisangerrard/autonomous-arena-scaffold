@@ -39,6 +39,24 @@ export type SecurityConfig = {
   };
 };
 
+/**
+ * Get allowed CORS origins from environment
+ * SECURITY: Never use '*' with credentials in production
+ */
+function getAllowedCorsOrigins(): string[] {
+  const originsEnv = process.env.CORS_ALLOWED_ORIGINS?.trim();
+  if (!originsEnv) {
+    // Default to localhost for development
+    if (process.env.NODE_ENV !== 'production') {
+      return ['http://localhost:3000', 'http://localhost:4000', 'http://localhost:4100'];
+    }
+    // Production must explicitly configure origins
+    log.warn('CORS_ALLOWED_ORIGINS not set in production. CORS will deny all origins.');
+    return [];
+  }
+  return originsEnv.split(',').map(o => o.trim()).filter(Boolean);
+}
+
 const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
   csp: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' wss: https:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'self';",
   hsts: {
@@ -52,7 +70,7 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
   referrerPolicy: 'strict-origin-when-cross-origin',
   permissionsPolicy: 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
   cors: {
-    origins: ['*'],
+    origins: getAllowedCorsOrigins(),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true
   }
@@ -204,11 +222,13 @@ export function validateProductionStartup(env: NodeJS.ProcessEnv): StartupValida
     errors.push('DATABASE_URL must be set in production for persistent storage.');
   }
 
-  // Warning: Wallet encryption key should be changed from default
+  // Critical: Wallet encryption key must be set and secure in production
   if (!env.WALLET_ENCRYPTION_KEY?.trim()) {
-    warnings.push('WALLET_ENCRYPTION_KEY is not set. Using default key which is not secure for production.');
+    errors.push('WALLET_ENCRYPTION_KEY is required in production. Generate with: openssl rand -hex 32');
   } else if (env.WALLET_ENCRYPTION_KEY === 'arena-dev-wallet-key') {
-    warnings.push('WALLET_ENCRYPTION_KEY is using the default development value. Generate a secure key for production.');
+    errors.push('WALLET_ENCRYPTION_KEY is using the default development value. Generate a secure key for production: openssl rand -hex 32');
+  } else if (env.WALLET_ENCRYPTION_KEY.length < 32) {
+    errors.push('WALLET_ENCRYPTION_KEY must be at least 32 characters. Generate with: openssl rand -hex 32');
   }
 
   // Warning: Check for secure cookie settings if using sessions
