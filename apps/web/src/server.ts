@@ -1570,24 +1570,20 @@ const server = createServer(async (req, res) => {
     }
     let profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
     if (!profile) {
-      identity.profileId = null;
-      identity.walletId = null;
-      try {
-        await ensurePlayerProvisioned(identity);
+      // Preserve identity continuity: if runtime profile listing is briefly stale,
+      // relink from canonical subject mapping instead of reprovisioning a new profile.
+      const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => null);
+      if (canonicalLink?.profileId && canonicalLink?.walletId) {
+        identity.profileId = canonicalLink.profileId;
+        identity.walletId = canonicalLink.walletId;
         await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
-      } catch {
-        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
-        return;
+        if (identity.profileId) {
+          await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+        profile = profiles.find((entry) => entry.id === identity.profileId) ?? null;
       }
-      try {
-        profiles = await runtimeProfiles();
-      } catch {
-        sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
-        return;
-      }
-      profile = identity.profileId ? profiles.find((entry) => entry.id === identity.profileId) : null;
       if (!profile) {
-        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        sendJson(res, { ok: false, reason: 'profile_unavailable' }, 503);
         return;
       }
     }
