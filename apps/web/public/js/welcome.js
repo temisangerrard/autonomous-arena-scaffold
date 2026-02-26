@@ -15,21 +15,13 @@ let config = {
   googleAuthEnabled: false,
   emailAuthEnabled: false,
   googleClientId: '',
-  localAuthEnabled: true
+  localAuthEnabled: true,
+  googleOriginAllowed: true
 };
 let googleWelcomeNoncePromise = null;
 let googleWelcomeInitInFlight = false;
-const GOOGLE_AUTH_ALLOWED_ORIGINS = new Set([
-  'https://autobett-fly-fresh-0224.netlify.app',
-  'https://autobett.netlify.app',
-  'https://main--autobett.netlify.app',
-  'https://main--autobett-fly-fresh-0224.netlify.app',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000'
-]);
-
 function isGoogleOriginAllowed() {
-  return GOOGLE_AUTH_ALLOWED_ORIGINS.has(window.location.origin);
+  return Boolean(config.googleOriginAllowed);
 }
 
 function setStoredUser(user) {

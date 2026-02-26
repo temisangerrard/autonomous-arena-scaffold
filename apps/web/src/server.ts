@@ -1116,12 +1116,23 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/config') {
+    const allowedOrigins = [...allowedAuthOrigins];
+    const currentOriginRaw = String(req.headers.origin || '').trim().toLowerCase();
+    const currentOrigin = currentOriginRaw ? (() => {
+      try {
+        return new URL(currentOriginRaw).origin.toLowerCase();
+      } catch {
+        return '';
+      }
+    })() : '';
     sendJson(res, {
       googleClientId,
       authEnabled: googleAuthEnabled || emailAuthEnabled,
       googleAuthEnabled,
       emailAuthEnabled,
       localAuthEnabled,
+      allowedAuthOrigins: allowedOrigins,
+      googleOriginAllowed: !googleAuthEnabled || !currentOrigin || allowedOrigins.includes(currentOrigin),
       // Used by the static frontend to connect to backend infra.
       gameWsUrl: publicGameWsUrl,
       worldAssetBaseUrl: publicWorldAssetBaseUrl,

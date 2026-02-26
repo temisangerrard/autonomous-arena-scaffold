@@ -3,17 +3,11 @@ const CLIENT_KEY = 'arena_google_client_id';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
 let googleShellNoncePromise = null;
 let googleShellInitInFlight = false;
-const GOOGLE_AUTH_ALLOWED_ORIGINS = new Set([
-  'https://autobett-fly-fresh-0224.netlify.app',
-  'https://autobett.netlify.app',
-  'https://main--autobett.netlify.app',
-  'https://main--autobett-fly-fresh-0224.netlify.app',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000'
-]);
-
-function isGoogleOriginAllowed() {
-  return GOOGLE_AUTH_ALLOWED_ORIGINS.has(window.location.origin);
+function isGoogleOriginAllowed(config) {
+  if (config && typeof config.googleOriginAllowed === 'boolean') {
+    return config.googleOriginAllowed;
+  }
+  return true;
 }
 
 // Test harness can load pages without going through auth.
@@ -288,7 +282,7 @@ function renderAuthState(config, user) {
     return;
   }
 
-  const googleEnabled = Boolean(config?.googleAuthEnabled && config?.googleClientId && isGoogleOriginAllowed());
+  const googleEnabled = Boolean(config?.googleAuthEnabled && config?.googleClientId && isGoogleOriginAllowed(config));
   const emailEnabled = Boolean(config?.emailAuthEnabled);
   if (!googleEnabled && !emailEnabled) {
     authContainer.innerHTML = '<span class="global-shell__hint">Sign-in is not configured on this environment.</span>';
@@ -356,7 +350,7 @@ async function boot() {
   }
   const cfg = await loadConfig();
   const clientId = cfg.googleClientId || '';
-  const googleEnabled = Boolean(clientId) && Boolean(cfg.googleAuthEnabled ?? cfg.authEnabled) && isGoogleOriginAllowed();
+  const googleEnabled = Boolean(clientId) && Boolean(cfg.googleAuthEnabled ?? cfg.authEnabled) && isGoogleOriginAllowed(cfg);
   const emailEnabled = Boolean(cfg.emailAuthEnabled);
   const finalCfg = {
     ...cfg,
