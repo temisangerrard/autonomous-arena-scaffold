@@ -13,8 +13,13 @@ const adminStatus = document.getElementById('admin-login-status');
 let config = {
   authEnabled: false,
   emailAuthEnabled: false,
+  firebaseGoogleAuthEnabled: false,
+  firebaseWebApiKey: '',
+  firebaseAuthDomain: '',
+  firebaseProjectId: '',
   localAuthEnabled: true
 };
+let firebaseGoogleClientPromise = null;
 
 function setStoredUser(user) {
   if (user) {
@@ -62,6 +67,36 @@ function showAuthError(message) {
   }
 }
 
+function firebaseGoogleEnabled() {
+  return Boolean(
+    config.firebaseGoogleAuthEnabled
+    && config.firebaseWebApiKey
+    && config.firebaseAuthDomain
+  );
+}
+
+async function getFirebaseGoogleClient() {
+  if (firebaseGoogleClientPromise) {
+    return firebaseGoogleClientPromise;
+  }
+  firebaseGoogleClientPromise = (async () => {
+    const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
+    const authMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js');
+    const appName = 'arena-firebase-welcome';
+    const existing = appMod.getApps().find((item) => item.name === appName);
+    const app = existing ?? appMod.initializeApp({
+      apiKey: config.firebaseWebApiKey,
+      authDomain: config.firebaseAuthDomain,
+      projectId: config.firebaseProjectId || undefined
+    }, appName);
+    const auth = authMod.getAuth(app);
+    const provider = new authMod.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return { auth, provider, signInWithPopup: authMod.signInWithPopup };
+  })();
+  return firebaseGoogleClientPromise;
+}
+
 async function logout() {
   try {
     await requestJson('/api/logout', {
@@ -102,7 +137,8 @@ function renderSignedOut() {
   }
 
   const emailEnabled = Boolean(config.emailAuthEnabled);
-  if (!emailEnabled) {
+  const googleEnabled = firebaseGoogleEnabled();
+  if (!emailEnabled && !googleEnabled) {
     hint.textContent = 'Sign-in is not configured in this environment.';
     ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><a class="btn btn--secondary" href="/viewer?world=mega">Explore Viewer</a>';
     return;
@@ -121,6 +157,7 @@ function renderSignedOut() {
         </div>
       </div>
     ` : ''}
+    ${googleEnabled ? '<button id="welcome-google-login" class="btn btn--secondary" type="button">Continue with Google</button>' : ''}
   `;
   if (emailEnabled) {
     ctaRoot.querySelector('#welcome-email-login')?.addEventListener('click', () => {
@@ -128,6 +165,11 @@ function renderSignedOut() {
     });
     ctaRoot.querySelector('#welcome-email-signup')?.addEventListener('click', () => {
       void handleEmailAuth('signup');
+    });
+  }
+  if (googleEnabled) {
+    ctaRoot.querySelector('#welcome-google-login')?.addEventListener('click', () => {
+      void handleGoogleFirebaseAuth();
     });
   }
 
@@ -146,6 +188,27 @@ async function handleEmailAuth(mode) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email, password, mode })
+    });
+    setStoredUser(result.user || null);
+    window.location.href = result.redirectTo || '/dashboard';
+  } catch (error) {
+    showAuthError(`Sign-in failed: ${String(error.message || error)}`);
+  }
+}
+
+async function handleGoogleFirebaseAuth() {
+  showAuthError('');
+  try {
+    const { auth, provider, signInWithPopup } = await getFirebaseGoogleClient();
+    const credential = await signInWithPopup(auth, provider);
+    const idToken = await credential.user.getIdToken();
+    if (!idToken) {
+      throw new Error('id_token_missing');
+    }
+    const result = await requestJson('/api/auth/firebase', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken })
     });
     setStoredUser(result.user || null);
     window.location.href = result.redirectTo || '/dashboard';
@@ -214,8 +277,20 @@ adminLoginBtn?.addEventListener('click', async () => {
   try {
     config = await requestJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
     config.emailAuthEnabled = Boolean(config.emailAuthEnabled);
+    config.firebaseGoogleAuthEnabled = Boolean(config.firebaseGoogleAuthEnabled);
+    config.firebaseWebApiKey = String(config.firebaseWebApiKey || '');
+    config.firebaseAuthDomain = String(config.firebaseAuthDomain || '');
+    config.firebaseProjectId = String(config.firebaseProjectId || '');
   } catch {
-    config = { authEnabled: false, emailAuthEnabled: false, localAuthEnabled: true };
+    config = {
+      authEnabled: false,
+      emailAuthEnabled: false,
+      firebaseGoogleAuthEnabled: false,
+      firebaseWebApiKey: '',
+      firebaseAuthDomain: '',
+      firebaseProjectId: '',
+      localAuthEnabled: true
+    };
   }
 
   if (!config.localAuthEnabled) {

@@ -1,5 +1,6 @@
 const AUTH_KEY = 'arena_auth_user';
 const HIDE_SHELL_PATHS = new Set(['/welcome', '/']);
+let firebaseGoogleClientPromise = null;
 
 // Test harness can load pages without going through auth.
 // Skip auth-shell behavior (including Google scripts) to avoid noisy console errors.
@@ -63,6 +64,36 @@ async function fetchJson(url, init = {}) {
     throw new Error(payload?.reason || `status_${response.status}`);
   }
   return response.json().catch(() => ({}));
+}
+
+function firebaseGoogleEnabled(config) {
+  return Boolean(
+    config?.firebaseGoogleAuthEnabled
+    && config?.firebaseWebApiKey
+    && config?.firebaseAuthDomain
+  );
+}
+
+async function getFirebaseGoogleClient(config) {
+  if (firebaseGoogleClientPromise) {
+    return firebaseGoogleClientPromise;
+  }
+  firebaseGoogleClientPromise = (async () => {
+    const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
+    const authMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js');
+    const appName = 'arena-firebase-shell';
+    const existing = appMod.getApps().find((item) => item.name === appName);
+    const app = existing ?? appMod.initializeApp({
+      apiKey: config.firebaseWebApiKey,
+      authDomain: config.firebaseAuthDomain,
+      projectId: config.firebaseProjectId || undefined
+    }, appName);
+    const auth = authMod.getAuth(app);
+    const provider = new authMod.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return { auth, provider, signInWithPopup: authMod.signInWithPopup };
+  })();
+  return firebaseGoogleClientPromise;
 }
 
 function currentPath() {
@@ -180,6 +211,39 @@ async function handleEmailAuth(mode, config) {
   }
 }
 
+async function handleGoogleAuth(config) {
+  const authContainer = document.getElementById('global-shell-auth');
+  const statusEl = authContainer?.querySelector('#shell-auth-status');
+  if (statusEl) {
+    statusEl.textContent = 'Opening Google...';
+  }
+  try {
+    const { auth, provider, signInWithPopup } = await getFirebaseGoogleClient(config);
+    const credential = await signInWithPopup(auth, provider);
+    const idToken = await credential.user.getIdToken();
+    if (!idToken) {
+      throw new Error('id_token_missing');
+    }
+    const payload = await fetchJson('/api/auth/firebase', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
+    if (!payload?.ok || !payload?.user) {
+      throw new Error(payload?.reason || 'auth_failed');
+    }
+    writeUser(payload.user);
+    renderAuthState(config, payload.user);
+    if (statusEl) {
+      statusEl.textContent = '';
+    }
+  } catch (error) {
+    if (statusEl) {
+      statusEl.textContent = `Sign-in failed: ${String(error?.message || error)}`;
+    }
+  }
+}
+
 async function handleLogout(config) {
   try {
     await fetchJson('/api/logout', {
@@ -217,7 +281,8 @@ function renderAuthState(config, user) {
   }
 
   const emailEnabled = Boolean(config?.emailAuthEnabled);
-  if (!emailEnabled) {
+  const googleEnabled = firebaseGoogleEnabled(config);
+  if (!emailEnabled && !googleEnabled) {
     authContainer.innerHTML = '<span class="global-shell__hint">Sign-in is not configured on this environment.</span>';
     return;
   }
@@ -232,6 +297,7 @@ function renderAuthState(config, user) {
         <span id="shell-auth-status" class="global-shell__hint"></span>
       </div>
     ` : ''}
+    ${googleEnabled ? '<button id="shell-google-login" type="button">Google Login</button>' : ''}
   `;
 
   if (emailEnabled) {
@@ -242,13 +308,25 @@ function renderAuthState(config, user) {
       void handleEmailAuth('signup', config);
     });
   }
+  if (googleEnabled) {
+    authContainer.querySelector('#shell-google-login')?.addEventListener('click', () => {
+      void handleGoogleAuth(config);
+    });
+  }
 }
 
 async function loadConfig() {
   try {
     return await fetchJson(`/api/config?t=${Date.now()}`, { cache: 'no-store' });
   } catch {
-    return { authEnabled: false, emailAuthEnabled: false };
+    return {
+      authEnabled: false,
+      emailAuthEnabled: false,
+      firebaseGoogleAuthEnabled: false,
+      firebaseWebApiKey: '',
+      firebaseAuthDomain: '',
+      firebaseProjectId: ''
+    };
   }
 }
 
@@ -275,10 +353,15 @@ async function boot() {
   }
   const cfg = await loadConfig();
   const emailEnabled = Boolean(cfg.emailAuthEnabled);
+  const googleEnabled = firebaseGoogleEnabled(cfg);
   const finalCfg = {
     ...cfg,
     emailAuthEnabled: emailEnabled,
-    authEnabled: emailEnabled
+    firebaseGoogleAuthEnabled: googleEnabled,
+    firebaseWebApiKey: String(cfg.firebaseWebApiKey || ''),
+    firebaseAuthDomain: String(cfg.firebaseAuthDomain || ''),
+    firebaseProjectId: String(cfg.firebaseProjectId || ''),
+    authEnabled: emailEnabled || googleEnabled
   };
   const session = await getSessionUser();
   if (session.source === 'server') {

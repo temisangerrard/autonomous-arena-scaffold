@@ -27,6 +27,11 @@ function resolveInternalServiceToken(): string {
 
 const port = Number(process.env.PORT ?? 3000);
 const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY?.trim() ?? '';
+const firebaseAuthDomain = process.env.FIREBASE_AUTH_DOMAIN?.trim() ?? '';
+const firebaseProjectId = process.env.FIREBASE_PROJECT_ID?.trim() ?? '';
+const firebaseGoogleAuthEnabled = (process.env.FIREBASE_GOOGLE_AUTH_ENABLED ?? 'true') === 'true'
+  && firebaseWebApiKey.length > 0
+  && firebaseAuthDomain.length > 0;
 const emailAuthEnabled = firebaseWebApiKey.length > 0;
 const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
@@ -142,7 +147,7 @@ if (isProduction && adminEmails.size === 0) {
   process.exit(1);
 }
 if (!isProduction && adminEmails.size === 0) {
-  log.warn('ADMIN_EMAILS is empty. No Google account can access /admin or /users.');
+  log.warn('ADMIN_EMAILS is empty. No configured admin email can access /admin or /users.');
 }
 const webStateFile = process.env.WEB_STATE_FILE
   ? path.resolve(process.cwd(), process.env.WEB_STATE_FILE)
@@ -561,6 +566,14 @@ type FirebaseAuthResult = {
   displayName?: string;
 };
 
+type FirebaseLookupResult = {
+  localId: string;
+  email: string;
+  displayName?: string;
+  picture?: string;
+  emailVerified: boolean;
+};
+
 function mapFirebaseAuthError(message: string): { reason: string; status: number } {
   const normalized = String(message || '').trim().toUpperCase();
   if (!normalized) {
@@ -636,6 +649,55 @@ async function firebaseIdentityAuth(
         localId,
         email: normalizedEmail,
         displayName: displayName || undefined
+      }
+    };
+  } catch {
+    return { ok: false, reason: 'firebase_unreachable', status: 503 };
+  }
+}
+
+async function firebaseLookupIdToken(
+  idToken: string
+): Promise<{ ok: true; result: FirebaseLookupResult } | { ok: false; reason: string; status: number }> {
+  if (!firebaseWebApiKey) {
+    return { ok: false, reason: 'email_auth_disabled', status: 403 };
+  }
+
+  try {
+    const response = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(firebaseWebApiKey)}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ idToken })
+      }
+    );
+    const payload = await response.json().catch(() => ({})) as {
+      users?: Array<Record<string, unknown>>;
+      error?: { message?: unknown };
+    };
+    if (!response.ok) {
+      const mapped = mapFirebaseAuthError(String(payload?.error?.message || ''));
+      return { ok: false, reason: mapped.reason, status: mapped.status };
+    }
+
+    const user = Array.isArray(payload.users) ? payload.users[0] : null;
+    const localId = String(user?.localId || '').trim();
+    const email = String(user?.email || '').trim().toLowerCase();
+    if (!localId || !email) {
+      return { ok: false, reason: 'firebase_invalid_payload', status: 502 };
+    }
+
+    return {
+      ok: true,
+      result: {
+        localId,
+        email,
+        displayName: String(user?.displayName || '').trim() || undefined,
+        picture: String(user?.photoUrl || '').trim() || undefined,
+        emailVerified: String(user?.emailVerified ?? '').toLowerCase() === 'true'
       }
     };
   } catch {
@@ -997,6 +1059,10 @@ const server = createServer(async (req, res) => {
     sendJson(res, {
       authEnabled: emailAuthEnabled,
       emailAuthEnabled,
+      firebaseGoogleAuthEnabled,
+      firebaseWebApiKey,
+      firebaseAuthDomain,
+      firebaseProjectId,
       localAuthEnabled,
       // Used by the static frontend to connect to backend infra.
       gameWsUrl: publicGameWsUrl,
@@ -1155,6 +1221,83 @@ const server = createServer(async (req, res) => {
     if (mode === 'signup' && requestedName) {
       identity.name = requestedName;
     }
+    identity.role = role;
+    identity.lastLoginAt = now;
+
+    await ensurePlayerProvisioned(identity);
+    await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+    if (identity.profileId) {
+      await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+    }
+
+    const sid = randomBytes(24).toString('hex');
+    const session: SessionRecord = {
+      id: sid,
+      sub: identity.sub,
+      expiresAt: now + SESSION_TTL_MS
+    };
+    await sessionStore.setSession(session, SESSION_TTL_MS);
+    await sessionStore.addSessionForSub(identity.sub, sid, SESSION_TTL_MS);
+    setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
+
+    sendJson(res, {
+      ok: true,
+      user: sanitizeUser(identity),
+      redirectTo: '/dashboard'
+    });
+    return;
+  }
+
+  if (pathname === '/api/auth/firebase' && req.method === 'POST') {
+    if (!firebaseGoogleAuthEnabled) {
+      sendJson(res, { ok: false, reason: 'firebase_google_auth_disabled' }, 403);
+      return;
+    }
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, { ok: false, reason: 'origin_mismatch' }, 403);
+      return;
+    }
+
+    const body = await readJsonBody<{ idToken?: string }>(req);
+    const idToken = String(body?.idToken || '').trim();
+    if (!idToken) {
+      sendJson(res, { ok: false, reason: 'id_token_required' }, 400);
+      return;
+    }
+
+    const lookup = await firebaseLookupIdToken(idToken);
+    if (!lookup.ok) {
+      sendJson(res, { ok: false, reason: lookup.reason }, lookup.status);
+      return;
+    }
+    if (!lookup.result.emailVerified) {
+      sendJson(res, { ok: false, reason: 'email_not_verified' }, 401);
+      return;
+    }
+
+    const now = Date.now();
+    const token = lookup.result;
+    const sub = `firebase:${token.localId}`;
+    const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
+    const existing = await sessionStore.getIdentity(sub);
+    const fallbackName = token.displayName || token.email.split('@')[0] || 'Player';
+    const identity: IdentityRecord = existing ?? {
+      sub,
+      email: token.email,
+      name: fallbackName,
+      picture: token.picture || '',
+      role,
+      profileId: null,
+      walletId: null,
+      username: null,
+      displayName: null,
+      createdAt: now,
+      lastLoginAt: now
+    };
+
+    identity.email = token.email;
+    identity.name = token.displayName || identity.name || fallbackName;
+    identity.picture = token.picture || identity.picture;
     identity.role = role;
     identity.lastLoginAt = now;
 
