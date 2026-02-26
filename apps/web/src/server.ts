@@ -2509,6 +2509,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/runtime-config.js') {
+    await sendFile(res, path.join(publicDir, 'runtime-config.js'), 'text/javascript; charset=utf-8');
+    return;
+  }
+
   if (pathname === '/styles.css') {
     await sendFile(res, path.join(publicDir, 'styles.css'), 'text/css; charset=utf-8');
     return;
