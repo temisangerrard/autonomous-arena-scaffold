@@ -897,6 +897,8 @@ const server = createServer(async (req, res) => {
     res.setHeader('cache-control', 'no-store, no-cache, must-revalidate, private');
     res.setHeader('pragma', 'no-cache');
     res.setHeader('expires', '0');
+    // Netlify edge may otherwise replay stale auth responses across sessions.
+    res.setHeader('netlify-vary', 'cookie,query');
   }
 
   if (pathname === '/health') {
