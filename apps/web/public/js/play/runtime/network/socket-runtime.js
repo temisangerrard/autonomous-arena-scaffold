@@ -46,19 +46,33 @@ export async function connectSocketRuntime(deps) {
   const skipProfileFetch = queryParams.get('test') === '1';
   if (!skipProfileFetch) {
     try {
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 3500);
-      const meResponse = await fetch('/api/player/me', {
-        credentials: 'include',
-        headers: buildSessionHeaders(),
-        signal: controller.signal
-      });
-      window.clearTimeout(timeout);
+      const fetchPlayerMe = async (url) => {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 3500);
+        try {
+          return await fetch(url, {
+            credentials: 'include',
+            cache: 'no-store',
+            headers: buildSessionHeaders(),
+            signal: controller.signal
+          });
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      };
+      let meResponse = await fetchPlayerMe(`/api/player/me?t=${Date.now()}`);
       if (meResponse.status === 401 || meResponse.status === 403) {
-        // Hard gate: no unauthenticated play access (even if static hosting bypasses /play routing).
-        localStorage.removeItem('arena_last_name');
-        window.location.href = '/welcome';
-        return;
+        // Netlify edge can occasionally serve stale auth responses; revalidate once.
+        const recheck = await fetchPlayerMe(`/api/player/me?optional=1&t=${Date.now()}`);
+        const recheckPayload = await recheck.json().catch(() => ({}));
+        if (recheck.ok && recheckPayload?.user) {
+          meResponse = await fetchPlayerMe(`/api/player/me?t=${Date.now()}&retry=1`);
+        } else {
+          // Hard gate: no unauthenticated play access (even if static hosting bypasses /play routing).
+          localStorage.removeItem('arena_last_name');
+          window.location.href = '/welcome';
+          return;
+        }
       }
       if (!meResponse.ok) {
         scheduleConnectRetry(`Auth backend returned ${meResponse.status}.`);
