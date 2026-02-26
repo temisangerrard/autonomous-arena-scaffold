@@ -219,7 +219,7 @@ async function handleGoogleFirebaseAuth() {
 
 async function render() {
   showAuthError('');
-  const session = await requestJson(`/api/session?optional=1&t=${Date.now()}`).catch(() => null);
+  const session = await requestJson(`/api/player/me?optional=1&t=${Date.now()}`).catch(() => null);
   const user = session?.user || null;
 
   if (user) {

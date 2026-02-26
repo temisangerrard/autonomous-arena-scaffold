@@ -333,7 +333,7 @@ async function loadConfig() {
 
 async function getSessionUser() {
   try {
-    const response = await fetch(`/api/session?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
+    const response = await fetch(`/api/player/me?optional=1&t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
     if (response.status === 401 || response.status === 403) {
       return { user: null, source: 'server' };
     }

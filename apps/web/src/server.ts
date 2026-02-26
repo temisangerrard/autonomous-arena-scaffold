@@ -1371,6 +1371,11 @@ const server = createServer(async (req, res) => {
   if (pathname === '/api/player/me') {
     const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {
+      const optional = String(requestUrl.searchParams.get('optional') || '').trim();
+      if (optional === '1' || optional.toLowerCase() === 'true') {
+        sendJson(res, { ok: false, user: null, reason: 'unauthorized' }, 200);
+        return;
+      }
       sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
       return;
     }

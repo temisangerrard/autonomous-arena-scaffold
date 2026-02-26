@@ -439,7 +439,7 @@
   <script type="module">
     (async () => {
       try {
-        const res = await fetch(`/api/session?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
+        const res = await fetch(`/api/player/me?optional=1&t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
         if (!res.ok) { window.location.href = '/welcome'; return; }
         const p = await res.json().catch(() => ({}));
         if (p?.user?.role !== 'admin') window.location.href = '/dashboard';
