@@ -37,7 +37,7 @@ async function requestJson(path, init = {}) {
     try {
       response = await fetch(path, {
         credentials: 'include',
-        cache: init.cache || 'default',
+        cache: init.cache || 'no-store',
         ...init,
         headers
       });
@@ -219,7 +219,7 @@ async function handleGoogleFirebaseAuth() {
 
 async function render() {
   showAuthError('');
-  const session = await requestJson('/api/session?optional=1').catch(() => null);
+  const session = await requestJson(`/api/session?optional=1&t=${Date.now()}`).catch(() => null);
   const user = session?.user || null;
 
   if (user) {

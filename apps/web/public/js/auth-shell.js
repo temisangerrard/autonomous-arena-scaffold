@@ -43,6 +43,7 @@ async function fetchJson(url, init = {}) {
     try {
       response = await fetch(url, {
         credentials: 'include',
+        cache: init.cache || 'no-store',
         ...init,
         headers
       });
@@ -332,7 +333,7 @@ async function loadConfig() {
 
 async function getSessionUser() {
   try {
-    const response = await fetch('/api/session', { credentials: 'include' });
+    const response = await fetch(`/api/session?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
     if (response.status === 401 || response.status === 403) {
       return { user: null, source: 'server' };
     }
