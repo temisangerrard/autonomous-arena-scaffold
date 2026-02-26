@@ -1151,7 +1151,20 @@ const server = createServer(async (req, res) => {
     setSessionCookieWithOptions(res, COOKIE_NAME, sid, SESSION_TTL_MS, { secure: isSecureRequest(req) });
 
     // Allow local admins to play too.
-    await ensurePlayerProvisioned(identity);
+    try {
+      await ensurePlayerProvisioned(identity);
+    } catch (error) {
+      log.error({
+        err: error,
+        sub: identity.sub,
+        reason: 'firebase_provision_failed'
+      }, 'failed to provision firebase user');
+      sendJson(res, {
+        ok: false,
+        reason: 'runtime_unavailable'
+      }, 503);
+      return;
+    }
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
     if (identity.profileId) {
       await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
