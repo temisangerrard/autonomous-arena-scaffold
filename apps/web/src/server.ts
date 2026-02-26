@@ -251,21 +251,12 @@ async function getIdentityFromReq(req: import('node:http').IncomingMessage): Pro
 
 async function reconcileIdentityLink(identity: IdentityRecord): Promise<void> {
   const subject = externalSubjectFromIdentity(identity);
-  let linkLookupFailed = false;
   const link = await runtimeSubjectLink(subject).catch(() => {
-    linkLookupFailed = true;
     return null;
   });
   if (!link) {
-    // If canonical lookup is available and no link exists, treat session linkage as stale.
-    // Re-provisioning here rebinds this subject to its own profile/wallet and prevents cross-user leakage.
-    if (!linkLookupFailed) {
-      await ensurePlayerProvisioned(identity);
-      await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
-      if (identity.profileId) {
-        await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
-      }
-    }
+    // Reconciliation is read-only: never auto-provision on link miss.
+    // Provisioning is handled only in explicit auth/provision paths.
     return;
   }
   const profileChanged = identity.profileId !== link.profileId;
