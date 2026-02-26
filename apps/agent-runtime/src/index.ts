@@ -1848,6 +1848,40 @@ function getSubjectLinkBySubject(subject: string): SubjectLinkRecord | null {
   return subjectLinks.get(key) ?? null;
 }
 
+function upsertSubjectLinkBySubject(params: {
+  subject: string;
+  profileId: string;
+  walletId?: string;
+}): SubjectLinkRecord | null {
+  const subject = String(params.subject || '').trim();
+  const profileId = String(params.profileId || '').trim();
+  if (!subject || !profileId) {
+    return null;
+  }
+  const profile = profiles.get(profileId);
+  if (!profile) {
+    return null;
+  }
+  const walletId = String(params.walletId || profile.walletId || '').trim();
+  const wallet = walletId ? wallets.get(walletId) : null;
+  if (!wallet) {
+    return null;
+  }
+  const existing = subjectLinks.get(subject);
+  const now = Date.now();
+  const linkedAt = existing?.linkedAt && Number.isFinite(existing.linkedAt) ? existing.linkedAt : now;
+  const link: SubjectLinkRecord = {
+    subject,
+    profileId,
+    walletId,
+    linkedAt,
+    updatedAt: now,
+    continuitySource: runtimeDb.connected ? 'postgres' : 'runtime-file'
+  };
+  subjectLinks.set(subject, link);
+  return link;
+}
+
 function createOwnerBotForProfile(profile: Profile, body: {
   displayName?: string;
   personality?: Personality;
@@ -2207,6 +2241,7 @@ registerRuntimeRoutes(router, {
     schedulePersistState
   },
   profiles: {
+    isInternalAuthorized,
     profiles,
     wallets,
     bots,
@@ -2216,6 +2251,7 @@ registerRuntimeRoutes(router, {
     createProfileWithBot,
     provisionProfileForSubject,
     getSubjectLinkBySubject,
+    upsertSubjectLinkBySubject,
     createOwnerBotForProfile,
     schedulePersistState
   },

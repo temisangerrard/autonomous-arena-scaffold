@@ -4,6 +4,7 @@ import type { Personality } from '../PolicyEngine.js';
 import type { AgentBehaviorConfig } from '../AgentBot.js';
 
 export function registerProfileRoutes(router: SimpleRouter, deps: {
+  isInternalAuthorized: (req: import('node:http').IncomingMessage) => boolean;
   profiles: Map<string, Profile>;
   wallets: Map<string, WalletRecord>;
   bots: Map<string, unknown>;
@@ -33,6 +34,18 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     managedBySuperAgent?: boolean;
   }) => { ok: true; botId: string } | { ok: false; reason: string; botId?: string; profileId?: string };
   getSubjectLinkBySubject: (subject: string) => {
+    subject: string;
+    profileId: string;
+    walletId: string;
+    linkedAt: number;
+    updatedAt: number;
+    continuitySource: 'postgres' | 'runtime-file' | 'memory';
+  } | null;
+  upsertSubjectLinkBySubject: (params: {
+    subject: string;
+    profileId: string;
+    walletId?: string;
+  }) => {
     subject: string;
     profileId: string;
     walletId: string;
@@ -120,6 +133,32 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
       return;
     }
     sendJson(res, { ok: true, link });
+  });
+
+  router.post('/profiles/link', async (req, res) => {
+    if (!deps.isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const body = await readJsonBody<{ subject?: string; profileId?: string; walletId?: string }>(req);
+    const subject = String(body?.subject ?? '').trim();
+    const profileId = String(body?.profileId ?? '').trim();
+    const walletId = String(body?.walletId ?? '').trim();
+    if (!subject || !profileId) {
+      sendJson(res, { ok: false, reason: 'subject_and_profile_required' }, 400);
+      return;
+    }
+    const link = deps.upsertSubjectLinkBySubject({
+      subject,
+      profileId,
+      walletId: walletId || undefined
+    });
+    if (!link) {
+      sendJson(res, { ok: false, reason: 'profile_or_wallet_not_found' }, 404);
+      return;
+    }
+    sendJson(res, { ok: true, link });
+    deps.schedulePersistState();
   });
 
   router.post('/profiles/:profileId/update', async (req, res, params) => {
