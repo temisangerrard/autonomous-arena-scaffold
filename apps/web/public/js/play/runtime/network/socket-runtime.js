@@ -68,9 +68,9 @@ export async function connectSocketRuntime(deps) {
         if (recheck.ok && recheckPayload?.user) {
           meResponse = await fetchPlayerMe(`/api/player/me?t=${Date.now()}&retry=1`);
         } else {
-          // Hard gate: no unauthenticated play access (even if static hosting bypasses /play routing).
-          localStorage.removeItem('arena_last_name');
-          window.location.href = '/welcome';
+          // Avoid forced sign-out loops on transient edge/session glitches.
+          // Keep user on play page and retry connection/auth bootstrap.
+          scheduleConnectRetry('Session check failed. Retrying...');
           return;
         }
       }
