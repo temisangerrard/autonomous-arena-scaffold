@@ -26,11 +26,37 @@ export type RouteContext = {
 
 /**
  * Set CORS headers on response
+ * SECURITY: Uses explicit allowed origins list, never '*' with credentials
  */
-export function setCorsHeaders(res: ServerResponse): void {
-  res.setHeader('access-control-allow-origin', '*');
+export function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
+  const allowedOrigins = getAllowedCorsOrigins();
+  const origin = req.headers.origin;
+
+  // Check if origin is in allowed list
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('access-control-allow-origin', origin);
+  } else if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
+    // Development fallback only
+    res.setHeader('access-control-allow-origin', '*');
+  }
+
   res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
   res.setHeader('access-control-allow-headers', 'content-type,x-internal-token');
+}
+
+/**
+ * Get allowed CORS origins from environment
+ */
+function getAllowedCorsOrigins(): string[] {
+  const originsEnv = process.env.CORS_ALLOWED_ORIGINS?.trim();
+  if (!originsEnv) {
+    // Default to localhost for development
+    if (process.env.NODE_ENV !== 'production') {
+      return ['http://localhost:3000', 'http://localhost:4000', 'http://localhost:4100'];
+    }
+    return [];
+  }
+  return originsEnv.split(',').map(o => o.trim()).filter(Boolean);
 }
 
 async function readJsonBody<T>(req: IncomingMessage): Promise<T | null> {
@@ -324,7 +350,7 @@ async function handleAdminMarkets(
  */
 export function createRouter(ctx: RouteContext) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    setCorsHeaders(res);
+    setCorsHeaders(req, res);
     const parsed = new URL(req.url ?? '/', 'http://localhost');
 
     if (req.method === 'OPTIONS') {
@@ -402,6 +428,59 @@ export function createRouter(ctx: RouteContext) {
       const recent = await ctx.database.getEscrowEventsForPlayer({ playerId, limit });
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ ok: true, recent }));
+      return;
+    }
+
+    if (req.url?.startsWith('/markets/player/positions')) {
+      if (!isInternalAuthorized(req, ctx.internalToken)) {
+        res.statusCode = 401;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: false, reason: 'unauthorized_internal' }));
+        return;
+      }
+      if (!ctx.marketService) {
+        res.statusCode = 503;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: false, reason: 'prediction_service_unavailable' }));
+        return;
+      }
+      const playerId = String(parsed.searchParams.get('playerId') || '').trim();
+      const limit = Math.max(1, Math.min(300, Number(parsed.searchParams.get('limit') ?? 60)));
+      if (!playerId) {
+        res.statusCode = 400;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: false, reason: 'player_id_required' }));
+        return;
+      }
+      try {
+        const [positions, admin] = await Promise.all([
+          ctx.marketService.listPlayerPositions(playerId),
+          ctx.marketService.getAdminState()
+        ]);
+        const marketById = new Map((admin.markets || []).map((market) => [market.id, market]));
+        const recent = positions
+          .sort((a, b) => {
+            const aAt = Number(a.settledAt || a.createdAt || 0);
+            const bAt = Number(b.settledAt || b.createdAt || 0);
+            return bAt - aAt;
+          })
+          .slice(0, limit)
+          .map((position) => {
+            const market = marketById.get(position.marketId);
+            return {
+              ...position,
+              marketQuestion: market?.question || position.marketId,
+              marketSlug: market?.slug || null,
+              marketOracleSource: market?.oracleSource || null
+            };
+          });
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: true, recent }));
+      } catch {
+        res.statusCode = 503;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: false, reason: 'market_positions_unavailable' }));
+      }
       return;
     }
 

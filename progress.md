@@ -1343,3 +1343,20 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `/Users/temisan/Downloads/blender implementation/apps/web/public/admin-markets-lab.html`
     - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/admin-markets-lab.js`
   - Added collaboration snapshot document at `/Users/temisan/Downloads/blender implementation/collaboration.md`.
+- 2026-02-26: Wallet activity "full 9 yards" dashboard pass.
+  - Added unified player activity API wiring for dashboard filters and richer rendering:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/dashboard.html`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/dashboard.js`
+  - Added activity filter chips in dashboard wallet panel:
+    - `All`, `Onchain`, `Escrow`, `Markets`
+  - Extended runtime activity decoding and labels for tx method visibility:
+    - `/Users/temisan/Downloads/blender implementation/apps/agent-runtime/src/routes/wallets.ts`
+    - Method labels now include ERC20 (`transfer`, `approve`, etc.) and escrow calls (`createBet`, `resolveBet`, `refundBet`, `createOracleBet`, `resolveBetFromOracle`) when decodable.
+  - Added internal server market-position activity endpoint for timeline merge:
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/routes/index.ts`
+  - Validation:
+    - `npm run -w @arena/web test -- src/interactionShell.test.js` ✅
+    - `npm run -w @arena/server test -- src/routes/index.test.ts` ✅
+    - `npm run -w @arena/web build` ✅
+    - `npm run -w @arena/server build` ✅
+    - `npm run -w @arena/agent-runtime build` ✅

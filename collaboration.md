@@ -44,3 +44,15 @@
   ```
 - Migration 8 (`clob_order_id` column) will auto-run on next server deploy.
 - Follow-on options: WebSocket live price feed from Polymarket CLOB (replace Gamma API polling); liquidity provision (posting limit orders instead of FOK); settlement reconciliation using `clob_order_id` to verify on-chain fills.
+
+## 2026-02-26 Update
+- Implemented wallet dashboard activity filters and richer transaction metadata presentation.
+  - Filters added in wallet activity panel: `All`, `Onchain`, `Escrow`, `Markets`.
+  - Onchain rows now show decoded method labels (ERC20 + escrow/oracle function names when parseable).
+- Added internal market-position activity endpoint on server (`/markets/player/positions`) and merged those records into `/api/player/activity`.
+- Validation run in this session:
+  - `npm run -w @arena/web test -- src/interactionShell.test.js` passed.
+  - `npm run -w @arena/server test -- src/routes/index.test.ts` passed.
+  - `npm run -w @arena/web build` passed.
+  - `npm run -w @arena/server build` passed.
+  - `npm run -w @arena/agent-runtime build` passed.

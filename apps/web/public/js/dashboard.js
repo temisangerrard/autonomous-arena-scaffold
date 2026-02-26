@@ -60,6 +60,7 @@ const superAgentResponseAlt = document.getElementById('super-agent-response-alt'
 const onboardingList = document.getElementById('onboarding-list');
 const escrowHistory = document.getElementById('escrow-history');
 const walletEscrowPanel = document.getElementById('wallet-escrow-panel');
+const activityFilterButtons = [...document.querySelectorAll('[data-activity-filter]')];
 const exportPrivateKey = document.getElementById('export-private-key');
 
 const botModal = document.getElementById('bot-modal');
@@ -78,6 +79,8 @@ let bootstrapCtx = null;
 let playerDirectory = [];
 let selectedBotId = '';
 let walletSummaryCtx = null;
+let activityEntries = [];
+let activityFilter = 'all';
 const WALLET_SUMMARY_BACKOFF_KEY = 'dashboard_wallet_summary';
 
 function escapeHtml(value) {
@@ -340,14 +343,96 @@ function renderEscrowHistory(entries, errorMessage = '') {
     if (walletEscrowPanel) walletEscrowPanel.style.display = 'none';
     return;
   }
-  if (!Array.isArray(entries) || entries.length === 0) {
-    escrowHistory.innerHTML = '';
-    if (walletEscrowPanel) walletEscrowPanel.style.display = 'none';
+  const sourceEntries = Array.isArray(entries) ? entries : [];
+  const visibleEntries = sourceEntries.filter((entry) => {
+    const kind = String(entry?.kind || 'escrow');
+    if (activityFilter === 'onchain') return kind === 'onchain_transfer';
+    if (activityFilter === 'escrow') return kind === 'escrow';
+    if (activityFilter === 'markets') return kind === 'market_position';
+    return true;
+  });
+  if (sourceEntries.length === 0) {
+    escrowHistory.innerHTML = '<div class="escrow-empty">No wallet activity yet.</div>';
     return;
   }
-  escrowHistory.innerHTML = entries
+  if (visibleEntries.length === 0) {
+    const filterLabel = activityFilter === 'onchain'
+      ? 'onchain'
+      : activityFilter === 'escrow'
+        ? 'escrow'
+        : activityFilter === 'markets'
+          ? 'market'
+          : 'wallet';
+    escrowHistory.innerHTML = `<div class="escrow-empty">No ${escapeHtml(filterLabel)} activity yet.</div>`;
+    return;
+  }
+  escrowHistory.innerHTML = visibleEntries
     .map((entry) => {
+      const kind = String(entry?.kind || 'escrow');
       const at = entry?.at ? new Date(Number(entry.at)).toLocaleString() : '--';
+      const txHash = String(entry?.txHash || '');
+      const shortTx = txHash ? `${txHash.slice(0, 10)}...${txHash.slice(-8)}` : 'n/a';
+      const txUrl = String(entry?.txUrl || '').trim();
+      const txRef = txUrl
+        ? `<a href="${escapeHtml(txUrl)}" target="_blank" rel="noopener noreferrer">tx ${escapeHtml(shortTx)}</a>`
+        : `tx ${escapeHtml(shortTx)}`;
+
+      if (kind === 'onchain_transfer') {
+        const direction = String(entry?.direction || 'unknown');
+        const token = String(entry?.tokenSymbol || 'TOKEN');
+        const amount = String(entry?.amount || '0');
+        const methodLabel = String(entry?.methodLabel || entry?.method || 'transfer');
+        const nativeValueEth = String(entry?.nativeValueEth || '').trim();
+        const emoji = direction === 'in' ? '↗' : direction === 'out' ? '↘' : '↔';
+        const signClass = direction === 'in' ? 'positive' : direction === 'out' ? 'negative' : '';
+        const label = direction === 'in' ? 'Onchain receive' : direction === 'out' ? 'Onchain send' : 'Onchain transfer';
+        const trail = [`method ${methodLabel}`, nativeValueEth ? `${nativeValueEth} ETH` : ''].filter(Boolean).join(' · ');
+        return `<div class="tx-item">
+          <div class="tx-icon ${direction === 'in' ? 'in' : 'out'}">${emoji}</div>
+          <div class="tx-details">
+            <div class="tx-type">${escapeHtml(label)} · ${escapeHtml(token)}</div>
+            <div class="tx-time">${escapeHtml(at)} · ${txRef}${trail ? ` · ${escapeHtml(trail)}` : ''}</div>
+          </div>
+          <div class="tx-amount ${signClass}">${escapeHtml(amount)} ${escapeHtml(token)}</div>
+        </div>`;
+      }
+
+      if (kind === 'market_position') {
+        const status = String(entry?.status || 'open');
+        const side = String(entry?.side || '').toUpperCase();
+        const question = String(entry?.marketQuestion || entry?.marketId || 'Market');
+        const stake = Number(entry?.stake ?? 0);
+        const payoutValue = Number(entry?.payout ?? 0);
+        const signClass = status === 'won'
+          ? 'positive'
+          : status === 'lost'
+            ? 'negative'
+            : '';
+        const emoji = status === 'won'
+          ? '↗'
+          : status === 'lost'
+            ? '↘'
+            : '•';
+        const statusLabel = status === 'won'
+          ? 'Market WIN'
+          : status === 'lost'
+            ? 'Market LOSS'
+            : status === 'voided'
+              ? 'Market VOID'
+              : 'Market OPEN';
+        const clobOrderId = String(entry?.clobOrderId || '').trim();
+        const reason = String(entry?.settlementReason || '').trim();
+        const trail = [clobOrderId ? `order ${clobOrderId}` : '', reason].filter(Boolean).join(' · ');
+        return `<div class="tx-item">
+          <div class="tx-icon ${status === 'won' ? 'in' : 'out'}">${emoji}</div>
+          <div class="tx-details">
+            <div class="tx-type">${escapeHtml(statusLabel)} · ${escapeHtml(side)} · ${escapeHtml(question)}</div>
+            <div class="tx-time">${escapeHtml(at)}${trail ? ` · ${escapeHtml(trail)}` : ''}</div>
+          </div>
+          <div class="tx-amount ${signClass}">${escapeHtml(stake.toFixed(2))} / ${escapeHtml((Number.isFinite(payoutValue) ? payoutValue : 0).toFixed(2))}</div>
+        </div>`;
+      }
+
       const outcome = String(entry?.outcome || entry?.phase || 'unknown');
       const challengeId = String(entry?.challengeId || 'n/a');
       const amountValue = Number(entry?.amount ?? entry?.wager ?? 0);
@@ -355,8 +440,6 @@ function renderEscrowHistory(entries, errorMessage = '') {
       const payoutValue = Number(entry?.payout ?? 0);
       const payout = Number.isFinite(payoutValue) ? payoutValue.toFixed(2) : '0.00';
       const ok = entry?.ok === false ? 'failed' : 'ok';
-      const txHash = String(entry?.txHash || '');
-      const shortTx = txHash ? `${txHash.slice(0, 10)}...${txHash.slice(-8)}` : 'n/a';
       const signClass = payoutValue > 0 ? 'positive' : 'negative';
       const emoji = payoutValue > 0 ? '↗' : '↘';
       const source = String(entry?.activitySource || '');
@@ -377,7 +460,7 @@ function renderEscrowHistory(entries, errorMessage = '') {
         <div class="tx-icon ${ok === 'ok' ? 'in' : 'out'}">${emoji}</div>
         <div class="tx-details">
           <div class="tx-type">${escapeHtml(outcome)} · ${escapeHtml(challengeId)}</div>
-          <div class="tx-time">${escapeHtml(at)} · tx ${escapeHtml(shortTx)} · ${escapeHtml(sourceLine)}</div>
+          <div class="tx-time">${escapeHtml(at)} · ${txRef} · ${escapeHtml(sourceLine)}</div>
         </div>
         <div class="tx-amount ${signClass}">${escapeHtml(amount)} / ${escapeHtml(payout)}</div>
       </div>`;
@@ -407,16 +490,11 @@ async function refreshContext() {
   const directory = canSeeDirectory
     ? await api('/api/player/directory').catch(() => ({ players: [] }))
     : { players: [] };
-  let escrowEntries = [];
+  let nextActivityEntries = [];
   let escrowError = '';
   try {
-    const escrow = await api('/api/player/wallet/escrow-history?limit=20');
-    const rawEscrowEntries = Array.isArray(escrow?.recent) ? escrow.recent : [];
-    escrowEntries = rawEscrowEntries.filter((entry) => {
-      const challengeId = String(entry?.challengeId || '').trim();
-      const phase = String(entry?.phase || entry?.outcome || '').trim();
-      return Boolean(challengeId) && Boolean(phase);
-    });
+    const activity = await api('/api/player/activity?limit=30');
+    nextActivityEntries = Array.isArray(activity?.activity) ? activity.activity : [];
   } catch (error) {
     escrowError = String(error?.message || error);
   }
@@ -424,7 +502,8 @@ async function refreshContext() {
   bootstrapCtx = bootstrap;
   playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
   walletSummaryCtx = walletSummary;
-  renderEscrowHistory(escrowEntries, escrowError);
+  activityEntries = nextActivityEntries;
+  renderEscrowHistory(activityEntries, escrowError);
   renderContext();
 }
 
@@ -803,6 +882,19 @@ for (const button of walletTabButtons) {
   button.addEventListener('click', () => {
     const tab = String(button.getAttribute('data-wallet-tab') || 'overview');
     setWalletTab(tab);
+  });
+}
+
+for (const button of activityFilterButtons) {
+  button.addEventListener('click', () => {
+    const nextFilter = String(button.getAttribute('data-activity-filter') || 'all').trim() || 'all';
+    activityFilter = nextFilter;
+    for (const candidate of activityFilterButtons) {
+      const active = String(candidate.getAttribute('data-activity-filter') || '') === activityFilter;
+      candidate.classList.toggle('active', active);
+      candidate.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+    renderEscrowHistory(activityEntries);
   });
 }
 

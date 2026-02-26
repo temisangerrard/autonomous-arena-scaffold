@@ -1,4 +1,4 @@
-import { Contract, formatEther, parseUnits } from 'ethers';
+import { Contract, Interface, formatEther, formatUnits, id, parseUnits, zeroPadValue } from 'ethers';
 import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
 import type { EscrowLockRecord, WalletDenied, WalletRecord } from '@arena/shared';
 
@@ -52,6 +52,25 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     nativeBalanceEth?: string;
   }>;
 }) {
+  const transferTopic = id('Transfer(address,address,uint256)');
+  const transferInterface = new Interface([
+    'event Transfer(address indexed from, address indexed to, uint256 value)'
+  ]);
+  const erc20TxInterface = new Interface([
+    'function transfer(address to, uint256 amount)',
+    'function approve(address spender, uint256 amount)',
+    'function transferFrom(address from, address to, uint256 amount)',
+    'function mint(address to, uint256 amount)'
+  ]);
+  const escrowTxInterface = new Interface([
+    'function createBet(bytes32 betId, address challenger, address opponent, uint256 amount)',
+    'function resolveBet(bytes32 betId, address winner)',
+    'function refundBet(bytes32 betId)',
+    'function createOracleBet(bytes32 betId, bytes32 marketId, bool isUp, uint256 amount, uint256 resolveAfter)',
+    'function resolveBetFromOracle(bytes32 betId)',
+    'function setFeeConfig(address recipient, uint16 bps)'
+  ]);
+
   router.get('/onchain/status', async (req, res) => {
     if (!deps.isInternalAuthorized(req)) {
       sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
@@ -416,6 +435,217 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
         ok: false,
         reason: 'onchain_unavailable',
         detail: String((error as Error).message || 'onchain_summary_failed').slice(0, 160)
+      }, 503);
+    }
+  });
+
+  router.get('/wallets/:walletId/activity', async (req, res, params) => {
+    if (!deps.isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const walletId = String(params?.walletId ?? '').trim();
+    const wallet = walletId ? deps.wallets.get(walletId) : null;
+    if (!wallet) {
+      sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
+      return;
+    }
+    if (!deps.onchainProvider || !deps.onchainTokenAddress) {
+      sendJson(res, { ok: false, reason: 'onchain_unavailable' }, 503);
+      return;
+    }
+
+    const url = new URL(req.url ?? `/wallets/${walletId}/activity`, 'http://localhost');
+    const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') ?? 20)));
+    const lookbackBlocks = Math.max(500, Math.min(500_000, Number(process.env.WALLET_ACTIVITY_LOOKBACK_BLOCKS ?? 50_000)));
+    const provider = deps.onchainProvider as {
+      getNetwork?: () => Promise<{ chainId?: unknown }>;
+      getBlockNumber?: () => Promise<number>;
+      getLogs?: (filter: {
+        address: string;
+        fromBlock: number;
+        toBlock: number | 'latest';
+        topics: Array<string | null>;
+      }) => Promise<Array<{
+        transactionHash: string;
+        blockNumber: number;
+        index: number;
+        topics: string[];
+        data: string;
+      }>>;
+      getBlock?: (blockNumber: number) => Promise<{ timestamp?: number | bigint } | null>;
+      getTransaction?: (txHash: string) => Promise<{
+        hash?: string;
+        from?: string;
+        to?: string | null;
+        data?: string;
+        value?: bigint;
+      } | null>;
+    };
+    if (!provider.getBlockNumber || !provider.getLogs || !provider.getBlock || !provider.getNetwork || !provider.getTransaction) {
+      sendJson(res, { ok: false, reason: 'onchain_provider_unavailable' }, 503);
+      return;
+    }
+    const getNetwork = provider.getNetwork.bind(provider);
+    const getBlockNumber = provider.getBlockNumber.bind(provider);
+    const getLogs = provider.getLogs.bind(provider);
+    const getBlock = provider.getBlock.bind(provider);
+    const getTransaction = provider.getTransaction.bind(provider);
+
+    try {
+      const [chain, latestBlock] = await Promise.all([
+        getNetwork(),
+        getBlockNumber()
+      ]);
+      const chainId = Number(chain?.chainId ?? NaN);
+      const toBlock = Number.isFinite(latestBlock) ? latestBlock : 0;
+      const fromBlock = Math.max(0, toBlock - lookbackBlocks);
+      const indexed = zeroPadValue(wallet.address, 32).toLowerCase();
+
+      const [outLogs, inLogs, tokenSymbol] = await Promise.all([
+        getLogs({
+          address: deps.onchainTokenAddress,
+          fromBlock,
+          toBlock,
+          topics: [transferTopic, indexed]
+        }),
+        getLogs({
+          address: deps.onchainTokenAddress,
+          fromBlock,
+          toBlock,
+          topics: [transferTopic, null, indexed]
+        }),
+        (new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, deps.onchainProvider as any) as Contract & { symbol: () => Promise<string> })
+          .symbol()
+          .catch(() => 'TOKEN')
+      ]);
+
+      const dedup = new Map<string, (typeof inLogs)[number]>();
+      for (const logEntry of [...outLogs, ...inLogs]) {
+        const key = `${String(logEntry.transactionHash || '').toLowerCase()}:${Number(logEntry.index ?? -1)}`;
+        dedup.set(key, logEntry);
+      }
+      const logs = [...dedup.values()]
+        .sort((a, b) => {
+          const bn = Number(b.blockNumber ?? 0) - Number(a.blockNumber ?? 0);
+          if (bn !== 0) return bn;
+          return Number(b.index ?? 0) - Number(a.index ?? 0);
+        })
+        .slice(0, limit);
+
+      const blockNos = [...new Set(logs.map((entry) => Number(entry.blockNumber ?? 0)).filter((n) => Number.isFinite(n) && n >= 0))];
+      const blockTimes = new Map<number, number>();
+      await Promise.all(blockNos.map(async (blockNo) => {
+        const block = await getBlock(blockNo).catch(() => null);
+        const tsRaw = block?.timestamp;
+        const seconds = typeof tsRaw === 'bigint' ? Number(tsRaw) : Number(tsRaw ?? 0);
+        if (Number.isFinite(seconds) && seconds > 0) {
+          blockTimes.set(blockNo, seconds * 1000);
+        }
+      }));
+
+      const walletLower = wallet.address.toLowerCase();
+      const txHashes = [...new Set(logs.map((entry) => String(entry.transactionHash || '').toLowerCase()).filter(Boolean))];
+      const txByHash = new Map<string, {
+        hash?: string;
+        from?: string;
+        to?: string | null;
+        data?: string;
+        value?: bigint;
+      }>();
+      await Promise.all(txHashes.map(async (txHash) => {
+        const tx = await getTransaction(txHash).catch(() => null);
+        if (tx) txByHash.set(txHash, tx);
+      }));
+      const recent = logs.map((entry) => {
+        let from = '';
+        let to = '';
+        let amount = '0';
+        try {
+          const parsed = transferInterface.parseLog({
+            data: String(entry.data || '0x'),
+            topics: entry.topics
+          });
+          if (parsed) {
+            from = String(parsed.args[0] || '').toLowerCase();
+            to = String(parsed.args[1] || '').toLowerCase();
+            amount = formatUnits(parsed.args[2] as bigint, deps.onchainTokenDecimals);
+          }
+        } catch {
+          // ignore malformed log; preserve tx metadata
+        }
+        const direction = from === walletLower && to === walletLower
+          ? 'self'
+          : from === walletLower
+            ? 'out'
+            : 'in';
+        const txHash = String(entry.transactionHash || '').toLowerCase();
+        const tx = txByHash.get(txHash);
+        const txTo = String(tx?.to || '').toLowerCase();
+        const txData = String(tx?.data || '');
+        const txFrom = String(tx?.from || '').toLowerCase();
+        let method = '';
+        let methodLabel = 'transfer';
+        try {
+          if (txTo && txTo === String(deps.onchainTokenAddress || '').toLowerCase()) {
+            const parsedTx = erc20TxInterface.parseTransaction({ data: txData });
+            method = String(parsedTx?.name || '');
+            if (method) methodLabel = `erc20.${method}`;
+          } else if (txTo && txTo === String(deps.onchainEscrowAddress || '').toLowerCase()) {
+            const parsedTx = escrowTxInterface.parseTransaction({ data: txData });
+            method = String(parsedTx?.name || '');
+            if (method) methodLabel = `escrow.${method}`;
+          } else if ((txData === '0x' || txData.length <= 2) && (tx?.value || 0n) > 0n) {
+            method = 'native_transfer';
+            methodLabel = 'native.transfer';
+          } else if (txData && txData.length >= 10) {
+            method = `0x${txData.slice(2, 10)}`;
+            methodLabel = `call.${method}`;
+          }
+        } catch {
+          if (txData && txData.length >= 10) {
+            method = `0x${txData.slice(2, 10)}`;
+            methodLabel = `call.${method}`;
+          }
+        }
+        const blockNo = Number(entry.blockNumber ?? 0);
+        return {
+          kind: 'erc20_transfer',
+          direction,
+          txHash: String(entry.transactionHash || ''),
+          blockNumber: blockNo,
+          logIndex: Number(entry.index ?? 0),
+          timestampMs: blockTimes.get(blockNo) ?? null,
+          tokenAddress: deps.onchainTokenAddress,
+          tokenSymbol: String(tokenSymbol || 'TOKEN'),
+          tokenDecimals: deps.onchainTokenDecimals,
+          amount,
+          from,
+          to,
+          txFrom: txFrom || null,
+          txTo: txTo || null,
+          method: method || null,
+          methodLabel,
+          nativeValueEth: tx?.value != null ? formatEther(tx.value) : null
+        };
+      });
+
+      sendJson(res, {
+        ok: true,
+        walletId,
+        address: wallet.address,
+        chainId: Number.isFinite(chainId) ? chainId : null,
+        tokenAddress: deps.onchainTokenAddress,
+        tokenSymbol: String(tokenSymbol || 'TOKEN'),
+        tokenDecimals: deps.onchainTokenDecimals,
+        lookbackBlocks,
+        recent
+      });
+    } catch (error) {
+      sendJson(res, {
+        ok: false,
+        reason: 'onchain_activity_failed',
+        detail: String((error as Error).message || 'activity_lookup_failed').slice(0, 180)
       }, 503);
     }
   });

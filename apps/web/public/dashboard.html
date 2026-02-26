@@ -700,6 +700,26 @@
       max-height: 320px;
       overflow: auto;
     }
+    .activity-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0 8px;
+    }
+    .activity-filter {
+      border: 1px solid rgba(198, 152, 49, 0.28);
+      background: rgba(12, 10, 8, 0.45);
+      color: var(--dash-muted);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font: 500 11px/1 var(--dash-mono);
+      cursor: pointer;
+    }
+    .activity-filter.active {
+      border-color: rgba(198, 152, 49, 0.65);
+      color: var(--dash-ink);
+      background: rgba(198, 152, 49, 0.15);
+    }
 
     .tx-item {
       display: grid;
@@ -1065,7 +1085,13 @@
           </div>
 
           <article id="wallet-escrow-panel" class="panel">
-            <h2>Escrow Activity</h2>
+            <h2>Wallet Activity</h2>
+            <div class="activity-filters" id="activity-filters">
+              <button class="activity-filter active" type="button" data-activity-filter="all" aria-pressed="true">All</button>
+              <button class="activity-filter" type="button" data-activity-filter="onchain" aria-pressed="false">Onchain</button>
+              <button class="activity-filter" type="button" data-activity-filter="escrow" aria-pressed="false">Escrow</button>
+              <button class="activity-filter" type="button" data-activity-filter="markets" aria-pressed="false">Markets</button>
+            </div>
             <div id="escrow-history" class="tx-history muted">Loading...</div>
           </article>
         </section>

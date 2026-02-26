@@ -18,15 +18,12 @@ import { cookieSessionId, createSessionStore, type IdentityRecord, type Role, ty
 loadEnvFromFile();
 
 function resolveInternalServiceToken(): string {
+  // SECURITY: Never derive tokens from private keys (predictable if key is compromised)
+  // Always explicitly set INTERNAL_SERVICE_TOKEN
   const explicit = process.env.INTERNAL_SERVICE_TOKEN?.trim() || '';
   if (explicit) return explicit;
-  const superAgentKey = String(
-    process.env.ESCROW_RESOLVER_PRIVATE_KEY
-    ?? process.env.DEPLOYER_PRIVATE_KEY
-    ?? ''
-  ).trim();
-  if (!superAgentKey) return '';
-  return `sa_${createHash('sha256').update(superAgentKey).digest('hex')}`;
+  // Removed insecure derivation from private keys
+  return '';
 }
 
 const port = Number(process.env.PORT ?? 3000);
@@ -458,6 +455,19 @@ function upstreamErrorJson(error: unknown, fallbackReason: string, fallbackStatu
       source: 'server_proxy'
     }
   };
+}
+
+function chainExplorerTxBase(chainId: number | null | undefined): string | null {
+  if (!Number.isFinite(Number(chainId))) {
+    return null;
+  }
+  const id = Number(chainId);
+  if (id === 137) return 'https://polygonscan.com/tx/';
+  if (id === 8453) return 'https://basescan.org/tx/';
+  if (id === 84532) return 'https://sepolia.basescan.org/tx/';
+  if (id === 11155111) return 'https://sepolia.etherscan.io/tx/';
+  if (id === 1) return 'https://etherscan.io/tx/';
+  return null;
 }
 
 const chiefService = createChiefService({
@@ -1807,6 +1817,149 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: true, recent: Array.isArray(payload?.recent) ? payload.recent : [] });
     } catch {
       sendJson(res, { ok: false, reason: 'escrow_history_unavailable' }, 503);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/activity') {
+    const auth = await requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId || !auth.identity.walletId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    const limit = Math.max(1, Math.min(120, Number(requestUrl.searchParams.get('limit') ?? 30)));
+    type OnchainActivityPayload = {
+      ok?: boolean;
+      chainId?: number | null;
+      address?: string;
+      tokenSymbol?: string;
+      recent?: Array<{
+        kind?: string;
+        direction?: string;
+        txHash?: string;
+        amount?: string;
+        from?: string;
+        to?: string;
+        method?: string | null;
+        methodLabel?: string | null;
+        txFrom?: string | null;
+        txTo?: string | null;
+        nativeValueEth?: string | null;
+        timestampMs?: number | null;
+      }>;
+    };
+    type MarketPositionActivityPayload = {
+      ok?: boolean;
+      recent?: Array<{
+        id?: string;
+        marketId?: string;
+        marketQuestion?: string;
+        side?: 'yes' | 'no';
+        stake?: number;
+        price?: number;
+        shares?: number;
+        status?: 'open' | 'won' | 'lost' | 'voided';
+        payout?: number | null;
+        settlementReason?: string | null;
+        clobOrderId?: string | null;
+        createdAt?: number;
+        settledAt?: number | null;
+      }>;
+    };
+    const onchainFallback: OnchainActivityPayload = {
+      ok: false,
+      chainId: null,
+      address: '',
+      tokenSymbol: 'TOKEN',
+      recent: []
+    };
+    try {
+      const [escrow, onchain] = await Promise.all([
+        serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+          `/escrow/events/recent?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
+        ).catch(() => ({ recent: [] })),
+        runtimeGet<OnchainActivityPayload>(`/wallets/${encodeURIComponent(auth.identity.walletId)}/activity?limit=${limit}`)
+          .catch(() => onchainFallback)
+      ]);
+      const marketPositions = await serverGet<MarketPositionActivityPayload>(
+        `/markets/player/positions?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
+      ).catch(() => ({ ok: false, recent: [] }));
+
+      const chainId = Number(onchain?.chainId ?? Number.NaN);
+      const txBase = chainExplorerTxBase(Number.isFinite(chainId) ? chainId : null);
+
+      const escrowActivity = (Array.isArray(escrow?.recent) ? escrow.recent : []).map((entry) => {
+        const txHash = String(entry?.txHash || '');
+        const at = Number(entry?.at ?? 0);
+        return {
+          kind: 'escrow',
+          at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+          txHash: txHash || null,
+          txUrl: txHash && txBase ? `${txBase}${txHash}` : null,
+          phase: String(entry?.phase || ''),
+          outcome: String(entry?.outcome || ''),
+          challengeId: String(entry?.challengeId || ''),
+          activitySource: String(entry?.activitySource || ''),
+          wager: Number(entry?.wager ?? entry?.amount ?? 0),
+          payout: Number(entry?.payout ?? 0),
+          ok: entry?.ok !== false
+        };
+      });
+
+      const onchainActivity = (Array.isArray(onchain?.recent) ? onchain.recent : []).map((entry) => {
+        const txHash = String(entry?.txHash || '');
+        const at = Number(entry?.timestampMs ?? 0);
+        return {
+          kind: 'onchain_transfer',
+          at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+          txHash: txHash || null,
+          txUrl: txHash && txBase ? `${txBase}${txHash}` : null,
+          direction: String(entry?.direction || 'unknown'),
+          amount: String(entry?.amount || '0'),
+          from: String(entry?.from || ''),
+          to: String(entry?.to || ''),
+          tokenSymbol: String(onchain?.tokenSymbol || 'TOKEN'),
+          method: entry?.method == null ? null : String(entry.method),
+          methodLabel: entry?.methodLabel == null ? null : String(entry.methodLabel),
+          txFrom: entry?.txFrom == null ? null : String(entry.txFrom),
+          txTo: entry?.txTo == null ? null : String(entry.txTo),
+          nativeValueEth: entry?.nativeValueEth == null ? null : String(entry.nativeValueEth)
+        };
+      });
+      const marketActivity = (Array.isArray(marketPositions?.recent) ? marketPositions.recent : []).map((entry) => {
+        const settledAt = Number(entry?.settledAt ?? 0);
+        const createdAt = Number(entry?.createdAt ?? 0);
+        const at = Number.isFinite(settledAt) && settledAt > 0 ? settledAt : createdAt;
+        return {
+          kind: 'market_position',
+          at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+          positionId: String(entry?.id || ''),
+          marketId: String(entry?.marketId || ''),
+          marketQuestion: String(entry?.marketQuestion || entry?.marketId || ''),
+          side: String(entry?.side || ''),
+          stake: Number(entry?.stake ?? 0),
+          price: Number(entry?.price ?? 0),
+          shares: Number(entry?.shares ?? 0),
+          status: String(entry?.status || 'open'),
+          payout: entry?.payout == null ? null : Number(entry.payout),
+          settlementReason: entry?.settlementReason == null ? null : String(entry.settlementReason),
+          clobOrderId: entry?.clobOrderId == null ? null : String(entry.clobOrderId)
+        };
+      });
+
+      const activity = [...escrowActivity, ...onchainActivity, ...marketActivity]
+        .sort((a, b) => b.at - a.at)
+        .slice(0, limit);
+
+      sendJson(res, {
+        ok: true,
+        chainId: Number.isFinite(chainId) ? chainId : null,
+        explorerTxBaseUrl: txBase,
+        walletAddress: String(onchain?.address || ''),
+        activity
+      });
+    } catch {
+      sendJson(res, { ok: false, reason: 'activity_unavailable' }, 503);
     }
     return;
   }
