@@ -139,12 +139,36 @@ async function api(path, init = {}) {
   const payload = await response.json().catch(() => ({}));
   if (response.status === 401 || response.status === 403) {
     try {
-      localStorage.removeItem('arena_ws_auth');
-    } catch {
-      // ignore
+      const verify = await fetch(`/api/player/me?optional=1&t=${Date.now()}`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      const verifyPayload = await verify.json().catch(() => ({}));
+      if (!verify.ok || !verifyPayload?.user) {
+        try {
+          localStorage.removeItem('arena_ws_auth');
+        } catch {
+          // ignore
+        }
+        window.location.href = '/welcome';
+        throw new Error('unauthorized');
+      }
+      const transient = new Error('transient_auth_stale');
+      transient.status = Number(response.status || 0);
+      transient.reason = 'transient_auth_stale';
+      throw transient;
+    } catch (error) {
+      if (String(error?.message || '') === 'transient_auth_stale') {
+        throw error;
+      }
+      try {
+        localStorage.removeItem('arena_ws_auth');
+      } catch {
+        // ignore
+      }
+      window.location.href = '/welcome';
+      throw new Error('unauthorized');
     }
-    window.location.href = '/welcome';
-    throw new Error('unauthorized');
   }
   if (!response.ok) {
     const reason = String(payload?.reason || `status_${response.status}`);
