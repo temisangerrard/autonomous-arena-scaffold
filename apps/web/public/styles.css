@@ -187,6 +187,13 @@ h4 { font-size: 1.25rem; }
 }
 
 /* ========== BUTTONS ========== */
+
+/* Baseline touch behaviour for every button in the app */
+button, [role="button"], input[type="submit"], input[type="button"] {
+    touch-action: manipulation;          /* removes 300ms iOS tap delay */
+    -webkit-tap-highlight-color: transparent; /* suppress gray flash; we show our own */
+}
+
 .btn {
     display: inline-flex;
     align-items: center;
@@ -203,6 +210,12 @@ h4 { font-size: 1.25rem; }
     cursor: pointer;
     transition: all 0.25s ease;
     white-space: nowrap;
+    position: relative; /* anchors .is-pending::after overlay */
+}
+
+.btn:active:not(:disabled) {
+    transform: scale(0.96);
+    transition-duration: 0.08s;
 }
 
 .btn--primary {
@@ -216,6 +229,12 @@ h4 { font-size: 1.25rem; }
     background: linear-gradient(135deg, var(--gold-light), var(--gold-primary));
     box-shadow: var(--shadow-gold);
     transform: translateY(-1px);
+}
+
+.btn--primary:active:not(:disabled) {
+    background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+    transform: scale(0.96);
+    box-shadow: none;
 }
 
 .btn--secondary {

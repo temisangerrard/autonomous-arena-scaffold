@@ -318,10 +318,16 @@
       letter-spacing: 0.06em;
       cursor: pointer;
       transition: all 0.2s ease;
+      position: relative;
     }
     .btn-gold:hover {
       transform: translateY(-1px);
       box-shadow: 0 6px 20px rgba(212, 168, 48, 0.4);
+    }
+    .btn-gold:active:not(:disabled) {
+      transform: scale(0.96);
+      box-shadow: none;
+      transition-duration: 0.08s;
     }
     .btn-gold:focus-visible {
       outline: 2px solid var(--ui-gold);
@@ -340,9 +346,15 @@
       cursor: pointer;
       padding: 0 14px;
       transition: all 0.2s ease;
+      position: relative;
     }
     .btn-ghost:hover {
       background: rgba(255, 255, 255, 0.8);
+    }
+    .btn-ghost:active:not(:disabled) {
+      background: rgba(240, 234, 210, 0.9);
+      transform: scale(0.96);
+      transition-duration: 0.08s;
     }
     .btn-ghost:focus-visible {
       outline: 2px solid var(--ui-gold);
@@ -421,6 +433,7 @@
       cursor: pointer;
       transition: all 0.18s ease;
       box-shadow: 0 4px 14px rgba(200, 148, 14, 0.35);
+      position: relative;
     }
     .game-panel__play-btn:hover:not(:disabled) {
       transform: translateY(-2px);
@@ -464,6 +477,7 @@
       color: #2c2112;
       cursor: pointer;
       transition: all 0.15s ease;
+      position: relative;
     }
     .game-panel__pick-btn:hover:not(:disabled) {
       border-color: rgba(198, 152, 49, 0.75);
@@ -575,6 +589,7 @@
       letter-spacing: 0.08em;
       cursor: pointer;
       transition: all 0.15s ease;
+      position: relative;
     }
 
     .prediction-side--yes {
@@ -588,6 +603,13 @@
       transform: translateY(-1px);
       box-shadow: 0 4px 14px rgba(34, 197, 94, 0.2);
     }
+    .prediction-side--yes:active:not(:disabled) {
+      background: rgba(34, 197, 94, 0.35);
+      border-color: rgba(34, 197, 94, 0.8);
+      transform: scale(0.96);
+      box-shadow: none;
+      transition-duration: 0.08s;
+    }
 
     .prediction-side--no {
       background: rgba(239, 68, 68, 0.1);
@@ -599,6 +621,13 @@
       border-color: rgba(239, 68, 68, 0.6);
       transform: translateY(-1px);
       box-shadow: 0 4px 14px rgba(239, 68, 68, 0.18);
+    }
+    .prediction-side--no:active:not(:disabled) {
+      background: rgba(239, 68, 68, 0.28);
+      border-color: rgba(239, 68, 68, 0.75);
+      transform: scale(0.96);
+      box-shadow: none;
+      transition-duration: 0.08s;
     }
 
     .prediction-side:disabled {

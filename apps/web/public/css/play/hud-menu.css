@@ -143,6 +143,11 @@
       background: rgba(253, 248, 220, 0.97);
       border-color: rgba(198, 152, 49, 0.58);
     }
+    .menu-ghost:active {
+      background: rgba(245, 235, 195, 0.98);
+      transform: scale(0.92);
+      transition-duration: 0.08s;
+    }
     .menu-ghost:focus-visible {
       outline: 2px solid rgba(198, 152, 49, 0.7);
       outline-offset: 2px;
@@ -173,7 +178,7 @@
       border: 1px solid transparent;
       background: transparent;
       color: #3b2b12;
-      min-height: 40px;
+      min-height: 44px;
       font: 600 12px/1 'Crimson Text', serif;
       letter-spacing: 0.04em;
       cursor: pointer;
@@ -181,6 +186,7 @@
       text-align: left;
       padding: 0 12px;
       width: 100%;
+      position: relative;
     }
     .menu-item::before {
       content: '';
@@ -210,10 +216,18 @@
       background: rgba(253, 248, 225, 0.85);
     }
     .menu-item:hover::before { opacity: 1; }
+    .menu-item:active {
+      background: rgba(245, 235, 195, 0.95);
+      transform: scale(0.98);
+      transition-duration: 0.08s;
+    }
     .menu-item--logout:hover {
       border-color: rgba(200, 80, 60, 0.22);
       background: rgba(255, 242, 240, 0.9);
       color: #8c2010;
+    }
+    .menu-item--logout:active {
+      background: rgba(255, 228, 225, 0.95);
     }
     .menu-item:focus-visible {
       outline: 2px solid rgba(198, 152, 49, 0.6);

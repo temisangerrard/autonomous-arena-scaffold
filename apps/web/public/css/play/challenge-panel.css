@@ -62,11 +62,17 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       padding: 6px 12px;
+      min-height: 32px;
       cursor: pointer;
       transition: all 0.2s ease;
     }
     .desk-toggle:hover {
       background: rgba(255, 255, 255, 0.12);
+    }
+    .desk-toggle:active {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(0.95);
+      transition-duration: 0.08s;
     }
     .desk-toggle:focus-visible {
       outline: 2px solid var(--ui-gold);
@@ -164,10 +170,16 @@
       letter-spacing: 0.06em;
       cursor: pointer;
       transition: all 0.2s ease;
+      position: relative;
     }
     .challenge-panel button:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 16px rgba(255, 127, 127, 0.4);
+    }
+    .challenge-panel button:active:not(:disabled) {
+      transform: scale(0.96);
+      box-shadow: none;
+      transition-duration: 0.08s;
     }
     .challenge-panel button:focus-visible {
       outline: 2px solid var(--ui-gold);
