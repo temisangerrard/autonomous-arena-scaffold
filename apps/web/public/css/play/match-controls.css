@@ -135,3 +135,26 @@
       cursor: not-allowed;
     }
 
+    @media (max-width: 480px) {
+      .match-controls__title {
+        font-size: 15px;
+      }
+      .match-controls__actions {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .match-controls__actions.two {
+        grid-template-columns: 1fr 1fr;
+      }
+      .match-controls__actions button {
+        padding: 12px 8px;
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .match-controls__actions {
+        grid-template-columns: 1fr;
+      }
+    }
+

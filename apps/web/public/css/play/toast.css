@@ -26,6 +26,7 @@
       display: flex;
       align-items: flex-start;
       gap: 10px;
+      touch-action: manipulation;
     }
     .toast--success { border-left: 4px solid var(--ui-success); }
     .toast--error { border-left: 4px solid var(--ui-error); }
@@ -48,14 +49,15 @@
       border: 1px solid rgba(255, 203, 164, 0.35);
       background: rgba(255, 255, 255, 0.06);
       color: #f9dfb7;
-      width: 24px;
-      height: 24px;
+      width: 32px;
+      height: 32px;
       border-radius: 7px;
       cursor: pointer;
       font: 700 16px/1 'Inter', sans-serif;
       line-height: 1;
       padding: 0;
       flex: none;
+      touch-action: manipulation;
     }
     .toast__dismiss:hover {
       background: rgba(255, 255, 255, 0.15);
