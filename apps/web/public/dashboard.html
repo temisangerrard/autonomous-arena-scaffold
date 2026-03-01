@@ -879,6 +879,7 @@
       #dashboard-enter-play::before { content: "▶"; font-size: 14px; }
       .card-grid, .bot-grid { grid-template-columns: 1fr; }
       .input-row, .input-row-3 { grid-template-columns: 1fr; }
+      .dashboard-content { padding: 20px 18px; }
     }
 
     @media (max-width: 768px) {
@@ -911,6 +912,12 @@
       .wallet-id-row button { width: 100%; }
       .tx-item { grid-template-columns: 1fr; gap: 6px; }
       .tx-amount { text-align: left; }
+    }
+
+    @media (max-width: 480px) {
+      .dashboard-content { padding: 14px 10px 88px; }
+      .hero-card h1 { font-size: 20px; }
+      .hero-card { gap: 8px; }
     }
   </style>
 </head>
