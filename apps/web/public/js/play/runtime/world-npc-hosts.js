@@ -17,9 +17,9 @@ export const HOST_STATION_PROXY_MAP = {
   station_npc_host_1: 'station_world_info_a',
   station_npc_host_2: 'station_cashier_bank',
   station_npc_host_3: 'station_dealer_coinflip_a',
-  station_npc_host_4: 'station_dealer_coinflip_b',
+  station_npc_host_4: 'station_dealer_coinflip_a',
   station_npc_host_5: 'station_dealer_rps_a',
-  station_npc_host_6: 'station_dealer_rps_b',
+  station_npc_host_6: 'station_dealer_rps_a',
   station_npc_host_7: 'station_dealer_dice_a',
   station_npc_host_8: 'station_dealer_prediction_a'
 };

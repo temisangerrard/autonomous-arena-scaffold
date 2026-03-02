@@ -11,28 +11,26 @@ describe('buildStations', () => {
       'station_cashier_bank',
       'station_dealer_coinflip_a',
       'station_dealer_rps_a',
-      'station_dealer_dice_a',
-      'station_dealer_prediction_a'
+      'station_dealer_prediction_a',
+      'station_dealer_dice_a'
     ]);
 
     const cashier = stations.find((s) => s.id === 'station_cashier_bank');
     const market = stations.find((s) => s.id === 'station_dealer_prediction_a');
 
     expect(cashier).toMatchObject({
-      uiRole: 'cashier',
-      publicFacing: true,
-      primaryVenue: true,
-      walletSurface: 'cashier',
-      interactionMode: 'cashier',
-      arenaZone: 'ring'
+      kind: 'cashier_bank',
+      actions: ['balance', 'fund', 'withdraw', 'transfer']
     });
     expect(market).toMatchObject({
-      uiRole: 'market',
-      publicFacing: true,
-      primaryVenue: true,
-      walletSurface: 'summary',
-      interactionMode: 'market',
-      arenaZone: 'ring'
+      kind: 'dealer_prediction',
+      actions: [
+        'prediction_markets_open',
+        'prediction_market_quote',
+        'prediction_market_buy_yes',
+        'prediction_market_buy_no',
+        'prediction_positions_open'
+      ]
     });
   });
 
