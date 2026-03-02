@@ -46,4 +46,24 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes("if (ds !== 'preflight') {")).toBe(true);
     expect(source.includes("_clearTimer('dealer:preflight');")).toBe(true);
   });
+
+  it('renders the btc board as a btc-only trading rail', () => {
+    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    expect(source.includes('BTC Up')).toBe(true);
+    expect(source.includes('BTC Down')).toBe(true);
+    expect(source.includes('If your side wins without opposite liquidity, your stake is refunded.')).toBe(true);
+    expect(source.includes('No BTC market is live right now.')).toBe(true);
+    expect(source.includes('Get quote')).toBe(false);
+    expect(source.includes('My positions')).toBe(false);
+    expect(source.includes('prediction-buy-yes')).toBe(false);
+    expect(source.includes('prediction-buy-no')).toBe(false);
+  });
+
+  it('uses local btc board prechecks before sending prediction orders', () => {
+    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    expect(source.includes('function validatePredictionOrder')).toBe(true);
+    expect(source.includes('Insufficient USDC balance for this stake.')).toBe(true);
+    expect(source.includes('Selected BTC market is no longer open.')).toBe(true);
+    expect(source.includes('No BTC market is live right now.')).toBe(true);
+  });
 });

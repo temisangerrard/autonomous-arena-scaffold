@@ -55,13 +55,6 @@ const DEFAULT_MAX_WAGER = Math.max(1, Number(process.env.PREDICTION_MAX_WAGER_DE
 const DEFAULT_SPREAD_BPS = Math.max(0, Math.min(5000, Number(process.env.PREDICTION_SPREAD_BPS_DEFAULT || 300)));
 const MAX_OPEN_POSITIONS_PER_PLAYER = Math.max(1, Number(process.env.PREDICTION_MAX_OPEN_PER_PLAYER || 12));
 const ORACLE_STALE_MS = Math.max(30_000, Number(process.env.PREDICTION_ORACLE_STALE_MS || 3 * 60_000));
-const FALLBACK_MARKET_ID = (process.env.PREDICTION_FALLBACK_MARKET_ID || 'fallback_train_world_market').trim();
-const FALLBACK_MARKET_SLUG = (process.env.PREDICTION_FALLBACK_MARKET_SLUG || 'train-world-house-market').trim();
-const FALLBACK_MARKET_QUESTION = (
-  process.env.PREDICTION_FALLBACK_MARKET_QUESTION || 'Will Bitcoin (BTC) be higher in 24 hours?'
-).trim();
-const FALLBACK_MARKET_CATEGORY = (process.env.PREDICTION_FALLBACK_MARKET_CATEGORY || 'train_world').trim();
-const FALLBACK_MARKET_CLOSE_MS = Math.max(60 * 60_000, Number(process.env.PREDICTION_FALLBACK_CLOSE_MS || 24 * 60 * 60_000));
 const ENSURE_ACTIVE_MARKET_COOLDOWN_MS = Math.max(1_000, Number(process.env.PREDICTION_ENSURE_ACTIVE_COOLDOWN_MS || 5_000));
 const PREFERRED_MARKET_TERMS = (process.env.PREDICTION_PREFERRED_MARKET_TERMS || 'bitcoin,btc')
   .split(',')
@@ -179,35 +172,6 @@ export class MarketService {
   private isPlayableNow(market: MarketRecord): boolean {
     if (market.status === 'cancelled' || market.status === 'resolved') return false;
     return market.closeAt > Date.now();
-  }
-
-  private async ensureFallbackMarket(activeMaxWager = DEFAULT_MAX_WAGER, activeSpreadBps = DEFAULT_SPREAD_BPS): Promise<void> {
-    const now = Date.now();
-    await this.db.upsertMarket({
-      id: FALLBACK_MARKET_ID,
-      slug: FALLBACK_MARKET_SLUG,
-      question: FALLBACK_MARKET_QUESTION,
-      category: FALLBACK_MARKET_CATEGORY,
-      closeAt: now + FALLBACK_MARKET_CLOSE_MS,
-      resolveAt: null,
-      status: 'open',
-      oracleSource: 'polymarket_gamma',
-      oracleMarketId: 'fallback_house',
-      outcome: null,
-      yesPrice: 0.5,
-      noPrice: 0.5,
-      rawJson: {
-        source: 'fallback',
-        generatedAt: now
-      }
-    });
-    await this.db.setMarketActivation({
-      marketId: FALLBACK_MARKET_ID,
-      active: true,
-      maxWager: activeMaxWager,
-      houseSpreadBps: activeSpreadBps,
-      updatedBy: 'system:auto_fallback'
-    });
   }
 
   private preferredMarketScore(market: MarketRecord): number {
@@ -432,13 +396,15 @@ export class MarketService {
       const [markets, activation] = await Promise.all([this.db.listMarkets(200), this.activationMap()]);
       const activePlayable = markets
         .map((market) => this.marketViewOf(market, activation.get(market.id) || null))
-        .some((market) => market.active && this.isPlayableNow(market));
+        .some((market) => market.active && market.oracleSource === 'chainlink_btc_usd' && this.isPlayableNow(market));
       if (activePlayable) return;
 
       const defaultActivation = activation.values().next().value || null;
       const maxWager = Number(defaultActivation?.maxWager ?? DEFAULT_MAX_WAGER);
       const houseSpreadBps = Number(defaultActivation?.houseSpreadBps ?? DEFAULT_SPREAD_BPS);
-      const candidatePool = markets.filter((market) => market.id !== FALLBACK_MARKET_ID && this.isPlayableNow(market));
+      const candidatePool = markets.filter((market) =>
+        market.oracleSource === 'chainlink_btc_usd' && this.isPlayableNow(market)
+      );
       const preferred = this.choosePreferredMarket(candidatePool);
       const candidate = preferred || candidatePool[0];
       if (candidate) {
@@ -451,31 +417,6 @@ export class MarketService {
         });
         return;
       }
-
-      // API-first path: pull fresh oracle markets and try to activate a BTC/preferred market.
-      try {
-        const oracleMarkets = await this.feed.fetchMarkets(80);
-        if (oracleMarkets.length > 0) {
-          await this.upsertOracleMarkets(oracleMarkets);
-          const openOracle = oracleMarkets.filter((market) => market.status === 'open' && market.closeAt > Date.now());
-          const preferredOracle = this.choosePreferredMarket(openOracle);
-          const oracleCandidate = preferredOracle || openOracle[0];
-          if (oracleCandidate) {
-            await this.db.setMarketActivation({
-              marketId: oracleCandidate.id,
-              active: true,
-              maxWager,
-              houseSpreadBps,
-              updatedBy: 'system:auto_activate_oracle'
-            });
-            return;
-          }
-        }
-      } catch {
-        // If oracle fetch fails, fallback market keeps station usable.
-      }
-
-      await this.ensureFallbackMarket(maxWager, houseSpreadBps);
     })()
       .catch(() => undefined)
       .finally(() => {
@@ -700,8 +641,9 @@ export class MarketService {
         };
       })
       .filter((m) => m.active)
+      .filter((m) => m.oracleSource === 'chainlink_btc_usd')
       .filter((m) => m.status !== 'cancelled')
-      .filter((m) => m.status === 'resolved' || m.closeAt > now)
+      .filter((m) => m.closeAt > now)
       .sort((a, b) => {
         const aScore = this.preferredMarketScore(a);
         const bScore = this.preferredMarketScore(b);

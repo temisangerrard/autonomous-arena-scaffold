@@ -218,21 +218,14 @@ export function renderInteractionCardTemplate(params) {
               <label for="prediction-stake">Stake <span class="game-panel__currency">USDC</span></label>
               <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" class="game-panel__wager-input" />
             </div>
-            <div class="prediction-sides">
-              <button id="prediction-buy-yes" class="prediction-side prediction-side--yes" type="button">YES</button>
-              <button id="prediction-buy-no" class="prediction-side prediction-side--no" type="button">NO</button>
-            </div>
             <div class="station-ui__meta" id="prediction-btc-target">BTC quick market: locating…</div>
             <div class="prediction-sides">
-              <button id="prediction-btc-yes" class="prediction-side prediction-side--yes" type="button">BTC Up (YES)</button>
-              <button id="prediction-btc-no" class="prediction-side prediction-side--no" type="button">BTC Down (NO)</button>
+              <button id="prediction-btc-yes" class="prediction-side prediction-side--yes" type="button">BTC Up</button>
+              <button id="prediction-btc-no" class="prediction-side prediction-side--no" type="button">BTC Down</button>
             </div>
+            <div class="station-ui__meta">If your side wins without opposite liquidity, your stake is refunded.</div>
             <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Fetching markets…'}</div>
-            <div class="station-ui__meta" id="prediction-quote-view" hidden></div>
-            <div class="station-ui__meta" id="prediction-positions-view" hidden></div>
             <div class="station-ui__actions">
-              <button id="prediction-quote" class="btn-ghost" type="button">Get quote</button>
-              <button id="prediction-positions" class="btn-ghost" type="button">My positions</button>
               <button id="prediction-refresh" class="btn-ghost" type="button">Refresh</button>
             </div>
           </div>
@@ -241,10 +234,6 @@ export function renderInteractionCardTemplate(params) {
         const selectEl = document.getElementById('prediction-market-select');
         const stakeEl = document.getElementById('prediction-stake');
         const refreshBtn = document.getElementById('prediction-refresh');
-        const positionsBtn = document.getElementById('prediction-positions');
-        const quoteBtn = document.getElementById('prediction-quote');
-        const buyYesBtn = document.getElementById('prediction-buy-yes');
-        const buyNoBtn = document.getElementById('prediction-buy-no');
         const btcYesBtn = document.getElementById('prediction-btc-yes');
         const btcNoBtn = document.getElementById('prediction-btc-no');
         const btcTargetEl = document.getElementById('prediction-btc-target');
@@ -260,25 +249,27 @@ export function renderInteractionCardTemplate(params) {
           return Math.max(1, Math.min(10_000, Number(stakeEl?.value || 1)));
         }
 
-        function isBtcMarket(entry) {
-          if (!entry) return false;
-          if (String(entry.oracleSource || '') === 'chainlink_btc_usd') return true;
-          const haystack = `${String(entry.question || '')} ${String(entry.slug || '')} ${String(entry.category || '')}`.toLowerCase();
-          return haystack.includes('bitcoin') || haystack.includes('btc');
+        function activeBtcMarkets() {
+          const now = Date.now();
+          const markets = Array.isArray(state.ui?.prediction?.markets) ? state.ui.prediction.markets : [];
+          return markets.filter((entry) => (
+            String(entry?.oracleSource || '') === 'chainlink_btc_usd'
+            && String(entry?.status || 'open') === 'open'
+            && Number(entry?.closeAt || 0) > now
+          ));
         }
 
-        function findBtcMarketId() {
-          const markets = Array.isArray(state.ui?.prediction?.markets) ? state.ui.prediction.markets : [];
-          const matched = markets.find((entry) => isBtcMarket(entry));
-          return String(matched?.marketId || '');
+        function selectedBtcMarket() {
+          const btcMarkets = activeBtcMarkets();
+          const selectedMarketId = currentMarketId();
+          return btcMarkets.find((entry) => String(entry.marketId || '') === selectedMarketId) || btcMarkets[0] || null;
         }
 
         function refreshBtcTargetLabel() {
           if (!btcTargetEl) return;
-          const markets = Array.isArray(state.ui?.prediction?.markets) ? state.ui.prediction.markets : [];
-          const matched = markets.find((entry) => isBtcMarket(entry));
+          const matched = selectedBtcMarket();
           if (!matched) {
-            btcTargetEl.textContent = 'BTC quick market: none active';
+            btcTargetEl.textContent = 'No BTC market is live right now.';
             btcTargetEl.removeAttribute('title');
             return;
           }
@@ -296,9 +287,26 @@ export function renderInteractionCardTemplate(params) {
           return sendStationInteract(routeStation, action, extra);
         }
 
+        function validatePredictionOrder() {
+          const market = selectedBtcMarket();
+          if (!market) {
+            return 'No BTC market is live right now.';
+          }
+          if (String(market.status || 'open') !== 'open' || Number(market.closeAt || 0) <= Date.now()) {
+            return 'Selected BTC market is no longer open.';
+          }
+          const stake = currentStake();
+          const balance = Number(state.walletBalance);
+          if (Number.isFinite(balance) && stake > balance) {
+            return 'Insufficient USDC balance for this stake.';
+          }
+          return '';
+        }
+
         if (selectEl instanceof HTMLSelectElement) {
           selectEl.onchange = () => {
             state.ui.prediction.selectedMarketId = String(selectEl.value || '');
+            refreshBtcTargetLabel();
           };
         }
         if (refreshBtn) {
@@ -306,136 +314,71 @@ export function renderInteractionCardTemplate(params) {
             dispatchPrediction('prediction_markets_open');
           };
         }
-        if (positionsBtn) {
-          positionsBtn.onclick = () => {
-            dispatchPrediction('prediction_positions_open');
-          };
-        }
         function clearPredictionBuyBtns() {
-          clearPendingBtn(buyYesBtn, 'YES');
-          clearPendingBtn(buyNoBtn, 'NO');
-          clearPendingBtn(btcYesBtn, 'BTC Up (YES)');
-          clearPendingBtn(btcNoBtn, 'BTC Down (NO)');
-          clearPendingBtn(quoteBtn, 'Get quote');
+          clearPendingBtn(btcYesBtn, 'BTC Up');
+          clearPendingBtn(btcNoBtn, 'BTC Down');
         }
 
-        function selectBtcMarket() {
-          const btcMarketId = findBtcMarketId();
-          if (!btcMarketId) return '';
-          state.ui.prediction.selectedMarketId = btcMarketId;
-          if (selectEl instanceof HTMLSelectElement) {
-            selectEl.value = btcMarketId;
+        function submitPredictionOrder(side) {
+          const failure = validatePredictionOrder();
+          if (failure) {
+            state.ui.prediction.state = 'error';
+            state.ui.prediction.lastReason = 'prediction_precheck_failed';
+            state.ui.prediction.lastReasonText = failure;
+            clearPredictionBuyBtns();
+            showToast(failure, 'warning');
+            return;
           }
-          return btcMarketId;
+          const market = selectedBtcMarket();
+          const marketId = String(market?.marketId || '');
+          if (!marketId) {
+            return;
+          }
+          state.ui.prediction.selectedMarketId = marketId;
+          if (selectEl instanceof HTMLSelectElement) {
+            selectEl.value = marketId;
+          }
+          const button = side === 'yes' ? btcYesBtn : btcNoBtn;
+          const otherButton = side === 'yes' ? btcNoBtn : btcYesBtn;
+          if (button) {
+            state.ui.prediction.state = 'pending';
+            setPendingBtn(button, 'Confirming…');
+          }
+          if (otherButton) {
+            otherButton.disabled = true;
+          }
+          _startTimer('prediction:buy', () => {
+            clearPredictionBuyBtns();
+            state.ui.prediction.state = 'error';
+            state.ui.prediction.lastReason = 'prediction_timeout';
+            state.ui.prediction.lastReasonText = 'No server response. Try again.';
+            showToast('No server response. Try again.', 'error');
+          }, 7000);
+          const action = side === 'yes' ? 'prediction_market_buy_yes' : 'prediction_market_buy_no';
+          const sent = dispatchPrediction(action, { marketId, stake: currentStake() });
+          if (!sent) {
+            _clearTimer('prediction:buy');
+            clearPredictionBuyBtns();
+            state.ui.prediction.state = 'error';
+          }
         }
 
-        if (quoteBtn) {
-          quoteBtn.onclick = () => {
-            const marketId = currentMarketId();
-            if (!marketId) { showToast('Pick a market first.'); return; }
-            setPendingBtn(quoteBtn, 'Getting quote…');
-            _startTimer('prediction:quote', () => {
-              clearPendingBtn(quoteBtn, 'Get quote');
-              showToast('No response from prediction server.', 'error');
-            }, 5000);
-            const sent = dispatchPrediction('prediction_market_quote', { marketId, side: 'yes', stake: currentStake() });
-            if (!sent) {
-              _clearTimer('prediction:quote');
-              clearPendingBtn(quoteBtn, 'Get quote');
-            }
-          };
-        }
-        if (buyYesBtn) {
-          buyYesBtn.onclick = () => {
-            const marketId = currentMarketId();
-            if (!marketId) { showToast('Pick a market first.'); return; }
-            state.ui.prediction.state = 'pending';
-            setPendingBtn(buyYesBtn, 'Confirming…');
-            buyNoBtn && (buyNoBtn.disabled = true);
-            btcYesBtn && (btcYesBtn.disabled = true);
-            btcNoBtn && (btcNoBtn.disabled = true);
-            _startTimer('prediction:buy', () => {
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-              showToast('No server response. Try again.', 'error');
-            }, 7000);
-            const sent = dispatchPrediction('prediction_market_buy_yes', { marketId, stake: currentStake() });
-            if (!sent) {
-              _clearTimer('prediction:buy');
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-            }
-          };
-        }
-        if (buyNoBtn) {
-          buyNoBtn.onclick = () => {
-            const marketId = currentMarketId();
-            if (!marketId) { showToast('Pick a market first.'); return; }
-            state.ui.prediction.state = 'pending';
-            setPendingBtn(buyNoBtn, 'Confirming…');
-            buyYesBtn && (buyYesBtn.disabled = true);
-            btcYesBtn && (btcYesBtn.disabled = true);
-            btcNoBtn && (btcNoBtn.disabled = true);
-            _startTimer('prediction:buy', () => {
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-              showToast('No server response. Try again.', 'error');
-            }, 7000);
-            const sent = dispatchPrediction('prediction_market_buy_no', { marketId, stake: currentStake() });
-            if (!sent) {
-              _clearTimer('prediction:buy');
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-            }
-          };
-        }
         if (btcYesBtn) {
           btcYesBtn.onclick = () => {
-            const marketId = selectBtcMarket();
-            if (!marketId) { showToast('No BTC market is active right now.'); return; }
-            state.ui.prediction.state = 'pending';
-            setPendingBtn(btcYesBtn, 'Confirming…');
-            buyYesBtn && (buyYesBtn.disabled = true);
-            buyNoBtn && (buyNoBtn.disabled = true);
-            btcNoBtn && (btcNoBtn.disabled = true);
-            _startTimer('prediction:buy', () => {
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-              showToast('No server response. Try again.', 'error');
-            }, 7000);
-            const sent = dispatchPrediction('prediction_market_buy_yes', { marketId, stake: currentStake() });
-            if (!sent) {
-              _clearTimer('prediction:buy');
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-            }
+            submitPredictionOrder('yes');
           };
         }
         if (btcNoBtn) {
           btcNoBtn.onclick = () => {
-            const marketId = selectBtcMarket();
-            if (!marketId) { showToast('No BTC market is active right now.'); return; }
-            state.ui.prediction.state = 'pending';
-            setPendingBtn(btcNoBtn, 'Confirming…');
-            buyYesBtn && (buyYesBtn.disabled = true);
-            buyNoBtn && (buyNoBtn.disabled = true);
-            btcYesBtn && (btcYesBtn.disabled = true);
-            _startTimer('prediction:buy', () => {
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-              showToast('No server response. Try again.', 'error');
-            }, 7000);
-            const sent = dispatchPrediction('prediction_market_buy_no', { marketId, stake: currentStake() });
-            if (!sent) {
-              _clearTimer('prediction:buy');
-              clearPredictionBuyBtns();
-              state.ui.prediction.state = 'error';
-            }
+            submitPredictionOrder('no');
           };
         }
         refreshBtcTargetLabel();
         if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
           dispatchPrediction('prediction_markets_open');
+        } else if (!selectedBtcMarket()) {
+          state.ui.prediction.lastReason = 'prediction_no_live_btc_market';
+          state.ui.prediction.lastReasonText = 'No BTC market is live right now.';
         }
       }
 
@@ -1014,14 +957,15 @@ export function renderInteractionCardTemplate(params) {
     }
     if (station.kind === 'dealer_prediction' || stationUi.dataset.predictionMode === 'kiosk') {
       const prediction = state.ui.prediction || {};
-      const markets = Array.isArray(prediction.markets) ? prediction.markets : [];
-      const positions = Array.isArray(prediction.positions) ? prediction.positions : [];
+      const markets = (Array.isArray(prediction.markets) ? prediction.markets : []).filter((market) => (
+        String(market?.oracleSource || '') === 'chainlink_btc_usd'
+        && String(market?.status || 'open') === 'open'
+        && Number(market?.closeAt || 0) > Date.now()
+      ));
       const selectedMarketId = String(prediction.selectedMarketId || markets[0]?.marketId || '');
       const selectEl = document.getElementById('prediction-market-select');
       const previewEl = document.getElementById('prediction-market-preview');
       const statusEl = document.getElementById('prediction-status');
-      const quoteEl = document.getElementById('prediction-quote-view');
-      const positionsEl = document.getElementById('prediction-positions-view');
       const tickerEl = document.getElementById('prediction-market-strip');
       const btcTargetEl = document.getElementById('prediction-btc-target');
       if (selectEl instanceof HTMLSelectElement) {
@@ -1057,9 +1001,9 @@ export function renderInteractionCardTemplate(params) {
         }
       }
       if (btcTargetEl) {
-        const btcMarket = markets.find((market) => String(market.oracleSource || '') === 'chainlink_btc_usd' || /bitcoin|btc/i.test(`${String(market.question || '')} ${String(market.slug || '')} ${String(market.category || '')}`)) || null;
+        const btcMarket = markets.find((market) => String(market.marketId || '') === selectedMarketId) || markets[0] || null;
         if (!btcMarket) {
-          btcTargetEl.textContent = 'BTC quick market: none active';
+          btcTargetEl.textContent = 'No BTC market is live right now.';
           btcTargetEl.removeAttribute('title');
         } else {
           const question = String(btcMarket.question || btcMarket.marketId || 'BTC market');
@@ -1070,67 +1014,31 @@ export function renderInteractionCardTemplate(params) {
       }
       if (statusEl) {
         const mode = String(prediction.state || 'idle');
-        const _buyYes = document.getElementById('prediction-buy-yes');
-        const _buyNo  = document.getElementById('prediction-buy-no');
         const _btcYes = document.getElementById('prediction-btc-yes');
         const _btcNo  = document.getElementById('prediction-btc-no');
-        const _quote  = document.getElementById('prediction-quote');
         if (mode === 'pending') {
           setStationStatus(statusEl, 'Submitting order...', 'neutral');
         } else if (mode === 'error') {
-          _clearTimer('prediction:buy'); _clearTimer('prediction:quote');
-          if (_buyYes) { flashBtn(_buyYes, 'is-failed'); clearPendingBtn(_buyYes, 'YES'); }
-          if (_buyNo)  { flashBtn(_buyNo,  'is-failed'); clearPendingBtn(_buyNo,  'NO');  }
-          if (_btcYes) { flashBtn(_btcYes, 'is-failed'); clearPendingBtn(_btcYes, 'BTC Up (YES)'); }
-          if (_btcNo)  { flashBtn(_btcNo,  'is-failed'); clearPendingBtn(_btcNo,  'BTC Down (NO)');  }
-          if (_quote)  { clearPendingBtn(_quote,  'Get quote'); }
+          _clearTimer('prediction:buy');
+          if (_btcYes) { flashBtn(_btcYes, 'is-failed'); clearPendingBtn(_btcYes, 'BTC Up'); }
+          if (_btcNo)  { flashBtn(_btcNo,  'is-failed'); clearPendingBtn(_btcNo,  'BTC Down');  }
           setStationStatus(statusEl, String(prediction.lastReasonText || 'Prediction request failed.'), 'warning');
         } else if (mode === 'filled') {
-          _clearTimer('prediction:buy'); _clearTimer('prediction:quote');
-          if (_buyYes) { flashBtn(_buyYes, 'is-success'); clearPendingBtn(_buyYes, 'YES'); }
-          if (_buyNo)  { flashBtn(_buyNo,  'is-success'); clearPendingBtn(_buyNo,  'NO');  }
-          if (_btcYes) { flashBtn(_btcYes, 'is-success'); clearPendingBtn(_btcYes, 'BTC Up (YES)'); }
-          if (_btcNo)  { flashBtn(_btcNo,  'is-success'); clearPendingBtn(_btcNo,  'BTC Down (NO)');  }
-          if (_quote)  { clearPendingBtn(_quote,  'Get quote'); }
+          _clearTimer('prediction:buy');
+          if (_btcYes) { flashBtn(_btcYes, 'is-success'); clearPendingBtn(_btcYes, 'BTC Up'); }
+          if (_btcNo)  { flashBtn(_btcNo,  'is-success'); clearPendingBtn(_btcNo,  'BTC Down');  }
           setStationStatus(statusEl, 'Order filled.', 'success');
         } else {
-          _clearTimer('prediction:quote');
-          if (_quote) clearPendingBtn(_quote, 'Get quote');
           if (markets.length === 0) {
-            setStationStatus(statusEl, 'No active markets. Refresh and sync from admin if needed.', 'warning');
+            setStationStatus(statusEl, 'No BTC market is live right now.', 'warning');
           } else {
-            setStationStatus(statusEl, 'Quote a side or place an order.');
+            setStationStatus(statusEl, 'Choose BTC Up or BTC Down.');
           }
-        }
-      }
-      if (quoteEl) {
-        const quote = prediction.quote;
-        if (quote && quote.marketId) {
-          quoteEl.hidden = false;
-          quoteEl.textContent = `${String(quote.side || '').toUpperCase()} @ ${formatPredictionPrice(Number(quote.price || 0))} · ${Number(quote.shares || 0).toFixed(2)} shares · payout ${formatUsdAmount(Number(quote.potentialPayout || 0))}`;
-        } else {
-          quoteEl.hidden = true;
-          quoteEl.textContent = '';
-        }
-      }
-      if (positionsEl) {
-        if (positions.length === 0) {
-          positionsEl.hidden = true;
-          positionsEl.innerHTML = '';
-        } else {
-          positionsEl.hidden = false;
-          positionsEl.innerHTML = positions
-            .slice(0, 4)
-            .map((entry) => {
-              const question = String(entry.question || entry.marketId || '').slice(0, 44);
-              return `<div class="prediction-position">${question}<span class="prediction-position__side prediction-position__side--${String(entry.side || '').toLowerCase()}">${String(entry.side || '').toUpperCase()}</span> · ${formatUsdAmount(Number(entry.stake || 0))} · ${String(entry.status || 'open')}</div>`;
-            })
-            .join('');
         }
       }
       if (tickerEl) {
         tickerEl.innerHTML = markets.length === 0
-          ? '<span class="prediction-pill">No active markets</span>'
+          ? '<span class="prediction-pill">No BTC market is live right now.</span>'
           : markets
               .slice(0, 3)
               .map((entry) => {

@@ -1459,3 +1459,26 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/web build` ✅
   - Remaining limitation:
     - a wallet that exists only in an older backend/runtime state and is absent from the current runtime continuity store still requires explicit admin relink/recovery.
+
+- 2026-03-02: Cleaned the BTC board into a BTC-only Chainlink rail with no fallback market path.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/server/src/markets/MarketService.ts` so player-facing prediction listings now return only playable `chainlink_btc_usd` markets.
+  - Removed the synthetic fallback market creation path from the BTC rail listing flow.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card.js` so the station now renders only BTC-specific actions:
+    - `BTC Up`
+    - `BTC Down`
+    - no generic `YES/NO`
+    - no `Get quote`
+    - no `My positions`
+  - Added local prechecks before order submission for:
+    - no live BTC market
+    - closed BTC market
+    - insufficient USDC balance for stake
+  - Added UI copy clarifying refund-only behavior when no opposite liquidity exists at resolution.
+  - Added/updated tests:
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/markets/MarketService.test.ts`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/interactionCardVisibility.test.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/worldNpcHosts.test.js`
+  - Validation:
+    - `npm run -w @arena/server test -- src/markets/MarketService.test.ts` ✅
+    - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldNpcHosts.test.js` ✅
+    - `npm run -w @arena/web build && npm run -w @arena/server build` ✅

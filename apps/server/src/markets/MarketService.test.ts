@@ -91,80 +91,31 @@ function buildServiceState(input?: {
 }
 
 describe('MarketService active market guarantee', () => {
-  it('fetches live oracle markets before fallback and activates BTC market', async () => {
-    const now = Date.now();
+  it('returns empty when no chainlink btc rail can be built', async () => {
     const state = buildServiceState({ markets: [] });
-    const feed = {
-      async fetchMarkets() {
-        return [
-          {
-            id: 'poly_weather_1',
-            slug: 'will-nyc-rain-this-week',
-            question: 'Will NYC get rain this week?',
-            category: 'weather',
-            closeAt: now + 60 * 60_000,
-            resolveAt: null,
-            status: 'open' as const,
-            outcome: null,
-            yesPrice: 0.5,
-            noPrice: 0.5,
-            oracleMarketId: 'weather_1',
-            raw: {}
-          },
-          {
-            id: 'poly_btc_live_1',
-            slug: 'will-bitcoin-close-above-100k',
-            question: 'Will Bitcoin close above $100k?',
-            category: 'crypto',
-            closeAt: now + 90 * 60_000,
-            resolveAt: null,
-            status: 'open' as const,
-            outcome: null,
-            yesPrice: 0.52,
-            noPrice: 0.48,
-            oracleMarketId: 'btc_1',
-            raw: {}
-          }
-        ];
-      }
-    };
-    const service = new MarketService(state.db as never, {} as never, feed as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
 
-    expect(markets.length).toBe(1);
-    expect(markets[0]?.id).toBe('poly_btc_live_1');
-    expect(state.getUpsertCount()).toBeGreaterThan(0);
+    expect(markets).toEqual([]);
+    expect(state.getUpsertCount()).toBe(0);
   });
 
-  it('prefers BTC markets when auto-activating', async () => {
+  it('activates existing playable chainlink btc markets', async () => {
     const now = Date.now();
     const state = buildServiceState({
       markets: [
         {
-          id: 'poly_weather_1',
-          slug: 'will-nyc-rain-this-week',
-          question: 'Will NYC get rain this week?',
-          category: 'weather',
-          closeAt: now + 30 * 60_000,
-          resolveAt: null,
-          status: 'open',
-          oracleSource: 'polymarket_gamma',
-          oracleMarketId: 'poly_weather_1',
-          outcome: null,
-          yesPrice: 0.4,
-          noPrice: 0.6
-        },
-        {
-          id: 'poly_btc_1',
-          slug: 'will-bitcoin-be-above-100k-tomorrow',
-          question: 'Will Bitcoin be above $100k tomorrow?',
-          category: 'crypto',
+          id: 'cl_btc_24h_existing',
+          slug: 'btc-up-24h-existing',
+          question: 'Will BTC/USD be higher in 24 hours?',
+          category: 'chainlink_btc',
           closeAt: now + 60 * 60_000,
-          resolveAt: null,
+          resolveAt: now + 60 * 60_000,
           status: 'open',
-          oracleSource: 'polymarket_gamma',
-          oracleMarketId: 'poly_btc_1',
+          oracleSource: 'chainlink_btc_usd',
+          oracleMarketId: 'chainlink:24h:existing',
           outcome: null,
           yesPrice: 0.5,
           noPrice: 0.5
@@ -172,42 +123,84 @@ describe('MarketService active market guarantee', () => {
       ]
     });
     const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
 
     expect(markets.length).toBe(1);
-    expect(markets[0]?.id).toBe('poly_btc_1');
+    expect(markets[0]?.id).toBe('cl_btc_24h_existing');
     expect(markets[0]?.active).toBe(true);
   });
 
-  it('activates an existing open market when none are active', async () => {
+  it('does not let a non-btc active market block btc rail activation', async () => {
     const now = Date.now();
     const state = buildServiceState({
       markets: [
         {
-          id: 'poly_open_1',
-          slug: 'will-btc-close-higher-today',
-          question: 'Will BTC close higher today?',
-          category: 'crypto',
-          closeAt: now + 30 * 60_000,
+          id: 'poly_active_elsewhere',
+          slug: 'legacy-active-market',
+          question: 'Legacy market still active',
+          category: 'legacy',
+          closeAt: now + 60 * 60_000,
           resolveAt: null,
           status: 'open',
           oracleSource: 'polymarket_gamma',
-          oracleMarketId: 'poly_1',
+          oracleMarketId: 'poly_active_elsewhere',
           outcome: null,
-          yesPrice: 0.52,
-          noPrice: 0.48
+          yesPrice: 0.5,
+          noPrice: 0.5
+        },
+        {
+          id: 'cl_btc_5m_existing',
+          slug: 'btc-up-5m-existing',
+          question: 'Will BTC/USD be higher in 5 minutes?',
+          category: 'chainlink_btc',
+          closeAt: now + 5 * 60_000,
+          resolveAt: now + 5 * 60_000,
+          status: 'open',
+          oracleSource: 'chainlink_btc_usd',
+          oracleMarketId: 'chainlink:5m:existing',
+          outcome: null,
+          yesPrice: 0.5,
+          noPrice: 0.5
+        }
+      ],
+      activations: [
+        {
+          marketId: 'poly_active_elsewhere',
+          active: true,
+          maxWager: 100,
+          houseSpreadBps: 300,
+          updatedBy: 'test',
+          updatedAt: now
         }
       ]
     });
     const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => null;
+
+    const markets = await service.listActiveMarketsForPlayer();
+
+    expect(markets.map((entry) => entry.id)).toEqual(['cl_btc_5m_existing']);
+    expect(markets[0]?.active).toBe(true);
+  });
+
+  it('creates active chainlink btc markets when oracle data is available', async () => {
+    const now = Date.now();
+    const state = buildServiceState({ markets: [] });
+    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => ({
+      price: 100_000.12,
+      updatedAt: now,
+      roundId: '12345'
+    });
 
     const markets = await service.listActiveMarketsForPlayer();
 
     expect(markets.length).toBeGreaterThan(0);
-    expect(markets[0]?.id).toBe('poly_open_1');
-    expect(markets[0]?.active).toBe(true);
-    expect(state.getUpsertCount()).toBe(0);
+    expect(markets.every((entry) => entry.oracleSource === 'chainlink_btc_usd')).toBe(true);
+    expect(markets.every((entry) => entry.active)).toBe(true);
+    expect(state.getUpsertCount()).toBeGreaterThan(0);
   });
 
   it('creates a fallback market when there are no playable markets', async () => {
@@ -218,10 +211,8 @@ describe('MarketService active market guarantee', () => {
 
     const markets = await service.listActiveMarketsForPlayer();
 
-    expect(markets.length).toBeGreaterThan(0);
-    expect(markets[0]?.id).toBe('fallback_train_world_market');
-    expect(markets[0]?.active).toBe(true);
-    expect(serviceState.getUpsertCount()).toBe(1);
+    expect(markets).toEqual([]);
+    expect(serviceState.getUpsertCount()).toBe(0);
   });
 });
 
@@ -363,6 +354,95 @@ describe('MarketService settlement liquidity behavior', () => {
 });
 
 describe('MarketService Chainlink markets', () => {
+  it('lists only playable BTC chainlink rails on the player board', async () => {
+    const now = Date.now();
+    const state = buildServiceState({
+      markets: [
+        {
+          id: 'cl_btc_5m_open',
+          slug: 'btc-up-5m-open',
+          question: 'Will BTC/USD be higher in 5 minutes?',
+          category: 'chainlink_btc',
+          closeAt: now + 3 * 60_000,
+          resolveAt: now + 3 * 60_000,
+          status: 'open',
+          oracleSource: 'chainlink_btc_usd',
+          oracleMarketId: 'chainlink:5m:open',
+          outcome: null,
+          yesPrice: 0.5,
+          noPrice: 0.5
+        },
+        {
+          id: 'cl_btc_5m_closed',
+          slug: 'btc-up-5m-closed',
+          question: 'Will BTC/USD be higher in 5 minutes?',
+          category: 'chainlink_btc',
+          closeAt: now - 1_000,
+          resolveAt: now - 1_000,
+          status: 'open',
+          oracleSource: 'chainlink_btc_usd',
+          oracleMarketId: 'chainlink:5m:closed',
+          outcome: null,
+          yesPrice: 0.99,
+          noPrice: 0.01
+        },
+        {
+          id: 'poly_other_1',
+          slug: 'will-poland-qualify',
+          question: 'Will Poland qualify for the 2026 FIFA World Cup?',
+          category: 'sports',
+          closeAt: now + 40 * 24 * 60 * 60_000,
+          resolveAt: null,
+          status: 'open',
+          oracleSource: 'polymarket_gamma',
+          oracleMarketId: 'poly_other_1',
+          outcome: null,
+          yesPrice: 0.5,
+          noPrice: 0.5
+        }
+      ],
+      activations: [
+        {
+          marketId: 'cl_btc_5m_open',
+          active: true,
+          maxWager: 100,
+          houseSpreadBps: 300,
+          updatedBy: 'test',
+          updatedAt: now
+        },
+        {
+          marketId: 'cl_btc_5m_closed',
+          active: true,
+          maxWager: 100,
+          houseSpreadBps: 300,
+          updatedBy: 'test',
+          updatedAt: now
+        },
+        {
+          marketId: 'poly_other_1',
+          active: true,
+          maxWager: 100,
+          houseSpreadBps: 300,
+          updatedBy: 'test',
+          updatedAt: now
+        }
+      ]
+    });
+    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => ({
+      price: 100_000.12,
+      updatedAt: now,
+      roundId: '12345'
+    });
+
+    const markets = await service.listActiveMarketsForPlayer();
+
+    expect(markets).toContainEqual(expect.objectContaining({ id: 'cl_btc_5m_open' }));
+    expect(markets.some((entry) => entry.id === 'cl_btc_5m_closed')).toBe(false);
+    expect(markets.some((entry) => entry.id === 'poly_other_1')).toBe(false);
+    expect(markets.every((entry) => entry.oracleSource === 'chainlink_btc_usd')).toBe(true);
+  });
+
   it('creates active BTC chainlink markets for 5m and 24h durations', async () => {
     const state = buildServiceState({ markets: [] });
     const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
