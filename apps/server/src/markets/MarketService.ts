@@ -396,7 +396,7 @@ export class MarketService {
       const [markets, activation] = await Promise.all([this.db.listMarkets(200), this.activationMap()]);
       const activePlayable = markets
         .map((market) => this.marketViewOf(market, activation.get(market.id) || null))
-        .some((market) => market.active && this.isPlayableNow(market));
+        .some((market) => market.active && market.oracleSource === 'chainlink_btc_usd' && this.isPlayableNow(market));
       if (activePlayable) return;
 
       const defaultActivation = activation.values().next().value || null;

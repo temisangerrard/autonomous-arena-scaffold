@@ -132,6 +132,59 @@ describe('MarketService active market guarantee', () => {
     expect(markets[0]?.active).toBe(true);
   });
 
+  it('does not let a non-btc active market block btc rail activation', async () => {
+    const now = Date.now();
+    const state = buildServiceState({
+      markets: [
+        {
+          id: 'poly_active_elsewhere',
+          slug: 'legacy-active-market',
+          question: 'Legacy market still active',
+          category: 'legacy',
+          closeAt: now + 60 * 60_000,
+          resolveAt: null,
+          status: 'open',
+          oracleSource: 'polymarket_gamma',
+          oracleMarketId: 'poly_active_elsewhere',
+          outcome: null,
+          yesPrice: 0.5,
+          noPrice: 0.5
+        },
+        {
+          id: 'cl_btc_5m_existing',
+          slug: 'btc-up-5m-existing',
+          question: 'Will BTC/USD be higher in 5 minutes?',
+          category: 'chainlink_btc',
+          closeAt: now + 5 * 60_000,
+          resolveAt: now + 5 * 60_000,
+          status: 'open',
+          oracleSource: 'chainlink_btc_usd',
+          oracleMarketId: 'chainlink:5m:existing',
+          outcome: null,
+          yesPrice: 0.5,
+          noPrice: 0.5
+        }
+      ],
+      activations: [
+        {
+          marketId: 'poly_active_elsewhere',
+          active: true,
+          maxWager: 100,
+          houseSpreadBps: 300,
+          updatedBy: 'test',
+          updatedAt: now
+        }
+      ]
+    });
+    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => null;
+
+    const markets = await service.listActiveMarketsForPlayer();
+
+    expect(markets.map((entry) => entry.id)).toEqual(['cl_btc_5m_existing']);
+    expect(markets[0]?.active).toBe(true);
+  });
+
   it('creates active chainlink btc markets when oracle data is available', async () => {
     const now = Date.now();
     const state = buildServiceState({ markets: [] });
