@@ -15,6 +15,9 @@ function buildServiceState(input?: {
     async listMarkets() {
       return [...markets];
     },
+    async listActiveMarketPositions() {
+      return [];
+    },
     async listOpenMarketPositions() {
       return [];
     },
@@ -80,6 +83,9 @@ function buildServiceState(input?: {
     },
     async getMarketById(marketId: string) {
       return markets.find((entry) => entry.id === marketId) || null;
+    },
+    async promoteScheduledMarketPositions() {
+      return;
     }
   };
 
@@ -455,10 +461,29 @@ describe('MarketService Chainlink markets', () => {
     const markets = await service.listActiveMarketsForPlayer();
     const chainlinkMarkets = markets.filter((entry) => entry.oracleSource === 'chainlink_btc_usd');
 
-    expect(chainlinkMarkets.length).toBeGreaterThanOrEqual(2);
+    expect(chainlinkMarkets.length).toBeGreaterThanOrEqual(4);
     expect(chainlinkMarkets.some((entry) => entry.id.includes('cl_btc_5m_'))).toBe(true);
     expect(chainlinkMarkets.some((entry) => entry.id.includes('cl_btc_24h_'))).toBe(true);
+    expect(chainlinkMarkets.some((entry) => entry.roundType === 'current')).toBe(true);
+    expect(chainlinkMarkets.some((entry) => entry.roundType === 'next')).toBe(true);
     expect(chainlinkMarkets.every((entry) => entry.active)).toBe(true);
+  });
+
+  it('does not set lock price for next-round markets before open', async () => {
+    const state = buildServiceState({ markets: [] });
+    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => ({
+      price: 100_000.12,
+      updatedAt: Date.now(),
+      roundId: '12345'
+    });
+
+    const markets = await service.listActiveMarketsForPlayer();
+    const nextMarket = markets.find((entry) => entry.roundType === 'next' && entry.rail === 'btc_5m');
+
+    expect(nextMarket).toBeTruthy();
+    expect(nextMarket?.currentSpotPrice).toBe(100_000.12);
+    expect(nextMarket?.lockPrice).toBeNull();
   });
 
   it('resolves expired chainlink markets from latest BTC oracle price', async () => {
@@ -510,5 +535,191 @@ describe('MarketService Chainlink markets', () => {
     expect(updated.status).toBe('resolved');
     expect(updated.outcome).toBe('yes');
     expect(Number(updated.yesPrice)).toBeGreaterThan(Number(updated.noPrice));
+  });
+});
+
+describe('MarketService scheduled positions', () => {
+  it('locks funds immediately and records future-round positions as scheduled', async () => {
+    const now = Date.now();
+    const created: Array<Record<string, unknown>> = [];
+    const db = {
+      async listMarkets() {
+        return [
+          {
+            id: 'cl_btc_5m_next',
+            slug: 'btc-up-5m-next',
+            question: 'Will BTC/USD be higher in 5 minutes?',
+            category: 'chainlink_btc',
+            closeAt: now + 10 * 60_000,
+            resolveAt: now + 10 * 60_000,
+            status: 'open' as const,
+            oracleSource: 'chainlink_btc_usd',
+            oracleMarketId: 'chainlink:5m:next',
+            outcome: null,
+            yesPrice: 0.5,
+            noPrice: 0.5,
+            rawJson: {
+              durationToken: '5m',
+              slotStart: now + 5 * 60_000,
+              slotEnd: now + 10 * 60_000,
+              currentSpotPrice: 95_000
+            }
+          }
+        ];
+      },
+      async listMarketActivations() {
+        return [
+          {
+            marketId: 'cl_btc_5m_next',
+            active: true,
+            maxWager: 100,
+            houseSpreadBps: 300,
+            updatedBy: 'test',
+            updatedAt: now
+          }
+        ];
+      },
+      async listPlayerMarketPositions() {
+        return created.map((entry) => ({
+          id: String(entry.id),
+          marketId: String(entry.marketId),
+          playerId: String(entry.playerId),
+          walletId: String(entry.walletId),
+          side: String(entry.side) === 'no' ? 'no' : 'yes',
+          stake: Number(entry.stake ?? 0),
+          price: Number(entry.price ?? 0.5),
+          shares: Number(entry.shares ?? 0),
+          status: String(entry.status) as 'scheduled' | 'open',
+          escrowBetId: String(entry.escrowBetId || ''),
+          estimatedPayoutAtOpen: Number(entry.estimatedPayoutAtOpen ?? 0),
+          minPayoutAtOpen: Number(entry.minPayoutAtOpen ?? 0),
+          payout: null,
+          settlementReason: null,
+          clobOrderId: null,
+          createdAt: now,
+          settledAt: null
+        }));
+      },
+      async getMarketById(marketId: string) {
+        return (await this.listMarkets()).find((entry: { id: string }) => entry.id === marketId) || null;
+      },
+      async createMarketPosition(params: Record<string, unknown>) {
+        created.push(params);
+      },
+      async insertMarketInteractionEvent() {
+        return;
+      },
+      async listActiveMarketPositions() {
+        return [];
+      },
+      async promoteScheduledMarketPositions() {
+        return;
+      }
+    };
+    const escrow = {
+      async preflightStake() {
+        return { ok: true, preflight: { playerOk: true, houseOk: true } };
+      },
+      async lockStake() {
+        return { ok: true };
+      }
+    };
+    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+
+    const result = await service.openPosition({
+      playerId: 'player_1',
+      walletId: 'wallet_1',
+      marketId: 'cl_btc_5m_next',
+      side: 'yes',
+      stake: 5
+    });
+
+    expect(result.ok).toBe(true);
+    expect(created[0]?.status).toBe('scheduled');
+    expect(result.position?.status).toBe('scheduled');
+  });
+
+  it('settles only open positions for resolved markets', async () => {
+    const now = Date.now();
+    const settled: Array<{ positionId: string; status: string }> = [];
+    const db = {
+      async listMarkets() {
+        return [
+          {
+            id: 'cl_btc_5m_current',
+            slug: 'btc-up-5m-current',
+            question: 'Will BTC/USD be higher in 5 minutes?',
+            category: 'chainlink_btc',
+            closeAt: now - 1000,
+            resolveAt: now - 1000,
+            status: 'resolved' as const,
+            oracleSource: 'chainlink_btc_usd',
+            oracleMarketId: 'chainlink:5m:current',
+            outcome: 'yes' as const,
+            yesPrice: 0.99,
+            noPrice: 0.01,
+            rawJson: {
+              durationToken: '5m',
+              slotStart: now - 5 * 60_000,
+              slotEnd: now
+            }
+          }
+        ];
+      },
+      async listMarketActivations() {
+        return [];
+      },
+      async listOpenMarketPositions() {
+        return [
+          {
+            id: 'pos_open',
+            marketId: 'cl_btc_5m_current',
+            playerId: 'player_1',
+            walletId: 'wallet_1',
+            side: 'yes' as const,
+            stake: 5,
+            price: 0.5,
+            shares: 10,
+            status: 'open' as const,
+            escrowBetId: 'bet_open',
+            estimatedPayoutAtOpen: 5,
+            minPayoutAtOpen: 5,
+            payout: null,
+            settlementReason: null,
+            clobOrderId: null,
+            createdAt: now - 1000,
+            settledAt: null
+          }
+        ];
+      },
+      async promoteScheduledMarketPositions() {
+        return;
+      },
+      async settleMarketPosition(params: { positionId: string; status: string }) {
+        settled.push(params);
+      },
+      async insertMarketInteractionEvent() {
+        return;
+      }
+    };
+    const escrow = {
+      async resolve() {
+        return { ok: true, payout: 10 };
+      },
+      async refund() {
+        return { ok: true };
+      }
+    };
+    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+
+    const result = await service.settleResolvedMarkets();
+
+    expect(result.settled).toBe(1);
+    expect(settled).toEqual([{
+      positionId: 'pos_open',
+      status: 'won',
+      payout: 5,
+      settlementReason: 'won_refund_only'
+    }]);
   });
 });

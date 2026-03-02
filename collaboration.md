@@ -166,3 +166,19 @@
   - `npm run -w @arena/server test -- src/game/stations/catalog.test.ts src/markets/MarketService.test.ts src/websocket/messages.test.ts` passed
   - `npm run -w @arena/web build` passed
   - `npm run -w @arena/server build` passed
+
+## 2026-03-02 Next-Round Prediction Scheduling
+- Added next-round BTC rail support in the isolated worktree `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round`.
+- Design decisions implemented:
+  - users may commit to the immediately next BTC round
+  - funds lock immediately on commit
+  - settlement compares lock price at round open vs final price at resolution
+  - future-round commitments stay isolated because positions and escrow ids remain keyed to the future `marketId`
+- UI changes implemented:
+  - `BTC 5m` / `BTC 24h` tabs plus `Current` / `Next` switch
+  - `BTC now`, `Lock price`, `Final price` surfaced in-station
+  - dashboard activity shows scheduled/open lifecycle with round and pricing context
+- Verification in this worktree:
+  - `npm run -w @arena/server test -- src/markets/MarketService.test.ts src/routes/index.test.ts` passed
+  - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldStations.test.js` passed
+  - `npm run -w @arena/server build && npm run -w @arena/web build` passed

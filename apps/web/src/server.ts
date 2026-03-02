@@ -1992,10 +1992,14 @@ const server = createServer(async (req, res) => {
         stake?: number;
         price?: number;
         shares?: number;
-        status?: 'open' | 'won' | 'lost' | 'voided';
+        status?: 'scheduled' | 'open' | 'won' | 'lost' | 'voided';
         payout?: number | null;
         settlementReason?: string | null;
         clobOrderId?: string | null;
+        marketRoundType?: 'current' | 'next' | null;
+        marketCurrentSpotPrice?: number | null;
+        marketLockPrice?: number | null;
+        marketFinalPrice?: number | null;
         createdAt?: number;
         settledAt?: number | null;
       }>;
@@ -2077,7 +2081,11 @@ const server = createServer(async (req, res) => {
           status: String(entry?.status || 'open'),
           payout: entry?.payout == null ? null : Number(entry.payout),
           settlementReason: entry?.settlementReason == null ? null : String(entry.settlementReason),
-          clobOrderId: entry?.clobOrderId == null ? null : String(entry.clobOrderId)
+          clobOrderId: entry?.clobOrderId == null ? null : String(entry.clobOrderId),
+          marketRoundType: entry?.marketRoundType == null ? null : String(entry.marketRoundType),
+          marketCurrentSpotPrice: entry?.marketCurrentSpotPrice == null ? null : Number(entry.marketCurrentSpotPrice),
+          marketLockPrice: entry?.marketLockPrice == null ? null : Number(entry.marketLockPrice),
+          marketFinalPrice: entry?.marketFinalPrice == null ? null : Number(entry.marketFinalPrice)
         };
       });
 

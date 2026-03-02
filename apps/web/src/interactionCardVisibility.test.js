@@ -52,11 +52,14 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('prediction-tabs')).toBe(true);
     expect(source.includes('BTC 5m')).toBe(true);
     expect(source.includes('BTC 24h')).toBe(true);
+    expect(source.includes('prediction-round-current')).toBe(true);
+    expect(source.includes('prediction-round-next')).toBe(true);
     expect(source.includes('prediction-market-select')).toBe(false);
     expect(source.includes('BTC Up')).toBe(true);
     expect(source.includes('BTC Down')).toBe(true);
-    expect(source.includes('If your side wins without opposite liquidity, your stake is refunded.')).toBe(true);
-    expect(source.includes('No BTC market is live right now.')).toBe(true);
+    expect(source.includes('Next-round commitments lock immediately.')).toBe(true);
+    expect(source.includes('No current BTC market is live right now.')).toBe(true);
+    expect(source.includes('No next BTC market is available right now.')).toBe(true);
     expect(source.includes('Get quote')).toBe(false);
     expect(source.includes('My positions')).toBe(false);
     expect(source.includes('prediction-buy-yes')).toBe(false);
@@ -68,15 +71,20 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('function validatePredictionOrder')).toBe(true);
     expect(source.includes('Insufficient USDC balance for this stake.')).toBe(true);
     expect(source.includes('Selected BTC market is no longer open.')).toBe(true);
-    expect(source.includes('No BTC market is live right now.')).toBe(true);
+    expect(source.includes('No current BTC market is live right now.')).toBe(true);
+    expect(source.includes('No next BTC market is available right now.')).toBe(true);
   });
 
   it('surfaces prediction rail timing and availability states', () => {
     const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
     expect(source.includes('Closing soon')).toBe(true);
     expect(source.includes('Next round in')).toBe(true);
+    expect(source.includes('Available for early commit')).toBe(true);
     expect(source.includes('Locks:')).toBe(true);
     expect(source.includes('Settles:')).toBe(true);
+    expect(source.includes('BTC now:')).toBe(true);
+    expect(source.includes('Lock price:')).toBe(true);
+    expect(source.includes('Final price:')).toBe(true);
   });
 
   it('normalizes coinflip, rps, and dice cards around the same structure', () => {

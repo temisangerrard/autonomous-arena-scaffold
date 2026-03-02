@@ -471,7 +471,11 @@ export function createRouter(ctx: RouteContext) {
               ...position,
               marketQuestion: market?.question || position.marketId,
               marketSlug: market?.slug || null,
-              marketOracleSource: market?.oracleSource || null
+              marketOracleSource: market?.oracleSource || null,
+              marketRoundType: market?.roundType || null,
+              marketCurrentSpotPrice: market?.currentSpotPrice ?? null,
+              marketLockPrice: market?.lockPrice ?? null,
+              marketFinalPrice: market?.finalPrice ?? null
             };
           });
         res.setHeader('content-type', 'application/json');

@@ -291,7 +291,10 @@ export async function connectSocketRuntime(deps) {
         state: 'idle',
         markets: [],
         positions: [],
+        selectedRail: 'btc_5m',
+        selectedRound: 'current',
         selectedMarketId: '',
+        positionStatus: '',
         lastReason: '',
         lastReasonText: ''
       });
@@ -310,6 +313,9 @@ export async function connectSocketRuntime(deps) {
         if (!prediction.selectedMarketId && prediction.markets[0]?.marketId) {
           prediction.selectedMarketId = String(prediction.markets[0].marketId);
         }
+        if (!prediction.selectedRound && prediction.markets[0]?.roundType) {
+          prediction.selectedRound = String(prediction.markets[0].roundType || 'current') === 'next' ? 'next' : 'current';
+        }
         prediction.lastReason = '';
         prediction.lastReasonText = '';
         return;
@@ -322,6 +328,7 @@ export async function connectSocketRuntime(deps) {
       if (stateName === 'prediction_order_filled') {
         prediction.state = 'filled';
         prediction.selectedMarketId = String(view.marketId || prediction.selectedMarketId || '');
+        prediction.positionStatus = String(view.positionStatus || '');
         if (Array.isArray(view.positions) && view.positions.length > 0) {
           prediction.positions = view.positions;
         }

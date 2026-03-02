@@ -122,6 +122,8 @@ export async function handlePredictionStationAction(params: {
     return;
   }
 
+  const markets = await marketService.listActiveMarketsForPlayer();
+
   respond({
     ok: true,
     state: 'prediction_order_filled',
@@ -137,7 +139,7 @@ export async function handlePredictionStationAction(params: {
     liquiditySameSide: opened.quote.liquiditySameSide,
     liquidityWarning: opened.quote.liquidityWarning,
     positionStatus: opened.position.status,
-    markets: [toMarketView(opened.quote.market)],
+    markets: markets.map((entry) => toMarketView(entry)),
     positions: [
       toPredictionViewPosition({
         position: opened.position,

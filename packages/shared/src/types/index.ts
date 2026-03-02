@@ -286,6 +286,21 @@ export interface PredictionMarketView {
   yesPrice: number;
   noPrice: number;
   maxWager: number;
+  oracleSource?: string;
+  oracleMarketId?: string;
+  rail?: 'btc_5m' | 'btc_24h';
+  roundType?: 'current' | 'next';
+  slotStart?: number;
+  slotEnd?: number;
+  currentSpotPrice?: number | null;
+  currentSpotUpdatedAt?: number | null;
+  currentSpotRoundId?: string | null;
+  lockPrice?: number | null;
+  lockPriceUpdatedAt?: number | null;
+  lockRoundId?: string | null;
+  finalPrice?: number | null;
+  finalPriceUpdatedAt?: number | null;
+  finalRoundId?: string | null;
   yesLiquidity?: number;
   noLiquidity?: number;
 }
@@ -304,9 +319,13 @@ export interface PredictionPositionView {
   payout?: number;
   settlementReason?: string | null;
   liquidityFloor?: number;
-  status: 'open' | 'won' | 'lost' | 'voided';
+  status: 'scheduled' | 'open' | 'won' | 'lost' | 'voided';
   createdAt: number;
   settledAt: number | null;
+  roundType?: 'current' | 'next';
+  currentSpotPrice?: number | null;
+  lockPrice?: number | null;
+  finalPrice?: number | null;
 }
 
 export interface StationUiView {
@@ -341,7 +360,7 @@ export interface StationUiView {
   liquidityOpposite?: number;
   liquiditySameSide?: number;
   liquidityWarning?: string;
-  positionStatus?: 'open' | 'won' | 'lost' | 'voided';
+  positionStatus?: 'scheduled' | 'open' | 'won' | 'lost' | 'voided';
   settlementStatus?: 'pending' | 'settled' | 'error';
   markets?: PredictionMarketView[];
   positions?: PredictionPositionView[];

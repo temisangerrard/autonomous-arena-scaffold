@@ -458,6 +458,7 @@ function renderEscrowHistory(entries, errorMessage = '') {
         const status = String(entry?.status || 'open');
         const side = String(entry?.side || '').toUpperCase();
         const question = String(entry?.marketQuestion || entry?.marketId || 'Market');
+        const roundType = String(entry?.marketRoundType || 'current');
         const stake = Number(entry?.stake ?? 0);
         const payoutValue = Number(entry?.payout ?? 0);
         const signClass = status === 'won'
@@ -469,6 +470,8 @@ function renderEscrowHistory(entries, errorMessage = '') {
           ? '↗'
           : status === 'lost'
             ? '↘'
+            : status === 'scheduled'
+              ? '⏳'
             : '•';
         const statusLabel = status === 'won'
           ? 'Market WIN'
@@ -476,10 +479,22 @@ function renderEscrowHistory(entries, errorMessage = '') {
             ? 'Market LOSS'
             : status === 'voided'
               ? 'Market VOID'
+              : status === 'scheduled'
+                ? 'Market SCHEDULED'
               : 'Market OPEN';
         const clobOrderId = String(entry?.clobOrderId || '').trim();
         const reason = String(entry?.settlementReason || '').trim();
-        const trail = [clobOrderId ? `order ${clobOrderId}` : '', reason].filter(Boolean).join(' · ');
+        const currentSpot = entry?.marketCurrentSpotPrice == null ? '' : `spot ${Number(entry.marketCurrentSpotPrice).toFixed(2)}`;
+        const lockPrice = entry?.marketLockPrice == null ? (roundType === 'next' ? 'lock pending' : '') : `lock ${Number(entry.marketLockPrice).toFixed(2)}`;
+        const finalPrice = entry?.marketFinalPrice == null ? '' : `final ${Number(entry.marketFinalPrice).toFixed(2)}`;
+        const trail = [
+          roundType === 'next' ? 'next round' : '',
+          clobOrderId ? `order ${clobOrderId}` : '',
+          currentSpot,
+          lockPrice,
+          finalPrice,
+          reason
+        ].filter(Boolean).join(' · ');
         return `<div class="tx-item">
           <div class="tx-icon ${status === 'won' ? 'in' : 'out'}">${emoji}</div>
           <div class="tx-details">

@@ -214,9 +214,14 @@ export function renderInteractionCardTemplate(params) {
               <button id="prediction-tab-5m" class="prediction-tab" type="button" role="tab" aria-selected="true">BTC 5m</button>
               <button id="prediction-tab-24h" class="prediction-tab" type="button" role="tab" aria-selected="false">BTC 24h</button>
             </div>
+            <div class="prediction-tabs prediction-tabs--round" role="tablist" aria-label="BTC market round">
+              <button id="prediction-round-current" class="prediction-tab" type="button" role="tab" aria-selected="true">Current</button>
+              <button id="prediction-round-next" class="prediction-tab" type="button" role="tab" aria-selected="false">Next</button>
+            </div>
             <div class="prediction-market-status" id="prediction-market-status" aria-live="polite"></div>
             <div class="prediction-market-preview" id="prediction-market-preview" aria-live="polite"></div>
             <div class="station-ui__meta" id="prediction-market-timing"></div>
+            <div class="station-ui__meta" id="prediction-market-prices"></div>
             <div class="station-ui__row">
               <label for="prediction-stake">Stake <span class="game-panel__currency">USDC</span></label>
               <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" class="game-panel__wager-input" />
@@ -225,7 +230,7 @@ export function renderInteractionCardTemplate(params) {
               <button id="prediction-btc-yes" class="prediction-side prediction-side--yes" type="button">BTC Up</button>
               <button id="prediction-btc-no" class="prediction-side prediction-side--no" type="button">BTC Down</button>
             </div>
-            <div class="station-ui__meta">If your side wins without opposite liquidity, your stake is refunded.</div>
+            <div class="station-ui__meta">If your side wins without opposite liquidity, your stake is refunded. Next-round commitments lock immediately.</div>
             <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Fetching markets…'}</div>
           </div>
         `;
@@ -233,16 +238,16 @@ export function renderInteractionCardTemplate(params) {
         const stakeEl = document.getElementById('prediction-stake');
         const tab5mBtn = document.getElementById('prediction-tab-5m');
         const tab24hBtn = document.getElementById('prediction-tab-24h');
+        const roundCurrentBtn = document.getElementById('prediction-round-current');
+        const roundNextBtn = document.getElementById('prediction-round-next');
         const btcYesBtn = document.getElementById('prediction-btc-yes');
         const btcNoBtn = document.getElementById('prediction-btc-no');
         const timingEl = document.getElementById('prediction-market-timing');
         const marketStatusEl = document.getElementById('prediction-market-status');
+        const pricesEl = document.getElementById('prediction-market-prices');
 
         function marketRail(entry) {
-          const oracleMarketId = String(entry?.oracleMarketId || entry?.marketId || '').toLowerCase();
-          const question = String(entry?.question || '').toLowerCase();
-          if (oracleMarketId.includes('24h') || question.includes('24 hour')) return 'btc_24h';
-          return 'btc_5m';
+          return String(entry?.rail || '').toLowerCase() === 'btc_24h' ? 'btc_24h' : 'btc_5m';
         }
 
         function selectedRail() {
@@ -252,6 +257,18 @@ export function renderInteractionCardTemplate(params) {
 
         function setSelectedRail(rail) {
           state.ui.prediction.selectedRail = rail === 'btc_24h' ? 'btc_24h' : 'btc_5m';
+          const nextMarket = selectedBtcMarket();
+          state.ui.prediction.selectedMarketId = String(nextMarket?.marketId || '');
+          renderPredictionRail();
+        }
+
+        function selectedRound() {
+          const round = String(state.ui?.prediction?.selectedRound || 'current');
+          return round === 'next' ? 'next' : 'current';
+        }
+
+        function setSelectedRound(round) {
+          state.ui.prediction.selectedRound = round === 'next' ? 'next' : 'current';
           const nextMarket = selectedBtcMarket();
           state.ui.prediction.selectedMarketId = String(nextMarket?.marketId || '');
           renderPredictionRail();
@@ -272,7 +289,13 @@ export function renderInteractionCardTemplate(params) {
         }
 
         function activeBtcMarketsForRail(rail = selectedRail()) {
-          return activeBtcMarkets().filter((entry) => marketRail(entry) === rail);
+          return activeBtcMarkets()
+            .filter((entry) => marketRail(entry) === rail)
+            .sort((a, b) => {
+              const aRound = String(a?.roundType || 'current') === 'next' ? 1 : 0;
+              const bRound = String(b?.roundType || 'current') === 'next' ? 1 : 0;
+              return aRound - bRound || Number(a?.slotStart || a?.closeAt || 0) - Number(b?.slotStart || b?.closeAt || 0);
+            });
         }
 
         function railDurationMs(rail = selectedRail()) {
@@ -294,6 +317,7 @@ export function renderInteractionCardTemplate(params) {
 
         function marketStateLabel(market, rail = selectedRail()) {
           if (!market) return nextRoundText(rail);
+          if (String(market?.roundType || 'current') === 'next') return 'Available for early commit';
           const closeAt = Number(market.closeAt || 0);
           const remainingMs = Math.max(0, closeAt - Date.now());
           const closingSoonThreshold = rail === 'btc_24h' ? 30 * 60_000 : 60_000;
@@ -303,13 +327,20 @@ export function renderInteractionCardTemplate(params) {
 
         function selectedBtcMarket() {
           const btcMarkets = activeBtcMarketsForRail();
+          const round = selectedRound();
           const selectedMarketId = String(state.ui?.prediction?.selectedMarketId || '');
-          return btcMarkets.find((entry) => String(entry.marketId || '') === selectedMarketId) || btcMarkets[0] || null;
+          return (
+            btcMarkets.find((entry) => String(entry.marketId || '') === selectedMarketId && String(entry?.roundType || 'current') === round)
+            || btcMarkets.find((entry) => String(entry?.roundType || 'current') === round)
+            || btcMarkets[0]
+            || null
+          );
         }
 
         function renderPredictionRail() {
           const rail = selectedRail();
           const rail5mActive = rail === 'btc_5m';
+          const round = selectedRound();
           if (tab5mBtn) {
             tab5mBtn.classList.toggle('is-active', rail5mActive);
             tab5mBtn.setAttribute('aria-selected', rail5mActive ? 'true' : 'false');
@@ -318,16 +349,32 @@ export function renderInteractionCardTemplate(params) {
             tab24hBtn.classList.toggle('is-active', !rail5mActive);
             tab24hBtn.setAttribute('aria-selected', rail5mActive ? 'false' : 'true');
           }
+          if (roundCurrentBtn) {
+            roundCurrentBtn.classList.toggle('is-active', round === 'current');
+            roundCurrentBtn.setAttribute('aria-selected', round === 'current' ? 'true' : 'false');
+          }
+          if (roundNextBtn) {
+            roundNextBtn.classList.toggle('is-active', round === 'next');
+            roundNextBtn.setAttribute('aria-selected', round === 'next' ? 'true' : 'false');
+          }
 
           const matched = selectedBtcMarket();
           const label = rail5mActive ? 'BTC 5m' : 'BTC 24h';
           if (marketStatusEl) {
-            marketStatusEl.textContent = `${label} • ${marketStateLabel(matched, rail)}`;
+            marketStatusEl.textContent = `${label} • ${round === 'next' ? 'Next round' : 'Current round'} • ${marketStateLabel(matched, rail)}`;
           }
           if (timingEl) {
             timingEl.textContent = matched
               ? `Locks: ${formatPredictionClose(Number(matched.closeAt || 0))} • Settles: ${formatPredictionClose(Number(matched.resolveAt || matched.closeAt || 0))}`
               : `Locks: ${nextRoundText(rail)} • Settles: Pending`;
+          }
+          if (pricesEl) {
+            const spotText = matched?.currentSpotPrice ? `BTC now: ${formatUsdAmount(Number(matched.currentSpotPrice))}` : 'BTC now: Pending';
+            const lockText = matched?.lockPrice
+              ? `Lock price: ${formatUsdAmount(Number(matched.lockPrice))}`
+              : (round === 'next' ? 'Lock price: sets at market open' : 'Lock price: pending');
+            const finalText = matched?.finalPrice ? `Final price: ${formatUsdAmount(Number(matched.finalPrice))}` : 'Final price: pending';
+            pricesEl.textContent = `${spotText} • ${lockText} • ${finalText}`;
           }
           const previewEl = document.getElementById('prediction-market-preview');
           if (!previewEl) return;
@@ -354,7 +401,9 @@ export function renderInteractionCardTemplate(params) {
         function validatePredictionOrder() {
           const market = selectedBtcMarket();
           if (!market) {
-            return 'No BTC market is live right now.';
+            return selectedRound() === 'next'
+              ? 'No next BTC market is available right now.'
+              : 'No current BTC market is live right now.';
           }
           if (String(market.status || 'open') !== 'open' || Number(market.closeAt || 0) <= Date.now()) {
             return 'Selected BTC market is no longer open.';
@@ -369,6 +418,8 @@ export function renderInteractionCardTemplate(params) {
 
         if (tab5mBtn) tab5mBtn.onclick = () => setSelectedRail('btc_5m');
         if (tab24hBtn) tab24hBtn.onclick = () => setSelectedRail('btc_24h');
+        if (roundCurrentBtn) roundCurrentBtn.onclick = () => setSelectedRound('current');
+        if (roundNextBtn) roundNextBtn.onclick = () => setSelectedRound('next');
         function clearPredictionBuyBtns() {
           clearPendingBtn(btcYesBtn, 'BTC Up');
           clearPendingBtn(btcNoBtn, 'BTC Down');
@@ -428,12 +479,15 @@ export function renderInteractionCardTemplate(params) {
         if (!state.ui?.prediction?.selectedRail) {
           state.ui.prediction.selectedRail = 'btc_5m';
         }
+        if (!state.ui?.prediction?.selectedRound) {
+          state.ui.prediction.selectedRound = 'current';
+        }
         renderPredictionRail();
         if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
           dispatchPrediction('prediction_markets_open');
         } else if (!selectedBtcMarket()) {
           state.ui.prediction.lastReason = 'prediction_no_live_btc_market';
-          state.ui.prediction.lastReasonText = 'No BTC market is live right now.';
+          state.ui.prediction.lastReasonText = 'No BTC market is available for this rail and round.';
         }
       }
 
@@ -1021,12 +1075,7 @@ export function renderInteractionCardTemplate(params) {
         && String(market?.status || 'open') === 'open'
         && Number(market?.closeAt || 0) > Date.now()
       ));
-      const railOf = (market) => {
-        const oracleMarketId = String(market?.oracleMarketId || market?.marketId || '').toLowerCase();
-        const question = String(market?.question || '').toLowerCase();
-        if (oracleMarketId.includes('24h') || question.includes('24 hour')) return 'btc_24h';
-        return 'btc_5m';
-      };
+      const railOf = (market) => (String(market?.rail || '').toLowerCase() === 'btc_24h' ? 'btc_24h' : 'btc_5m');
       const railDurationMs = (rail) => (rail === 'btc_24h' ? 24 * 60 * 60_000 : 5 * 60_000);
       const railQuestion = (rail) => (
         rail === 'btc_24h'
@@ -1041,6 +1090,7 @@ export function renderInteractionCardTemplate(params) {
       };
       const marketStateLabel = (market, rail) => {
         if (!market) return nextRoundText(rail);
+        if (String(market?.roundType || 'current') === 'next') return 'Available for early commit';
         const closeAt = Number(market.closeAt || 0);
         const remainingMs = Math.max(0, closeAt - Date.now());
         const closingSoonThreshold = rail === 'btc_24h' ? 30 * 60_000 : 60_000;
@@ -1048,14 +1098,30 @@ export function renderInteractionCardTemplate(params) {
         return 'Live';
       };
       const selectedRail = String(prediction.selectedRail || 'btc_5m') === 'btc_24h' ? 'btc_24h' : 'btc_5m';
-      const markets = allMarkets.filter((market) => railOf(market) === selectedRail);
-      const selectedMarketId = String(prediction.selectedMarketId || markets[0]?.marketId || '');
+      const selectedRound = String(prediction.selectedRound || 'current') === 'next' ? 'next' : 'current';
+      const markets = allMarkets
+        .filter((market) => railOf(market) === selectedRail)
+        .sort((a, b) => {
+          const aRound = String(a?.roundType || 'current') === 'next' ? 1 : 0;
+          const bRound = String(b?.roundType || 'current') === 'next' ? 1 : 0;
+          return aRound - bRound || Number(a?.slotStart || a?.closeAt || 0) - Number(b?.slotStart || b?.closeAt || 0);
+        });
+      const selectedMarketId = String(prediction.selectedMarketId || '');
+      const selected = (
+        markets.find((market) => String(market.marketId || '') === selectedMarketId && String(market?.roundType || 'current') === selectedRound)
+        || markets.find((market) => String(market?.roundType || 'current') === selectedRound)
+        || markets[0]
+        || null
+      );
       const previewEl = document.getElementById('prediction-market-preview');
       const statusEl = document.getElementById('prediction-status');
       const marketStatusEl = document.getElementById('prediction-market-status');
       const timingEl = document.getElementById('prediction-market-timing');
+      const pricesEl = document.getElementById('prediction-market-prices');
       const tab5mBtn = document.getElementById('prediction-tab-5m');
       const tab24hBtn = document.getElementById('prediction-tab-24h');
+      const roundCurrentBtn = document.getElementById('prediction-round-current');
+      const roundNextBtn = document.getElementById('prediction-round-next');
       if (tab5mBtn) {
         tab5mBtn.classList.toggle('is-active', selectedRail === 'btc_5m');
         tab5mBtn.setAttribute('aria-selected', selectedRail === 'btc_5m' ? 'true' : 'false');
@@ -1064,8 +1130,15 @@ export function renderInteractionCardTemplate(params) {
         tab24hBtn.classList.toggle('is-active', selectedRail === 'btc_24h');
         tab24hBtn.setAttribute('aria-selected', selectedRail === 'btc_24h' ? 'true' : 'false');
       }
+      if (roundCurrentBtn) {
+        roundCurrentBtn.classList.toggle('is-active', selectedRound === 'current');
+        roundCurrentBtn.setAttribute('aria-selected', selectedRound === 'current' ? 'true' : 'false');
+      }
+      if (roundNextBtn) {
+        roundNextBtn.classList.toggle('is-active', selectedRound === 'next');
+        roundNextBtn.setAttribute('aria-selected', selectedRound === 'next' ? 'true' : 'false');
+      }
       if (previewEl) {
-        const selected = markets.find((market) => String(market.marketId || '') === selectedMarketId) || markets[0];
         if (!selected) {
           previewEl.hidden = false;
           previewEl.textContent = railQuestion(selectedRail);
@@ -1077,14 +1150,20 @@ export function renderInteractionCardTemplate(params) {
         }
       }
       if (marketStatusEl) {
-        const selected = markets.find((market) => String(market.marketId || '') === selectedMarketId) || markets[0] || null;
-        marketStatusEl.textContent = `${selectedRail === 'btc_24h' ? 'BTC 24h' : 'BTC 5m'} • ${marketStateLabel(selected, selectedRail)}`;
+        marketStatusEl.textContent = `${selectedRail === 'btc_24h' ? 'BTC 24h' : 'BTC 5m'} • ${selectedRound === 'next' ? 'Next round' : 'Current round'} • ${marketStateLabel(selected, selectedRail)}`;
       }
       if (timingEl) {
-        const selected = markets.find((market) => String(market.marketId || '') === selectedMarketId) || markets[0] || null;
         timingEl.textContent = selected
           ? `Locks: ${formatPredictionClose(Number(selected.closeAt || 0))} • Settles: ${formatPredictionClose(Number(selected.resolveAt || selected.closeAt || 0))}`
           : `Locks: ${nextRoundText(selectedRail)} • Settles: Pending`;
+      }
+      if (pricesEl) {
+        const spotText = selected?.currentSpotPrice ? `BTC now: ${formatUsdAmount(Number(selected.currentSpotPrice))}` : 'BTC now: Pending';
+        const lockText = selected?.lockPrice
+          ? `Lock price: ${formatUsdAmount(Number(selected.lockPrice))}`
+          : (selectedRound === 'next' ? 'Lock price: sets at market open' : 'Lock price: pending');
+        const finalText = selected?.finalPrice ? `Final price: ${formatUsdAmount(Number(selected.finalPrice))}` : 'Final price: pending';
+        pricesEl.textContent = `${spotText} • ${lockText} • ${finalText}`;
       }
       if (statusEl) {
         const mode = String(prediction.state || 'idle');
@@ -1101,10 +1180,10 @@ export function renderInteractionCardTemplate(params) {
           _clearTimer('prediction:buy');
           if (_btcYes) { flashBtn(_btcYes, 'is-success'); clearPendingBtn(_btcYes, 'BTC Up'); }
           if (_btcNo)  { flashBtn(_btcNo,  'is-success'); clearPendingBtn(_btcNo,  'BTC Down');  }
-          setStationStatus(statusEl, 'Order filled.', 'success');
+          setStationStatus(statusEl, String(prediction.positionStatus || '') === 'scheduled' ? 'Committed to next round. Funds are locked.' : 'Order filled.', 'success');
         } else {
           if (markets.length === 0) {
-            setStationStatus(statusEl, 'No BTC market is live right now.', 'warning');
+            setStationStatus(statusEl, selectedRound === 'next' ? 'No next BTC market is available right now.' : 'No current BTC market is live right now.', 'warning');
           } else {
             setStationStatus(statusEl, 'Choose BTC Up or BTC Down.');
           }

@@ -37,7 +37,7 @@ export type MarketPositionRecord = {
   stake: number;
   price: number;
   shares: number;
-  status: 'open' | 'won' | 'lost' | 'voided';
+  status: 'scheduled' | 'open' | 'won' | 'lost' | 'voided';
   escrowBetId: string;
   estimatedPayoutAtOpen: number | null;
   minPayoutAtOpen: number | null;
@@ -630,6 +630,7 @@ export class Database {
     price: number;
     shares: number;
     escrowBetId: string;
+    status?: 'scheduled' | 'open';
     estimatedPayoutAtOpen?: number | null;
     minPayoutAtOpen?: number | null;
   }): Promise<void> {
@@ -639,7 +640,7 @@ export class Database {
         `INSERT INTO market_positions (
            id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id,
            estimated_payout_at_open, min_payout_at_open, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'open',$9,$10,$11,NOW())`,
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())`,
         [
           params.id,
           params.marketId,
@@ -649,6 +650,7 @@ export class Database {
           params.stake,
           params.price,
           params.shares,
+          params.status ?? 'open',
           params.escrowBetId,
           params.estimatedPayoutAtOpen ?? null,
           params.minPayoutAtOpen ?? null
@@ -735,6 +737,59 @@ export class Database {
     } catch (err) {
       log.error({ err }, 'failed to list open market positions');
       return [];
+    }
+  }
+
+  async listActiveMarketPositions(limit = 500): Promise<MarketPositionRecord[]> {
+    if (!this.pool) return [];
+    try {
+      const safeLimit = Math.max(1, Math.min(5000, Number(limit || 500)));
+      const result = await this.pool.query(
+        `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id,
+                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason,
+                clob_order_id, created_at, settled_at
+         FROM market_positions
+         WHERE status IN ('open', 'scheduled')
+         ORDER BY created_at ASC
+         LIMIT $1`,
+        [safeLimit]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        marketId: String(row.market_id),
+        playerId: String(row.player_id),
+        walletId: String(row.wallet_id),
+        side: String(row.side) === 'no' ? 'no' : 'yes',
+        stake: Number(row.stake ?? 0),
+        price: Number(row.price ?? 0.5),
+        shares: Number(row.shares ?? 0),
+        status: String(row.status) as MarketPositionRecord['status'],
+        escrowBetId: String(row.escrow_bet_id || ''),
+        estimatedPayoutAtOpen: row.estimated_payout_at_open != null ? Number(row.estimated_payout_at_open) : null,
+        minPayoutAtOpen: row.min_payout_at_open != null ? Number(row.min_payout_at_open) : null,
+        payout: row.payout != null ? Number(row.payout) : null,
+        settlementReason: row.settlement_reason != null ? String(row.settlement_reason) : null,
+        clobOrderId: row.clob_order_id != null ? String(row.clob_order_id) : null,
+        createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
+        settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
+      }));
+    } catch (err) {
+      log.error({ err }, 'failed to list active market positions');
+      return [];
+    }
+  }
+
+  async promoteScheduledMarketPositions(marketId: string): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        `UPDATE market_positions
+         SET status = 'open'
+         WHERE market_id = $1 AND status = 'scheduled'`,
+        [marketId]
+      );
+    } catch (err) {
+      log.error({ err, marketId }, 'failed to promote scheduled market positions');
     }
   }
 

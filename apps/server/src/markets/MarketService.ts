@@ -17,6 +17,19 @@ export type MarketView = MarketRecord & {
   noLiquidity?: number;
   netOppositeLiquidity?: number;
   refundOnlyRisk?: boolean;
+  rail?: 'btc_5m' | 'btc_24h';
+  roundType?: 'current' | 'next';
+  slotStart?: number;
+  slotEnd?: number;
+  currentSpotPrice?: number | null;
+  currentSpotUpdatedAt?: number | null;
+  currentSpotRoundId?: string | null;
+  lockPrice?: number | null;
+  lockPriceUpdatedAt?: number | null;
+  lockRoundId?: string | null;
+  finalPrice?: number | null;
+  finalPriceUpdatedAt?: number | null;
+  finalRoundId?: string | null;
 };
 
 export type QuoteResult = {
@@ -35,6 +48,7 @@ export type QuoteResult = {
   liquidityOpposite?: number;
   liquiditySameSide?: number;
   liquidityWarning?: string;
+  positionStatus?: 'scheduled' | 'open';
 };
 
 export type LiveMarketPreview = {
@@ -138,7 +152,7 @@ export class MarketService {
   }
 
   private async liquidityByMarketId(): Promise<Map<string, { yes: number; no: number }>> {
-    const open = await this.db.listOpenMarketPositions(4000);
+    const open = await this.db.listActiveMarketPositions(4000);
     const map = new Map<string, { yes: number; no: number }>();
     for (const entry of open) {
       const current = map.get(entry.marketId) || { yes: 0, no: 0 };
@@ -155,11 +169,30 @@ export class MarketService {
   }
 
   private marketViewOf(market: MarketRecord, activation: MarketActivationRecord | null): MarketView {
+    const raw = (market.rawJson || {}) as Record<string, unknown>;
+    const slotStart = Number(raw.slotStart ?? Number.NaN);
+    const slotEnd = Number(raw.slotEnd ?? market.closeAt);
+    const durationToken = String(raw.durationToken || '').toLowerCase();
+    const rail = durationToken === '24h' ? 'btc_24h' : durationToken ? 'btc_5m' : undefined;
+    const roundType = Number.isFinite(slotStart) && slotStart > Date.now() ? 'next' : 'current';
     return {
       ...market,
       active: Boolean(activation?.active),
       maxWager: Number(activation?.maxWager ?? DEFAULT_MAX_WAGER),
-      houseSpreadBps: Number(activation?.houseSpreadBps ?? DEFAULT_SPREAD_BPS)
+      houseSpreadBps: Number(activation?.houseSpreadBps ?? DEFAULT_SPREAD_BPS),
+      rail,
+      roundType,
+      slotStart: Number.isFinite(slotStart) ? slotStart : undefined,
+      slotEnd: Number.isFinite(slotEnd) ? slotEnd : undefined,
+      currentSpotPrice: raw.currentSpotPrice != null ? Number(raw.currentSpotPrice) : null,
+      currentSpotUpdatedAt: raw.currentSpotUpdatedAt != null ? Number(raw.currentSpotUpdatedAt) : null,
+      currentSpotRoundId: raw.currentSpotRoundId != null ? String(raw.currentSpotRoundId) : null,
+      lockPrice: raw.entryPrice != null ? Number(raw.entryPrice) : null,
+      lockPriceUpdatedAt: raw.entryUpdatedAt != null ? Number(raw.entryUpdatedAt) : null,
+      lockRoundId: raw.entryRoundId != null ? String(raw.entryRoundId) : null,
+      finalPrice: raw.resolvedPrice != null ? Number(raw.resolvedPrice) : null,
+      finalPriceUpdatedAt: raw.resolvedUpdatedAt != null ? Number(raw.resolvedUpdatedAt) : null,
+      finalRoundId: raw.resolvedRoundId != null ? String(raw.resolvedRoundId) : null
     };
   }
 
@@ -172,6 +205,17 @@ export class MarketService {
   private isPlayableNow(market: MarketRecord): boolean {
     if (market.status === 'cancelled' || market.status === 'resolved') return false;
     return market.closeAt > Date.now();
+  }
+
+  private isFutureRound(market: MarketRecord | MarketView): boolean {
+    const raw = (market.rawJson || {}) as Record<string, unknown>;
+    const slotStart = Number(raw.slotStart ?? (market as MarketView).slotStart ?? Number.NaN);
+    return Number.isFinite(slotStart) && slotStart > Date.now();
+  }
+
+  private async promoteScheduledPositionsForCurrentMarkets(markets: MarketRecord[]): Promise<void> {
+    const promotable = markets.filter((market) => !this.isFutureRound(market));
+    await Promise.all(promotable.map((market) => this.db.promoteScheduledMarketPositions(market.id)));
   }
 
   private preferredMarketScore(market: MarketRecord): number {
@@ -264,45 +308,59 @@ export class MarketService {
     const oracle = await this.latestBtcUsd().catch(() => null);
     if (!oracle) return;
     const now = Date.now();
+    const activation = await this.activationMap();
     for (const token of CHAINLINK_DURATIONS) {
       const durationMs = this.durationMsFromToken(token);
       if (!durationMs) continue;
-      const slotStart = Math.floor(now / durationMs) * durationMs;
-      const slotEnd = slotStart + durationMs;
-      const marketId = `cl_btc_${token}_${Math.floor(slotStart / 1000)}`;
-      const label = this.durationLabel(token);
-      const question = `Will BTC/USD be higher in ${label}?`;
-      await this.db.upsertMarket({
-        id: marketId,
-        slug: `btc-up-${token}-${Math.floor(slotStart / 1000)}`,
-        question,
-        category: 'chainlink_btc',
-        closeAt: slotEnd,
-        resolveAt: slotEnd,
-        status: 'open',
-        oracleSource: 'chainlink_btc_usd',
-        oracleMarketId: `chainlink:${token}:${Math.floor(slotStart / 1000)}`,
-        outcome: null,
-        yesPrice: 0.5,
-        noPrice: 0.5,
-        rawJson: {
-          source: 'chainlink_btc_usd',
-          durationToken: token,
-          durationMs,
-          slotStart,
-          slotEnd,
-          entryPrice: oracle.price,
-          entryRoundId: oracle.roundId,
-          entryUpdatedAt: oracle.updatedAt
-        }
-      });
-      await this.db.setMarketActivation({
-        marketId,
-        active: true,
-        maxWager: DEFAULT_MAX_WAGER,
-        houseSpreadBps: DEFAULT_SPREAD_BPS,
-        updatedBy: 'system:chainlink_auto'
-      });
+      const currentSlotStart = Math.floor(now / durationMs) * durationMs;
+      for (const slotStart of [currentSlotStart, currentSlotStart + durationMs]) {
+        const slotEnd = slotStart + durationMs;
+        const marketId = `cl_btc_${token}_${Math.floor(slotStart / 1000)}`;
+        const label = this.durationLabel(token);
+        const question = `Will BTC/USD be higher in ${label}?`;
+        const existing = await this.db.getMarketById(marketId);
+        const existingRaw = (existing?.rawJson || {}) as Record<string, unknown>;
+        const isCurrentSlot = slotStart <= now;
+        const entryPrice = existingRaw.entryPrice ?? (isCurrentSlot ? oracle.price : null);
+        const entryRoundId = existingRaw.entryRoundId ?? (isCurrentSlot ? oracle.roundId : null);
+        const entryUpdatedAt = existingRaw.entryUpdatedAt ?? (isCurrentSlot ? oracle.updatedAt : null);
+        await this.db.upsertMarket({
+          id: marketId,
+          slug: `btc-up-${token}-${Math.floor(slotStart / 1000)}`,
+          question,
+          category: 'chainlink_btc',
+          closeAt: slotEnd,
+          resolveAt: slotEnd,
+          status: 'open',
+          oracleSource: 'chainlink_btc_usd',
+          oracleMarketId: `chainlink:${token}:${Math.floor(slotStart / 1000)}`,
+          outcome: null,
+          yesPrice: 0.5,
+          noPrice: 0.5,
+          rawJson: {
+            ...existingRaw,
+            source: 'chainlink_btc_usd',
+            durationToken: token,
+            durationMs,
+            slotStart,
+            slotEnd,
+            currentSpotPrice: oracle.price,
+            currentSpotRoundId: oracle.roundId,
+            currentSpotUpdatedAt: oracle.updatedAt,
+            entryPrice,
+            entryRoundId,
+            entryUpdatedAt
+          }
+        });
+        const existingActivation = activation.get(marketId);
+        await this.db.setMarketActivation({
+          marketId,
+          active: Boolean(existingActivation?.active ?? true),
+          maxWager: Number(existingActivation?.maxWager ?? DEFAULT_MAX_WAGER),
+          houseSpreadBps: Number(existingActivation?.houseSpreadBps ?? DEFAULT_SPREAD_BPS),
+          updatedBy: existingActivation?.updatedBy ?? 'system:chainlink_auto'
+        });
+      }
     }
   }
 
@@ -394,6 +452,7 @@ export class MarketService {
     this.ensureActiveMarketInFlight = (async () => {
       await this.ensureChainlinkBtcMarkets();
       const [markets, activation] = await Promise.all([this.db.listMarkets(200), this.activationMap()]);
+      await this.promoteScheduledPositionsForCurrentMarkets(markets);
       const activePlayable = markets
         .map((market) => this.marketViewOf(market, activation.get(market.id) || null))
         .some((market) => market.active && market.oracleSource === 'chainlink_btc_usd' && this.isPlayableNow(market));
@@ -645,11 +704,15 @@ export class MarketService {
       .filter((m) => m.status !== 'cancelled')
       .filter((m) => m.closeAt > now)
       .sort((a, b) => {
+        const aRail = a.rail === 'btc_24h' ? 1 : 0;
+        const bRail = b.rail === 'btc_24h' ? 1 : 0;
+        const aRound = a.roundType === 'next' ? 1 : 0;
+        const bRound = b.roundType === 'next' ? 1 : 0;
         const aScore = this.preferredMarketScore(a);
         const bScore = this.preferredMarketScore(b);
-        return bScore - aScore || a.closeAt - b.closeAt;
+        return aRail - bRail || aRound - bRound || bScore - aScore || a.closeAt - b.closeAt;
       })
-      .slice(0, 60);
+      .slice(0, 8);
   }
 
   async quote(params: {
@@ -693,6 +756,7 @@ export class MarketService {
     const liquidityWarning = liquidityOpposite <= 0
       ? 'No opposite liquidity yet. If this side wins without counter-liquidity, stake is refunded.'
       : '';
+    const positionStatus = this.isFutureRound(view) ? 'scheduled' : 'open';
     return {
       ok: true,
       market: view,
@@ -705,7 +769,8 @@ export class MarketService {
       minPayout,
       liquidityOpposite: Number(liquidityOpposite.toFixed(6)),
       liquiditySameSide: Number(liquiditySameSide.toFixed(6)),
-      liquidityWarning
+      liquidityWarning,
+      positionStatus
     };
   }
 
@@ -750,7 +815,7 @@ export class MarketService {
       };
     }
 
-    const openPositions = (await this.db.listPlayerMarketPositions(params.playerId, 200)).filter((p) => p.status === 'open');
+    const openPositions = (await this.db.listPlayerMarketPositions(params.playerId, 200)).filter((p) => p.status === 'open' || p.status === 'scheduled');
     if (openPositions.length >= MAX_OPEN_POSITIONS_PER_PLAYER) {
       return {
         ok: false,
@@ -801,6 +866,7 @@ export class MarketService {
       stake: quote.stake,
       price: quote.price,
       shares: quote.shares,
+      status: quote.positionStatus || 'open',
       escrowBetId,
       estimatedPayoutAtOpen: quote.estimatedPayout ?? quote.potentialPayout ?? null,
       minPayoutAtOpen: quote.minPayout ?? quote.stake ?? null
@@ -811,12 +877,15 @@ export class MarketService {
         playerId: params.playerId,
         stationId: params.stationId,
         marketId: quote.market.id,
-        eventType: 'prediction_commit_filled',
+        eventType: quote.positionStatus === 'scheduled' ? 'prediction_commit_scheduled' : 'prediction_commit_filled',
         side: params.side,
         stake: quote.stake,
         oppositeLiquidityAtCommit: quote.liquidityOpposite ?? null,
         closeAt: quote.market.closeAt,
         metaJson: {
+          positionStatus: quote.positionStatus || 'open',
+          currentSpotPrice: quote.market.currentSpotPrice ?? null,
+          lockPrice: quote.market.lockPrice ?? null,
           estimatedPayout: quote.estimatedPayout ?? null,
           minPayout: quote.minPayout ?? null,
           price: quote.price,
@@ -833,7 +902,7 @@ export class MarketService {
     }
 
     // Fire-and-forget hedge on Polymarket CLOB — never blocks or fails the player response
-    if (this.clobClient && quote.market?.oracleMarketId) {
+    if (this.clobClient && quote.market?.oracleMarketId && quote.positionStatus !== 'scheduled') {
       const conditionId = quote.market.oracleMarketId;
       const createdId   = created.id;
       this.clobClient
@@ -846,10 +915,12 @@ export class MarketService {
   }
 
   async listPlayerPositions(playerId: string): Promise<MarketPositionRecord[]> {
+    await this.ensureAtLeastOneActiveMarket();
     return this.db.listPlayerMarketPositions(playerId, 120);
   }
 
   async settleResolvedMarkets(): Promise<{ checked: number; settled: number; failed: number }> {
+    await this.ensureAtLeastOneActiveMarket();
     const [openPositions, markets] = await Promise.all([
       this.db.listOpenMarketPositions(2000),
       this.db.listMarkets(500)
@@ -1011,11 +1082,17 @@ export function toPredictionViewPosition(input: {
   payout: number;
   settlementReason: string | null;
   liquidityFloor: number;
-  status: 'open' | 'won' | 'lost' | 'voided';
+  status: 'scheduled' | 'open' | 'won' | 'lost' | 'voided';
   createdAt: number;
   settledAt: number | null;
+  roundType?: 'current' | 'next';
+  currentSpotPrice?: number | null;
+  lockPrice?: number | null;
+  finalPrice?: number | null;
 } {
   const { position, market } = input;
+  const raw = (market?.rawJson || {}) as Record<string, unknown>;
+  const slotStart = Number(raw.slotStart ?? Number.NaN);
   const potentialPayout = Number((position.stake / Math.max(0.01, position.price)).toFixed(6));
   const estimatedPayout = position.estimatedPayoutAtOpen ?? potentialPayout;
   const minPayout = position.minPayoutAtOpen ?? Number(position.stake.toFixed(6));
@@ -1035,7 +1112,11 @@ export function toPredictionViewPosition(input: {
     liquidityFloor: minPayout,
     status: position.status,
     createdAt: position.createdAt,
-    settledAt: position.settledAt
+    settledAt: position.settledAt,
+    roundType: Number.isFinite(slotStart) && slotStart > Date.now() ? 'next' : 'current',
+    currentSpotPrice: raw.currentSpotPrice != null ? Number(raw.currentSpotPrice) : null,
+    lockPrice: raw.entryPrice != null ? Number(raw.entryPrice) : null,
+    finalPrice: raw.resolvedPrice != null ? Number(raw.resolvedPrice) : null
   };
 }
 
@@ -1053,6 +1134,21 @@ export function toMarketView(market: MarketView) {
     noPrice: market.noPrice,
     maxWager: market.maxWager,
     yesLiquidity: market.yesLiquidity ?? 0,
-    noLiquidity: market.noLiquidity ?? 0
+    noLiquidity: market.noLiquidity ?? 0,
+    oracleSource: market.oracleSource,
+    oracleMarketId: market.oracleMarketId,
+    rail: market.rail,
+    roundType: market.roundType,
+    slotStart: market.slotStart ?? 0,
+    slotEnd: market.slotEnd ?? market.closeAt,
+    currentSpotPrice: market.currentSpotPrice ?? null,
+    currentSpotUpdatedAt: market.currentSpotUpdatedAt ?? null,
+    currentSpotRoundId: market.currentSpotRoundId ?? null,
+    lockPrice: market.lockPrice ?? null,
+    lockPriceUpdatedAt: market.lockPriceUpdatedAt ?? null,
+    lockRoundId: market.lockRoundId ?? null,
+    finalPrice: market.finalPrice ?? null,
+    finalPriceUpdatedAt: market.finalPriceUpdatedAt ?? null,
+    finalRoundId: market.finalRoundId ?? null
   };
 }

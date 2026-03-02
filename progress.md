@@ -1511,3 +1511,28 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/server test -- src/game/stations/catalog.test.ts src/markets/MarketService.test.ts src/websocket/messages.test.ts` ✅
     - `npm run -w @arena/web build` ✅
     - `npm run -w @arena/server build` ✅
+
+- 2026-03-02: Added next-round BTC market commits with immediate escrow lock.
+  - Updated `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/server/src/markets/MarketService.ts`:
+    - chainlink rails now materialize both current and next slot markets for each duration
+    - next-round positions lock immediately but are stored as `scheduled`
+    - liquidity uses `open` + `scheduled` positions while settlement only processes `open`
+    - market/player views now surface `currentSpotPrice`, `lockPrice`, `finalPrice`, and `roundType`
+  - Updated `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/server/src/Database.ts`:
+    - added `scheduled` market position state support
+    - added helpers for active market positions and scheduled-position promotion
+  - Updated station/web payloads and UI:
+    - `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/server/src/game/stations/handlers/dealerPrediction.ts`
+    - `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/web/public/js/play/runtime/templates/interaction-card.js`
+    - `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/web/public/js/play/runtime/network/socket-runtime.js`
+    - prediction card now supports `Current` / `Next` within `BTC 5m` / `BTC 24h`
+    - card now shows `BTC now`, `Lock price`, and `Final price`
+  - Updated activity surfaces:
+    - `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/server/src/routes/index.ts`
+    - `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/web/src/server.ts`
+    - `/Users/temisan/Downloads/blender implementation/.claude/worktrees/codex/prediction-next-round/apps/web/public/js/dashboard.js`
+    - scheduled positions now show round type plus spot/lock/final pricing context in dashboard activity
+  - Validation:
+    - `npm run -w @arena/server test -- src/markets/MarketService.test.ts src/routes/index.test.ts` ✅
+    - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldStations.test.js` ✅
+    - `npm run -w @arena/server build && npm run -w @arena/web build` ✅
