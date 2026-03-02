@@ -5,6 +5,7 @@ import { log as rootLog } from '../logger.js';
 import { METRIC_NAMES, metrics } from '../metrics.js';
 import { PolymarketFeed, type PolymarketNormalizedMarket } from './PolymarketFeed.js';
 import type { PolymarketClobClient } from './PolymarketClobClient.js';
+import { Contract, JsonRpcProvider, formatUnits } from 'ethers';
 
 const log = rootLog.child({ module: 'market-service' });
 
@@ -66,11 +67,35 @@ const PREFERRED_MARKET_TERMS = (process.env.PREDICTION_PREFERRED_MARKET_TERMS ||
   .split(',')
   .map((token) => token.trim().toLowerCase())
   .filter(Boolean);
+const CHAINLINK_MARKETS_ENABLED = String(process.env.PREDICTION_CHAINLINK_ENABLED ?? 'true').toLowerCase() !== 'false';
+const CHAINLINK_BTC_USD_FEED = (process.env.CHAINLINK_BTC_USD_FEED || '0xc907E116054Ad103354f2D350FD2514433D57F6f').trim();
+const CHAINLINK_DURATIONS = (process.env.PREDICTION_CHAINLINK_DURATIONS || '5m,24h')
+  .split(',')
+  .map((token) => token.trim().toLowerCase())
+  .filter(Boolean);
+const CHAINLINK_RESOLUTION_GRACE_MS = Math.max(0, Number(process.env.PREDICTION_CHAINLINK_RESOLUTION_GRACE_MS || 15_000));
+const CHAINLINK_AGGREGATOR_ABI = [
+  'function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
+  'function decimals() view returns (uint8)'
+];
+type ChainlinkFeedContract = Contract & {
+  latestRoundData: () => Promise<{
+    roundId: bigint;
+    answer: bigint;
+    startedAt: bigint;
+    updatedAt: bigint;
+    answeredInRound: bigint;
+  }>;
+  decimals: () => Promise<number | bigint>;
+};
 
 export class MarketService {
   private lastSyncAt = 0;
   private ensureActiveMarketInFlight: Promise<void> | null = null;
   private ensureActiveMarketLastRunAt = 0;
+  private chainlinkProvider: JsonRpcProvider | null = null;
+  private chainlinkFeedContract: ChainlinkFeedContract | null = null;
+  private chainlinkDecimals: number | null = null;
 
   constructor(
     private readonly db: Database,
@@ -214,6 +239,162 @@ export class MarketService {
     }
   }
 
+  private durationMsFromToken(token: string): number | null {
+    if (token === '5m') return 5 * 60_000;
+    if (token === '24h') return 24 * 60 * 60_000;
+    const minuteMatch = token.match(/^(\d+)m$/);
+    if (minuteMatch) return Math.max(60_000, Number(minuteMatch[1]) * 60_000);
+    const hourMatch = token.match(/^(\d+)h$/);
+    if (hourMatch) return Math.max(60 * 60_000, Number(hourMatch[1]) * 60 * 60_000);
+    return null;
+  }
+
+  private durationLabel(token: string): string {
+    if (token === '5m') return '5 minutes';
+    if (token === '24h') return '24 hours';
+    const minuteMatch = token.match(/^(\d+)m$/);
+    if (minuteMatch) return `${Number(minuteMatch[1])} minutes`;
+    const hourMatch = token.match(/^(\d+)h$/);
+    if (hourMatch) return `${Number(hourMatch[1])} hours`;
+    return token;
+  }
+
+  private async latestBtcUsd(): Promise<{ price: number; updatedAt: number; roundId: string } | null> {
+    if (!CHAINLINK_MARKETS_ENABLED || !CHAINLINK_BTC_USD_FEED) return null;
+    const rpcUrl = String(process.env.CHAIN_RPC_URL || '').trim();
+    if (!rpcUrl) return null;
+    if (!this.chainlinkProvider) {
+      this.chainlinkProvider = new JsonRpcProvider(rpcUrl);
+    }
+    if (!this.chainlinkFeedContract) {
+      this.chainlinkFeedContract = new Contract(
+        CHAINLINK_BTC_USD_FEED,
+        CHAINLINK_AGGREGATOR_ABI,
+        this.chainlinkProvider
+      ) as ChainlinkFeedContract;
+    }
+    const feed = this.chainlinkFeedContract;
+    if (this.chainlinkDecimals == null) {
+      const decimalsRaw = await feed.decimals();
+      this.chainlinkDecimals = Number(decimalsRaw);
+    }
+    const decimals = Number(this.chainlinkDecimals);
+    const latest = await feed.latestRoundData();
+    const answerRaw = latest?.answer as bigint;
+    const updatedAtRaw = latest?.updatedAt as bigint;
+    const roundIdRaw = latest?.roundId as bigint;
+    const price = Number(formatUnits(answerRaw, decimals));
+    const updatedAt = Number(updatedAtRaw) * 1000;
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(updatedAt) || updatedAt <= 0) {
+      return null;
+    }
+    return {
+      price,
+      updatedAt,
+      roundId: String(roundIdRaw)
+    };
+  }
+
+  private async ensureChainlinkBtcMarkets(): Promise<void> {
+    if (!CHAINLINK_MARKETS_ENABLED) return;
+    const oracle = await this.latestBtcUsd().catch(() => null);
+    if (!oracle) return;
+    const now = Date.now();
+    for (const token of CHAINLINK_DURATIONS) {
+      const durationMs = this.durationMsFromToken(token);
+      if (!durationMs) continue;
+      const slotStart = Math.floor(now / durationMs) * durationMs;
+      const slotEnd = slotStart + durationMs;
+      const marketId = `cl_btc_${token}_${Math.floor(slotStart / 1000)}`;
+      const label = this.durationLabel(token);
+      const question = `Will BTC/USD be higher in ${label}?`;
+      await this.db.upsertMarket({
+        id: marketId,
+        slug: `btc-up-${token}-${Math.floor(slotStart / 1000)}`,
+        question,
+        category: 'chainlink_btc',
+        closeAt: slotEnd,
+        resolveAt: slotEnd,
+        status: 'open',
+        oracleSource: 'chainlink_btc_usd',
+        oracleMarketId: `chainlink:${token}:${Math.floor(slotStart / 1000)}`,
+        outcome: null,
+        yesPrice: 0.5,
+        noPrice: 0.5,
+        rawJson: {
+          source: 'chainlink_btc_usd',
+          durationToken: token,
+          durationMs,
+          slotStart,
+          slotEnd,
+          entryPrice: oracle.price,
+          entryRoundId: oracle.roundId,
+          entryUpdatedAt: oracle.updatedAt
+        }
+      });
+      await this.db.setMarketActivation({
+        marketId,
+        active: true,
+        maxWager: DEFAULT_MAX_WAGER,
+        houseSpreadBps: DEFAULT_SPREAD_BPS,
+        updatedBy: 'system:chainlink_auto'
+      });
+    }
+  }
+
+  private async resolveChainlinkMarkets(): Promise<void> {
+    if (!CHAINLINK_MARKETS_ENABLED) return;
+    const now = Date.now();
+    const oracle = await this.latestBtcUsd().catch(() => null);
+    if (!oracle) return;
+    const markets = await this.db.listMarkets(400);
+    for (const market of markets) {
+      if (market.oracleSource !== 'chainlink_btc_usd') continue;
+      if (market.status === 'resolved' || market.status === 'cancelled') continue;
+      const resolveAt = Number(market.resolveAt ?? market.closeAt);
+      if (!Number.isFinite(resolveAt) || resolveAt + CHAINLINK_RESOLUTION_GRACE_MS > now) continue;
+      const raw = (market.rawJson || {}) as Record<string, unknown>;
+      const entryPrice = Number(raw.entryPrice ?? Number.NaN);
+      if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+      let status: MarketRecord['status'] = 'resolved';
+      let outcome: MarketRecord['outcome'] = null;
+      let yesPrice = market.yesPrice;
+      let noPrice = market.noPrice;
+      if (oracle.price > entryPrice) {
+        outcome = 'yes';
+        yesPrice = 0.99;
+        noPrice = 0.01;
+      } else if (oracle.price < entryPrice) {
+        outcome = 'no';
+        yesPrice = 0.01;
+        noPrice = 0.99;
+      } else {
+        status = 'cancelled';
+      }
+      await this.db.upsertMarket({
+        id: market.id,
+        slug: market.slug,
+        question: market.question,
+        category: market.category,
+        closeAt: market.closeAt,
+        resolveAt: market.resolveAt,
+        status,
+        oracleSource: market.oracleSource,
+        oracleMarketId: market.oracleMarketId,
+        outcome,
+        yesPrice,
+        noPrice,
+        rawJson: {
+          ...raw,
+          resolvedPrice: oracle.price,
+          resolvedRoundId: oracle.roundId,
+          resolvedUpdatedAt: oracle.updatedAt,
+          resolvedAt: now
+        }
+      });
+    }
+  }
+
   private choosePreferredMarket<T extends { question: string; slug: string; category: string; closeAt: number }>(markets: T[]): T | null {
     return (
       markets
@@ -247,6 +428,7 @@ export class MarketService {
     }
     if (now - this.ensureActiveMarketLastRunAt < ENSURE_ACTIVE_MARKET_COOLDOWN_MS) return;
     this.ensureActiveMarketInFlight = (async () => {
+      await this.ensureChainlinkBtcMarkets();
       const [markets, activation] = await Promise.all([this.db.listMarkets(200), this.activationMap()]);
       const activePlayable = markets
         .map((market) => this.marketViewOf(market, activation.get(market.id) || null))
@@ -302,6 +484,10 @@ export class MarketService {
       });
 
     await this.ensureActiveMarketInFlight;
+  }
+
+  async refreshMarketOutcomes(): Promise<void> {
+    await this.resolveChainlinkMarkets();
   }
 
   async syncFromOracle(limit = 60): Promise<{ ok: boolean; synced: number; error?: string }> {
@@ -516,6 +702,11 @@ export class MarketService {
       .filter((m) => m.active)
       .filter((m) => m.status !== 'cancelled')
       .filter((m) => m.status === 'resolved' || m.closeAt > now)
+      .sort((a, b) => {
+        const aScore = this.preferredMarketScore(a);
+        const bScore = this.preferredMarketScore(b);
+        return bScore - aScore || a.closeAt - b.closeAt;
+      })
       .slice(0, 60);
   }
 

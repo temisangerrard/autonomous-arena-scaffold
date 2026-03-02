@@ -56,3 +56,24 @@
   - `npm run -w @arena/web build` passed.
   - `npm run -w @arena/server build` passed.
   - `npm run -w @arena/agent-runtime build` passed.
+
+
+## 2026-03-02 Update
+- Restored the intended internal BTC board behavior on `main`.
+  - Prediction station now presents the internal `Arena Oracle` BTC board instead of the legacy Polymarket-framed BTC surface.
+  - BTC quick actions (`BTC Up (YES)` / `BTC Down (NO)`) reuse the existing station interaction transport; no stale managed-DeFi intent API was revived.
+- Server-side Chainlink BTC rails are active in code again.
+  - `MarketService` auto-creates 5m and 24h `chainlink_btc_usd` markets and resolves them from the Chainlink BTC/USD feed.
+  - `SettlementWorker` refreshes oracle outcomes before position settlement.
+  - `markets.raw_json` is again surfaced through `Database.ts` for oracle proof metadata.
+- Workspace repair work included:
+  - added missing shared `arena/stationLayout` module required by current tests/build,
+  - restored wallet summary metadata handling in web runtime store to satisfy current dashboard/runtime expectations.
+- Validation run in this session:
+  - `npm run -w @arena/server test -- src/markets/MarketService.test.ts src/markets/SettlementWorker.test.ts` passed.
+  - `npm run -w @arena/web test -- src/stationRouting.test.js src/runtimeStore.test.js` passed.
+  - `npm run -w @arena/server build` passed.
+  - `npm run -w @arena/web build` passed.
+- Contract control note:
+  - existing Polygon oracle escrow contracts can be kept only if deploy infra still retains the matching resolver/admin keys;
+  - this shell had no live RPC/private-key env loaded, so ownership/control was not verifiable from the workspace alone.

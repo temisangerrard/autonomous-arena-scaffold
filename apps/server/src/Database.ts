@@ -16,6 +16,7 @@ export type MarketRecord = {
   outcome: 'yes' | 'no' | null;
   yesPrice: number;
   noPrice: number;
+  rawJson?: Record<string, unknown> | null;
 };
 
 export type MarketActivationRecord = {
@@ -506,7 +507,7 @@ export class Database {
     try {
       const safeLimit = Math.max(1, Math.min(1000, Number(limit || 200)));
       const result = await this.pool.query(
-        `SELECT id, slug, question, category, close_at, resolve_at, status, oracle_source, oracle_market_id, outcome, yes_price, no_price
+        `SELECT id, slug, question, category, close_at, resolve_at, status, oracle_source, oracle_market_id, outcome, yes_price, no_price, raw_json
          FROM markets
          ORDER BY close_at ASC
          LIMIT $1`,
@@ -524,7 +525,8 @@ export class Database {
         oracleMarketId: String(row.oracle_market_id || ''),
         outcome: row.outcome === 'yes' || row.outcome === 'no' ? row.outcome : null,
         yesPrice: Number(row.yes_price ?? 0.5),
-        noPrice: Number(row.no_price ?? 0.5)
+        noPrice: Number(row.no_price ?? 0.5),
+        rawJson: (row.raw_json as Record<string, unknown>) || null
       }));
     } catch (err) {
       log.error({ err }, 'failed to list markets');
@@ -536,7 +538,7 @@ export class Database {
     if (!this.pool) return null;
     try {
       const result = await this.pool.query(
-        `SELECT id, slug, question, category, close_at, resolve_at, status, oracle_source, oracle_market_id, outcome, yes_price, no_price
+        `SELECT id, slug, question, category, close_at, resolve_at, status, oracle_source, oracle_market_id, outcome, yes_price, no_price, raw_json
          FROM markets
          WHERE id = $1
          LIMIT 1`,
@@ -556,7 +558,8 @@ export class Database {
         oracleMarketId: String(row.oracle_market_id || ''),
         outcome: row.outcome === 'yes' || row.outcome === 'no' ? row.outcome : null,
         yesPrice: Number(row.yes_price ?? 0.5),
-        noPrice: Number(row.no_price ?? 0.5)
+        noPrice: Number(row.no_price ?? 0.5),
+        rawJson: (row.raw_json as Record<string, unknown>) || null
       };
     } catch (err) {
       log.error({ err, marketId }, 'failed to get market by id');

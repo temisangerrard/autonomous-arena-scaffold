@@ -27,6 +27,7 @@ export class SettlementWorker {
     if (this.inFlight) return;
     this.inFlight = true;
     try {
+      await this.marketService.refreshMarketOutcomes();
       await this.marketService.settleResolvedMarkets();
     } finally {
       this.inFlight = false;

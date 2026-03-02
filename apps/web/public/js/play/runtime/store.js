@@ -66,6 +66,10 @@ function reduce(state, action) {
     case 'WALLET_SUMMARY_SET':
       state.walletBalance = Number.isFinite(Number(action.balance)) ? Number(action.balance) : null;
       state.walletChainId = Number.isFinite(Number(action.chainId)) ? Number(action.chainId) : null;
+      state.walletTokenSymbol = action.tokenSymbol ? String(action.tokenSymbol) : null;
+      state.walletTokenDecimals = Number.isFinite(Number(action.tokenDecimals)) ? Number(action.tokenDecimals) : null;
+      state.walletMode = action.mode ? String(action.mode) : null;
+      state.walletSynced = Boolean(action.synced);
       return;
     default:
       return;
@@ -128,6 +132,10 @@ export function selectChallengeView(state) {
 export function selectWalletView(state) {
   return {
     balance: Number.isFinite(Number(state?.walletBalance)) ? Number(state.walletBalance) : null,
-    chainId: Number.isFinite(Number(state?.walletChainId)) ? Number(state.walletChainId) : null
+    chainId: Number.isFinite(Number(state?.walletChainId)) ? Number(state.walletChainId) : null,
+    tokenSymbol: state?.walletTokenSymbol ? String(state.walletTokenSymbol) : null,
+    tokenDecimals: Number.isFinite(Number(state?.walletTokenDecimals)) ? Number(state.walletTokenDecimals) : null,
+    mode: state?.walletMode ? String(state.walletMode) : null,
+    synced: Boolean(state?.walletSynced)
   };
 }

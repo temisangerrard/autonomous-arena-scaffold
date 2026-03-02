@@ -72,7 +72,8 @@ function buildServiceState(input?: {
         oracleMarketId: params.oracleMarketId,
         outcome: params.outcome,
         yesPrice: params.yesPrice,
-        noPrice: params.noPrice
+        noPrice: params.noPrice,
+        rawJson: (params.rawJson as Record<string, unknown>) || null
       };
       if (idx >= 0) markets[idx] = record;
       else markets.push(record);
@@ -358,5 +359,76 @@ describe('MarketService settlement liquidity behavior', () => {
     expect(settled[0]?.status).toBe('voided');
     expect(settled[0]?.settlementReason).toBe('voided');
     expect(settled[0]?.payout).toBe(12);
+  });
+});
+
+describe('MarketService Chainlink markets', () => {
+  it('creates active BTC chainlink markets for 5m and 24h durations', async () => {
+    const state = buildServiceState({ markets: [] });
+    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => ({
+      price: 100_000.12,
+      updatedAt: Date.now(),
+      roundId: '12345'
+    });
+
+    const markets = await service.listActiveMarketsForPlayer();
+    const chainlinkMarkets = markets.filter((entry) => entry.oracleSource === 'chainlink_btc_usd');
+
+    expect(chainlinkMarkets.length).toBeGreaterThanOrEqual(2);
+    expect(chainlinkMarkets.some((entry) => entry.id.includes('cl_btc_5m_'))).toBe(true);
+    expect(chainlinkMarkets.some((entry) => entry.id.includes('cl_btc_24h_'))).toBe(true);
+    expect(chainlinkMarkets.every((entry) => entry.active)).toBe(true);
+  });
+
+  it('resolves expired chainlink markets from latest BTC oracle price', async () => {
+    const now = Date.now();
+    const state = buildServiceState({
+      markets: [
+        {
+          id: 'cl_btc_5m_1',
+          slug: 'btc-up-5m-1',
+          question: 'Will BTC/USD be higher in 5 minutes?',
+          category: 'chainlink_btc',
+          closeAt: now - 10 * 60_000,
+          resolveAt: now - 10 * 60_000,
+          status: 'open',
+          oracleSource: 'chainlink_btc_usd',
+          oracleMarketId: 'chainlink:5m:1',
+          outcome: null,
+          yesPrice: 0.5,
+          noPrice: 0.5,
+          rawJson: {
+            source: 'chainlink_btc_usd',
+            durationToken: '5m',
+            entryPrice: 90_000
+          }
+        }
+      ],
+      activations: [
+        {
+          marketId: 'cl_btc_5m_1',
+          active: true,
+          maxWager: 100,
+          houseSpreadBps: 300,
+          updatedBy: 'test',
+          updatedAt: now
+        }
+      ]
+    });
+    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => ({
+      price: 95_000,
+      updatedAt: now,
+      roundId: '12346'
+    });
+
+    await service.refreshMarketOutcomes();
+    const updated = await (state.db as any).getMarketById('cl_btc_5m_1');
+
+    expect(updated).not.toBeNull();
+    expect(updated.status).toBe('resolved');
+    expect(updated.outcome).toBe('yes');
+    expect(Number(updated.yesPrice)).toBeGreaterThan(Number(updated.noPrice));
   });
 });

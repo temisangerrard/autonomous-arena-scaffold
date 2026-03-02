@@ -1360,3 +1360,32 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/web build` ✅
     - `npm run -w @arena/server build` ✅
     - `npm run -w @arena/agent-runtime build` ✅
+
+
+- 2026-03-02: Restored internal BTC oracle board path on `main` and repaired shared/web test drift.
+  - Restored Chainlink BTC market lifecycle in `/Users/temisan/Downloads/blender implementation/apps/server/src/markets/MarketService.ts`.
+    - Auto-creates internal `chainlink_btc_usd` 5m/24h rails.
+    - Resolves expired rails from Chainlink BTC/USD feed and persists proof metadata in `markets.raw_json`.
+    - BTC/internal markets are now preferred in active-market selection.
+  - `SettlementWorker` now refreshes oracle market outcomes before settlement in `/Users/temisan/Downloads/blender implementation/apps/server/src/markets/SettlementWorker.ts`.
+  - `Database.ts` now returns `rawJson` for markets so oracle proof data survives round-trips.
+  - Prediction station UI in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card.js` now shows `Arena Oracle` BTC board framing and BTC quick actions (`BTC Up (YES)` / `BTC Down (NO)`) using existing station actions.
+  - Added server coverage:
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/markets/SettlementWorker.test.ts`
+    - expanded `/Users/temisan/Downloads/blender implementation/apps/server/src/markets/MarketService.test.ts`
+  - Repaired dangling shared arena module required by current workspace tests:
+    - `/Users/temisan/Downloads/blender implementation/packages/shared/src/arena/stationLayout.ts`
+  - Repaired wallet runtime store metadata passthrough in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/store.js` to match current wallet summary expectations.
+  - Added env documentation for internal BTC rails in `.env.example`:
+    - `PREDICTION_CHAINLINK_ENABLED`
+    - `CHAINLINK_BTC_USD_FEED`
+    - `PREDICTION_CHAINLINK_DURATIONS`
+    - `PREDICTION_CHAINLINK_RESOLUTION_GRACE_MS`
+  - Validation:
+    - `npm run -w @arena/server test -- src/markets/MarketService.test.ts src/markets/SettlementWorker.test.ts` ✅
+    - `npm run -w @arena/web test -- src/stationRouting.test.js src/runtimeStore.test.js` ✅
+    - `npm run -w @arena/server build` ✅
+    - `npm run -w @arena/web build` ✅
+  - Deployment note:
+    - Existing Polygon oracle escrow deployments are reusable only if deploy infra still has the matching admin/resolver keys.
+    - This shell did not have `CHAIN_RPC_URL` or resolver/admin private keys loaded, so onchain control could not be re-verified here.
