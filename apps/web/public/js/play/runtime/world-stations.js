@@ -33,6 +33,22 @@ export function createWorldStationsController(params) {
     state.hostStations = new Map(npcHosts.hostStations);
     state.bakedStations = extractBakedNpcStations({ THREE, worldRoot });
     remapLocalStationProxies();
+    const OVERLAP_SUPPRESSION_DISTANCE = 10;
+    for (const [bakedId, baked] of state.bakedStations.entries()) {
+      let overlapsLiveHost = false;
+      for (const host of state.hostStations.values()) {
+        const sameKind = String(host.kind || '') === String(baked.kind || '');
+        if (!sameKind) continue;
+        const dist = Math.hypot(Number(host.x || 0) - Number(baked.x || 0), Number(host.z || 0) - Number(baked.z || 0));
+        if (dist <= OVERLAP_SUPPRESSION_DISTANCE) {
+          overlapsLiveHost = true;
+          break;
+        }
+      }
+      if (overlapsLiveHost) {
+        state.bakedStations.delete(bakedId);
+      }
+    }
     for (const baked of state.bakedStations.values()) {
       let nearestHost = null;
       let nearestDistance = Number.POSITIVE_INFINITY;
