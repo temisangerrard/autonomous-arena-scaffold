@@ -1,7 +1,8 @@
 import { HardhatUserConfig } from 'hardhat/config';
 import '@nomicfoundation/hardhat-toolbox';
 
-const sepoliaRpcUrl = process.env.SEPOLIA_RPC_URL || process.env.CHAIN_RPC_URL || '';
+const sepoliaRpcUrl = process.env.SEPOLIA_RPC_URL || '';
+const baseRpcUrl = process.env.BASE_RPC_URL || process.env.CHAIN_RPC_URL || '';
 const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.ESCROW_RESOLVER_PRIVATE_KEY || '';
 
 const config: HardhatUserConfig = {
@@ -23,6 +24,10 @@ const config: HardhatUserConfig = {
   networks: {
     sepolia: {
       url: sepoliaRpcUrl,
+      accounts: deployerPrivateKey ? [deployerPrivateKey] : []
+    },
+    base: {
+      url: baseRpcUrl,
       accounts: deployerPrivateKey ? [deployerPrivateKey] : []
     }
   }

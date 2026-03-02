@@ -1406,3 +1406,35 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/web test -- src/walletSync.test.ts src/runtimeStore.test.js` ✅
     - `npm run -w @arena/agent-runtime build` ✅
     - `npm run -w @arena/web build` ✅
+
+
+- 2026-03-02: Restored Base-ready oracle escrow contract support with a 5% protocol fee default.
+  - Upgraded `/Users/temisan/Downloads/blender implementation/apps/contracts/contracts/BettingEscrow.sol` back to the oracle-aware version with:
+    - `createOracleBet(...)`
+    - `resolveBetFromOracle(...)`
+    - `OracleBetCreated`
+    - `OracleBetResolved`
+    - embedded Chainlink price feed dependency
+  - Added `/Users/temisan/Downloads/blender implementation/apps/contracts/contracts/MockPriceFeed.sol` for contract-level oracle testing.
+  - Expanded `/Users/temisan/Downloads/blender implementation/apps/contracts/test/Escrow.test.ts` to cover:
+    - standard fee payout
+    - refund flow
+    - oracle resolution proof flow
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/contracts/scripts/deploy.ts` for Base deployment support:
+    - default fee basis points now `500` (5%)
+    - Base Chainlink BTC/USD default feed support
+    - emitted deploy artifact now records `priceFeedAddress`
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/contracts/hardhat.config.ts` and package scripts with `BASE_RPC_URL` and `deploy:base`.
+  - Added env documentation in `/Users/temisan/Downloads/blender implementation/.env.example` for:
+    - `BASE_RPC_URL`
+    - `ESCROW_FEE_BPS=500`
+    - `ESCROW_PRICE_FEED_ADDRESS`
+    - `CHAINLINK_BTC_USD_FEED`
+  - Created a separate Base fee wallet locally for fee collection.
+    - Public address: `0x5Ca5082dD5d26B8F9402be8569D4d72FAA907C3c`
+    - Secret material stored outside the repo at `~/.codex/local-secrets/arena-base-fee-wallet.json`
+  - Validation:
+    - `npm run -w @arena/contracts test` ✅
+    - `npm run -w @arena/contracts build` ✅
+  - Deployment blocker:
+    - this shell still has no valid `DEPLOYER_PRIVATE_KEY`/`ESCROW_RESOLVER_PRIVATE_KEY` loaded, so Base mainnet deployment could not be broadcast from here.

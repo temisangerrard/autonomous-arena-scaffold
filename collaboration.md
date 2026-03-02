@@ -92,3 +92,21 @@
   - `npm run -w @arena/web test -- src/walletSync.test.ts src/runtimeStore.test.js` passed.
   - `npm run -w @arena/agent-runtime build` passed.
   - `npm run -w @arena/web build` passed.
+
+
+## 2026-03-02 Base Oracle Escrow Prep
+- Restored the contracts package to the oracle-aware escrow path needed for Base mainnet BTC rails.
+  - `apps/contracts/contracts/BettingEscrow.sol` now supports oracle bet creation and in-contract oracle-based resolution.
+  - `apps/contracts/contracts/MockPriceFeed.sol` added for deterministic oracle tests.
+- Base deployment wiring is now present.
+  - `apps/contracts/hardhat.config.ts` includes `base`.
+  - `apps/contracts/package.json` includes `deploy:base`.
+  - `apps/contracts/scripts/deploy.ts` now defaults protocol fee to `500` bps and uses the Base Chainlink BTC/USD feed by default when deploying on Base.
+- Fee collection setup:
+  - separate fee recipient wallet created: `0x5Ca5082dD5d26B8F9402be8569D4d72FAA907C3c`
+  - private key stored outside repo in `~/.codex/local-secrets/arena-base-fee-wallet.json`
+- Validation in this session:
+  - `npm run -w @arena/contracts test` passed.
+  - `npm run -w @arena/contracts build` passed.
+- Remaining blocker:
+  - current shell does not have a valid operator/deployer private key loaded in env, so the Base deploy itself was not executed here.
