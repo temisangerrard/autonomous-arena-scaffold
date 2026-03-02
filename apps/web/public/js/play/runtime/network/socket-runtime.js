@@ -292,7 +292,6 @@ export async function connectSocketRuntime(deps) {
         markets: [],
         positions: [],
         selectedMarketId: '',
-        quote: null,
         lastReason: '',
         lastReasonText: ''
       });
@@ -315,26 +314,6 @@ export async function connectSocketRuntime(deps) {
         prediction.lastReasonText = '';
         return;
       }
-      if (stateName === 'prediction_quote') {
-        prediction.state = 'quote';
-        prediction.selectedMarketId = String(view.marketId || prediction.selectedMarketId || '');
-        if (Array.isArray(view.markets) && view.markets.length > 0) {
-          prediction.markets = view.markets;
-        }
-        prediction.quote = {
-          marketId: String(view.marketId || ''),
-          side: String(view.side || ''),
-          price: Number(view.price || 0),
-          shares: Number(view.shares || 0),
-          potentialPayout: Number(view.potentialPayout || 0),
-          estimatedPayout: Number(view.estimatedPayout || 0),
-          minPayout: Number(view.minPayout || 0),
-          liquidityOpposite: Number(view.liquidityOpposite || 0),
-          liquiditySameSide: Number(view.liquiditySameSide || 0),
-          liquidityWarning: String(view.liquidityWarning || '')
-        };
-        return;
-      }
       if (stateName === 'prediction_order_pending') {
         prediction.state = 'pending';
         prediction.selectedMarketId = String(view.marketId || prediction.selectedMarketId || '');
@@ -346,24 +325,7 @@ export async function connectSocketRuntime(deps) {
         if (Array.isArray(view.positions) && view.positions.length > 0) {
           prediction.positions = view.positions;
         }
-        prediction.quote = {
-          marketId: String(view.marketId || ''),
-          side: String(view.side || ''),
-          price: Number(view.price || 0),
-          shares: Number(view.shares || 0),
-          potentialPayout: Number(view.potentialPayout || 0),
-          estimatedPayout: Number(view.estimatedPayout || 0),
-          minPayout: Number(view.minPayout || 0),
-          liquidityOpposite: Number(view.liquidityOpposite || 0),
-          liquiditySameSide: Number(view.liquiditySameSide || 0),
-          liquidityWarning: String(view.liquidityWarning || '')
-        };
         showToast('Prediction order filled.');
-        return;
-      }
-      if (stateName === 'prediction_positions') {
-        prediction.state = 'positions';
-        prediction.positions = Array.isArray(view.positions) ? view.positions : [];
         return;
       }
       if (stateName === 'prediction_settle') {

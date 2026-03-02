@@ -4,8 +4,6 @@ import { toMarketView, toPredictionViewPosition } from '../../../markets/MarketS
 
 type PredictionPayload =
   | { action: 'prediction_markets_open' }
-  | { action: 'prediction_positions_open' }
-  | { action: 'prediction_market_quote'; marketId: string; side: 'yes' | 'no'; stake: number }
   | { action: 'prediction_market_buy_yes' | 'prediction_market_buy_no'; marketId: string; stake: number };
 
 function toPredictionError(input: {
@@ -62,98 +60,6 @@ export async function handlePredictionStationAction(params: {
       state: 'prediction_list',
       stationId: station.id,
       markets: markets.map((entry) => toMarketView(entry))
-    });
-    return;
-  }
-
-  if (payload.action === 'prediction_positions_open') {
-    await marketService.recordPredictionEvent({
-      playerId,
-      stationId: station.id,
-      eventType: 'prediction_positions_open'
-    });
-    const [positions, marketState] = await Promise.all([
-      marketService.listPlayerPositions(playerId),
-      marketService.getAdminState()
-    ]);
-    const marketById = new Map(marketState.markets.map((entry) => [entry.id, entry]));
-    respond({
-      ok: true,
-      state: 'prediction_positions',
-      stationId: station.id,
-      positions: positions.map((position) =>
-        toPredictionViewPosition({
-          position,
-          market: marketById.get(position.marketId) || null
-        })
-      )
-    });
-    return;
-  }
-
-  if (payload.action === 'prediction_market_quote') {
-    await marketService.recordPredictionEvent({
-      playerId,
-      stationId: station.id,
-      marketId: payload.marketId,
-      eventType: 'prediction_quote_requested',
-      side: payload.side,
-      stake: payload.stake
-    });
-    const quoted = await marketService.quote({
-      marketId: payload.marketId,
-      side: payload.side,
-      stake: payload.stake
-    });
-    if (!quoted.ok || !quoted.market) {
-      await marketService.recordPredictionEvent({
-        playerId,
-        stationId: station.id,
-        marketId: payload.marketId,
-        eventType: 'prediction_quote_failed',
-        side: payload.side,
-        stake: payload.stake,
-        reason: quoted.reason,
-        reasonCode: quoted.reasonCode
-      });
-      respond(
-        toPredictionError({
-          reason: quoted.reason,
-          reasonCode: quoted.reasonCode,
-          reasonText: quoted.reasonText || 'Unable to quote market right now.'
-        })
-      );
-      return;
-    }
-    respond({
-      ok: true,
-      state: 'prediction_quote',
-      stationId: station.id,
-      marketId: quoted.market.id,
-      side: quoted.side,
-      price: quoted.price,
-      shares: quoted.shares,
-      potentialPayout: quoted.potentialPayout,
-      estimatedPayout: quoted.estimatedPayout,
-      minPayout: quoted.minPayout,
-      liquidityOpposite: quoted.liquidityOpposite,
-      liquiditySameSide: quoted.liquiditySameSide,
-      liquidityWarning: quoted.liquidityWarning,
-      markets: [toMarketView(quoted.market)]
-    });
-    await marketService.recordPredictionEvent({
-      playerId,
-      stationId: station.id,
-      marketId: quoted.market.id,
-      eventType: 'prediction_quote_returned',
-      side: payload.side,
-      stake: quoted.stake,
-      oppositeLiquidityAtCommit: quoted.liquidityOpposite ?? null,
-      closeAt: quoted.market.closeAt,
-      metaJson: {
-        estimatedPayout: quoted.estimatedPayout ?? null,
-        minPayout: quoted.minPayout ?? null
-      }
     });
     return;
   }

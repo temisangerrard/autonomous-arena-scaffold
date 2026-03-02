@@ -102,7 +102,7 @@ function actionsForKind(kind) {
   if (kind === 'dealer_coinflip') return ['coinflip_house_start', 'coinflip_house_pick'];
   if (kind === 'dealer_rps') return ['rps_house_start', 'rps_house_pick'];
   if (kind === 'dealer_dice_duel') return ['dice_duel_start', 'dice_duel_pick'];
-  if (kind === 'dealer_prediction') return ['prediction_markets_open', 'prediction_market_quote', 'prediction_market_buy_yes', 'prediction_market_buy_no', 'prediction_positions_open'];
+  if (kind === 'dealer_prediction') return ['prediction_markets_open', 'prediction_market_buy_yes', 'prediction_market_buy_no'];
   return ['interact_open', 'interact_use'];
 }
 

@@ -26,10 +26,8 @@ describe('buildStations', () => {
       kind: 'dealer_prediction',
       actions: [
         'prediction_markets_open',
-        'prediction_market_quote',
         'prediction_market_buy_yes',
-        'prediction_market_buy_no',
-        'prediction_positions_open'
+        'prediction_market_buy_no'
       ]
     });
   });

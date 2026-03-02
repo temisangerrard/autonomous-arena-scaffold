@@ -143,3 +143,26 @@
   - `npm run -w @arena/server test -- src/markets/MarketService.test.ts` passed
   - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldNpcHosts.test.js` passed
   - `npm run -w @arena/web build && npm run -w @arena/server build` passed
+
+## 2026-03-02 Game Interaction Cleanup
+- Prediction station UI was narrowed to a fixed BTC rail model.
+  - Two tabs only: `BTC 5m`, `BTC 24h`
+  - No market dropdown, no generic quote flow, no positions button inside the station card
+  - Status copy now explains live/closing/next-round timing and shows lock/settle timing inline
+- Coinflip, RPS, and Dice now share the same card rhythm:
+  - title
+  - rule line
+  - stake input
+  - `Start Round`
+  - game-specific pick area only
+- Duplicate visible NPC hosts were moved back into range of the canonical playable dealer they proxy to, eliminating `not_near_station` failures from visible interaction spots.
+- Prediction station/server contract was trimmed:
+  - removed `prediction_market_quote`
+  - removed `prediction_positions_open`
+  - parser/router/catalog/action lists now expose only live actions used by the cleaned station
+- Dead client prediction quote/positions handling was removed from the runtime state/update path.
+- Validation in this session:
+  - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldNpcHosts.test.js src/stationRouting.test.js` passed
+  - `npm run -w @arena/server test -- src/game/stations/catalog.test.ts src/markets/MarketService.test.ts src/websocket/messages.test.ts` passed
+  - `npm run -w @arena/web build` passed
+  - `npm run -w @arena/server build` passed

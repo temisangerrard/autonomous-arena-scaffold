@@ -6,9 +6,9 @@ const WORLD_SECTION_SPAWNS = [
   { x: -70, z: 43 }, // guide (local interactable) -> station_world_info_a
   { x: 78, z: -41 }, // cashier -> station_cashier_bank
   { x: -25, z: -24 }, // coinflip_a -> station_dealer_coinflip_a
-  { x: 25, z: 26 }, // coinflip_b -> station_dealer_coinflip_b
+  { x: -31, z: -24 }, // coinflip_b proxy -> station_dealer_coinflip_a
   { x: 25, z: -24 }, // rps_a -> station_dealer_rps_a
-  { x: -27, z: 34 }, // rps_b -> station_dealer_rps_b
+  { x: 31, z: -24 }, // rps_b proxy -> station_dealer_rps_a
   { x: -78, z: -37 }, // dice -> station_dealer_dice_a
   { x: -70, z: 43 } // prediction -> station_dealer_prediction_a
 ];
@@ -167,7 +167,7 @@ function hostSpec(index) {
       displayName: 'Super Agent',
       kind: 'dealer_prediction',
       interactionTag: 'prediction_host',
-      actions: ['prediction_markets_open', 'prediction_market_quote', 'prediction_market_buy_yes', 'prediction_market_buy_no', 'prediction_positions_open'],
+      actions: ['prediction_markets_open', 'prediction_market_buy_yes', 'prediction_market_buy_no'],
       yaw: 0.28,
       radius: 7
     }

@@ -109,7 +109,9 @@ describe('parseClientMessage station_interact', () => {
       stationId: 'station_dealer_prediction_a',
       action: 'prediction_markets_open'
     });
+  });
 
+  it('rejects legacy prediction quote actions', () => {
     const quote = parseClientMessage(
       Buffer.from(
         JSON.stringify({
@@ -122,13 +124,6 @@ describe('parseClientMessage station_interact', () => {
         })
       )
     );
-    expect(quote).toEqual({
-      type: 'station_interact',
-      stationId: 'station_dealer_prediction_a',
-      action: 'prediction_market_quote',
-      marketId: 'poly_1',
-      side: 'yes',
-      stake: 5
-    });
+    expect(quote).toBeNull();
   });
 });

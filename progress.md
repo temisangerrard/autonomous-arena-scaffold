@@ -1482,3 +1482,32 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/server test -- src/markets/MarketService.test.ts` ✅
     - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldNpcHosts.test.js` ✅
     - `npm run -w @arena/web build && npm run -w @arena/server build` ✅
+
+- 2026-03-02: Cleaned game interaction cards and trimmed the prediction station contract.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card.js`:
+    - prediction card now uses fixed `BTC 5m` / `BTC 24h` tabs instead of a market dropdown
+    - prediction card now shows rail availability text (`Live`, `Closing soon`, `Next round in Xm`) and `Locks` / `Settles`
+    - coinflip, RPS, and dice cards now share a consistent structure with title, rule line, stake input, and `Start Round`
+  - Updated visible host routing/layout:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/world-npc-hosts.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/baked-npc-stations.js`
+    - duplicate proxied hosts now sit within range of the playable dealer they route to
+  - Trimmed dead prediction actions from the live station contract:
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/catalog.ts`
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/handlers/dealerPrediction.ts`
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/router.ts`
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/websocket/messages.ts`
+    - `/Users/temisan/Downloads/blender implementation/packages/shared/src/types/index.ts`
+  - Removed dead client prediction quote/positions handling in:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/network/socket-runtime.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/state.js`
+  - Added/updated coverage:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/interactionCardVisibility.test.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/worldNpcHosts.test.js`
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/game/stations/catalog.test.ts`
+    - `/Users/temisan/Downloads/blender implementation/apps/server/src/websocket/messages.test.ts`
+  - Validation:
+    - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldNpcHosts.test.js src/stationRouting.test.js` ✅
+    - `npm run -w @arena/server test -- src/game/stations/catalog.test.ts src/markets/MarketService.test.ts src/websocket/messages.test.ts` ✅
+    - `npm run -w @arena/web build` ✅
+    - `npm run -w @arena/server build` ✅

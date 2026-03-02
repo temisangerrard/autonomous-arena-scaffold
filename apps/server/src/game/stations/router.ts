@@ -57,10 +57,8 @@ type PredictionMessage = Extract<
   {
     action:
       | 'prediction_markets_open'
-      | 'prediction_market_quote'
       | 'prediction_market_buy_yes'
-      | 'prediction_market_buy_no'
-      | 'prediction_positions_open';
+      | 'prediction_market_buy_no';
   }
 >;
 
@@ -523,10 +521,8 @@ export function createStationRouter(ctx: StationRouterContext) {
     if (station.kind === 'dealer_prediction') {
       const predictionActionSet = new Set([
         'prediction_markets_open',
-        'prediction_market_quote',
         'prediction_market_buy_yes',
-        'prediction_market_buy_no',
-        'prediction_positions_open'
+        'prediction_market_buy_no'
       ]);
       if (!predictionActionSet.has(payload.action)) {
         ctx.sendTo(playerId, {

@@ -51,10 +51,8 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
       yaw: 0,
       actions: [
         'prediction_markets_open',
-        'prediction_market_quote',
         'prediction_market_buy_yes',
-        'prediction_market_buy_no',
-        'prediction_positions_open'
+        'prediction_market_buy_no'
       ] satisfies StationActionId[]
     }
   ];

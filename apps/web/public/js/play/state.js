@@ -97,7 +97,6 @@ export function createInitialState() {
         markets: [],
         positions: [],
         selectedMarketId: '',
-        quote: null,
         lastReason: '',
         lastReasonText: ''
       }
