@@ -17,6 +17,7 @@ import {
   redactSecrets
 } from './lib/crypto.js';
 import { sendJson, setCorsHeaders, SimpleRouter } from './lib/http.js';
+import { classifyEscrowApprovalNetwork, type EscrowApprovalNetwork } from '@arena/shared';
 import type {
   BotRecord,
   EscrowLockRecord,
@@ -132,13 +133,14 @@ const onchainTokenDecimals = Math.max(0, Math.min(18, Number(process.env.ESCROW_
 const onchainProvider = onchainRpcUrl ? new JsonRpcProvider(onchainRpcUrl) : null;
 // SECURITY: Never reuse private keys across different roles
 const gasFunderPrivateKey = process.env.GAS_FUNDING_PRIVATE_KEY ?? '';
-if (process.env.NODE_ENV === 'production' && onchainProvider && !gasFunderPrivateKey.trim()) {
-  console.error('GAS_FUNDING_PRIVATE_KEY is required in production when onchain is enabled. Must be separate from ESCROW_RESOLVER_PRIVATE_KEY.');
+if (process.env.NODE_ENV === 'production' && onchainProvider && currentGasSponsorshipPolicy(null).sponsorshipEnabled && !gasFunderPrivateKey.trim()) {
+  console.error('GAS_FUNDING_PRIVATE_KEY is required in production when gas sponsorship is enabled. Must be separate from ESCROW_RESOLVER_PRIVATE_KEY.');
   process.exit(1);
 }
 const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
 const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
 const walletGasTopupMaxEth = process.env.WALLET_GAS_TOPUP_MAX_ETH ?? '0.02';
+const mainnetGasSponsorEnabled = String(process.env.MAINNET_GAS_SPONSOR_ENABLED ?? 'false').trim().toLowerCase() === 'true';
 const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
 const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
   ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
@@ -154,6 +156,29 @@ function startupDiagnostics() {
     onchainRpcConfigured: Boolean(onchainRpcUrl),
     onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress)
   });
+}
+
+function currentGasSponsorshipPolicy(chainId: number | null = null): {
+  network: EscrowApprovalNetwork;
+  sponsorshipEnabled: boolean;
+  userMustFundGas: boolean;
+  reason: string;
+} {
+  const network = classifyEscrowApprovalNetwork(chainId, onchainRpcUrl || '');
+  if (network === 'mainnet') {
+    return {
+      network,
+      sponsorshipEnabled: mainnetGasSponsorEnabled,
+      userMustFundGas: !mainnetGasSponsorEnabled,
+      reason: mainnetGasSponsorEnabled ? 'mainnet:override_enabled' : 'mainnet:user_funded'
+    };
+  }
+  return {
+    network,
+    sponsorshipEnabled: true,
+    userMustFundGas: false,
+    reason: network === 'sepolia' ? 'sepolia:sponsored' : 'default:sponsored'
+  };
 }
 
 function sponsorWalletAddress(): string {
@@ -173,6 +198,14 @@ async function refreshSponsorGasDiagnostics(): Promise<void> {
   sponsorGasDiagnostics.address = address;
   sponsorGasDiagnostics.thresholdEth = String(minWalletGasEth);
   sponsorGasDiagnostics.topupEth = String(walletGasTopupEth);
+  const gasPolicy = currentGasSponsorshipPolicy(null);
+  if (!gasPolicy.sponsorshipEnabled) {
+    sponsorGasDiagnostics.balanceEth = null;
+    sponsorGasDiagnostics.status = 'unknown';
+    sponsorGasDiagnostics.lastCheckedAt = Date.now();
+    sponsorGasDiagnostics.error = gasPolicy.reason;
+    return;
+  }
   if (!address || !onchainProvider) {
     sponsorGasDiagnostics.balanceEth = null;
     sponsorGasDiagnostics.status = 'unknown';
@@ -1205,6 +1238,11 @@ async function ensureWalletGas(address: string): Promise<string | null> {
   if (!onchainProvider) {
     return null;
   }
+  const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
+  if (!gasPolicy.sponsorshipEnabled) {
+    return null;
+  }
   const currentNative = await onchainProvider.getBalance(address);
   const minNative = parseEther(minWalletGasEth);
   if (currentNative >= minNative) {
@@ -1230,8 +1268,11 @@ async function onchainWalletSummary(wallet: WalletRecord): Promise<{
   nativeBalanceEth: string | null;
   tokenBalance: string | null;
   synced: boolean;
+  gasSponsored: boolean;
+  gasPolicyReason: string;
 }> {
   if (!onchainProvider || !onchainTokenAddress) {
+    const gasPolicy = currentGasSponsorshipPolicy(null);
     return {
       mode: 'runtime',
       chainId: null,
@@ -1241,10 +1282,13 @@ async function onchainWalletSummary(wallet: WalletRecord): Promise<{
       address: wallet.address,
       nativeBalanceEth: null,
       tokenBalance: null,
-      synced: false
+      synced: false,
+      gasSponsored: gasPolicy.sponsorshipEnabled,
+      gasPolicyReason: gasPolicy.reason
     };
   }
   const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
   const token = new Contract(onchainTokenAddress, ERC20_ABI, onchainProvider) as Erc20Api;
   const [native, tokenBalanceRaw, symbol] = await Promise.all([
     onchainProvider.getBalance(wallet.address),
@@ -1262,7 +1306,9 @@ async function onchainWalletSummary(wallet: WalletRecord): Promise<{
     address: wallet.address,
     nativeBalanceEth: formatEther(native),
     tokenBalance,
-    synced: true
+    synced: true,
+    gasSponsored: gasPolicy.sponsorshipEnabled,
+    gasPolicyReason: gasPolicy.reason
   };
 }
 
@@ -1319,6 +1365,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
   const required = parseUnits(String(amount), onchainTokenDecimals);
   const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
   let currentNative = 0n;
   let balance = 0n;
   let allowance = 0n;
@@ -1398,6 +1445,9 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
       }
 
       if (currentNative < targetNative) {
+        if (!gasPolicy.sponsorshipEnabled) {
+          return fail(`mainnet_gas_required:${gasPolicy.reason}`, { allowance, balance, native: currentNative });
+        }
         if (!gasFunderPrivateKey) {
           return fail('gas_topup_unavailable:gas_funder_missing', { allowance, balance, native: currentNative });
         }

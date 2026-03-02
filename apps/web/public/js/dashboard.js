@@ -290,7 +290,10 @@ function renderContext() {
   const tokenBalance = hasOnchainBalance ? Number(rawOnchainBalance) : null;
   const tokenSymbol = walletSummaryCtx?.onchain?.tokenSymbol || 'TOKEN';
   const nativeBalance = walletSummaryCtx?.onchain?.nativeBalanceEth || null;
+  const chainId = Number(walletSummaryCtx?.onchain?.chainId || NaN);
   const onchainMode = walletSummaryCtx?.onchain?.mode === 'onchain';
+  const gasSponsored = Boolean(walletSummaryCtx?.onchain?.gasSponsored);
+  const isBaseMainnet = chainId === 8453;
 
   if (meEmail) meEmail.textContent = user?.email || '-';
   if (meRole) meRole.textContent = user?.role || '-';
@@ -299,18 +302,35 @@ function renderContext() {
   if (meWalletAddress) meWalletAddress.textContent = walletAddress;
   if (walletBalance) walletBalance.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(4) : '—';
   if (walletBalanceNote) {
-    walletBalanceNote.textContent = onchainMode ? tokenSymbol : 'mUSDC';
+    if (!onchainMode) {
+      walletBalanceNote.textContent = 'mUSDC';
+    } else if (isBaseMainnet) {
+      walletBalanceNote.textContent = `${tokenSymbol} · Base mainnet`;
+    } else {
+      walletBalanceNote.textContent = tokenSymbol;
+    }
   }
 
   // Show gas indicator for onchain wallets
   const gasIndicator = document.getElementById('gas-indicator');
   const gasBalance = document.getElementById('gas-balance');
+  const gasLabel = gasIndicator?.querySelector('.gas-indicator__label');
   if (gasIndicator && gasBalance) {
     if (onchainMode && nativeBalance) {
       gasIndicator.style.display = 'flex';
       gasBalance.textContent = Number(nativeBalance).toFixed(5);
+      if (gasLabel) {
+        gasLabel.textContent = !gasSponsored && isBaseMainnet ? 'Gas (you pay):' : 'Gas:';
+      }
+      gasIndicator.title = !gasSponsored && isBaseMainnet
+        ? 'Base mainnet trades require ETH gas in this wallet. The app does not sponsor gas on mainnet.'
+        : '';
     } else {
       gasIndicator.style.display = 'none';
+      if (gasLabel) {
+        gasLabel.textContent = 'Gas:';
+      }
+      gasIndicator.title = '';
     }
   }
 

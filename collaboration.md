@@ -77,3 +77,18 @@
 - Contract control note:
   - existing Polygon oracle escrow contracts can be kept only if deploy infra still retains the matching resolver/admin keys;
   - this shell had no live RPC/private-key env loaded, so ownership/control was not verifiable from the workspace alone.
+
+
+## 2026-03-02 Mainnet Gas Policy Update
+- Mainnet/Base wallets are now treated as user-funded for gas by default.
+  - Automatic sponsor gas top-ups remain available for test rails.
+  - Base mainnet sponsorship is blocked in runtime unless `MAINNET_GAS_SPONSOR_ENABLED=true` is set explicitly.
+- Surfacing changes:
+  - wallet summary exposes sponsorship state,
+  - dashboard labels Base gas as user-paid,
+  - dealer/mainnet failure reasons now instruct users to fund Base ETH in their own wallet.
+- Validation in this session:
+  - `npm run -w @arena/agent-runtime test -- src/gasPolicy.test.ts` passed.
+  - `npm run -w @arena/web test -- src/walletSync.test.ts src/runtimeStore.test.js` passed.
+  - `npm run -w @arena/agent-runtime build` passed.
+  - `npm run -w @arena/web build` passed.

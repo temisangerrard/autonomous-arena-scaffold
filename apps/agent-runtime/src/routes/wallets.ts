@@ -39,6 +39,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     nativeBalanceEth: string | null;
     tokenBalance: string | null;
     synced: boolean;
+    gasSponsored: boolean;
+    gasPolicyReason: string;
   }>;
   prepareWalletForEscrowOnchain: (walletId: string, amount: number) => Promise<{
     ok: boolean;
@@ -432,7 +434,9 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
         address: wallet.address,
         nativeBalanceEth: null,
         tokenBalance: String(Number(wallet.balance || 0).toFixed(2)),
-        synced: false
+        synced: false,
+        gasSponsored: false,
+        gasPolicyReason: 'summary_fallback'
       }));
       sendJson(res, { ok: true, wallet: deps.walletSummary(wallet), onchain });
       deps.schedulePersistState();
@@ -450,6 +454,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           nativeBalanceEth: null,
           tokenBalance: String(Number(wallet.balance || 0).toFixed(2)),
           synced: false,
+          gasSponsored: false,
+          gasPolicyReason: 'summary_error',
           detail: String((error as Error).message || 'onchain_summary_failed').slice(0, 160)
         }
       });

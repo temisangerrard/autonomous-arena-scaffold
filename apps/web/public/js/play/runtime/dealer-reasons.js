@@ -1,6 +1,9 @@
 export function dealerReasonLabel(reason, reasonCode) {
   const code = String(reasonCode || '').toUpperCase();
   const raw = String(reason || '').toLowerCase();
+  if (raw.includes('mainnet_gas_required') || raw.includes('user_funded')) {
+    return 'This mainnet trade needs ETH gas in your wallet. Fund Base ETH and retry.';
+  }
   if (code === 'PLAYER_GAS_LOW' || raw.includes('gas_low')) {
     return 'Insufficient gas. Top up ETH to continue.';
   }

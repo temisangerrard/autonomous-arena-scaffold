@@ -52,7 +52,11 @@ export function createWalletSyncController(params) {
         dispatch({
           type: 'WALLET_SUMMARY_SET',
           chainId: Number.isFinite(chainId) ? chainId : state.walletChainId,
-          balance: nextBalance
+          balance: nextBalance,
+          tokenSymbol: summary?.onchain?.tokenSymbol ?? state.walletTokenSymbol ?? null,
+          tokenDecimals: Number.isFinite(Number(summary?.onchain?.tokenDecimals)) ? Number(summary.onchain.tokenDecimals) : (state.walletTokenDecimals ?? null),
+          mode: summary?.onchain?.mode ?? state.walletMode ?? null,
+          synced: Boolean(summary?.onchain?.synced)
         });
         clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
         syncEscrowApprovalPolicy();
@@ -82,7 +86,7 @@ export function createWalletSyncController(params) {
           walletMutedUntilMs = Math.max(walletMutedUntilMs, sharedBackoffUntil);
         }
         if (!keepLastOnFailure) {
-          dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId });
+          dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId, tokenSymbol: state.walletTokenSymbol ?? null, tokenDecimals: state.walletTokenDecimals ?? null, mode: state.walletMode ?? null, synced: false });
         }
         if (status !== 429 && status !== 502 && status !== 503 && status !== 504) {
           console.warn('wallet summary sync failed', error);

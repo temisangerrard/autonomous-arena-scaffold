@@ -1389,3 +1389,20 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - Deployment note:
     - Existing Polygon oracle escrow deployments are reusable only if deploy infra still has the matching admin/resolver keys.
     - This shell did not have `CHAIN_RPC_URL` or resolver/admin private keys loaded, so onchain control could not be re-verified here.
+
+
+- 2026-03-02: Locked mainnet gas policy to user-funded gas and surfaced it in wallet UX.
+  - Added Base/mainnet gas sponsorship policy utility in `/Users/temisan/Downloads/blender implementation/apps/agent-runtime/src/gasPolicy.ts` with tests in `/Users/temisan/Downloads/blender implementation/apps/agent-runtime/src/gasPolicy.test.ts`.
+  - `agent-runtime` now disables automatic gas top-ups on mainnet/Base by default even if a sponsor key exists.
+    - enforced in `/Users/temisan/Downloads/blender implementation/apps/agent-runtime/src/index.ts`
+    - override env available: `MAINNET_GAS_SPONSOR_ENABLED=true` (default remains `false`)
+  - Wallet summary now exposes gas sponsorship state so UI can distinguish sponsored test rails from user-funded Base mainnet wallets.
+  - Player wallet sync now preserves onchain mode/token metadata from summary responses in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/wallet-sync.js`.
+  - Dashboard wallet overview now labels Base gas as user-paid when sponsorship is disabled in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/dashboard.js`.
+  - Dealer error messaging now tells users to fund Base ETH for gas on mainnet instead of referring to house sponsorship in `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/dealer-reasons.js`.
+  - Env documentation updated in `.env.example` with `MAINNET_GAS_SPONSOR_ENABLED=false`.
+  - Validation:
+    - `npm run -w @arena/agent-runtime test -- src/gasPolicy.test.ts` ✅
+    - `npm run -w @arena/web test -- src/walletSync.test.ts src/runtimeStore.test.js` ✅
+    - `npm run -w @arena/agent-runtime build` ✅
+    - `npm run -w @arena/web build` ✅
