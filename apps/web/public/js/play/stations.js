@@ -85,10 +85,30 @@ function createStationMarker(THREE, station) {
 
 export function createStationSystem({ THREE, scene }) {
   const markers = new Map();
+  const HOST_BACKED_MARKER_SUPPRESSION_DISTANCE = 10;
 
   function syncStations(state) {
     const seen = new Set();
     for (const station of state.stations.values()) {
+      if (String(station?.source || '') === 'host') {
+        continue;
+      }
+      if (String(station?.source || '') === 'server') {
+        let representedByHost = false;
+        const hostStations = state?.hostStations instanceof Map ? state.hostStations.values() : [];
+        for (const host of hostStations) {
+          const sameProxy = String(host?.proxyStationId || '') === String(station.id || '');
+          if (!sameProxy) continue;
+          const dist = Math.hypot(Number(host.x || 0) - Number(station.x || 0), Number(host.z || 0) - Number(station.z || 0));
+          if (dist <= HOST_BACKED_MARKER_SUPPRESSION_DISTANCE) {
+            representedByHost = true;
+            break;
+          }
+        }
+        if (representedByHost) {
+          continue;
+        }
+      }
       seen.add(station.id);
       let marker = markers.get(station.id);
       if (!marker) {

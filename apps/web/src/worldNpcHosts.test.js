@@ -38,6 +38,19 @@ function readProxyMap(source) {
 }
 
 describe('world npc host prediction spawn', () => {
+  it('only spawns one live host per surviving public dealer role', () => {
+    const source = readWorldNpcHostsSource();
+    const hostIds = [...source.matchAll(/hostId: '([^']+)'/g)].map((match) => match[1]);
+    expect(hostIds).toEqual([
+      'npc_host_guide',
+      'npc_host_cashier',
+      'npc_host_coinflip_a',
+      'npc_host_rps_a',
+      'npc_host_dice',
+      'npc_host_info'
+    ]);
+  });
+
   it('matches the live prediction dealer station coordinates', () => {
     const source = readWorldNpcHostsSource();
     expect(readPredictionHostSpawn(source)).toEqual({ x: -70, z: 43 });

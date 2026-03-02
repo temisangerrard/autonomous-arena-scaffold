@@ -6,9 +6,7 @@ const WORLD_SECTION_SPAWNS = [
   { x: -70, z: 43 }, // guide (local interactable) -> station_world_info_a
   { x: 78, z: -41 }, // cashier -> station_cashier_bank
   { x: -25, z: -24 }, // coinflip_a -> station_dealer_coinflip_a
-  { x: -31, z: -24 }, // coinflip_b proxy -> station_dealer_coinflip_a
   { x: 25, z: -24 }, // rps_a -> station_dealer_rps_a
-  { x: 31, z: -24 }, // rps_b proxy -> station_dealer_rps_a
   { x: -78, z: -37 }, // dice -> station_dealer_dice_a
   { x: -70, z: 43 } // prediction -> station_dealer_prediction_a
 ];
@@ -17,11 +15,9 @@ export const HOST_STATION_PROXY_MAP = {
   station_npc_host_1: 'station_world_info_a',
   station_npc_host_2: 'station_cashier_bank',
   station_npc_host_3: 'station_dealer_coinflip_a',
-  station_npc_host_4: 'station_dealer_coinflip_a',
-  station_npc_host_5: 'station_dealer_rps_a',
-  station_npc_host_6: 'station_dealer_rps_a',
-  station_npc_host_7: 'station_dealer_dice_a',
-  station_npc_host_8: 'station_dealer_prediction_a'
+  station_npc_host_4: 'station_dealer_rps_a',
+  station_npc_host_5: 'station_dealer_dice_a',
+  station_npc_host_6: 'station_dealer_prediction_a'
 };
 
 function roleDetails(role) {
@@ -122,16 +118,6 @@ function hostSpec(index) {
       radius: 7
     },
     {
-      hostId: 'npc_host_coinflip_b',
-      role: 'coinflip',
-      displayName: 'Super Agent',
-      kind: 'dealer_coinflip',
-      interactionTag: 'coinflip_b',
-      actions: ['coinflip_house_start', 'coinflip_house_pick'],
-      yaw: 0.2,
-      radius: 7
-    },
-    {
       hostId: 'npc_host_rps_a',
       role: 'rps',
       displayName: 'Super Agent',
@@ -139,16 +125,6 @@ function hostSpec(index) {
       interactionTag: 'rps_a',
       actions: ['rps_house_start', 'rps_house_pick'],
       yaw: -0.1,
-      radius: 7
-    },
-    {
-      hostId: 'npc_host_rps_b',
-      role: 'rps',
-      displayName: 'Super Agent',
-      kind: 'dealer_rps',
-      interactionTag: 'rps_b',
-      actions: ['rps_house_start', 'rps_house_pick'],
-      yaw: 0.15,
       radius: 7
     },
     {
