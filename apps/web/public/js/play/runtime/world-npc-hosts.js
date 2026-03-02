@@ -10,7 +10,7 @@ const WORLD_SECTION_SPAWNS = [
   { x: 25, z: -24 }, // rps_a -> station_dealer_rps_a
   { x: -27, z: 34 }, // rps_b -> station_dealer_rps_b
   { x: -78, z: -37 }, // dice -> station_dealer_dice_a
-  { x: -70, z: 41 } // prediction -> station_dealer_prediction_a
+  { x: -70, z: 43 } // prediction -> station_dealer_prediction_a
 ];
 
 export const HOST_STATION_PROXY_MAP = {
