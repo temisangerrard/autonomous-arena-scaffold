@@ -114,4 +114,43 @@ describe('station routing proxy resolution', () => {
     const resolved = routing.resolveStationIdForSend('station_npc_host_3');
     expect(resolved).toBe('station_dealer_coinflip_a');
   });
+
+  it('keeps public-facing host stations pinned to their canonical proxy instead of nearest fallback', () => {
+    const state = makeState();
+    state.serverStations.set('station_cashier_bank', {
+      id: 'station_cashier_bank',
+      kind: 'cashier_bank',
+      x: 0,
+      z: 14,
+      radius: 8
+    });
+    state.serverStations.set('station_world_vendor_a', {
+      id: 'station_world_vendor_a',
+      kind: 'cashier_bank',
+      x: 60,
+      z: 60,
+      radius: 8
+    });
+    state.hostStations.set('station_npc_cashier_ring', {
+      id: 'station_npc_cashier_ring',
+      source: 'host',
+      kind: 'cashier_bank',
+      x: 1,
+      z: 13,
+      publicFacing: true,
+      primaryVenue: true,
+      proxyStationId: ''
+    });
+    state.players.set('player_1', { x: 60, z: 60 });
+
+    const routing = createStationRouting({
+      state,
+      hostStationProxyMap: { station_npc_cashier_ring: 'station_cashier_bank' }
+    });
+    routing.remapLocalStationProxies();
+    routing.mergeStations();
+
+    const resolved = routing.resolveStationIdForSend('station_npc_cashier_ring');
+    expect(resolved).toBe('station_cashier_bank');
+  });
 });

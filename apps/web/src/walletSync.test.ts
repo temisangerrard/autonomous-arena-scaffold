@@ -73,4 +73,35 @@ describe('wallet sync controller', () => {
     expect(skipped).toBe(false);
     expect(secondApi).toHaveBeenCalledTimes(0);
   });
+
+  test('persists wallet mode and token metadata from summary responses', async () => {
+    const dispatch = vi.fn();
+    const controller = createWalletSyncController({
+      apiJson: vi.fn(async () => ({
+        onchain: {
+          mode: 'onchain',
+          tokenBalance: 15.25,
+          chainId: 11155111,
+          tokenSymbol: 'USDC',
+          tokenDecimals: 6,
+          synced: true
+        }
+      })),
+      state: { walletBalance: null, walletChainId: null, walletTokenSymbol: null, walletTokenDecimals: null, walletMode: null, walletSynced: false },
+      dispatch,
+      syncEscrowApprovalPolicy: vi.fn()
+    });
+
+    const ok = await controller.syncWalletSummary({ keepLastOnFailure: true });
+    expect(ok).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'WALLET_SUMMARY_SET',
+      balance: 15.25,
+      chainId: 11155111,
+      tokenSymbol: 'USDC',
+      tokenDecimals: 6,
+      mode: 'onchain',
+      synced: true
+    });
+  });
 });

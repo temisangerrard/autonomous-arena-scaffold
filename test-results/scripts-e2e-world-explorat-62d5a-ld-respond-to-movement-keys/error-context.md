@@ -1,0 +1,53 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic "3D game world" [ref=e4]
+  - complementary "Getting started guide" [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: First steps
+      - button "Dismiss guide" [ref=e8] [cursor=pointer]: ×
+    - list [ref=e9]:
+      - listitem [ref=e10]:
+        - generic [ref=e11]: OK
+        - generic [ref=e12]:
+          - generic [ref=e13]: Enter the Arena
+          - generic [ref=e14]: You're in.
+      - listitem [ref=e15]:
+        - generic [ref=e16]: "--"
+        - generic [ref=e17]:
+          - generic [ref=e18]: Find a dealer
+          - generic [ref=e19]: Walk toward a character — press E when prompted.
+      - listitem [ref=e20]:
+        - generic [ref=e21]: "--"
+        - generic [ref=e22]:
+          - generic [ref=e23]: Play your first round
+          - generic [ref=e24]: Set a wager and hit Play inside the station panel.
+      - listitem [ref=e25]:
+        - generic [ref=e26]: "--"
+        - generic [ref=e27]:
+          - generic [ref=e28]: Lock in your move
+          - generic [ref=e29]: Pick your side — the house locks in instantly.
+      - listitem [ref=e30]:
+        - generic [ref=e31]: "--"
+        - generic [ref=e32]:
+          - generic [ref=e33]: Collect your result
+          - generic [ref=e34]: The escrow reveals and settles automatically.
+  - banner:
+    - generic [ref=e35]:
+      - generic [ref=e37]: Player u_profile_1
+      - generic "Wallet balance" [ref=e39]: $0.00
+    - generic [ref=e40]:
+      - generic "Win streak" [ref=e41]: Streak 0
+      - generic "Bot mode" [ref=e42]: "Bot: AUTO"
+      - button "Open menu" [ref=e43] [cursor=pointer]: ☰
+  - complementary "Arena minimap" [ref=e44]:
+    - generic [ref=e45]:
+      - generic [ref=e46]: Map
+      - generic [ref=e47]: x:0 z:-24
+    - generic "World map showing player positions" [ref=e48]
+    - generic [ref=e49]:
+      - generic [ref=e50]: You
+      - generic [ref=e52]: Agent
+      - generic [ref=e54]: Human
+```

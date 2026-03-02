@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic "3D game world" [ref=e4]
+  - generic [ref=e6]:
+    - generic [ref=e7]: W
+    - generic [ref=e8]: Loading world…
+    - generic [ref=e11]: Downloading world 174/229 MB…
+  - complementary "Getting started guide" [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: First steps
+      - button "Dismiss guide" [ref=e15] [cursor=pointer]: ×
+    - list [ref=e16]:
+      - listitem [ref=e17]:
+        - generic [ref=e18]: OK
+        - generic [ref=e19]:
+          - generic [ref=e20]: Enter the Arena
+          - generic [ref=e21]: You're in.
+      - listitem [ref=e22]:
+        - generic [ref=e23]: "--"
+        - generic [ref=e24]:
+          - generic [ref=e25]: Find a dealer
+          - generic [ref=e26]: Walk toward a character — press E when prompted.
+      - listitem [ref=e27]:
+        - generic [ref=e28]: "--"
+        - generic [ref=e29]:
+          - generic [ref=e30]: Play your first round
+          - generic [ref=e31]: Set a wager and hit Play inside the station panel.
+      - listitem [ref=e32]:
+        - generic [ref=e33]: "--"
+        - generic [ref=e34]:
+          - generic [ref=e35]: Lock in your move
+          - generic [ref=e36]: Pick your side — the house locks in instantly.
+      - listitem [ref=e37]:
+        - generic [ref=e38]: "--"
+        - generic [ref=e39]:
+          - generic [ref=e40]: Collect your result
+          - generic [ref=e41]: The escrow reveals and settles automatically.
+  - banner:
+    - generic [ref=e42]:
+      - generic [ref=e44]: Player u_profile_1
+      - generic "Wallet balance" [ref=e46]: $0.00
+    - generic [ref=e47]:
+      - generic "Win streak" [ref=e48]: Streak 0
+      - generic "Bot mode" [ref=e49]: "Bot: AUTO"
+      - button "Open menu" [ref=e50] [cursor=pointer]: ☰
+  - complementary "Arena minimap" [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]: Map
+      - generic [ref=e54]: x:0 z:-24
+    - generic "World map showing player positions" [ref=e55]
+    - generic [ref=e56]:
+      - generic [ref=e57]: You
+      - generic [ref=e59]: Agent
+      - generic [ref=e61]: Human
+```

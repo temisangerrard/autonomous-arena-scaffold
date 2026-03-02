@@ -1,0 +1,63 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]: "Step 1: The Arena"
+  - generic "3D game world" [ref=e4]
+  - dialog "The Arena" [ref=e5]:
+    - generic [ref=e14]:
+      - heading "The Arena" [level=2] [ref=e15]
+      - paragraph [ref=e16]:
+        - text: "\"Welcome. People come here from all over — some to test their luck, some their nerve. The dealers run fair games and the escrow never lies."
+        - text: Walk around. Find someone to play against."
+        - generic [ref=e17]: — Mara, Welcome Conductor
+      - button "Show me around" [ref=e19] [cursor=pointer]
+      - paragraph [ref=e20]: I know my way — enter now
+  - generic [ref=e22]:
+    - generic [ref=e23]: W
+    - generic [ref=e24]: Loading world…
+    - generic [ref=e26]: Connecting to world server…
+  - complementary "Getting started guide" [ref=e27]:
+    - generic [ref=e28]:
+      - generic [ref=e29]: First steps
+      - button "Dismiss guide" [ref=e30] [cursor=pointer]: ×
+    - list [ref=e31]:
+      - listitem [ref=e32]:
+        - generic [ref=e33]: "--"
+        - generic [ref=e34]:
+          - generic [ref=e35]: Enter the Arena
+          - generic [ref=e36]: Connecting…
+      - listitem [ref=e37]:
+        - generic [ref=e38]: "--"
+        - generic [ref=e39]:
+          - generic [ref=e40]: Find a dealer
+          - generic [ref=e41]: Walk toward a character — press E when prompted.
+      - listitem [ref=e42]:
+        - generic [ref=e43]: "--"
+        - generic [ref=e44]:
+          - generic [ref=e45]: Play your first round
+          - generic [ref=e46]: Set a wager and hit Play inside the station panel.
+      - listitem [ref=e47]:
+        - generic [ref=e48]: "--"
+        - generic [ref=e49]:
+          - generic [ref=e50]: Lock in your move
+          - generic [ref=e51]: Pick your side — the house locks in instantly.
+      - listitem [ref=e52]:
+        - generic [ref=e53]: "--"
+        - generic [ref=e54]:
+          - generic [ref=e55]: Collect your result
+          - generic [ref=e56]: The escrow reveals and settles automatically.
+  - banner:
+    - generic [ref=e57]:
+      - generic [ref=e59]: Player
+      - generic "Wallet balance" [ref=e61]: $0.00
+    - generic [ref=e62]:
+      - generic "Win streak" [ref=e63]: Streak 0
+      - generic "Bot mode" [ref=e64]: "Bot: MANUAL"
+      - button "Open menu" [ref=e65] [cursor=pointer]: ☰
+  - complementary "Arena minimap" [ref=e66]:
+    - generic [ref=e67]:
+      - generic [ref=e68]: Map
+      - generic [ref=e69]: X:0 Z:0
+    - generic "World map showing player positions" [ref=e70]
+    - generic [ref=e71]:
+      - generic [ref=e72]: You
+      - generic [ref=e74]: Agent
+      - generic [ref=e76]: Human

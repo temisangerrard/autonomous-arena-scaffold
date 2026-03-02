@@ -20,7 +20,11 @@ function makeState() {
     incomingChallengeId: null,
     outgoingChallengeId: null,
     walletBalance: null,
-    walletChainId: null
+    walletChainId: null,
+    walletTokenSymbol: null,
+    walletTokenDecimals: null,
+    walletMode: null,
+    walletSynced: false
   };
 }
 
@@ -43,7 +47,22 @@ describe('runtime store', () => {
     store.dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'incoming', message: 'Incoming challenge' });
     expect(selectChallengeView(store.getState())).toMatchObject({ status: 'incoming', message: 'Incoming challenge' });
 
-    store.dispatch({ type: 'WALLET_SUMMARY_SET', balance: 12.5, chainId: 8453 });
-    expect(selectWalletView(store.getState())).toMatchObject({ balance: 12.5, chainId: 8453 });
+    store.dispatch({
+      type: 'WALLET_SUMMARY_SET',
+      balance: 12.5,
+      chainId: 8453,
+      tokenSymbol: 'USDC',
+      tokenDecimals: 6,
+      mode: 'onchain',
+      synced: true
+    });
+    expect(selectWalletView(store.getState())).toMatchObject({
+      balance: 12.5,
+      chainId: 8453,
+      tokenSymbol: 'USDC',
+      tokenDecimals: 6,
+      mode: 'onchain',
+      synced: true
+    });
   });
 });
