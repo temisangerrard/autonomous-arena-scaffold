@@ -124,3 +124,22 @@
 - Validation in this session:
   - `npm run -w @arena/web test -- src/authSubjects.test.ts src/identityContinuity.test.ts src/sessionStore.test.ts src/walletSync.test.ts src/runtimeStore.test.js` passed.
   - `npm run -w @arena/web build` passed.
+
+## 2026-03-02 BTC Board Cleanup
+- Converted the BTC board to a BTC-only Chainlink rail in the player-facing flow.
+  - `apps/server/src/markets/MarketService.ts`
+    - player market listings now expose only playable `chainlink_btc_usd` markets
+    - fallback market generation removed from this rail
+  - `apps/web/public/js/play/runtime/templates/interaction-card.js`
+    - removed generic prediction controls from the BTC board
+    - BTC board now presents only `BTC Up` and `BTC Down`
+    - added local prechecks for missing live market, closed market, and insufficient balance
+    - added explicit refund-only liquidity copy
+- Added regression coverage:
+  - `apps/server/src/markets/MarketService.test.ts`
+  - `apps/web/src/interactionCardVisibility.test.js`
+  - `apps/web/src/worldNpcHosts.test.js`
+- Validation in this session:
+  - `npm run -w @arena/server test -- src/markets/MarketService.test.ts` passed
+  - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldNpcHosts.test.js` passed
+  - `npm run -w @arena/web build && npm run -w @arena/server build` passed
