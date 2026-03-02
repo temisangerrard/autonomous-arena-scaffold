@@ -1438,3 +1438,24 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/contracts build` ✅
   - Deployment blocker:
     - this shell still has no valid `DEPLOYER_PRIVATE_KEY`/`ESCROW_RESOLVER_PRIVATE_KEY` loaded, so Base mainnet deployment could not be broadcast from here.
+
+
+- 2026-03-02: Fixed auth continuity drift between legacy Google subjects and Firebase subjects.
+  - Added canonical auth subject helpers in `/Users/temisan/Downloads/blender implementation/apps/web/src/authSubjects.ts`.
+  - Added continuity lookup helper in `/Users/temisan/Downloads/blender implementation/apps/web/src/identityContinuity.ts`.
+  - `/Users/temisan/Downloads/blender implementation/apps/web/src/server.ts` now:
+    - treats Firebase `localId` as canonical identity when available,
+    - exchanges Google credentials through Firebase before provisioning,
+    - searches legacy alias subjects before creating a new profile/wallet,
+    - backfills alias links into runtime continuity state,
+    - reuses legacy web-session identities by verified email when canonical runtime continuity is missing.
+  - Added coverage:
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/authSubjects.test.ts`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/identityContinuity.test.ts`
+    - `/Users/temisan/Downloads/blender implementation/apps/web/src/sessionStore.test.ts`
+  - Extended `/Users/temisan/Downloads/blender implementation/apps/web/src/sessionStore.ts` with email-based identity lookup to support continuity recovery.
+  - Validation:
+    - `npm run -w @arena/web test -- src/authSubjects.test.ts src/identityContinuity.test.ts src/sessionStore.test.ts src/walletSync.test.ts src/runtimeStore.test.js` ✅
+    - `npm run -w @arena/web build` ✅
+  - Remaining limitation:
+    - a wallet that exists only in an older backend/runtime state and is absent from the current runtime continuity store still requires explicit admin relink/recovery.

@@ -46,6 +46,7 @@ export type SessionStore = {
   removeSessionForSub: (sub: string, sid: string) => Promise<void>;
   addSubForProfile: (profileId: string, sub: string, ttlMs: number) => Promise<void>;
   listSubsForProfile: (profileId: string) => Promise<string[]>;
+  findIdentitiesByEmail: (email: string) => Promise<IdentityRecord[]>;
   purgeSessionsForProfile: (profileId: string) => Promise<number>;
   persistIfSupported: () => void;
 };
@@ -106,6 +107,7 @@ class MemoryStore {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly sessionsBySub = new Map<string, Set<string>>();
   private readonly subsByProfile = new Map<string, Set<string>>();
+  private readonly subsByEmail = new Map<string, Set<string>>();
   private persistTimer: NodeJS.Timeout | null = null;
   private ready = true;
 
@@ -133,6 +135,7 @@ class MemoryStore {
     for (const identity of parsed.identities ?? []) {
       if (identity?.sub) {
         this.identities.set(identity.sub, identity);
+        this.addSubForEmailSync(identity.email, identity.sub);
       }
       if (identity?.profileId) {
         this.addSubForProfileSync(identity.profileId, identity.sub);
@@ -189,6 +192,16 @@ class MemoryStore {
     this.subsByProfile.set(profileId, set);
   }
 
+  private addSubForEmailSync(email: string, sub: string): void {
+    const key = String(email || '').trim().toLowerCase();
+    if (!key || !sub) {
+      return;
+    }
+    const set = this.subsByEmail.get(key) ?? new Set<string>();
+    set.add(sub);
+    this.subsByEmail.set(key, set);
+  }
+
   async getSession(sid: string): Promise<SessionRecord | null> {
     const session = this.sessions.get(sid) ?? null;
     if (!session) {
@@ -226,6 +239,7 @@ class MemoryStore {
   async setIdentity(identity: IdentityRecord, ttlMs: number): Promise<void> {
     void ttlMs;
     this.identities.set(identity.sub, identity);
+    this.addSubForEmailSync(identity.email, identity.sub);
     if (identity.profileId) {
       this.addSubForProfileSync(identity.profileId, identity.sub);
     }
@@ -252,6 +266,17 @@ class MemoryStore {
 
   async listSubsForProfile(profileId: string): Promise<string[]> {
     return [...(this.subsByProfile.get(profileId) ?? new Set<string>())];
+  }
+
+  async findIdentitiesByEmail(email: string): Promise<IdentityRecord[]> {
+    const key = String(email || '').trim().toLowerCase();
+    if (!key) {
+      return [];
+    }
+    const subs = this.subsByEmail.get(key) ?? new Set<string>();
+    return [...subs]
+      .map((sub) => this.identities.get(sub) ?? null)
+      .filter((entry): entry is IdentityRecord => Boolean(entry?.sub));
   }
 
   async purgeSessionsForProfile(profileId: string): Promise<number> {
@@ -320,6 +345,10 @@ class RedisStore {
     return `arena:web:profileSubs:${profileId}`;
   }
 
+  private emailSubsKey(email: string): string {
+    return `arena:web:emailSubs:${email.trim().toLowerCase()}`;
+  }
+
   async getSession(sid: string): Promise<SessionRecord | null> {
     if (!this.client) return null;
     const raw = await this.client.get(this.sessKey(sid));
@@ -362,6 +391,11 @@ class RedisStore {
     if (!this.client) return;
     const ttl = normalizeTtlSeconds(ttlMs);
     await this.client.set(this.idKey(identity.sub), JSON.stringify(identity), { EX: ttl });
+    if (identity.email?.trim()) {
+      const key = this.emailSubsKey(identity.email);
+      await this.client.sAdd(key, identity.sub);
+      await this.client.expire(key, ttl);
+    }
   }
 
   async addSessionForSub(sub: string, sid: string, ttlMs: number): Promise<void> {
@@ -396,6 +430,17 @@ class RedisStore {
     if (!this.client) return [];
     const members = await this.client.sMembers(this.profileSubsKey(profileId));
     return Array.isArray(members) ? members : [];
+  }
+
+  async findIdentitiesByEmail(email: string): Promise<IdentityRecord[]> {
+    if (!this.client) return [];
+    const key = this.emailSubsKey(email);
+    const subs = await this.client.sMembers(key);
+    if (!Array.isArray(subs) || subs.length === 0) {
+      return [];
+    }
+    const records = await Promise.all(subs.map((sub) => this.getIdentity(sub)));
+    return records.filter((entry): entry is IdentityRecord => Boolean(entry?.sub));
   }
 
   async purgeSessionsForProfile(profileId: string): Promise<number> {

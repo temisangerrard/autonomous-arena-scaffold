@@ -110,3 +110,17 @@
   - `npm run -w @arena/contracts build` passed.
 - Remaining blocker:
   - current shell does not have a valid operator/deployer private key loaded in env, so the Base deploy itself was not executed here.
+
+
+## 2026-03-02 Auth Continuity Fix
+- Fixed the wallet drift bug caused by mixed canonical subjects (`google:*` vs `firebase:*`).
+  - Firebase `localId` is now treated as canonical when available.
+  - Google login now exchanges through Firebase first, then reuses or migrates legacy Google continuity links instead of silently provisioning a new wallet.
+  - Web session state can now recover legacy identities by verified email when runtime canonical continuity is missing.
+- Added tests:
+  - `apps/web/src/authSubjects.test.ts`
+  - `apps/web/src/identityContinuity.test.ts`
+  - `apps/web/src/sessionStore.test.ts`
+- Validation in this session:
+  - `npm run -w @arena/web test -- src/authSubjects.test.ts src/identityContinuity.test.ts src/sessionStore.test.ts src/walletSync.test.ts src/runtimeStore.test.js` passed.
+  - `npm run -w @arena/web build` passed.

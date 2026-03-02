@@ -9,6 +9,8 @@ import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { createChief2Service } from './chief2/index.js';
 import { createChiefDbGateway } from './chief/dbGateway.js';
 import { log } from './logger.js';
+import { resolveAuthSubjects } from './authSubjects.js';
+import { findMatchingContinuityLink } from './identityContinuity.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
@@ -512,25 +514,35 @@ const chief2Service = createChief2Service({
   log
 });
 
-async function ensurePlayerProvisioned(identity: IdentityRecord): Promise<void> {
-  let linkLookupFailed = false;
-  const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => {
-    linkLookupFailed = true;
-    return null;
-  });
-  if (canonicalLink?.profileId && canonicalLink?.walletId) {
-    identity.profileId = canonicalLink.profileId;
-    identity.walletId = canonicalLink.walletId;
+async function ensurePlayerProvisioned(identity: IdentityRecord, subjectAliases: string[] = []): Promise<void> {
+  const continuitySubjects = [
+    externalSubjectFromIdentity(identity),
+    ...subjectAliases
+  ];
+  const continuity = await findMatchingContinuityLink(continuitySubjects, runtimeSubjectLink);
+  if (continuity.link?.profileId && continuity.link?.walletId) {
+    identity.profileId = continuity.link.profileId;
+    identity.walletId = continuity.link.walletId;
     return;
   }
 
   // If canonical lookup is currently unavailable, never create or relink profiles.
   // This avoids duplicate subject->profile assignments during transient runtime failures.
-  if (linkLookupFailed) {
+  if (continuity.hadLookupFailure) {
     if (identity.profileId && identity.walletId) {
       return;
     }
     throw new Error('continuity_lookup_unavailable');
+  }
+
+  const legacyIdentities = await sessionStore.findIdentitiesByEmail(identity.email).catch(() => []);
+  const reusableLegacy = legacyIdentities.find((entry) => entry.profileId && entry.walletId) ?? null;
+  if (reusableLegacy?.profileId && reusableLegacy?.walletId) {
+    identity.profileId = reusableLegacy.profileId;
+    identity.walletId = reusableLegacy.walletId;
+    identity.username = reusableLegacy.username;
+    identity.displayName = reusableLegacy.displayName;
+    return;
   }
 
   const externalSubject = externalSubjectFromIdentity(identity);
@@ -571,6 +583,13 @@ type FirebaseLookupResult = {
   displayName?: string;
   picture?: string;
   emailVerified: boolean;
+};
+
+type FirebaseGoogleExchangeResult = {
+  localId: string;
+  email: string;
+  displayName?: string;
+  picture?: string;
 };
 
 type GoogleTokenInfo = {
@@ -712,6 +731,75 @@ async function firebaseLookupIdToken(
     };
   } catch {
     return { ok: false, reason: 'firebase_unreachable', status: 503 };
+  }
+}
+
+async function firebaseExchangeGoogleCredential(
+  googleIdToken: string
+): Promise<{ ok: true; result: FirebaseGoogleExchangeResult } | { ok: false; reason: string; status: number }> {
+  if (!firebaseWebApiKey) {
+    return { ok: false, reason: 'firebase_google_auth_disabled', status: 403 };
+  }
+
+  try {
+    const response = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${encodeURIComponent(firebaseWebApiKey)}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          requestUri: 'https://arena.local/auth/google',
+          returnSecureToken: true,
+          returnIdpCredential: true,
+          postBody: `id_token=${encodeURIComponent(googleIdToken)}&providerId=google.com`
+        })
+      }
+    );
+    const payload = await response.json().catch(() => ({})) as {
+      localId?: unknown;
+      email?: unknown;
+      displayName?: unknown;
+      photoUrl?: unknown;
+      error?: { message?: unknown };
+    };
+    if (!response.ok) {
+      const mapped = mapFirebaseAuthError(String(payload?.error?.message || ''));
+      return { ok: false, reason: mapped.reason, status: mapped.status };
+    }
+
+    const localId = String(payload.localId || '').trim();
+    const email = String(payload.email || '').trim().toLowerCase();
+    if (!localId || !email) {
+      return { ok: false, reason: 'firebase_invalid_payload', status: 502 };
+    }
+
+    return {
+      ok: true,
+      result: {
+        localId,
+        email,
+        displayName: String(payload.displayName || '').trim() || undefined,
+        picture: String(payload.photoUrl || '').trim() || undefined
+      }
+    };
+  } catch {
+    return { ok: false, reason: 'firebase_unreachable', status: 503 };
+  }
+}
+
+async function upsertIdentitySubjectAliases(identity: IdentityRecord, subjects: string[]): Promise<void> {
+  if (!identity.profileId || !identity.walletId) {
+    return;
+  }
+  const aliases = [...new Set(subjects.map((entry) => String(entry || '').trim()).filter(Boolean))];
+  for (const subject of aliases) {
+    await runtimePost('/profiles/link', {
+      subject,
+      profileId: identity.profileId,
+      walletId: identity.walletId
+    }).catch(() => null);
   }
 }
 
@@ -1195,8 +1283,8 @@ const server = createServer(async (req, res) => {
       log.error({
         err: error,
         sub: identity.sub,
-        reason: 'firebase_provision_failed'
-      }, 'failed to provision firebase user');
+        reason: 'local_provision_failed'
+      }, 'failed to provision local user');
       sendJson(res, {
         ok: false,
         reason: 'runtime_unavailable'
@@ -1249,7 +1337,11 @@ const server = createServer(async (req, res) => {
 
     const now = Date.now();
     const token = authResult.result;
-    const sub = `firebase:${token.localId}`;
+    const subjects = resolveAuthSubjects({
+      provider: 'firebase',
+      firebaseLocalId: token.localId
+    });
+    const sub = subjects.canonical;
     const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
     const existing = await sessionStore.getIdentity(sub);
     const fallbackName = requestedName || token.displayName || token.email.split('@')[0] || 'Player';
@@ -1276,11 +1368,12 @@ const server = createServer(async (req, res) => {
     identity.lastLoginAt = now;
 
     try {
-      await ensurePlayerProvisioned(identity);
+      await ensurePlayerProvisioned(identity, subjects.aliases);
     } catch {
       sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
       return;
     }
+    await upsertIdentitySubjectAliases(identity, subjects.aliases);
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
     if (identity.profileId) {
       await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
@@ -1333,7 +1426,11 @@ const server = createServer(async (req, res) => {
 
     const now = Date.now();
     const token = lookup.result;
-    const sub = `firebase:${token.localId}`;
+    const subjects = resolveAuthSubjects({
+      provider: 'firebase',
+      firebaseLocalId: token.localId
+    });
+    const sub = subjects.canonical;
     const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
     const existing = await sessionStore.getIdentity(sub);
     const fallbackName = token.displayName || token.email.split('@')[0] || 'Player';
@@ -1358,11 +1455,12 @@ const server = createServer(async (req, res) => {
     identity.lastLoginAt = now;
 
     try {
-      await ensurePlayerProvisioned(identity);
+      await ensurePlayerProvisioned(identity, subjects.aliases);
     } catch {
       sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
       return;
     }
+    await upsertIdentitySubjectAliases(identity, subjects.aliases);
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
     if (identity.profileId) {
       await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
@@ -1416,7 +1514,24 @@ const server = createServer(async (req, res) => {
     }
 
     const now = Date.now();
-    const sub = `google:${token.sub}`;
+    let firebaseLocalId = '';
+    if (firebaseWebApiKey) {
+      const exchange = await firebaseExchangeGoogleCredential(credential);
+      if (!exchange.ok) {
+        sendJson(res, { ok: false, reason: exchange.reason }, exchange.status);
+        return;
+      }
+      firebaseLocalId = exchange.result.localId;
+      token.email = exchange.result.email || token.email;
+      token.name = exchange.result.displayName || token.name;
+      token.picture = exchange.result.picture || token.picture;
+    }
+    const subjects = resolveAuthSubjects({
+      provider: 'google',
+      googleSub: token.sub,
+      firebaseLocalId
+    });
+    const sub = subjects.canonical;
     const role: Role = adminEmails.has(token.email.toLowerCase()) ? 'admin' : 'player';
     const existing = await sessionStore.getIdentity(sub);
     const fallbackName = token.name || token.email.split('@')[0] || 'Player';
@@ -1445,6 +1560,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
       return;
     }
+    await upsertIdentitySubjectAliases(identity, subjects.aliases);
     await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
     if (identity.profileId) {
       await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
