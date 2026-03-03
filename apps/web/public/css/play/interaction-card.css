@@ -445,8 +445,9 @@
       flex-wrap: wrap;
     }
     .game-panel__picks--dice {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       gap: 6px;
-      flex-wrap: wrap;
     }
 
     .game-panel__pick-btn {
@@ -483,9 +484,9 @@
     .game-panel__pick-btn--die {
       font-size: 28px;
       line-height: 1;
-      min-width: 48px;
-      max-width: 56px;
-      flex: 0 0 auto;
+      min-width: 0;
+      max-width: none;
+      width: 100%;
       padding: 8px 4px;
     }
     .game-panel__pick-icon {

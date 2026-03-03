@@ -925,6 +925,9 @@ export class MarketService {
       this.db.listActiveMarketPositions(2000),
       this.db.listMarkets(500)
     ]);
+    // Promote scheduled → open unconditionally, independent of the ensure-active cooldown.
+    // This guarantees positions committed during a cooldown window are settled on time.
+    await this.promoteScheduledPositionsForCurrentMarkets(markets);
     const marketById = new Map(markets.map((m) => [m.id, m]));
 
     let settled = 0;

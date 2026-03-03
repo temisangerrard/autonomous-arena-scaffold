@@ -75,6 +75,7 @@ export function createInitialState() {
         method: '',
         challengeId: '',
         playerPick: '',
+        opponentPick: '',
         coinflipResult: '',
         diceResult: 0,
         payoutDelta: 0,
