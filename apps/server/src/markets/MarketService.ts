@@ -922,7 +922,7 @@ export class MarketService {
   async settleResolvedMarkets(): Promise<{ checked: number; settled: number; failed: number }> {
     await this.ensureAtLeastOneActiveMarket();
     const [openPositions, markets] = await Promise.all([
-      this.db.listOpenMarketPositions(2000),
+      this.db.listActiveMarketPositions(2000),
       this.db.listMarkets(500)
     ]);
     const marketById = new Map(markets.map((m) => [m.id, m]));
