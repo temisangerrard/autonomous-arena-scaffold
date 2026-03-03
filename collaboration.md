@@ -1,5 +1,47 @@
 # Collaboration Snapshot
 
+---
+
+## ⚠️ CODEX — READ THIS BEFORE TOUCHING ANYTHING
+
+These are hard rules. Violating them caused a $5 loss, a security hole in production, and hours of recovery work.
+
+### 1. WALLET CREATION — NEVER DRIFT
+- **Do NOT create a new wallet when an existing one is already linked to a user's email.**
+- The auth subject system maps `firebase:<uid>` → profile → wallet. Check `auth_subject_links` BEFORE creating anything.
+- If you see `google:<uid>` and `firebase:<uid>` for the same user — they are the SAME person. Merge, do not fork.
+- The canonical rule: Firebase `localId` wins. If a Google login comes in, exchange through Firebase first (`identityContinuity.ts`, `authSubjects.ts`).
+- **If you create a duplicate wallet silently, the user's funds stay on the old one and they see a zero balance. This is a real-money bug.**
+
+### 2. WALLET ENCRYPTION KEY — NEVER LEAVE EMPTY
+- `WALLET_ENCRYPTION_KEY` MUST be set in production Fly secrets. If it is empty, ALL wallets fall back to the dev key `'arena-dev-wallet-key'` which is in the public repo.
+- Check `fly secrets list --app arena-agent-runtime` before assuming the key is set.
+- To rotate: decrypt all rows with old key, re-encrypt with new key, push SQL UPDATEs, then `fly secrets set`.
+
+### 3. STATION PLACEMENT — MATCH LABELS TO PHYSICS
+- Baked 3D station labels must be within **7–8.5 world units** of the actual server station coordinates or players get `not_near_station` errors.
+- Do NOT add new `WorldHost` NPC entries without verifying they are inside the station's proximity radius.
+- Do NOT create overlapping stations for the same dealer. Use the existing 6 primary stations; overlap suppression is set to 10 units.
+- If you move a station, move its label. If you add a station, add it to the catalog. Do both or do neither.
+
+### 4. BTC BOARD — DO NOT ADD CLUTTER
+- The BTC prediction board is intentionally minimal: `BTC Up` / `BTC Down`, two tabs (`5m` / `24h`), optionally `Current` / `Next`.
+- Do NOT add a market dropdown, generic quote flow, Polymarket controls, or positions button inside the station card.
+- Do NOT revive `prediction_market_quote` or `prediction_positions_open` — they were removed on purpose.
+
+### 5. STATE PERSISTENCE — ALWAYS SIGINT-SAFE
+- `persistRuntimeState()` is hooked to SIGINT/SIGTERM. If you kill the process with SIGKILL or `kill -9`, wallets created since the last snapshot are LOST FOREVER.
+- Always let the server shut down gracefully. In fly.io, use `fly machine stop` not `fly machine kill`.
+- Wallets use `randomBytes(32)` — there is NO mnemonic, NO BIP39, NO recovery. If the key is lost, the funds are gone.
+
+### 6. DO NOT TOUCH THESE FILES WITHOUT READING THEM FIRST
+- `apps/agent-runtime/src/profileWalletBinding.ts` — atomic wallet rebind, referential integrity across 4 tables
+- `apps/web/src/identityContinuity.ts` — email identity precedence logic, time-based canonical resolution
+- `apps/web/src/server.ts` — auth middleware chain, wallet continuity guard, admin relink route
+- `apps/agent-runtime/src/lib/crypto.ts` — AES-256-GCM wallet encryption, key derivation
+
+---
+
 ## Timestamp
 - Date: 2026-02-22
 - Branch: `main`
