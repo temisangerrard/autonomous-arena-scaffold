@@ -3,7 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.base.json ./
 COPY eslint.config.mjs ./
-COPY train_station_mega_world.glb ./
+# train_station_mega_world.glb is gitignored (too large for git).
+# The server redirects /assets/world/* to a CDN fallback when the file
+# is absent locally, so the image builds and runs without it.
 COPY packages ./packages
 COPY apps/web ./apps/web
 RUN npm install
