@@ -1536,3 +1536,12 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - `npm run -w @arena/server test -- src/markets/MarketService.test.ts src/routes/index.test.ts` ✅
     - `npm run -w @arena/web test -- src/interactionCardVisibility.test.js src/worldStations.test.js` ✅
     - `npm run -w @arena/server build && npm run -w @arena/web build` ✅
+
+- 2026-03-02: Fixed wallet continuity precedence for Firebase users and recorded canonical wallet history.
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/src/server.ts`:
+    - email-backed identity now wins over stale runtime subject links when they disagree
+    - request-time reconciliation rewrites runtime subject aliases instead of silently flipping sessions back to older wallets
+  - Updated `/Users/temisan/Downloads/blender implementation/apps/web/src/identityContinuity.ts`
+    - added `preferEmailIdentityOverContinuity(...)`
+  - Added continuity history record:
+    - `/Users/temisan/Downloads/blender implementation/docs/wallet-continuity-history.md`

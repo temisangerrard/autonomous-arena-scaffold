@@ -10,7 +10,7 @@ import { createChief2Service } from './chief2/index.js';
 import { createChiefDbGateway } from './chief/dbGateway.js';
 import { log } from './logger.js';
 import { resolveAuthSubjects } from './authSubjects.js';
-import { findMatchingContinuityLink } from './identityContinuity.js';
+import { findMatchingContinuityLink, preferEmailIdentityOverContinuity } from './identityContinuity.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
@@ -260,22 +260,36 @@ async function reconcileIdentityLink(identity: IdentityRecord): Promise<void> {
   const link = await runtimeSubjectLink(subject).catch(() => {
     return null;
   });
-  if (!link) {
+  const emailIdentities = await sessionStore.findIdentitiesByEmail(identity.email).catch(() => []);
+  const preferred = preferEmailIdentityOverContinuity({
+    continuity: link,
+    emailIdentities
+  });
+  if (!preferred) {
     // Reconciliation is read-only: never auto-provision on link miss.
     // Provisioning is handled only in explicit auth/provision paths.
     return;
   }
-  const profileChanged = identity.profileId !== link.profileId;
-  const walletChanged = identity.walletId !== link.walletId;
+  const profileChanged = identity.profileId !== preferred.profileId;
+  const walletChanged = identity.walletId !== preferred.walletId;
   if (!profileChanged && !walletChanged) {
     return;
   }
 
-  identity.profileId = link.profileId;
-  identity.walletId = link.walletId;
+  identity.profileId = preferred.profileId;
+  identity.walletId = preferred.walletId;
+  if (preferred.username) {
+    identity.username = preferred.username;
+  }
+  if (preferred.displayName) {
+    identity.displayName = preferred.displayName;
+  }
   await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
   if (identity.profileId) {
     await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+  }
+  if (preferred.source === 'email') {
+    await upsertIdentitySubjectAliases(identity, [subject]);
   }
 }
 
@@ -520,9 +534,19 @@ async function ensurePlayerProvisioned(identity: IdentityRecord, subjectAliases:
     ...subjectAliases
   ];
   const continuity = await findMatchingContinuityLink(continuitySubjects, runtimeSubjectLink);
-  if (continuity.link?.profileId && continuity.link?.walletId) {
-    identity.profileId = continuity.link.profileId;
-    identity.walletId = continuity.link.walletId;
+  const legacyIdentities = await sessionStore.findIdentitiesByEmail(identity.email).catch(() => []);
+  const preferredExisting = preferEmailIdentityOverContinuity({
+    continuity: continuity.link,
+    emailIdentities: legacyIdentities
+  });
+  if (preferredExisting?.profileId && preferredExisting?.walletId) {
+    identity.profileId = preferredExisting.profileId;
+    identity.walletId = preferredExisting.walletId;
+    identity.username = preferredExisting.username ?? identity.username;
+    identity.displayName = preferredExisting.displayName ?? identity.displayName;
+    if (preferredExisting.source === 'email') {
+      await upsertIdentitySubjectAliases(identity, continuitySubjects);
+    }
     return;
   }
 
@@ -535,7 +559,6 @@ async function ensurePlayerProvisioned(identity: IdentityRecord, subjectAliases:
     throw new Error('continuity_lookup_unavailable');
   }
 
-  const legacyIdentities = await sessionStore.findIdentitiesByEmail(identity.email).catch(() => []);
   const reusableLegacy = legacyIdentities.find((entry) => entry.profileId && entry.walletId) ?? null;
   if (reusableLegacy?.profileId && reusableLegacy?.walletId) {
     identity.profileId = reusableLegacy.profileId;
@@ -1676,12 +1699,21 @@ const server = createServer(async (req, res) => {
       // Preserve identity continuity: relink from canonical subject mapping
       // instead of creating a new profile on transient list misses.
       const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => null);
-      if (canonicalLink?.profileId && canonicalLink?.walletId) {
-        identity.profileId = canonicalLink.profileId;
-        identity.walletId = canonicalLink.walletId;
+      const preferred = preferEmailIdentityOverContinuity({
+        continuity: canonicalLink,
+        emailIdentities: await sessionStore.findIdentitiesByEmail(identity.email).catch(() => [])
+      });
+      if (preferred?.profileId && preferred?.walletId) {
+        identity.profileId = preferred.profileId;
+        identity.walletId = preferred.walletId;
+        identity.username = preferred.username ?? identity.username;
+        identity.displayName = preferred.displayName ?? identity.displayName;
         await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
         if (identity.profileId) {
           await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+        if (preferred.source === 'email') {
+          await upsertIdentitySubjectAliases(identity, [externalSubjectFromIdentity(identity)]);
         }
         profile = profiles.find((entry) => entry.id === identity.profileId) ?? null;
       }
@@ -1814,12 +1846,21 @@ const server = createServer(async (req, res) => {
       // Preserve identity continuity: if runtime profile listing is briefly stale,
       // relink from canonical subject mapping instead of reprovisioning a new profile.
       const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => null);
-      if (canonicalLink?.profileId && canonicalLink?.walletId) {
-        identity.profileId = canonicalLink.profileId;
-        identity.walletId = canonicalLink.walletId;
+      const preferred = preferEmailIdentityOverContinuity({
+        continuity: canonicalLink,
+        emailIdentities: await sessionStore.findIdentitiesByEmail(identity.email).catch(() => [])
+      });
+      if (preferred?.profileId && preferred?.walletId) {
+        identity.profileId = preferred.profileId;
+        identity.walletId = preferred.walletId;
+        identity.username = preferred.username ?? identity.username;
+        identity.displayName = preferred.displayName ?? identity.displayName;
         await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
         if (identity.profileId) {
           await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+        if (preferred.source === 'email') {
+          await upsertIdentitySubjectAliases(identity, [externalSubjectFromIdentity(identity)]);
         }
         profile = profiles.find((entry) => entry.id === identity.profileId) ?? null;
       }
