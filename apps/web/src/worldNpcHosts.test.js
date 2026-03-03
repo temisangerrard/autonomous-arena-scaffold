@@ -53,7 +53,7 @@ describe('world npc host prediction spawn', () => {
 
   it('matches the live prediction dealer station coordinates', () => {
     const source = readWorldNpcHostsSource();
-    expect(readPredictionHostSpawn(source)).toEqual({ x: -70, z: 43 });
+    expect(readPredictionHostSpawn(source)).toEqual({ x: 0, z: 50 });
   });
 
   it('keeps proxied dealer hosts within the routed station radius', () => {

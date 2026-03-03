@@ -1,5 +1,30 @@
 import type { SnapshotStation, StationActionId } from '@arena/shared';
-import { WORLD_SECTION_SPAWNS } from '../../WorldSim.js';
+
+// Station positions — all coordinates in world units (world bound ±120).
+// Layout: tight horseshoe around the central train (X[-20,20] Z[-8,8]).
+// All six stations sit within a 55-unit radius of centre so players can
+// see every venue from spawn and walk between them in seconds.
+//
+//                 [PREDICTION  (0, 50)]
+//
+//  [INFO (-35,18)]  [TRAIN]  [CASHIER (38,18)]
+//
+//       [COINFLIP (-22,-22)]  [RPS (22,-22)]
+//                  [DICE (0,-36)]
+//                       ↑ players spawn south ~z-55
+//
+// When editing positions also update:
+//   packages/shared/src/arena/stationLayout.ts   (UI map)
+//   apps/web/public/js/play/runtime/world-npc-hosts.js  (NPC spawns, must stay within station.radius)
+
+export const STATION_POSITIONS = {
+  info:       { x: -35, z: 18  },
+  cashier:    { x:  38, z: 18  },
+  coinflip:   { x: -22, z: -22 },
+  rps:        { x:  22, z: -22 },
+  dice:       { x:   0, z: -36 },
+  prediction: { x:   0, z:  50 },
+} as const;
 
 export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotStation[] {
   const { diceDuelEnabled } = options;
@@ -8,10 +33,10 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
       id: 'station_world_info_a',
       kind: 'world_interactable',
       displayName: 'Info Kiosk',
-      x: (WORLD_SECTION_SPAWNS[4]?.x ?? -80) + 8,
-      z: (WORLD_SECTION_SPAWNS[4]?.z ?? 45) - 4,
-      yaw: 0,
-      radius: 6.5,
+      x: STATION_POSITIONS.info.x,
+      z: STATION_POSITIONS.info.z,
+      yaw: 0.4,
+      radius: 8,
       interactionTag: 'info_kiosk',
       actions: ['interact_open', 'interact_use'] satisfies StationActionId[]
     },
@@ -19,36 +44,40 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
       id: 'station_cashier_bank',
       kind: 'cashier_bank',
       displayName: 'Cashier',
-      x: (WORLD_SECTION_SPAWNS[3]?.x ?? 80) - 2,
-      z: (WORLD_SECTION_SPAWNS[3]?.z ?? -45) + 4,
-      yaw: 0,
+      x: STATION_POSITIONS.cashier.x,
+      z: STATION_POSITIONS.cashier.z,
+      yaw: Math.PI,
+      radius: 8,
       actions: ['balance', 'fund', 'withdraw', 'transfer'] satisfies StationActionId[]
     },
     {
       id: 'station_dealer_coinflip_a',
       kind: 'dealer_coinflip',
-      displayName: 'Coinflip Dealer A',
-      x: (WORLD_SECTION_SPAWNS[1]?.x ?? -25) + 0,
-      z: (WORLD_SECTION_SPAWNS[1]?.z ?? -30) + 6,
-      yaw: 0,
+      displayName: 'Coinflip',
+      x: STATION_POSITIONS.coinflip.x,
+      z: STATION_POSITIONS.coinflip.z,
+      yaw: 0.3,
+      radius: 8,
       actions: ['coinflip_house_start', 'coinflip_house_pick'] satisfies StationActionId[]
     },
     {
       id: 'station_dealer_rps_a',
       kind: 'dealer_rps',
-      displayName: 'RPS Dealer A',
-      x: (WORLD_SECTION_SPAWNS[2]?.x ?? 25) + 0,
-      z: (WORLD_SECTION_SPAWNS[2]?.z ?? -30) + 6,
-      yaw: 0,
+      displayName: 'RPS',
+      x: STATION_POSITIONS.rps.x,
+      z: STATION_POSITIONS.rps.z,
+      yaw: -0.3,
+      radius: 8,
       actions: ['rps_house_start', 'rps_house_pick'] satisfies StationActionId[]
     },
     {
       id: 'station_dealer_prediction_a',
       kind: 'dealer_prediction',
-      displayName: 'Prediction Dealer A',
-      x: (WORLD_SECTION_SPAWNS[4]?.x ?? -80) + 10,
-      z: (WORLD_SECTION_SPAWNS[4]?.z ?? 45) - 2,
-      yaw: 0,
+      displayName: 'Prediction Markets',
+      x: STATION_POSITIONS.prediction.x,
+      z: STATION_POSITIONS.prediction.z,
+      yaw: Math.PI,
+      radius: 10,
       actions: [
         'prediction_markets_open',
         'prediction_market_buy_yes',
@@ -58,17 +87,16 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
   ];
 
   if (diceDuelEnabled) {
-    stations.push(
-      {
-        id: 'station_dealer_dice_a',
-        kind: 'dealer_dice_duel',
-        displayName: 'Dice Dealer A',
-        x: (WORLD_SECTION_SPAWNS[0]?.x ?? -80) + 2,
-        z: (WORLD_SECTION_SPAWNS[0]?.z ?? -45) + 8,
-        yaw: 0,
-        actions: ['dice_duel_start', 'dice_duel_pick'] satisfies StationActionId[]
-      }
-    );
+    stations.push({
+      id: 'station_dealer_dice_a',
+      kind: 'dealer_dice_duel',
+      displayName: 'Dice',
+      x: STATION_POSITIONS.dice.x,
+      z: STATION_POSITIONS.dice.z,
+      yaw: 0,
+      radius: 8,
+      actions: ['dice_duel_start', 'dice_duel_pick'] satisfies StationActionId[]
+    });
   }
 
   return stations;

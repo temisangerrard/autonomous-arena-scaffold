@@ -17,15 +17,18 @@ export type WorldSnapshot = {
   players: PlayerSnapshot[];
 };
 
+// Player spawn ring — distributed around the central arcade cluster so
+// multiple simultaneous players land near the action but don't pile up.
+// Positions verified clear of all STATIC_OBSTACLES below.
 export const WORLD_SECTION_SPAWNS: Array<{ x: number; z: number }> = [
-  { x: -80, z: -45 },
-  { x: -25, z: -30 },
-  { x: 25, z: -30 },
-  { x: 80, z: -45 },
-  { x: -80, z: 45 },
-  { x: -25, z: 30 },
-  { x: 25, z: 30 },
-  { x: 80, z: 55 }
+  { x:  25, z: -55 }, // 0: south-east entrance  (main spawn)
+  { x: -30, z: -45 }, // 1: south-west approach
+  { x:  30, z: -45 }, // 2: south-east approach
+  { x: -45, z:   0 }, // 3: west of train
+  { x:  45, z:   0 }, // 4: east of train
+  { x: -28, z:  35 }, // 5: north-west of train
+  { x:  28, z:  35 }, // 6: north-east of train
+  { x:   0, z:  65 }, // 7: far north (near prediction board)
 ];
 
 type PlayerState = {
@@ -57,15 +60,17 @@ const OBSTACLE_BUFFER = 0.6;
 const SEPARATION_PASSES = 2;
 const SEPARATION_PUSH_FACTOR = 0.5;
 const SECTION_SPAWNS = WORLD_SECTION_SPAWNS;
+// Tight fallback spawns within the arcade cluster — used when the ring
+// spawns are all occupied by other players.
 const HUMAN_SPAWNS: Array<{ x: number; z: number }> = [
-  { x: -24, z: -24 },
-  { x: 0, z: -24 },
-  { x: 24, z: -24 },
-  { x: -24, z: 24 },
-  { x: 0, z: 24 },
-  { x: 24, z: 24 },
-  { x: 48, z: 0 },
-  { x: -8, z: 48 }
+  { x: -15, z: -20 }, // SW of train
+  { x:  15, z: -20 }, // SE of train
+  { x: -15, z:  20 }, // NW of train
+  { x:  15, z:  20 }, // NE of train
+  { x:  28, z: -50 }, // south entrance area
+  { x: -32, z:   0 }, // west approach
+  { x:  32, z:   0 }, // east approach
+  { x:   0, z:  45 }, // near prediction board
 ];
 // Reduced obstacles to allow more exploration of the world.
 // These represent only the core solid structures that should block movement.
