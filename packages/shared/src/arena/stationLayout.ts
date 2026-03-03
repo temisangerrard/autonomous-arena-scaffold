@@ -1,5 +1,5 @@
 export type ArenaZone = 'entry' | 'ring';
-export type ArenaUiRole = 'guide' | 'cashier' | 'coinflip' | 'rps' | 'dice' | 'market';
+export type ArenaUiRole = 'cashier' | 'coinflip' | 'rps' | 'dice' | 'market';
 
 export type ArenaStationLayout = {
   id: string;
@@ -13,17 +13,17 @@ export type ArenaStationLayout = {
 // Coordinates mirror STATION_POSITIONS in apps/server/src/game/stations/catalog.ts.
 // All stations sit within a 55-unit radius of the world centre:
 //
-//              [PREDICTION  (0, 50)]
-//  [INFO (-35,18)]  [TRAIN]  [CASHIER (38,18)]
-//      [COINFLIP (-22,-22)]  [RPS (22,-22)]
-//                 [DICE (0,-36)]
+//              [KAI — Prediction  (0, 50)]
+//  [MARA — Coinflip (-35,18)]  [TRAIN]  [REX — Cashier (38,18)]
+//      [JADE — Coinflip (-22,-22)]  [AXEL — RPS (22,-22)]
+//                 [ZARA — Dice (0,-36)]
 export const ARENA_PUBLIC_STATION_LAYOUT: ArenaStationLayout[] = [
   {
     id: 'station_world_info_a',
     x: -35,
     z: 18,
-    arenaZone: 'entry',
-    uiRole: 'guide',
+    arenaZone: 'ring',
+    uiRole: 'coinflip',
     primaryVenue: true
   },
   {
