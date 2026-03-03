@@ -399,6 +399,7 @@ export async function connectSocketRuntime(deps) {
       state.ui.dealer.reasonText = '';
       state.ui.dealer.challengeId = String(view.challengeId || '');
       state.ui.dealer.playerPick = String(view.playerPick || '');
+      state.ui.dealer.opponentPick = String(view.opponentPick || '');
       state.ui.dealer.coinflipResult = String(view.coinflipResult || '');
       state.ui.dealer.diceResult = Number(view.diceResult || 0);
       state.ui.dealer.payoutDelta = Number(view.payoutDelta || 0);

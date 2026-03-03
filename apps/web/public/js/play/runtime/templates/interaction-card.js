@@ -369,12 +369,20 @@ export function renderInteractionCardTemplate(params) {
               : `Locks: ${nextRoundText(rail)} • Settles: Pending`;
           }
           if (pricesEl) {
-            const spotText = matched?.currentSpotPrice ? `BTC now: ${formatUsdAmount(Number(matched.currentSpotPrice))}` : 'BTC now: Pending';
-            const lockText = matched?.lockPrice
-              ? `Lock price: ${formatUsdAmount(Number(matched.lockPrice))}`
-              : (round === 'next' ? 'Lock price: sets at market open' : 'Lock price: pending');
-            const finalText = matched?.finalPrice ? `Final price: ${formatUsdAmount(Number(matched.finalPrice))}` : 'Final price: pending';
-            pricesEl.textContent = `${spotText} • ${lockText} • ${finalText}`;
+            const spot = matched?.currentSpotPrice ? Number(matched.currentSpotPrice) : null;
+            const lock = matched?.lockPrice ? Number(matched.lockPrice) : null;
+            const final = matched?.finalPrice ? Number(matched.finalPrice) : null;
+            let spotText = spot ? `BTC now: ${formatUsdAmount(spot)}` : 'BTC now: Pending';
+            if (spot && lock) {
+              const pct = ((spot - lock) / lock) * 100;
+              const arrow = pct >= 0 ? '▲' : '▼';
+              spotText += ` ${arrow} ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% from lock`;
+            }
+            const lockText = lock
+              ? `Lock: ${formatUsdAmount(lock)}`
+              : (round === 'next' ? 'Lock: sets at open' : 'Lock: pending');
+            const finalText = final ? `Final: ${formatUsdAmount(final)}` : '';
+            pricesEl.textContent = [spotText, lockText, finalText].filter(Boolean).join(' • ');
           }
           const previewEl = document.getElementById('prediction-market-preview');
           if (!previewEl) return;
@@ -981,6 +989,9 @@ export function renderInteractionCardTemplate(params) {
           const delta = Number(state.ui.dealer.payoutDelta || 0);
           const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
           renderDealerRevealStatus(statusEl, {
+            gameType: state.ui.dealer.gameType,
+            playerPick: state.ui.dealer.playerPick,
+            opponentPick: state.ui.dealer.opponentPick,
             coinflipResult: state.ui.dealer.coinflipResult,
             delta,
             txHash: tx,
@@ -1059,6 +1070,9 @@ export function renderInteractionCardTemplate(params) {
           const delta = Number(state.ui.dealer.payoutDelta || 0);
           const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
           renderDealerRevealStatus(statusEl, {
+            gameType: state.ui.dealer.gameType,
+            playerPick: state.ui.dealer.playerPick,
+            opponentPick: state.ui.dealer.opponentPick,
             coinflipResult: state.ui.dealer.coinflipResult,
             delta,
             txHash: tx,
@@ -1158,12 +1172,20 @@ export function renderInteractionCardTemplate(params) {
           : `Locks: ${nextRoundText(selectedRail)} • Settles: Pending`;
       }
       if (pricesEl) {
-        const spotText = selected?.currentSpotPrice ? `BTC now: ${formatUsdAmount(Number(selected.currentSpotPrice))}` : 'BTC now: Pending';
-        const lockText = selected?.lockPrice
-          ? `Lock price: ${formatUsdAmount(Number(selected.lockPrice))}`
-          : (selectedRound === 'next' ? 'Lock price: sets at market open' : 'Lock price: pending');
-        const finalText = selected?.finalPrice ? `Final price: ${formatUsdAmount(Number(selected.finalPrice))}` : 'Final price: pending';
-        pricesEl.textContent = `${spotText} • ${lockText} • ${finalText}`;
+        const spot = selected?.currentSpotPrice ? Number(selected.currentSpotPrice) : null;
+        const lock = selected?.lockPrice ? Number(selected.lockPrice) : null;
+        const final = selected?.finalPrice ? Number(selected.finalPrice) : null;
+        let spotText = spot ? `BTC now: ${formatUsdAmount(spot)}` : 'BTC now: Pending';
+        if (spot && lock) {
+          const pct = ((spot - lock) / lock) * 100;
+          const arrow = pct >= 0 ? '▲' : '▼';
+          spotText += ` ${arrow} ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% from lock`;
+        }
+        const lockText = lock
+          ? `Lock: ${formatUsdAmount(lock)}`
+          : (selectedRound === 'next' ? 'Lock: sets at open' : 'Lock: pending');
+        const finalText = final ? `Final: ${formatUsdAmount(final)}` : '';
+        pricesEl.textContent = [spotText, lockText, finalText].filter(Boolean).join(' • ');
       }
       if (statusEl) {
         const mode = String(prediction.state || 'idle');
@@ -1266,10 +1288,10 @@ export function renderInteractionCardTemplate(params) {
       <div class="station-ui__actions">
         <button id="player-challenge-send" class="btn-gold" type="button" ${canSend ? '' : 'disabled'}>Send Challenge (C)</button>
       </div>
-      <div class="station-ui__actions">
-        <button id="player-challenge-accept" class="btn-ghost" type="button" ${(incoming && !state.respondingIncoming) ? '' : 'disabled'}>Accept (Y)</button>
-        <button id="player-challenge-decline" class="btn-ghost" type="button" ${(incoming && !state.respondingIncoming) ? '' : 'disabled'}>Decline (N)</button>
-      </div>
+      ${incoming ? `<div class="station-ui__actions">
+        <button id="player-challenge-accept" class="btn-ghost" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Accept (Y)</button>
+        <button id="player-challenge-decline" class="btn-ghost" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Decline (N)</button>
+      </div>` : ''}
       <div class="station-ui__meta">${incomingLabel || `${targetNearby ? 'Pick a game and send a challenge.' : 'Move closer to this player, then send challenge.'} ${outgoingPending ? 'You already have a pending outgoing challenge.' : ''}`}</div>
       <div class="station-ui__meta">${approvalHint}</div>
     `;

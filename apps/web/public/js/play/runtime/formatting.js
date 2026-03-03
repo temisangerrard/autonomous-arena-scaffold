@@ -34,8 +34,10 @@ export function txExplorerUrl(txHash, chainId = null) {
 
 export function renderDealerRevealStatus(statusEl, params) {
   if (!statusEl) return;
-  const toss = String(params.coinflipResult || '').toUpperCase() || 'UNKNOWN';
-  const round = formatUsdAmount(params.delta, { signed: true });
+  const gameType = String(params.gameType || '');
+  const playerPick = String(params.playerPick || '');
+  const opponentPick = String(params.opponentPick || '');
+  const round = formatUsdAmount(Number(params.delta || 0), { signed: true });
   const balance = Number(params.walletBalance);
   const balanceLabel = Number.isFinite(balance)
     ? ` · Balance: ${formatUsdAmount(balance)}`
@@ -45,7 +47,26 @@ export function renderDealerRevealStatus(statusEl, params) {
   const txLink = txUrl
     ? ` · <a class="tx-link" href="${txUrl}" target="_blank" rel="noreferrer noopener">View onchain</a>`
     : '';
-  statusEl.innerHTML = `Result: ${toss} · Round: ${round}${balanceLabel}${txLink}`;
+
+  let resultLine = '';
+  if (gameType === 'rps' && playerPick && opponentPick) {
+    const RPS_ICONS = { rock: '🪨', paper: '📄', scissors: '✂️' };
+    const p = RPS_ICONS[playerPick] || playerPick;
+    const h = RPS_ICONS[opponentPick] || opponentPick;
+    resultLine = `You: ${p} vs House: ${h} · Round: ${round}`;
+  } else if (gameType === 'dice_duel' && playerPick && opponentPick) {
+    const DICE_ICONS = { d1: '⚀', d2: '⚁', d3: '⚂', d4: '⚃', d5: '⚄', d6: '⚅' };
+    const p = DICE_ICONS[playerPick] || playerPick;
+    const h = DICE_ICONS[opponentPick] || opponentPick;
+    resultLine = `You: ${p} vs House: ${h} · Round: ${round}`;
+  } else {
+    const toss = String(params.coinflipResult || '').toUpperCase() || 'UNKNOWN';
+    const COIN_ICONS = { HEADS: '🪙', TAILS: '🔄' };
+    const icon = COIN_ICONS[toss] ? `${COIN_ICONS[toss]} ` : '';
+    resultLine = `${icon}${toss} · Round: ${round}`;
+  }
+
+  statusEl.innerHTML = `${resultLine}${balanceLabel}${txLink}`;
 }
 
 export function formatWagerLabel(wager) {

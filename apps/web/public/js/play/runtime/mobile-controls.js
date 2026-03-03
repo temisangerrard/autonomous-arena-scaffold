@@ -12,11 +12,11 @@ export function computeMobileControlVisibility(params) {
   const interactionOpen = Boolean(params.interactionOpen);
   const interactionVisible = Boolean(params.interactionVisible);
 
-  // Dealer pick buttons live inside the interaction card — suppress mobile duplicates when card is open.
-  const cardOpen = interactionOpen || interactionVisible;
-  const rpsVisible = context === 'active_rps' || (!cardOpen && context === 'dealer_ready_rps');
-  const coinflipVisible = context === 'active_coinflip' || (!cardOpen && context === 'dealer_ready_coinflip');
-  const diceVisible = context === 'active_dice_duel' || (!cardOpen && context === 'dealer_ready_dice_duel');
+  // Dealer pick buttons live exclusively inside the interaction card.
+  // Mobile move duplicates are only for player-vs-player active matches.
+  const rpsVisible = context === 'active_rps';
+  const coinflipVisible = context === 'active_coinflip';
+  const diceVisible = context === 'active_dice_duel';
 
   return {
     interact: hasTarget,
