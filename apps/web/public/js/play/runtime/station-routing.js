@@ -4,7 +4,6 @@ export function createStationRouting(params) {
     hostStationProxyMap
   } = params;
 
-  const MAX_BAKED_PROXY_DISTANCE = 12;
   const localStationToProxy = new Map();
   const proxyToLocalStations = new Map();
 
@@ -88,14 +87,11 @@ export function createStationRouting(params) {
             Number(station.z || 0) - Number(nearest.z || 0)
           )
         : Number.POSITIVE_INFINITY;
-      const withinRange = Boolean(nearest) && distance <= MAX_BAKED_PROXY_DISTANCE;
-      station.proxyEligible = withinRange;
+      station.proxyEligible = Boolean(nearest);
       station.proxyDistance = Number.isFinite(distance) ? distance : null;
-      station.proxyStationId = withinRange && nearest ? nearest.id : '';
+      station.proxyStationId = nearest ? nearest.id : '';
       station.proxyMissing = !station.proxyStationId;
-      station.fallbackReason = station.proxyStationId
-        ? ''
-        : (nearest ? 'proxy_too_far' : 'no_matching_station');
+      station.fallbackReason = station.proxyStationId ? '' : 'no_matching_station';
     }
     rebuildLocalStationProxyIndex();
   }
