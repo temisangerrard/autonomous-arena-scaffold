@@ -11,12 +11,14 @@ describe('runtime modular controls', () => {
   });
 
   it('only enables controls relevant to active context', () => {
+    // Mobile overlay buttons only appear for player-vs-player active matches;
+    // dealer pick buttons live exclusively inside the interaction card.
     const rps = computeMobileControlVisibility({
       hasTarget: true,
-      context: 'dealer_ready_rps',
+      context: 'active_rps',
       interactionOpen: false,
       interactionVisible: false,
-      dealerState: 'ready'
+      dealerState: ''
     });
     expect(rps.rpsVisible).toBe(true);
     expect(rps.coinflipVisible).toBe(false);
