@@ -7,7 +7,7 @@ function readWorldNpcHostsSource() {
 }
 
 function readPredictionHostSpawn(source) {
-  const match = source.match(/\{ x: (-?\d+), z: (-?\d+) \} \/\/ prediction -> station_dealer_prediction_a/);
+  const match = source.match(/\{ x: (-?\d+), z: (-?\d+) \}.*station_dealer_prediction_a/);
   if (!match) {
     throw new Error('prediction host spawn not found');
   }
@@ -38,16 +38,16 @@ function readProxyMap(source) {
 }
 
 describe('world npc host prediction spawn', () => {
-  it('only spawns one live host per surviving public dealer role', () => {
+  it('has exactly six named dealer hosts covering all game types', () => {
     const source = readWorldNpcHostsSource();
     const hostIds = [...source.matchAll(/hostId: '([^']+)'/g)].map((match) => match[1]);
     expect(hostIds).toEqual([
-      'npc_host_guide',
+      'npc_host_coinflip_b',
       'npc_host_cashier',
       'npc_host_coinflip_a',
       'npc_host_rps_a',
       'npc_host_dice',
-      'npc_host_info'
+      'npc_host_prediction'
     ]);
   });
 
