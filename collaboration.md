@@ -193,3 +193,7 @@
 - Recorded intent:
   - legacy wallet: `0xA3beDAB88B56F69e8Dc439cE2f4c8C31aea5e660`
   - final intended wallet: `0xdaeEDe8252FA59C51687ff34B1634b2cD62E8E98`
+
+## 2026-03-03 wallet relink
+- Implemented runtime `/profiles/:profileId/wallet/rebind` and web `/api/admin/users/:profileId/wallet/rebind`.
+- Intended canonical wallet for tagbajoh remains `0xdaeEDe8252FA59C51687ff34B1634b2cD62E8E98`.

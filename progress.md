@@ -1545,3 +1545,8 @@ Original prompt: yes there's a file called train world or so , thats the base wo
     - added `preferEmailIdentityOverContinuity(...)`
   - Added continuity history record:
     - `/Users/temisan/Downloads/blender implementation/docs/wallet-continuity-history.md`
+
+## 2026-03-03 wallet relink
+- Added deterministic runtime wallet rebind swap plus admin web relink endpoint.
+- Verified: `npm run -w @arena/agent-runtime test -- src/profileWalletBinding.test.ts`, `npm run -w @arena/web test -- src/adminWalletRelink.test.ts src/identityContinuity.test.ts src/sessionStore.test.ts`, builds for agent-runtime and web.
+- Live deploy from this shell blocked by Fly Depot auth and local Docker absence.
