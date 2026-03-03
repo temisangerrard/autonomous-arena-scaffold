@@ -2296,6 +2296,7 @@ registerRuntimeRoutes(router, {
     wallets,
     bots,
     botRegistry,
+    subjectLinks,
     walletSummary,
     publicProfiles,
     createProfileWithBot,

@@ -8,9 +8,10 @@ import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { createChief2Service } from './chief2/index.js';
 import { createChiefDbGateway } from './chief/dbGateway.js';
+import { rewriteEmailIdentityBindings } from './adminWalletRelink.js';
 import { log } from './logger.js';
 import { resolveAuthSubjects } from './authSubjects.js';
-import { findMatchingContinuityLink } from './identityContinuity.js';
+import { findMatchingContinuityLink, preferEmailIdentityOverContinuity } from './identityContinuity.js';
 import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
@@ -260,22 +261,36 @@ async function reconcileIdentityLink(identity: IdentityRecord): Promise<void> {
   const link = await runtimeSubjectLink(subject).catch(() => {
     return null;
   });
-  if (!link) {
+  const emailIdentities = await sessionStore.findIdentitiesByEmail(identity.email).catch(() => []);
+  const preferred = preferEmailIdentityOverContinuity({
+    continuity: link,
+    emailIdentities
+  });
+  if (!preferred) {
     // Reconciliation is read-only: never auto-provision on link miss.
     // Provisioning is handled only in explicit auth/provision paths.
     return;
   }
-  const profileChanged = identity.profileId !== link.profileId;
-  const walletChanged = identity.walletId !== link.walletId;
+  const profileChanged = identity.profileId !== preferred.profileId;
+  const walletChanged = identity.walletId !== preferred.walletId;
   if (!profileChanged && !walletChanged) {
     return;
   }
 
-  identity.profileId = link.profileId;
-  identity.walletId = link.walletId;
+  identity.profileId = preferred.profileId;
+  identity.walletId = preferred.walletId;
+  if (preferred.username) {
+    identity.username = preferred.username;
+  }
+  if (preferred.displayName) {
+    identity.displayName = preferred.displayName;
+  }
   await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
   if (identity.profileId) {
     await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+  }
+  if (preferred.source === 'email') {
+    await upsertIdentitySubjectAliases(identity, [subject]);
   }
 }
 
@@ -520,9 +535,19 @@ async function ensurePlayerProvisioned(identity: IdentityRecord, subjectAliases:
     ...subjectAliases
   ];
   const continuity = await findMatchingContinuityLink(continuitySubjects, runtimeSubjectLink);
-  if (continuity.link?.profileId && continuity.link?.walletId) {
-    identity.profileId = continuity.link.profileId;
-    identity.walletId = continuity.link.walletId;
+  const legacyIdentities = await sessionStore.findIdentitiesByEmail(identity.email).catch(() => []);
+  const preferredExisting = preferEmailIdentityOverContinuity({
+    continuity: continuity.link,
+    emailIdentities: legacyIdentities
+  });
+  if (preferredExisting?.profileId && preferredExisting?.walletId) {
+    identity.profileId = preferredExisting.profileId;
+    identity.walletId = preferredExisting.walletId;
+    identity.username = preferredExisting.username ?? identity.username;
+    identity.displayName = preferredExisting.displayName ?? identity.displayName;
+    if (preferredExisting.source === 'email') {
+      await upsertIdentitySubjectAliases(identity, continuitySubjects);
+    }
     return;
   }
 
@@ -535,7 +560,6 @@ async function ensurePlayerProvisioned(identity: IdentityRecord, subjectAliases:
     throw new Error('continuity_lookup_unavailable');
   }
 
-  const legacyIdentities = await sessionStore.findIdentitiesByEmail(identity.email).catch(() => []);
   const reusableLegacy = legacyIdentities.find((entry) => entry.profileId && entry.walletId) ?? null;
   if (reusableLegacy?.profileId && reusableLegacy?.walletId) {
     identity.profileId = reusableLegacy.profileId;
@@ -1676,12 +1700,21 @@ const server = createServer(async (req, res) => {
       // Preserve identity continuity: relink from canonical subject mapping
       // instead of creating a new profile on transient list misses.
       const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => null);
-      if (canonicalLink?.profileId && canonicalLink?.walletId) {
-        identity.profileId = canonicalLink.profileId;
-        identity.walletId = canonicalLink.walletId;
+      const preferred = preferEmailIdentityOverContinuity({
+        continuity: canonicalLink,
+        emailIdentities: await sessionStore.findIdentitiesByEmail(identity.email).catch(() => [])
+      });
+      if (preferred?.profileId && preferred?.walletId) {
+        identity.profileId = preferred.profileId;
+        identity.walletId = preferred.walletId;
+        identity.username = preferred.username ?? identity.username;
+        identity.displayName = preferred.displayName ?? identity.displayName;
         await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
         if (identity.profileId) {
           await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+        if (preferred.source === 'email') {
+          await upsertIdentitySubjectAliases(identity, [externalSubjectFromIdentity(identity)]);
         }
         profile = profiles.find((entry) => entry.id === identity.profileId) ?? null;
       }
@@ -1814,12 +1847,21 @@ const server = createServer(async (req, res) => {
       // Preserve identity continuity: if runtime profile listing is briefly stale,
       // relink from canonical subject mapping instead of reprovisioning a new profile.
       const canonicalLink = await runtimeSubjectLink(externalSubjectFromIdentity(identity)).catch(() => null);
-      if (canonicalLink?.profileId && canonicalLink?.walletId) {
-        identity.profileId = canonicalLink.profileId;
-        identity.walletId = canonicalLink.walletId;
+      const preferred = preferEmailIdentityOverContinuity({
+        continuity: canonicalLink,
+        emailIdentities: await sessionStore.findIdentitiesByEmail(identity.email).catch(() => [])
+      });
+      if (preferred?.profileId && preferred?.walletId) {
+        identity.profileId = preferred.profileId;
+        identity.walletId = preferred.walletId;
+        identity.username = preferred.username ?? identity.username;
+        identity.displayName = preferred.displayName ?? identity.displayName;
         await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
         if (identity.profileId) {
           await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+        if (preferred.source === 'email') {
+          await upsertIdentitySubjectAliases(identity, [externalSubjectFromIdentity(identity)]);
         }
         profile = profiles.find((entry) => entry.id === identity.profileId) ?? null;
       }
@@ -2651,6 +2693,97 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: true, direction, amount, walletId, runtime: payload });
     } catch {
       sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+    }
+    return;
+  }
+
+  const adminWalletRebindMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/wallet\/rebind$/);
+  if (adminWalletRebindMatch && req.method === 'POST') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const profileId = String(adminWalletRebindMatch[1] ?? '').trim();
+    const body = await readJsonBody<{
+      walletId?: string;
+      walletAddress?: string;
+      email?: string;
+      purgeConflictingSessions?: boolean;
+    }>(req);
+    const walletId = String(body?.walletId ?? '').trim();
+    const walletAddress = String(body?.walletAddress ?? '').trim();
+    const email = String(body?.email ?? '').trim().toLowerCase();
+    const purgeConflictingSessions = body?.purgeConflictingSessions !== false;
+    if (!profileId || (!walletId && !walletAddress)) {
+      sendJson(res, { ok: false, reason: 'profile_and_wallet_required' }, 400);
+      return;
+    }
+
+    try {
+      const profiles = await runtimeProfiles();
+      const profile = profiles.find((entry) => entry.id === profileId);
+      if (!profile) {
+        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        return;
+      }
+
+      const knownSubs = await sessionStore.listSubsForProfile(profileId).catch(() => []);
+      const emailIdentities = email ? await sessionStore.findIdentitiesByEmail(email).catch(() => []) : [];
+      const subjects = [...new Set([
+        ...knownSubs,
+        ...emailIdentities.map((entry) => entry.sub)
+      ].map((entry) => String(entry || '').trim()).filter(Boolean))];
+
+      const runtimePayload = await runtimePost<{
+        ok?: boolean;
+        profile?: { id?: string; username?: string; displayName?: string; wallet?: { id?: string; address?: string } | null; walletId?: string };
+        swappedProfileId?: string | null;
+      }>(`/profiles/${encodeURIComponent(profileId)}/wallet/rebind`, {
+        walletId: walletId || undefined,
+        walletAddress: walletAddress || undefined,
+        subjects
+      });
+
+      const reboundWalletId = String(runtimePayload?.profile?.wallet?.id ?? runtimePayload?.profile?.walletId ?? walletId).trim();
+      const reboundWalletAddress = String(runtimePayload?.profile?.wallet?.address ?? walletAddress).trim() || null;
+      const rewrite = email
+        ? rewriteEmailIdentityBindings({
+            identities: emailIdentities,
+            profileId,
+            walletId: reboundWalletId,
+            username: runtimePayload?.profile?.username ?? profile.username,
+            displayName: runtimePayload?.profile?.displayName ?? profile.displayName
+          })
+        : { updated: [], conflictingProfileIds: [] as string[] };
+
+      for (const identity of rewrite.updated) {
+        await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+        if (identity.profileId) {
+          await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+      }
+
+      const purgeTargets = purgeConflictingSessions
+        ? [...new Set(rewrite.conflictingProfileIds.filter((entry) => entry && entry !== profileId))]
+        : [];
+      let purgedSessions = 0;
+      for (const conflictingProfileId of purgeTargets) {
+        purgedSessions += await sessionStore.purgeSessionsForProfile(conflictingProfileId).catch(() => 0);
+      }
+
+      sendJson(res, {
+        ok: true,
+        profileId,
+        walletId: reboundWalletId,
+        walletAddress: reboundWalletAddress,
+        email: email || null,
+        swappedProfileId: runtimePayload?.swappedProfileId ?? null,
+        rewrittenIdentities: rewrite.updated.length,
+        purgedSessions
+      });
+    } catch {
+      sendJson(res, { ok: false, reason: 'wallet_rebind_failed' }, 503);
     }
     return;
   }

@@ -2,6 +2,7 @@ import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
 import type { BotRecord, Profile, WalletRecord } from '@arena/shared';
 import type { Personality } from '../PolicyEngine.js';
 import type { AgentBehaviorConfig } from '../AgentBot.js';
+import { rebindProfileWallet } from '../profileWalletBinding.js';
 
 export function registerProfileRoutes(router: SimpleRouter, deps: {
   isInternalAuthorized: (req: import('node:http').IncomingMessage) => boolean;
@@ -54,6 +55,14 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     continuitySource: 'postgres' | 'runtime-file' | 'memory';
   } | null;
   schedulePersistState: () => void;
+  subjectLinks: Map<string, {
+    subject: string;
+    profileId: string;
+    walletId: string;
+    linkedAt: number;
+    updatedAt: number;
+    continuitySource: 'postgres' | 'runtime-file' | 'memory';
+  }>;
 }) {
   router.get('/profiles', (_req, res) => {
     // keep existing response shape from index.ts
@@ -194,6 +203,55 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     }
 
     sendJson(res, { ok: true, profile: { ...profile, wallet: deps.walletSummary(deps.wallets.get(profile.walletId) ?? null) } });
+    deps.schedulePersistState();
+  });
+
+  router.post('/profiles/:profileId/wallet/rebind', async (req, res, params) => {
+    if (!deps.isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+
+    const profileId = String(params?.profileId ?? '').trim();
+    const profile = profileId ? deps.profiles.get(profileId) : null;
+    if (!profile) {
+      sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+      return;
+    }
+
+    const body = await readJsonBody<{ walletId?: string; walletAddress?: string; subjects?: string[] }>(req);
+    const walletId = String(body?.walletId ?? '').trim();
+    const walletAddress = String(body?.walletAddress ?? '').trim().toLowerCase();
+    const targetWallet = walletId
+      ? deps.wallets.get(walletId) ?? null
+      : [...deps.wallets.values()].find((entry) => entry.address.toLowerCase() === walletAddress) ?? null;
+    if (!targetWallet) {
+      sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
+      return;
+    }
+
+    const result = rebindProfileWallet({
+      profileId: profile.id,
+      walletId: targetWallet.id,
+      profiles: deps.profiles,
+      wallets: deps.wallets,
+      subjectLinks: deps.subjectLinks,
+      botRegistry: deps.botRegistry,
+      subjects: Array.isArray(body?.subjects) ? body.subjects : []
+    });
+    if (!result.ok) {
+      sendJson(res, result, result.reason === 'profile_not_found' || result.reason === 'wallet_not_found' ? 404 : 400);
+      return;
+    }
+
+    sendJson(res, {
+      ok: true,
+      profile: {
+        ...profile,
+        wallet: deps.walletSummary(deps.wallets.get(profile.walletId) ?? null)
+      },
+      swappedProfileId: result.swappedProfileId
+    });
     deps.schedulePersistState();
   });
 

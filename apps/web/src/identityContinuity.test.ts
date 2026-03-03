@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findMatchingContinuityLink } from './identityContinuity.js';
+import { findMatchingContinuityLink, preferEmailIdentityOverContinuity } from './identityContinuity.js';
 
 describe('findMatchingContinuityLink', () => {
   it('falls back to a legacy google alias link when canonical firebase subject is missing', async () => {
@@ -38,5 +38,31 @@ describe('findMatchingContinuityLink', () => {
 
     expect(result.link?.profileId).toBe('profile_firebase');
     expect(result.matchedSubject).toBe('firebase:firebase-local-456');
+  });
+
+  it('prefers the most recent email identity over stale continuity when they disagree', () => {
+    const chosen = preferEmailIdentityOverContinuity({
+      continuity: {
+        profileId: 'profile_old',
+        walletId: 'wallet_old',
+        linkedAt: 10,
+        updatedAt: 100,
+        continuitySource: 'postgres'
+      },
+      emailIdentities: [
+        {
+          sub: 'firebase:new',
+          profileId: 'profile_new',
+          walletId: 'wallet_new',
+          username: 'tagbajoh',
+          displayName: 'Temisan Agbajoh',
+          lastLoginAt: 200
+        }
+      ]
+    });
+
+    expect(chosen?.source).toBe('email');
+    expect(chosen?.profileId).toBe('profile_new');
+    expect(chosen?.walletId).toBe('wallet_new');
   });
 });

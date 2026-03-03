@@ -83,8 +83,8 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Locks:')).toBe(true);
     expect(source.includes('Settles:')).toBe(true);
     expect(source.includes('BTC now:')).toBe(true);
-    expect(source.includes('Lock price:')).toBe(true);
-    expect(source.includes('Final price:')).toBe(true);
+    expect(source.includes('Lock:')).toBe(true);
+    expect(source.includes('Final:')).toBe(true);
   });
 
   it('normalizes coinflip, rps, and dice cards around the same structure', () => {
