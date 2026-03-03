@@ -1,4 +1,12 @@
-name: Deploy Backend (Cloud Run)
+name: Deploy Backend (Fly.io)
+
+# Deploys arena-server, arena-agent-runtime, and arena-web to Fly.io
+# whenever relevant files change on main. Runs in parallel with the
+# Netlify deploy so both land together — preventing the "server drift"
+# where Netlify gets new frontend JS but Fly still runs old server code.
+#
+# Required secret: FLY_API_TOKEN (Fly personal access token)
+# Generate at: https://fly.io/user/personal_access_tokens
 
 on:
   push:
@@ -6,55 +14,50 @@ on:
     paths:
       - "apps/server/**"
       - "apps/agent-runtime/**"
+      - "apps/web/src/**"
       - "packages/shared/**"
       - "Dockerfile.server"
       - "Dockerfile.agent-runtime"
-      - "cloudbuild.server.yaml"
-      - "cloudbuild.runtime.yaml"
+      - "Dockerfile.web"
+      - "fly.server.toml"
+      - "fly.agent-runtime.toml"
+      - "fly.web.toml"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
     inputs:
       deploy_server:
-        description: "Deploy arena-server"
+        description: "Deploy arena-server (game WebSocket)"
         required: true
         default: "true"
+        type: boolean
       deploy_runtime:
-        description: "Deploy arena-runtime"
+        description: "Deploy arena-agent-runtime"
         required: true
         default: "true"
-
-env:
-  GCP_PROJECT_ID: junipalee
-  GCP_REGION: us-central1
-  IMAGE_TAG: ${{ github.sha }}
+        type: boolean
+      deploy_web:
+        description: "Deploy arena-web (web API)"
+        required: true
+        default: "true"
+        type: boolean
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     outputs:
       can_deploy: ${{ steps.check.outputs.can_deploy }}
-      auth_mode: ${{ steps.check.outputs.auth_mode }}
     steps:
-      - name: Check GCP auth configuration
+      - name: Check Fly token
         id: check
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          if [ -n "$GCP_WORKLOAD_IDENTITY_PROVIDER" ] && [ -n "$GCP_SERVICE_ACCOUNT" ]; then
+          if [ -n "$FLY_API_TOKEN" ]; then
             echo "can_deploy=true" >> "$GITHUB_OUTPUT"
-            echo "auth_mode=wif" >> "$GITHUB_OUTPUT"
-            exit 0
+          else
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping Fly deploy: FLY_API_TOKEN secret is not set. Add it at repo Settings > Secrets."
           fi
-          if [ -n "$GCP_SA_KEY" ]; then
-            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
-            echo "auth_mode=sa_key" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "can_deploy=false" >> "$GITHUB_OUTPUT"
-          echo "auth_mode=none" >> "$GITHUB_OUTPUT"
-          echo "::warning::Skipping backend deploy: provide either GCP_SA_KEY or GCP_WORKLOAD_IDENTITY_PROVIDER + GCP_SERVICE_ACCOUNT."
 
   changes:
     needs: preflight
@@ -62,6 +65,7 @@ jobs:
     outputs:
       server: ${{ steps.filter.outputs.server }}
       runtime: ${{ steps.filter.outputs.runtime }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,12 +79,17 @@ jobs:
               - 'apps/server/**'
               - 'packages/shared/**'
               - 'Dockerfile.server'
-              - 'cloudbuild.server.yaml'
+              - 'fly.server.toml'
             runtime:
               - 'apps/agent-runtime/**'
               - 'packages/shared/**'
               - 'Dockerfile.agent-runtime'
-              - 'cloudbuild.runtime.yaml'
+              - 'fly.agent-runtime.toml'
+            web:
+              - 'apps/web/src/**'
+              - 'packages/shared/**'
+              - 'Dockerfile.web'
+              - 'fly.web.toml'
 
   deploy-server:
     needs: [preflight, changes]
@@ -91,47 +100,17 @@ jobs:
         (github.event_name != 'workflow_dispatch' && needs.changes.outputs.server == 'true')
       )
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud (Service Account Key)
-        if: needs.preflight.outputs.auth_mode == 'sa_key'
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Authenticate to Google Cloud (Workload Identity Federation)
-        if: needs.preflight.outputs.auth_mode == 'wif'
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ env.GCP_PROJECT_ID }}
-
-      - name: Build server image
-        run: |
-          gcloud builds submit \
-            --project "${GCP_PROJECT_ID}" \
-            --config cloudbuild.server.yaml \
-            --substitutions "_TAG=${IMAGE_TAG}" \
-            .
-
-      - name: Deploy server service
-        run: |
-          gcloud run deploy arena-server \
-            --project "${GCP_PROJECT_ID}" \
-            --region "${GCP_REGION}" \
-            --platform managed \
-            --image "gcr.io/${GCP_PROJECT_ID}/arena-server:${IMAGE_TAG}" \
-            --quiet
+      - name: Deploy arena-server
+        run: flyctl deploy --app arena-server-broken-haze-6531 --config fly.server.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   deploy-runtime:
     needs: [preflight, changes]
@@ -142,44 +121,35 @@ jobs:
         (github.event_name != 'workflow_dispatch' && needs.changes.outputs.runtime == 'true')
       )
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud (Service Account Key)
-        if: needs.preflight.outputs.auth_mode == 'sa_key'
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Authenticate to Google Cloud (Workload Identity Federation)
-        if: needs.preflight.outputs.auth_mode == 'wif'
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - name: Deploy arena-agent-runtime
+        run: flyctl deploy --app arena-agent-runtime --config fly.agent-runtime.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ env.GCP_PROJECT_ID }}
+  deploy-web:
+    needs: [preflight, changes]
+    if: |
+      needs.preflight.outputs.can_deploy == 'true' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_web == 'true') ||
+        (github.event_name != 'workflow_dispatch' && needs.changes.outputs.web == 'true')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Build runtime image
-        run: |
-          gcloud builds submit \
-            --project "${GCP_PROJECT_ID}" \
-            --config cloudbuild.runtime.yaml \
-            --substitutions "_TAG=${IMAGE_TAG}" \
-            .
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Deploy runtime service
-        run: |
-          gcloud run deploy arena-runtime \
-            --project "${GCP_PROJECT_ID}" \
-            --region "${GCP_REGION}" \
-            --platform managed \
-            --image "gcr.io/${GCP_PROJECT_ID}/arena-runtime:${IMAGE_TAG}" \
-            --quiet
+      - name: Deploy arena-web
+        run: flyctl deploy --app arena-web --config fly.web.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
