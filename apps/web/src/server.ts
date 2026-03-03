@@ -8,6 +8,7 @@ import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { createChief2Service } from './chief2/index.js';
 import { createChiefDbGateway } from './chief/dbGateway.js';
+import { rewriteEmailIdentityBindings } from './adminWalletRelink.js';
 import { log } from './logger.js';
 import { resolveAuthSubjects } from './authSubjects.js';
 import { findMatchingContinuityLink, preferEmailIdentityOverContinuity } from './identityContinuity.js';
@@ -2692,6 +2693,97 @@ const server = createServer(async (req, res) => {
       sendJson(res, { ok: true, direction, amount, walletId, runtime: payload });
     } catch {
       sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+    }
+    return;
+  }
+
+  const adminWalletRebindMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/wallet\/rebind$/);
+  if (adminWalletRebindMatch && req.method === 'POST') {
+    const auth = await requireRole(req, ['admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'forbidden' }, 403);
+      return;
+    }
+    const profileId = String(adminWalletRebindMatch[1] ?? '').trim();
+    const body = await readJsonBody<{
+      walletId?: string;
+      walletAddress?: string;
+      email?: string;
+      purgeConflictingSessions?: boolean;
+    }>(req);
+    const walletId = String(body?.walletId ?? '').trim();
+    const walletAddress = String(body?.walletAddress ?? '').trim();
+    const email = String(body?.email ?? '').trim().toLowerCase();
+    const purgeConflictingSessions = body?.purgeConflictingSessions !== false;
+    if (!profileId || (!walletId && !walletAddress)) {
+      sendJson(res, { ok: false, reason: 'profile_and_wallet_required' }, 400);
+      return;
+    }
+
+    try {
+      const profiles = await runtimeProfiles();
+      const profile = profiles.find((entry) => entry.id === profileId);
+      if (!profile) {
+        sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+        return;
+      }
+
+      const knownSubs = await sessionStore.listSubsForProfile(profileId).catch(() => []);
+      const emailIdentities = email ? await sessionStore.findIdentitiesByEmail(email).catch(() => []) : [];
+      const subjects = [...new Set([
+        ...knownSubs,
+        ...emailIdentities.map((entry) => entry.sub)
+      ].map((entry) => String(entry || '').trim()).filter(Boolean))];
+
+      const runtimePayload = await runtimePost<{
+        ok?: boolean;
+        profile?: { id?: string; username?: string; displayName?: string; wallet?: { id?: string; address?: string } | null; walletId?: string };
+        swappedProfileId?: string | null;
+      }>(`/profiles/${encodeURIComponent(profileId)}/wallet/rebind`, {
+        walletId: walletId || undefined,
+        walletAddress: walletAddress || undefined,
+        subjects
+      });
+
+      const reboundWalletId = String(runtimePayload?.profile?.wallet?.id ?? runtimePayload?.profile?.walletId ?? walletId).trim();
+      const reboundWalletAddress = String(runtimePayload?.profile?.wallet?.address ?? walletAddress).trim() || null;
+      const rewrite = email
+        ? rewriteEmailIdentityBindings({
+            identities: emailIdentities,
+            profileId,
+            walletId: reboundWalletId,
+            username: runtimePayload?.profile?.username ?? profile.username,
+            displayName: runtimePayload?.profile?.displayName ?? profile.displayName
+          })
+        : { updated: [], conflictingProfileIds: [] as string[] };
+
+      for (const identity of rewrite.updated) {
+        await sessionStore.setIdentity(identity, IDENTITY_TTL_MS);
+        if (identity.profileId) {
+          await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
+        }
+      }
+
+      const purgeTargets = purgeConflictingSessions
+        ? [...new Set(rewrite.conflictingProfileIds.filter((entry) => entry && entry !== profileId))]
+        : [];
+      let purgedSessions = 0;
+      for (const conflictingProfileId of purgeTargets) {
+        purgedSessions += await sessionStore.purgeSessionsForProfile(conflictingProfileId).catch(() => 0);
+      }
+
+      sendJson(res, {
+        ok: true,
+        profileId,
+        walletId: reboundWalletId,
+        walletAddress: reboundWalletAddress,
+        email: email || null,
+        swappedProfileId: runtimePayload?.swappedProfileId ?? null,
+        rewrittenIdentities: rewrite.updated.length,
+        purgedSessions
+      });
+    } catch {
+      sendJson(res, { ok: false, reason: 'wallet_rebind_failed' }, 503);
     }
     return;
   }
