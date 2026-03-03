@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "game-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "-w", "@arena/server", "dev"],
+      "port": 4000
+    },
+    {
+      "name": "agent-runtime",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "-w", "@arena/agent-runtime", "dev"],
+      "port": 4100
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "-w", "@arena/web", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "hardhat-node",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["hardhat", "node"],
+      "port": 8545
+    }
+  ]
+}
