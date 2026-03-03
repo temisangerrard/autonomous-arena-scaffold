@@ -10,51 +10,58 @@ export type ArenaStationLayout = {
   primaryVenue: boolean;
 };
 
+// Coordinates mirror STATION_POSITIONS in apps/server/src/game/stations/catalog.ts.
+// All stations sit within a 55-unit radius of the world centre:
+//
+//              [PREDICTION  (0, 50)]
+//  [INFO (-35,18)]  [TRAIN]  [CASHIER (38,18)]
+//      [COINFLIP (-22,-22)]  [RPS (22,-22)]
+//                 [DICE (0,-36)]
 export const ARENA_PUBLIC_STATION_LAYOUT: ArenaStationLayout[] = [
   {
     id: 'station_world_info_a',
-    x: -70,
-    z: 43,
+    x: -35,
+    z: 18,
     arenaZone: 'entry',
     uiRole: 'guide',
     primaryVenue: true
   },
   {
     id: 'station_cashier_bank',
-    x: 78,
-    z: -41,
+    x: 38,
+    z: 18,
     arenaZone: 'ring',
     uiRole: 'cashier',
     primaryVenue: true
   },
   {
     id: 'station_dealer_coinflip_a',
-    x: -25,
-    z: -24,
+    x: -22,
+    z: -22,
     arenaZone: 'ring',
     uiRole: 'coinflip',
     primaryVenue: true
   },
   {
     id: 'station_dealer_rps_a',
-    x: 25,
-    z: -24,
+    x: 22,
+    z: -22,
     arenaZone: 'ring',
     uiRole: 'rps',
     primaryVenue: true
   },
   {
     id: 'station_dealer_dice_a',
-    x: -78,
-    z: -37,
+    x: 0,
+    z: -36,
     arenaZone: 'ring',
     uiRole: 'dice',
     primaryVenue: true
   },
   {
     id: 'station_dealer_prediction_a',
-    x: -70,
-    z: 41,
+    x: 0,
+    z: 50,
     arenaZone: 'ring',
     uiRole: 'market',
     primaryVenue: true
