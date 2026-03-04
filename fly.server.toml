@@ -4,6 +4,7 @@ primary_region = "sjc"
 
 [env]
   PORT = "4000"
+  CHAIN_RPC_URL = "https://polygon-rpc.com"
 
 [build]
   dockerfile = "Dockerfile.server"
