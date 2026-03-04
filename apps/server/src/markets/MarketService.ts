@@ -268,9 +268,16 @@ export class MarketService {
   }
 
   private async latestBtcUsd(): Promise<{ price: number; updatedAt: number; roundId: string } | null> {
-    if (!CHAINLINK_MARKETS_ENABLED || !CHAINLINK_BTC_USD_FEED) return null;
+    if (!CHAINLINK_MARKETS_ENABLED || !CHAINLINK_BTC_USD_FEED) {
+      log.warn({ CHAINLINK_MARKETS_ENABLED, CHAINLINK_BTC_USD_FEED }, 'chainlink_btc_usd: disabled or feed address missing');
+      return null;
+    }
     const rpcUrl = String(process.env.CHAIN_RPC_URL || '').trim();
-    if (!rpcUrl) return null;
+    if (!rpcUrl) {
+      log.warn('chainlink_btc_usd: CHAIN_RPC_URL is not set');
+      return null;
+    }
+    log.debug({ rpcUrl, feedAddress: CHAINLINK_BTC_USD_FEED }, 'chainlink_btc_usd: fetching');
     if (!this.chainlinkProvider) {
       this.chainlinkProvider = new JsonRpcProvider(rpcUrl);
     }
@@ -294,8 +301,10 @@ export class MarketService {
     const price = Number(formatUnits(answerRaw, decimals));
     const updatedAt = Number(updatedAtRaw) * 1000;
     if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(updatedAt) || updatedAt <= 0) {
+      log.warn({ price, updatedAt, answerRaw: String(answerRaw) }, 'chainlink_btc_usd: invalid price data from feed');
       return null;
     }
+    log.info({ price, updatedAt, roundId: String(roundIdRaw), feedAddress: CHAINLINK_BTC_USD_FEED }, 'chainlink_btc_usd: oracle ok');
     return {
       price,
       updatedAt,
@@ -305,8 +314,14 @@ export class MarketService {
 
   private async ensureChainlinkBtcMarkets(): Promise<void> {
     if (!CHAINLINK_MARKETS_ENABLED) return;
-    const oracle = await this.latestBtcUsd().catch(() => null);
-    if (!oracle) return;
+    const oracle = await this.latestBtcUsd().catch((err) => {
+      log.error({ err: String((err as Error)?.message || err) }, 'chainlink_btc_usd: latestBtcUsd threw');
+      return null;
+    });
+    if (!oracle) {
+      log.warn('ensureChainlinkBtcMarkets: oracle unavailable, skipping market upsert');
+      return;
+    }
     const now = Date.now();
     const activation = await this.activationMap();
     for (const token of CHAINLINK_DURATIONS) {
@@ -353,13 +368,15 @@ export class MarketService {
           }
         });
         const existingActivation = activation.get(marketId);
+        const activeValue = Boolean(existingActivation?.active ?? true);
         await this.db.setMarketActivation({
           marketId,
-          active: Boolean(existingActivation?.active ?? true),
+          active: activeValue,
           maxWager: Number(existingActivation?.maxWager ?? DEFAULT_MAX_WAGER),
           houseSpreadBps: Number(existingActivation?.houseSpreadBps ?? DEFAULT_SPREAD_BPS),
           updatedBy: existingActivation?.updatedBy ?? 'system:chainlink_auto'
         });
+        log.info({ marketId, token, slotStart, slotEnd, active: activeValue, isNew: !existing }, 'ensureChainlinkBtcMarkets: upserted market');
       }
     }
   }
@@ -489,8 +506,14 @@ export class MarketService {
   async refreshMarketOutcomes(): Promise<void> {
     // Proactively ensure chainlink BTC markets exist for current + next round so
     // players never see "no market available" between rounds.
-    await this.ensureChainlinkBtcMarkets();
-    await this.resolveChainlinkMarkets();
+    log.info('refreshMarketOutcomes: start');
+    await this.ensureChainlinkBtcMarkets().catch((err) => {
+      log.error({ err: String((err as Error)?.message || err) }, 'refreshMarketOutcomes: ensureChainlinkBtcMarkets failed');
+    });
+    await this.resolveChainlinkMarkets().catch((err) => {
+      log.error({ err: String((err as Error)?.message || err) }, 'refreshMarketOutcomes: resolveChainlinkMarkets failed');
+    });
+    log.info('refreshMarketOutcomes: done');
   }
 
   async syncFromOracle(limit = 60): Promise<{ ok: boolean; synced: number; error?: string }> {
