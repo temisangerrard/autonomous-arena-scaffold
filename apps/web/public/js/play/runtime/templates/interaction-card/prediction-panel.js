@@ -98,12 +98,10 @@ export function mountPredictionPanel(params) {
   }
 
   function activeBtcMarkets() {
-    const now = Date.now();
     const markets = Array.isArray(state.ui?.prediction?.markets) ? state.ui.prediction.markets : [];
     return markets.filter((entry) => (
       String(entry?.oracleSource || '') === 'chainlink_btc_usd'
       && String(entry?.status || 'open') === 'open'
-      && Number(entry?.closeAt || 0) > now
     ));
   }
 
@@ -322,7 +320,6 @@ export function updatePredictionLive(params) {
   const allMarkets = (Array.isArray(prediction.markets) ? prediction.markets : []).filter((market) => (
     String(market?.oracleSource || '') === 'chainlink_btc_usd'
     && String(market?.status || 'open') === 'open'
-    && Number(market?.closeAt || 0) > Date.now()
   ));
   const railOf = (market) => (String(market?.rail || '').toLowerCase() === 'btc_24h' ? 'btc_24h' : 'btc_5m');
   const railDurationMs = (rail) => (rail === 'btc_24h' ? 24 * 60 * 60_000 : 5 * 60_000);
