@@ -1,14 +1,17 @@
+import type { SnapshotStation } from '@arena/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { handlePredictionStationAction } from './dealerPrediction.js';
 
 describe('handlePredictionStationAction', () => {
-  const station = {
+  const station: SnapshotStation = {
     id: 'station_prediction_1',
     kind: 'dealer_prediction',
     displayName: 'BTC Board',
     x: 0,
-    z: 0
-  } as const;
+    z: 0,
+    yaw: 0,
+    actions: []
+  };
 
   it('returns prediction_error when marketService is null', async () => {
     const sent: object[] = [];
