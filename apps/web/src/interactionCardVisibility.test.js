@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   hideNpcInfoPanel,
   showNpcInfoPanel
-} from '../public/js/play/runtime/templates/interaction-card.js';
+} from '../public/js/play/runtime/templates/interaction-card/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const templatesDir = resolve(__dirname, '../public/js/play/runtime/templates/interaction-card');

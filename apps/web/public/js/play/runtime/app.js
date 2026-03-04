@@ -68,7 +68,7 @@ import { bindInteractionUi } from './interaction-bindings.js';
 import { createArenaConfigRuntime } from './network/arena-config.js';
 import { connectSocketRuntime } from './network/socket-runtime.js';
 import { createRetryScheduler } from './network/retry-scheduler.js';
-import { renderInteractionCardTemplate } from './templates/interaction-card.js';
+import { renderInteractionCardTemplate } from './templates/interaction-card/index.js';
 import { createRuntimeStore } from './store.js';
 import { dealerReasonLabel } from './dealer-reasons.js';
 import { HOST_STATION_PROXY_MAP, createWorldNpcHosts } from './world-npc-hosts.js';
