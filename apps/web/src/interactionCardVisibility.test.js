@@ -1,9 +1,18 @@
 import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   hideNpcInfoPanel,
   showNpcInfoPanel
 } from '../public/js/play/runtime/templates/interaction-card.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const templatesDir = resolve(__dirname, '../public/js/play/runtime/templates/interaction-card');
+
+function readSource(...paths) {
+  return paths.map((p) => readFileSync(resolve(templatesDir, p), 'utf8')).join('\n');
+}
 
 describe('interaction npc panel visibility', () => {
   it('forces display none when hiding after player mode', () => {
@@ -22,7 +31,7 @@ describe('interaction npc panel visibility', () => {
   });
 
   it('gates player card rerenders and sends challenge to rendered target', () => {
-    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    const source = readSource('index.js');
     expect(source.includes('interactionPlayerRenderKey')).toBe(true);
     expect(source.includes('interactionPlayerRenderKey !== playerRenderKey')).toBe(true);
     expect(source.includes('const renderedTargetId = targetId;')).toBe(true);
@@ -30,25 +39,25 @@ describe('interaction npc panel visibility', () => {
   });
 
   it('clears challenge timeout timers after server state advances', () => {
-    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    const source = readSource('index.js');
     expect(source.includes("if (outgoingPending || state.challengeStatus === 'active')")).toBe(true);
-    expect(source.includes("_clearTimer('challenge:send');")).toBe(true);
+    expect(source.includes("clearTimer('challenge:send')")).toBe(true);
     expect(source.includes('if (!state.respondingIncoming)')).toBe(true);
-    expect(source.includes("_clearTimer('challenge:respond');")).toBe(true);
+    expect(source.includes("clearTimer('challenge:respond')")).toBe(true);
   });
 
   it('uses longer dealer timeouts and clears preflight timeout on ready state', () => {
-    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
-    expect(source.includes('const DEALER_PREFLIGHT_TIMEOUT_MS = 20_000;')).toBe(true);
-    expect(source.includes('const DEALER_PICK_TIMEOUT_MS = 45_000;')).toBe(true);
-    expect(source.includes("_startTimer('dealer:preflight', onCoinflipTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);")).toBe(true);
-    expect(source.includes("_startTimer('dealer:pick', onCoinflipTimeout, DEALER_PICK_TIMEOUT_MS);")).toBe(true);
-    expect(source.includes("if (ds !== 'preflight') {")).toBe(true);
-    expect(source.includes("_clearTimer('dealer:preflight');")).toBe(true);
+    const source = readSource('helpers.js', 'coinflip-panel.js');
+    expect(source.includes('DEALER_PREFLIGHT_TIMEOUT_MS = 20_000')).toBe(true);
+    expect(source.includes('DEALER_PICK_TIMEOUT_MS = 45_000')).toBe(true);
+    expect(source.includes("startTimer('dealer:preflight'")).toBe(true);
+    expect(source.includes("startTimer('dealer:pick'")).toBe(true);
+    expect(source.includes("ds !== 'preflight'")).toBe(true);
+    expect(source.includes("clearTimer('dealer:preflight')")).toBe(true);
   });
 
   it('renders the btc board as a btc-only trading rail', () => {
-    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    const source = readSource('prediction-panel.js');
     expect(source.includes('prediction-tabs')).toBe(true);
     expect(source.includes('BTC 5m')).toBe(true);
     expect(source.includes('BTC 24h')).toBe(true);
@@ -67,7 +76,7 @@ describe('interaction npc panel visibility', () => {
   });
 
   it('uses local btc board prechecks before sending prediction orders', () => {
-    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    const source = readSource('prediction-panel.js');
     expect(source.includes('function validatePredictionOrder')).toBe(true);
     expect(source.includes('Insufficient USDC balance for this stake.')).toBe(true);
     expect(source.includes('Selected BTC market is no longer open.')).toBe(true);
@@ -76,7 +85,7 @@ describe('interaction npc panel visibility', () => {
   });
 
   it('surfaces prediction rail timing and availability states', () => {
-    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    const source = readSource('prediction-panel.js');
     expect(source.includes('Closing soon')).toBe(true);
     expect(source.includes('Next round in')).toBe(true);
     expect(source.includes('Available for early commit')).toBe(true);
@@ -88,7 +97,7 @@ describe('interaction npc panel visibility', () => {
   });
 
   it('normalizes coinflip, rps, and dice cards around the same structure', () => {
-    const source = readFileSync(new URL('../public/js/play/runtime/templates/interaction-card.js', import.meta.url), 'utf8');
+    const source = readSource('coinflip-panel.js', 'rps-dice-panel.js');
     expect(source.includes('Coinflip')).toBe(true);
     expect(source.includes('Rock Paper Scissors')).toBe(true);
     expect(source.includes('Dice Duel')).toBe(true);

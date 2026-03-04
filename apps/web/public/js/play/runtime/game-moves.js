@@ -5,22 +5,14 @@ export function sendGameMoveRuntime(params) {
     socket,
     resolveStationIdForSend,
     makePlayerSeed,
-    showToast
+    showToast,
+    pluginRegistry
   } = params;
+
   function moveAllowedForGameType(gameType, candidateMove) {
-    if (gameType === 'rps') {
-      return candidateMove === 'rock' || candidateMove === 'paper' || candidateMove === 'scissors';
-    }
-    if (gameType === 'coinflip') {
-      return candidateMove === 'heads' || candidateMove === 'tails';
-    }
-    if (gameType === 'dice_duel') {
-      return candidateMove === 'd1'
-        || candidateMove === 'd2'
-        || candidateMove === 'd3'
-        || candidateMove === 'd4'
-        || candidateMove === 'd5'
-        || candidateMove === 'd6';
+    const gamePlugin = pluginRegistry?.game?.(gameType);
+    if (gamePlugin?.validateMove) {
+      return gamePlugin.validateMove(candidateMove);
     }
     return false;
   }
