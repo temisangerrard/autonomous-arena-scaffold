@@ -79,7 +79,11 @@ import { coinflipGamePlugin } from '../plugins/games/coinflip.js';
 import { rpsGamePlugin } from '../plugins/games/rps.js';
 import { diceDuelGamePlugin } from '../plugins/games/dice-duel.js';
 import { dealerStationPlugin } from '../plugins/stations/dealer.js';
+import { dealerRpsStationPlugin } from '../plugins/stations/dealer-rps.js';
+import { dealerDiceDuelStationPlugin } from '../plugins/stations/dealer-dice-duel.js';
+import { dealerPredictionStationPlugin } from '../plugins/stations/dealer-prediction.js';
 import { cashierStationPlugin } from '../plugins/stations/cashier.js';
+import { worldInteractableStationPlugin } from '../plugins/stations/world-interactable.js';
 import { dealerOperatorNpcPlugin } from '../plugins/npc-operator.js';
 
 const dom = getDom();
@@ -92,7 +96,11 @@ pluginRegistry.registerGame(coinflipGamePlugin);
 pluginRegistry.registerGame(rpsGamePlugin);
 pluginRegistry.registerGame(diceDuelGamePlugin);
 pluginRegistry.registerStation(dealerStationPlugin);
+pluginRegistry.registerStation(dealerRpsStationPlugin);
+pluginRegistry.registerStation(dealerDiceDuelStationPlugin);
+pluginRegistry.registerStation(dealerPredictionStationPlugin);
 pluginRegistry.registerStation(cashierStationPlugin);
+pluginRegistry.registerStation(worldInteractableStationPlugin);
 pluginRegistry.registerNpc(dealerOperatorNpcPlugin);
 const { buildSessionHeaders, apiJson } = createApiJsonClient();
 
@@ -407,7 +415,8 @@ const sendGameMove = (move) => sendGameMoveRuntime({
   socket,
   resolveStationIdForSend,
   makePlayerSeed,
-  showToast
+  showToast,
+  pluginRegistry
 });
 
 const inputSystem = createInputSystem({
@@ -502,6 +511,7 @@ const update = createRuntimeUpdate({
   setStationStatus,
   renderDealerRevealStatus,
   makePlayerSeed,
+  pluginRegistry,
   getSocket: () => socket,
   renderMobileControlsRuntime,
   computeMobileControlVisibility,

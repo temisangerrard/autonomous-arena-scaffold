@@ -1,5 +1,9 @@
 name: Netlify Deploy
 
+# Deploys static frontend to Netlify.
+# Runs in parallel with deploy-backend.yml (Fly) so that both land
+# together on a main push — preventing frontend/server version drift.
+
 on:
   push:
     branches: [main]

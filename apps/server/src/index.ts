@@ -212,6 +212,13 @@ let nextClient = 1;
 const proximityThreshold = config.proximityThreshold;
 const escrowLockedChallenges = new Set<string>();
 const challengeWalletsById = new Map<string, { challengerWalletId: string; opponentWalletId: string }>();
+// House pool: tracks net USDC (in whole token units) accumulated from losing house-game bets.
+// When a player wins a house game, they are paid from this pool. If the pool is empty the
+// stake is refunded instead — house never takes a loss, just misses a profit on that round.
+// Seeded from HOUSE_POOL_INITIAL env var (default 0); resets to this value on server restart.
+let housePool = Math.max(0, Number(process.env.HOUSE_POOL_INITIAL ?? 0));
+// Challenges where the player won but the pool was dry — escrow was refunded, not resolved.
+const housePoolRefundedChallenges = new Set<string>();
 const agentToHumanChallengeCooldownMs = config.agentToHumanChallengeCooldownMs;
 const recentAgentToHumanChallengeAt = new Map<string, number>();
 let lastPresenceSyncAt = 0;
@@ -518,6 +525,31 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         return;
       }
       const participants = challengeWalletsById.get(challenge.id);
+      const isHouseGame = challenge.opponentId === 'system_house';
+      const playerWon = Boolean(challenge.winnerId) && challenge.winnerId === challenge.challengerId;
+      const houseWon = Boolean(challenge.winnerId) && challenge.winnerId === challenge.opponentId;
+
+      // House pool model: player wins are paid from accumulated losses.
+      // If the pool is dry when a player wins, refund both stakes — house breaks even,
+      // player gets their wager back. House only profits from losing bets.
+      if (isHouseGame && playerWon && housePool < wager) {
+        const refunded = await escrowAdapter.refund(challenge.id);
+        broadcastEscrowEvent({
+          phase: 'refund',
+          challengeId: challenge.id,
+          ok: refunded.ok,
+          reason: refunded.ok ? 'won_refund_only' : refunded.reason,
+          txHash: refunded.txHash
+        });
+        if (refunded.ok) {
+          housePoolRefundedChallenges.add(challenge.id);
+        }
+        escrowLockedChallenges.delete(challenge.id);
+        challengeWalletsById.delete(challenge.id);
+        dispatchChallengeEvent(event);
+        return;
+      }
+
       const winnerWalletId = !challenge.winnerId
         ? null
         : challenge.winnerId === challenge.challengerId
@@ -547,6 +579,14 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         escrowLockedChallenges.delete(challenge.id);
         challengeWalletsById.delete(challenge.id);
       } else {
+        // Update house pool balance on successful settlement
+        if (isHouseGame) {
+          if (houseWon) {
+            housePool += wager; // house takes player's losing stake (net +wager)
+          } else if (playerWon) {
+            housePool = Math.max(0, housePool - wager); // pool covers player payout
+          }
+        }
         broadcastEscrowEvent({
           phase: 'resolve',
           challengeId: challenge.id,
@@ -634,6 +674,7 @@ const stationRouter = createStationRouter({
   challengeEscrowTxById,
   challengeEscrowFailureById,
   escrowLockedChallenges,
+  housePoolRefundedChallenges,
   challengeService,
   escrowAdapter,
   walletIdFor,

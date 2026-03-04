@@ -487,6 +487,9 @@ export class MarketService {
   }
 
   async refreshMarketOutcomes(): Promise<void> {
+    // Proactively ensure chainlink BTC markets exist for current + next round so
+    // players never see "no market available" between rounds.
+    await this.ensureChainlinkBtcMarkets();
     await this.resolveChainlinkMarkets();
   }
 
@@ -790,16 +793,6 @@ export class MarketService {
     quote?: QuoteResult;
     preflight?: { playerOk: boolean; houseOk: boolean };
   }> {
-    const houseWalletId = this.getHouseWalletId();
-    if (!houseWalletId) {
-      return {
-        ok: false,
-        reason: 'wallet_required',
-        reasonCode: 'HOUSE_SIGNER_UNAVAILABLE',
-        reasonText: 'House wallet unavailable.'
-      };
-    }
-
     const quote = await this.quote({
       marketId: params.marketId,
       side: params.side,
@@ -824,36 +817,23 @@ export class MarketService {
       };
     }
 
-    const preflight = await this.escrowAdapter.preflightStake({
-      challengerWalletId: params.walletId,
-      opponentWalletId: houseWalletId,
-      amount: quote.stake
-    });
-    if (!preflight.ok) {
-      return {
-        ok: false,
-        reason: preflight.reason || 'wallet_prepare_failed',
-        reasonCode: preflight.reasonCode,
-        reasonText: preflight.reasonText,
-        preflight: preflight.preflight
-      };
-    }
-
-    const positionId = `mp_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
+    const positionId  = `mp_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
     const escrowBetId = `mkt_${quote.market.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 22)}_${positionId.slice(3)}`;
 
-    const locked = await this.escrowAdapter.lockStake({
-      challengeId: escrowBetId,
-      challengerWalletId: params.walletId,
-      opponentWalletId: houseWalletId,
-      amount: quote.stake
+    // Pool model: only the player stakes — no house capital required
+    const locked = await this.escrowAdapter.lockPoolBet({
+      betId:          escrowBetId,
+      marketId:       quote.market.id,
+      side:           params.side === 'yes',
+      playerWalletId: params.walletId,
+      amount:         quote.stake
     });
     if (!locked.ok) {
       return {
         ok: false,
         reason: locked.reason || 'escrow_lock_failed',
         reasonCode: String((locked.raw as { reasonCode?: unknown } | undefined)?.reasonCode || ''),
-        reasonText: String((locked.raw as { reasonText?: unknown } | undefined)?.reasonText || '') || 'Escrow lock failed.'
+        reasonText: String((locked.raw as { reasonText?: unknown } | undefined)?.reasonText || '') || 'Pool deposit failed.'
       };
     }
 
@@ -945,105 +925,96 @@ export class MarketService {
       if (!market) continue;
       if (market.status !== 'resolved' && market.status !== 'cancelled') continue;
 
+      const isCancelled = market.status === 'cancelled' || !market.outcome;
       const yesPool = rows.filter((p) => p.side === 'yes').reduce((sum, p) => sum + Number(p.stake || 0), 0);
-      const noPool = rows.filter((p) => p.side === 'no').reduce((sum, p) => sum + Number(p.stake || 0), 0);
-      const losingPool = market.outcome === 'yes' ? noPool : market.outcome === 'no' ? yesPool : 0;
-      const winningPool = market.outcome === 'yes' ? yesPool : market.outcome === 'no' ? noPool : 0;
+      const noPool  = rows.filter((p) => p.side === 'no').reduce((sum, p) => sum + Number(p.stake || 0), 0);
 
+      // --- Settle or cancel the round on-chain (once per market) ---
+      if (isCancelled) {
+        const cancelled = await this.escrowAdapter.cancelPoolRound({ marketId });
+        if (!cancelled.ok) {
+          // Skip all positions for this market if round cancel failed
+          failed += rows.length;
+          metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'voided' });
+          continue;
+        }
+      } else {
+        const roundSettled = await this.escrowAdapter.settlePoolRound({
+          marketId,
+          yesWon: market.outcome === 'yes'
+        });
+        if (!roundSettled.ok) {
+          // If round already finalised on-chain (idempotent), continue to payout phase
+          const alreadyDone = String(roundSettled.reason || '').includes('round_already_finalised');
+          if (!alreadyDone) {
+            failed += rows.length;
+            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'settled' });
+            continue;
+          }
+        }
+      }
+
+      // --- Push individual payouts (contract handles parimutuel math + refund logic) ---
       for (const position of rows) {
-        const isCancelled = market.status === 'cancelled' || !market.outcome;
         const isWinner = !isCancelled && position.side === market.outcome;
-        const noOppositeLiquidity = !isCancelled && losingPool <= 0;
-        const insufficientOppositeLiquidity = !isCancelled && losingPool > 0 && losingPool < winningPool;
+        const losingPool  = market.outcome === 'yes' ? noPool : yesPool;
+        const winningPool = market.outcome === 'yes' ? yesPool : noPool;
+
+        const paid = await this.escrowAdapter.payoutPoolBet({ betId: position.escrowBetId });
+        if (!paid.ok) {
+          // Idempotency: bet may already be settled if settlement worker ran twice
+          const alreadySettled = String(paid.reason || '').includes('bet_not_open');
+          if (!alreadySettled) {
+            failed += 1;
+            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: isWinner ? 'won' : 'lost' });
+            continue;
+          }
+        }
+
+        // Derive display values for DB record (contract has the definitive numbers)
         let finalStatus: 'won' | 'lost' | 'voided' = 'voided';
         let settlementReason = 'voided';
         let payout: number | null = null;
 
         if (isCancelled) {
-          const refunded = await this.escrowAdapter.refund(position.escrowBetId);
-          if (!refunded.ok) {
-            failed += 1;
-            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'voided' });
-            continue;
-          }
-          finalStatus = 'voided';
+          finalStatus      = 'voided';
           settlementReason = 'voided';
-          payout = Number(position.stake || 0);
-        } else if (isWinner && noOppositeLiquidity) {
-          // No losing-side liquidity at all — refund the winner's stake
-          const refunded = await this.escrowAdapter.refund(position.escrowBetId);
-          if (!refunded.ok) {
-            failed += 1;
-            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'won' });
-            continue;
-          }
+          payout           = Number(position.stake || 0);
+        } else if (isWinner) {
           finalStatus = 'won';
-          settlementReason = 'won_refund_only';
-          payout = Number(position.stake || 0);
-        } else if (isWinner && insufficientOppositeLiquidity) {
-          // Partial losing-side liquidity — pay out stake + proportional share of the losing pool
-          const winnerWalletId = position.walletId;
-          if (!winnerWalletId) {
-            failed += 1;
-            continue;
+          if (losingPool <= 0) {
+            settlementReason = 'won_refund_only';
+            payout           = Number(position.stake || 0);
+          } else {
+            const stake        = Number(position.stake || 0);
+            const share        = winningPool > 0 ? stake / winningPool : 0;
+            const winnings     = losingPool * share;
+            settlementReason   = losingPool < winningPool ? 'won_partial_liquidity' : 'won_profit';
+            payout             = Number((stake + winnings).toFixed(6));
           }
-          const resolved = await this.escrowAdapter.resolve({
-            challengeId: position.escrowBetId,
-            winnerWalletId
-          });
-          if (!resolved.ok) {
-            failed += 1;
-            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: 'won' });
-            continue;
-          }
-          const stake = Number(position.stake || 0);
-          const share = winningPool > 0 ? stake / winningPool : 0;
-          const partialWinnings = losingPool * share;
-          finalStatus = 'won';
-          settlementReason = 'won_partial_liquidity';
-          payout = Number(resolved.payout ?? (stake + partialWinnings));
         } else {
-          const winnerWalletId = isWinner ? position.walletId : this.getHouseWalletId();
-          if (!winnerWalletId) {
-            failed += 1;
-            continue;
-          }
-          const resolved = await this.escrowAdapter.resolve({
-            challengeId: position.escrowBetId,
-            winnerWalletId
-          });
-          if (!resolved.ok) {
-            failed += 1;
-            metrics.incrementCounter(METRIC_NAMES.marketSettlementFailureTotal, { market: market.id, status: isWinner ? 'won' : 'lost' });
-            continue;
-          }
-          finalStatus = isWinner ? 'won' : 'lost';
-          settlementReason = isWinner ? 'won_profit' : 'lost';
-          payout = isWinner ? Number(resolved.payout ?? this.payoutFor(position.stake, position.price)) : 0;
+          finalStatus      = 'lost';
+          settlementReason = 'lost';
+          payout           = 0;
         }
 
-        await this.db.settleMarketPosition({
-          positionId: position.id,
-          status: finalStatus,
-          payout,
-          settlementReason
-        });
+        await this.db.settleMarketPosition({ positionId: position.id, status: finalStatus, payout, settlementReason });
         settled += 1;
         metrics.incrementCounter(METRIC_NAMES.marketSettlementSuccessTotal, { market: market.id, status: finalStatus });
         await this.trackInteractionEvent({
-          playerId: position.playerId,
+          playerId:  position.playerId,
           stationId: 'settlement_worker',
-          marketId: position.marketId,
-          eventType: finalStatus === 'voided'
+          marketId:  position.marketId,
+          eventType: isCancelled
             ? 'prediction_settlement_voided'
-            : (finalStatus === 'lost'
-                ? 'prediction_settlement_lost'
-                : (settlementReason === 'won_refund_only' ? 'prediction_settlement_won_refund_only' : 'prediction_settlement_won_profit')),
-          side: position.side,
-          stake: position.stake,
-          closeAt: market.closeAt,
-          reason: settlementReason,
-          metaJson: { payout, marketOutcome: market.outcome, yesPool, noPool }
+            : finalStatus === 'lost'
+              ? 'prediction_settlement_lost'
+              : (settlementReason === 'won_refund_only' ? 'prediction_settlement_won_refund_only' : 'prediction_settlement_won_profit'),
+          side:      position.side,
+          stake:     position.stake,
+          closeAt:   market.closeAt,
+          reason:    settlementReason,
+          metaJson:  { payout, marketOutcome: market.outcome, yesPool, noPool }
         });
       }
     }

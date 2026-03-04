@@ -45,6 +45,11 @@ const runtimeOrigin = mustUrl(
   env('ARENA_RUNTIME_ORIGIN', 'https://arena-agent-runtime.fly.dev')
 );
 
+// Build hash — stamped into every deploy so the game client can detect
+// when it's running stale code after a Netlify/Fly update and prompt reload.
+// Uses GITHUB_SHA in CI; falls back to a timestamp for local builds.
+const buildHash = env('GITHUB_SHA', Date.now().toString(36)).slice(0, 12);
+
 // Write runtime-config.js so browser code can discover current origins without hardcoding.
 const runtimeConfig = {
   webApiOrigin,
@@ -56,7 +61,10 @@ const runtimeConfig = {
   presenceBase: '/presence',
   runtimeBase: '/runtime',
   serverHealthPath: '/server/health',
-  gameWsPath: '/ws'
+  gameWsPath: '/ws',
+  // Build identity — client polls /api/health and compares buildHash;
+  // if it changes, the game prompts "New version available — reload?"
+  buildHash
 };
 
 await writeFile(

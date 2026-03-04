@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T14:47:23.884Z",
+  "generatedAt": "2026-03-04T10:18:26.919Z",
   "policyPath": "config/modularity-budgets.json",
   "summary": {
     "errors": 0,
@@ -39,7 +39,7 @@
       "maxGrowthPct": 5,
       "warnAtPct": 97,
       "thresholdLines": 1623,
-      "currentLines": 606,
+      "currentLines": 617,
       "status": "ok",
       "recommendations": []
     },
@@ -65,7 +65,7 @@
       "maxGrowthPct": 20,
       "warnAtPct": 95,
       "thresholdLines": 188,
-      "currentLines": 161,
+      "currentLines": 163,
       "status": "ok",
       "recommendations": []
     },
