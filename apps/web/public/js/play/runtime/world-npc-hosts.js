@@ -5,17 +5,17 @@ import { AVATAR_GROUND_OFFSET, createCharacterGlbPool, createProceduralAvatar } 
 // each station's radius, or players will get "not_near_station" errors.
 //
 // Layout (all within 55 units of centre, clustered around the train):
-//              [KAI — Prediction (0, 50)]
-//  [MARA — Coinflip (-35,18)]  [TRAIN]  [REX — Cashier (38,18)]
-//      [JADE — Coinflip (-22,-22)]  [AXEL — RPS (22,-22)]
-//                 [ZARA — Dice (0,-36)]
+//              [PREDICTION (0, 50)]
+//  [INFO (-35,18)]  [TRAIN]  [CASHIER (38,18)]
+//      [COINFLIP (-22,-22)]  [RPS (22,-22)]
+//                 [DICE (0,-36)]
 const WORLD_SECTION_SPAWNS = [
-  { x: -35, z: 18 }, // Mara (coinflip_b) -> station_world_info_a
-  { x: 38, z: 18 }, // Rex (cashier) -> station_cashier_bank
-  { x: -22, z: -22 }, // Jade (coinflip_a) -> station_dealer_coinflip_a
-  { x: 22, z: -22 }, // Axel (rps_a) -> station_dealer_rps_a
-  { x: 0, z: -36 }, // Zara (dice) -> station_dealer_dice_a
-  { x: 0, z: 50 } // Kai (prediction) -> station_dealer_prediction_a
+  { x: -35, z: 18 }, // guide (local interactable) -> station_world_info_a
+  { x: 38, z: 18 }, // cashier -> station_cashier_bank
+  { x: -22, z: -22 }, // coinflip_a -> station_dealer_coinflip_a
+  { x: 22, z: -22 }, // rps_a -> station_dealer_rps_a
+  { x: 0, z: -36 }, // dice -> station_dealer_dice_a
+  { x: 0, z: 50 } // prediction -> station_dealer_prediction_a
 ];
 
 export const HOST_STATION_PROXY_MAP = {
@@ -68,6 +68,14 @@ function roleDetails(role) {
       use: '"Refresh the market list, pick a question you have a view on, request a quote, then buy YES or NO. Resolved markets settle automatically and winnings land in your wallet."'
     };
   }
+  if (role === 'info') {
+    return {
+      title: 'Super Agent',
+      inspect: '"Everything\'s close — you can see it all from here. South-west is Coinflip, south-east is RPS, straight south is the Dice table. Cashier\'s east of the train. Prediction board is north of everything."',
+      useLabel: 'Show me the layout',
+      use: '"Coinflip south-west, RPS south-east, Dice straight south. Cashier east of the train. Prediction markets north. Walk toward any of them and press E. Every game runs provably fair escrow on Base."'
+    };
+  }
   return {
     title: 'Dealer',
     inspect: '"Step up and set your wager. The house is ready when you are."',
@@ -79,12 +87,12 @@ function roleDetails(role) {
 function hostSpec(index) {
   const base = [
     {
-      hostId: 'npc_host_coinflip_b',
-      role: 'coinflip',
-      displayName: 'Mara',
-      kind: 'dealer_coinflip',
-      interactionTag: 'coinflip_b',
-      actions: ['coinflip_house_start', 'coinflip_house_pick'],
+      hostId: 'npc_host_guide',
+      role: 'guide',
+      displayName: 'Super Agent',
+      kind: 'world_interactable',
+      interactionTag: 'guide_welcome',
+      actions: ['interact_open', 'interact_use'],
       yaw: -0.5,   // faces south-east toward the cluster
       radius: 8
     },

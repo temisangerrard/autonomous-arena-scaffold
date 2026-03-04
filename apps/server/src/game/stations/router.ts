@@ -157,7 +157,8 @@ export function createStationRouter(ctx: StationRouterContext) {
     const playerWalletId = ctx.walletIdFor(playerId);
     const currentHouseWalletId = ctx.getHouseWalletId();
     if (wager > 0) {
-      if (!playerWalletId || !currentHouseWalletId) {
+      // Pool model: only the player wallet is required — house no longer needs to stake
+      if (!playerWalletId) {
         ctx.sendTo(playerId, {
           type: 'station_ui',
           stationId: station.id,
@@ -165,18 +166,16 @@ export function createStationRouter(ctx: StationRouterContext) {
             ok: false,
             state: 'dealer_error',
             reason: 'wallet_required',
-            reasonCode: !playerWalletId ? 'PLAYER_SIGNER_UNAVAILABLE' : 'HOUSE_SIGNER_UNAVAILABLE',
-            reasonText: !playerWalletId
-              ? 'Player wallet not ready for onchain escrow.'
-              : 'House wallet unavailable for onchain escrow.',
-            preflight: { playerOk: Boolean(playerWalletId), houseOk: Boolean(currentHouseWalletId) }
+            reasonCode: 'PLAYER_SIGNER_UNAVAILABLE',
+            reasonText: 'Player wallet not ready for onchain pool deposit.',
+            preflight: { playerOk: false, houseOk: true }
           }
         });
         return;
       }
       const preflight = await ctx.escrowAdapter.preflightStake({
         challengerWalletId: playerWalletId,
-        opponentWalletId: currentHouseWalletId,
+        opponentWalletId: currentHouseWalletId ?? playerWalletId, // house wallet not required for pool
         amount: wager
       });
       if (!preflight.ok) {

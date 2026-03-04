@@ -31,14 +31,14 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
   const stations: SnapshotStation[] = [
     {
       id: 'station_world_info_a',
-      kind: 'dealer_coinflip',
-      displayName: 'Coinflip',
+      kind: 'world_interactable',
+      displayName: 'Info Kiosk',
       x: STATION_POSITIONS.info.x,
       z: STATION_POSITIONS.info.z,
-      yaw: -0.5,
+      yaw: 0.4,
       radius: 8,
-      interactionTag: 'coinflip_b',
-      actions: ['coinflip_house_start', 'coinflip_house_pick'] satisfies StationActionId[]
+      interactionTag: 'info_kiosk',
+      actions: ['interact_open', 'interact_use'] satisfies StationActionId[]
     },
     {
       id: 'station_cashier_bank',

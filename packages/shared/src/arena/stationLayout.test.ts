@@ -23,9 +23,9 @@ describe('arena station layout', () => {
     expect(ringStations).toHaveLength(6);
     for (const station of ringStations) {
       const distanceFromCenter = Math.hypot(station.x, station.z);
-      // All stations sit within a 55-unit horseshoe around the central
-      // train, at least 18 units out so they clear the train obstacle itself.
-      expect(distanceFromCenter).toBeGreaterThanOrEqual(18);
+      // All ring stations sit within a 55-unit horseshoe around the central
+      // train, at least 20 units out so they clear the train obstacle itself.
+      expect(distanceFromCenter).toBeGreaterThanOrEqual(20);
       expect(distanceFromCenter).toBeLessThanOrEqual(55);
     }
 
