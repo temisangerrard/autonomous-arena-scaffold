@@ -123,7 +123,11 @@ export function createRuntimeUpdate(params) {
 
     renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak, topbarBot });
     if (featureDirectioningV2) {
-      renderNextActionLine(state, challengeStatusLine, labelFor);
+      renderNextActionLine(state, challengeStatusLine, labelFor, {
+        pluginRegistry,
+        getUiTargetId,
+        isStation
+      });
     } else if (challengeStatusLine) {
       if (!state.wsConnected) {
         challengeStatusLine.textContent = state.challengeMessage || 'Disconnected from game server. Reconnecting...';
@@ -193,6 +197,8 @@ export function createRuntimeUpdate(params) {
       challengeController,
       describeInteractionPhase,
       state,
+      pluginRegistry,
+      isStation,
       interactionCard: interactionCardElement,
       mobileInteract,
       mobileSend,

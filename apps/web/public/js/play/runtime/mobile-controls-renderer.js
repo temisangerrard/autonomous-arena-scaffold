@@ -52,7 +52,11 @@ export function renderMobileControlsRuntime(params) {
     context,
     interactionOpen: Boolean(state.ui?.interactOpen),
     interactionVisible,
-    dealerState: state.ui?.dealer?.state
+    dealerState: state.ui?.dealer?.state,
+    pluginRegistry: params.pluginRegistry,
+    getUiTargetId,
+    isStation: params.isStation,
+    stations: state.stations
   });
 
   if (mobileInteract) mobileInteract.style.display = visibility.interact ? 'inline-flex' : 'none';

@@ -1,3 +1,5 @@
+import { bootstrapSessionAuth } from './socket-auth.js';
+
 export async function connectSocketRuntime(deps) {
   const {
     resolveWsBaseUrl,
@@ -32,87 +34,21 @@ export async function connectSocketRuntime(deps) {
     localAvatarParts,
     challengeReasonLabel
   } = deps;
+
+  const session = await bootstrapSessionAuth({
+    queryParams,
+    buildSessionHeaders,
+    scheduleConnectRetry,
+    dispatch,
+    state
+  });
+  if (!session) return;
+
+  const { sessionName, sessionWalletId, sessionClientId, sessionWsAuth } = session;
+
   const wsUrlObj = new URL(await resolveWsBaseUrl());
-  // Never forward cookie-session query fallbacks to game WS.
-  // WS auth must use signed wsAuth tokens.
   wsUrlObj.searchParams.delete('sid');
   wsUrlObj.searchParams.delete('arena_sid');
-  let sessionName = '';
-  let sessionWalletId = '';
-  let sessionClientId = '';
-  let sessionWsAuth = '';
-
-  // Do not block boot on auth endpoints during test harness runs.
-  const skipProfileFetch = queryParams.get('test') === '1';
-  if (!skipProfileFetch) {
-    try {
-      const fetchPlayerMe = async (url) => {
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 3500);
-        try {
-          return await fetch(url, {
-            credentials: 'include',
-            cache: 'no-store',
-            headers: buildSessionHeaders(),
-            signal: controller.signal
-          });
-        } finally {
-          window.clearTimeout(timeout);
-        }
-      };
-      let meResponse = await fetchPlayerMe(`/api/player/me?t=${Date.now()}`);
-      if (meResponse.status === 401 || meResponse.status === 403) {
-        // Netlify edge can occasionally serve stale auth responses; revalidate once.
-        const recheck = await fetchPlayerMe(`/api/player/me?optional=1&t=${Date.now()}`);
-        const recheckPayload = await recheck.json().catch(() => ({}));
-        if (recheck.ok && recheckPayload?.user) {
-          meResponse = await fetchPlayerMe(`/api/player/me?t=${Date.now()}&retry=1`);
-        } else {
-          // Avoid forced sign-out loops on transient edge/session glitches.
-          // Keep user on play page and retry connection/auth bootstrap.
-          scheduleConnectRetry('Session check failed. Retrying...');
-          return;
-        }
-      }
-      if (!meResponse.ok) {
-        scheduleConnectRetry(`Auth backend returned ${meResponse.status}.`);
-        return;
-      }
-      const mePayload = await meResponse.json();
-      const profile = mePayload?.profile;
-      if (profile?.displayName) {
-        sessionName = String(profile.displayName);
-      }
-      if (profile?.wallet?.id || profile?.walletId) {
-        sessionWalletId = String(profile.wallet?.id || profile.walletId);
-      }
-      if (profile?.id) {
-        sessionClientId = String(profile.id);
-      }
-      if (mePayload?.wsAuth) {
-        sessionWsAuth = String(mePayload.wsAuth);
-      }
-      if (mePayload?.bot && mePayload.bot.connected === false) {
-        dispatch({
-          type: 'CHALLENGE_STATUS_SET',
-          status: state.challengeStatus || 'none',
-          message: 'Offline bot is currently disconnected. Controls still work, but that bot will not appear until runtime reconnects.'
-        });
-      }
-      // In local/dev environments wsAuth may be intentionally absent when
-      // GAME_WS_AUTH_SECRET is not configured. In that mode the server accepts
-      // cookie-authenticated websocket sessions, so do not hard-fail here.
-    } catch {
-      // If auth is flaky, do not sign the user out; retry.
-      scheduleConnectRetry('Auth backend unavailable.');
-      return;
-    }
-  } else {
-    sessionName = queryParams.get('name') || localStorage.getItem('arena_last_name') || '';
-    sessionWalletId = queryParams.get('walletId') || localStorage.getItem('arena_wallet_id') || '';
-    sessionClientId = queryParams.get('clientId') || localStorage.getItem('arena_client_id') || '';
-    sessionWsAuth = queryParams.get('wsAuth') || '';
-  }
 
   if (sessionName) {
     wsUrlObj.searchParams.set('name', sessionName);

@@ -1,4 +1,4 @@
-import { AVATAR_GROUND_OFFSET, createCharacterGlbPool, createProceduralAvatar } from '../avatars.js';
+import { AVATAR_GROUND_OFFSET, createProceduralAvatar } from '../avatars.js';
 
 // NPC host spawn positions — MUST match server station coordinates in
 // apps/server/src/game/stations/catalog.ts (STATION_POSITIONS) within
@@ -163,10 +163,8 @@ function makeHostStationRecord(spec, spawn, index) {
 }
 
 export function createWorldNpcHosts({ THREE, scene }) {
-  const glbPool = createCharacterGlbPool(THREE);
-  const mixers = [];
-  const visuals = new Map();
   const hostStations = new Map();
+  const hostAvatars = [];
 
   WORLD_SECTION_SPAWNS.forEach((spawn, index) => {
     const spec = hostSpec(index);
@@ -175,60 +173,19 @@ export function createWorldNpcHosts({ THREE, scene }) {
     hostStations.set(station.id, station);
 
     const procedural = createProceduralAvatar(THREE, 'agent', station.displayName, false);
-    // Procedural avatars have their body geometry starting above y=0; use 0 as root.
-    // AVATAR_GROUND_OFFSET (-0.7) is reserved for GLB models whose pivot is at the feet.
     procedural.avatar.position.set(station.x, 0, station.z);
     procedural.avatar.rotation.y = station.yaw || 0;
     scene.add(procedural.avatar);
-
-    const visualState = {
-      id: station.id,
-      current: procedural.avatar,
-      fallback: procedural.avatar,
-      mixer: null
-    };
-    visuals.set(station.id, visualState);
-
-    void glbPool.instantiateById(spec.hostId).then((loaded) => {
-      const active = visuals.get(station.id);
-      if (!active || !loaded) {
-        return;
-      }
-      loaded.anchor.position.set(station.x, AVATAR_GROUND_OFFSET, station.z);
-      loaded.anchor.rotation.y = (station.yaw || 0) + (loaded.yawOffset || 0);
-      scene.remove(active.current);
-      scene.add(loaded.anchor);
-      active.current = loaded.anchor;
-      if (Array.isArray(loaded.gltf.animations) && loaded.gltf.animations.length > 0) {
-        const mixer = new THREE.AnimationMixer(loaded.anchor);
-        const clip =
-          loaded.gltf.animations.find((item) => String(item.name || '').toLowerCase() === 'idle')
-          || loaded.gltf.animations[0]
-          || null;
-        if (clip) {
-          mixer.clipAction(clip).play();
-          active.mixer = mixer;
-          mixers.push(mixer);
-        }
-      }
-    });
+    hostAvatars.push(procedural.avatar);
   });
 
-  const clock = new THREE.Clock();
-
-  function updateHosts() {
-    const dt = clock.getDelta();
-    for (const mixer of mixers) {
-      mixer.update(dt);
-    }
-  }
+  function updateHosts() {}
 
   function dispose() {
-    for (const state of visuals.values()) {
-      scene.remove(state.current);
+    for (const avatar of hostAvatars) {
+      scene.remove(avatar);
     }
-    visuals.clear();
-    mixers.length = 0;
+    hostAvatars.length = 0;
   }
 
   return {
