@@ -715,16 +715,21 @@ export class MarketService {
       this.liquidityByMarketId()
     ]);
     const now = Date.now();
-    return markets
-      .map((m) => {
-        const view = this.marketViewOf(m, activation.get(m.id) || null);
-        const liquidity = liquidityByMarket.get(m.id) || { yes: 0, no: 0 };
-        return {
-          ...view,
-          yesLiquidity: Number(liquidity.yes.toFixed(6)),
-          noLiquidity: Number(liquidity.no.toFixed(6))
-        };
-      })
+    const views = markets.map((m) => {
+      const view = this.marketViewOf(m, activation.get(m.id) || null);
+      const liquidity = liquidityByMarket.get(m.id) || { yes: 0, no: 0 };
+      return { ...view, yesLiquidity: Number(liquidity.yes.toFixed(6)), noLiquidity: Number(liquidity.no.toFixed(6)) };
+    });
+    const chainlinkViews = views.filter((m) => m.oracleSource === 'chainlink_btc_usd');
+    log.info({
+      total: markets.length,
+      activationRecords: activation.size,
+      chainlink: chainlinkViews.length,
+      chainlinkActive: chainlinkViews.filter((m) => m.active).length,
+      chainlinkPlayable: chainlinkViews.filter((m) => m.active && m.status !== 'cancelled' && m.closeAt > now).length,
+      sampleIds: chainlinkViews.slice(0, 4).map((m) => ({ id: m.id, active: m.active, closeAt: m.closeAt, status: m.status }))
+    }, 'listActiveMarketsForPlayer: filter diagnostics');
+    return views
       .filter((m) => m.active)
       .filter((m) => m.oracleSource === 'chainlink_btc_usd')
       .filter((m) => m.status !== 'cancelled')
