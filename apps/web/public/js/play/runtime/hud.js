@@ -15,7 +15,7 @@ export function renderTopHud(state, dom) {
   topbarBot.classList.toggle('manual', approvalMode !== 'auto');
 }
 
-export function renderNextActionLine(state, el, labelFor) {
+export function renderNextActionLine(state, el, labelFor, opts = {}) {
   if (!el) return;
   if (!state.wsConnected) {
     el.textContent = state.challengeMessage || 'Disconnected from game server. Reconnecting...';
@@ -37,6 +37,22 @@ export function renderNextActionLine(state, el, labelFor) {
   if (String(state.escrowApproval?.mode || 'manual') === 'auto') {
     el.textContent = 'Testnet mode: approvals handled automatically for wagered challenges.';
     return;
+  }
+  const { pluginRegistry, getUiTargetId, isStation } = opts;
+  const targetId = typeof getUiTargetId === 'function' ? getUiTargetId() : '';
+  if (targetId && pluginRegistry && isStation && isStation(targetId)) {
+    const station = state.stations instanceof Map ? state.stations.get(targetId) : null;
+    const distance = Number(state.nearbyDistances?.get?.(targetId));
+    if (station && Number.isFinite(distance)) {
+      const plugin = pluginRegistry.station(station.kind);
+      if (plugin?.getDirectioningHints) {
+        const hints = plugin.getDirectioningHints({ station, distance });
+        if (hints?.title) {
+          el.textContent = hints.subtitle ? `${hints.title} — ${hints.subtitle}` : hints.title;
+          return;
+        }
+      }
+    }
   }
   el.textContent = 'Find a nearby target and start a challenge.';
 }
