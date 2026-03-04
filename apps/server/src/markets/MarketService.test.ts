@@ -227,7 +227,7 @@ describe('MarketService settlement liquidity behavior', () => {
     const now = Date.now();
     const settled: Array<{ positionId: string; status: string; payout?: number | null; settlementReason?: string | null }> = [];
     const db = {
-      async listOpenMarketPositions() {
+      async listActiveMarketPositions() {
         return [
           {
             id: 'pos_1',
@@ -267,6 +267,9 @@ describe('MarketService settlement liquidity behavior', () => {
           }
         ];
       },
+      async promoteScheduledMarketPositions() {
+        return;
+      },
       async settleMarketPosition(params: { positionId: string; status: string; payout?: number | null; settlementReason?: string | null }) {
         settled.push(params);
       },
@@ -296,7 +299,7 @@ describe('MarketService settlement liquidity behavior', () => {
     const now = Date.now();
     const settled: Array<{ positionId: string; status: string; payout?: number | null; settlementReason?: string | null }> = [];
     const db = {
-      async listOpenMarketPositions() {
+      async listActiveMarketPositions() {
         return [
           {
             id: 'pos_c_1',
@@ -335,6 +338,9 @@ describe('MarketService settlement liquidity behavior', () => {
             noPrice: 0.5
           }
         ];
+      },
+      async promoteScheduledMarketPositions() {
+        return;
       },
       async settleMarketPosition(params: { positionId: string; status: string; payout?: number | null; settlementReason?: string | null }) {
         settled.push(params);
@@ -669,7 +675,7 @@ describe('MarketService scheduled positions', () => {
       async listMarketActivations() {
         return [];
       },
-      async listOpenMarketPositions() {
+      async listActiveMarketPositions() {
         return [
           {
             id: 'pos_open',

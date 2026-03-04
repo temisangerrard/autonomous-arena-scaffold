@@ -1,5 +1,5 @@
 export type ArenaZone = 'entry' | 'ring';
-export type ArenaUiRole = 'guide' | 'cashier' | 'coinflip' | 'rps' | 'dice' | 'market';
+export type ArenaUiRole = 'cashier' | 'coinflip' | 'rps' | 'dice' | 'market';
 
 export type ArenaStationLayout = {
   id: string;

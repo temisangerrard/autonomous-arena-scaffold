@@ -18,9 +18,9 @@ describe('arena station layout', () => {
     ]);
   });
 
-  it('clusters ring venues around the arena center while keeping guide at entry', () => {
+  it('clusters all venues as ring dealers within 55 units of the arena center', () => {
     const ringStations = ARENA_PUBLIC_STATION_LAYOUT.filter((station) => station.arenaZone === 'ring');
-    expect(ringStations).toHaveLength(5);
+    expect(ringStations).toHaveLength(6);
     for (const station of ringStations) {
       const distanceFromCenter = Math.hypot(station.x, station.z);
       // All ring stations sit within a 55-unit horseshoe around the central
@@ -29,8 +29,8 @@ describe('arena station layout', () => {
       expect(distanceFromCenter).toBeLessThanOrEqual(55);
     }
 
-    const guide = getArenaStationById('station_world_info_a');
-    expect(guide?.arenaZone).toBe('entry');
-    expect(guide?.uiRole).toBe('guide');
+    const coinflipB = getArenaStationById('station_world_info_a');
+    expect(coinflipB?.arenaZone).toBe('ring');
+    expect(coinflipB?.uiRole).toBe('coinflip');
   });
 });

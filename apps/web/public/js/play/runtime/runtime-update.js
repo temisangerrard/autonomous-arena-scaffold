@@ -59,6 +59,7 @@ export function createRuntimeUpdate(params) {
     setStationStatus,
     renderDealerRevealStatus,
     makePlayerSeed,
+    pluginRegistry,
     getSocket,
     renderMobileControlsRuntime,
     computeMobileControlVisibility,
@@ -179,6 +180,7 @@ export function createRuntimeUpdate(params) {
       setStationStatus,
       renderDealerRevealStatus,
       makePlayerSeed,
+      pluginRegistry,
       socket: getSocket()
     });
     renderMobileControlsRuntime({

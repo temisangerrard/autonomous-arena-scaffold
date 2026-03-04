@@ -149,7 +149,7 @@ export function extractBakedNpcStations({ THREE, worldRoot }) {
       source: 'baked',
       hostRole: role,
       kind,
-      displayName: `S${sectionIndex + 1} ${labelForKind(kind)} ${assignedCount + 1}: ${shortName}`,
+      displayName: `S${sectionIndex + 1} ${labelForKind(kind)} ${assignedCount + 1}`,
       x: Number(worldPos.x || 0),
       z: Number(worldPos.z || 0),
       yaw: 0,

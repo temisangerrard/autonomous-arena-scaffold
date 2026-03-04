@@ -487,6 +487,9 @@ export class MarketService {
   }
 
   async refreshMarketOutcomes(): Promise<void> {
+    // Proactively ensure chainlink BTC markets exist for current + next round so
+    // players never see "no market available" between rounds.
+    await this.ensureChainlinkBtcMarkets();
     await this.resolveChainlinkMarkets();
   }
 

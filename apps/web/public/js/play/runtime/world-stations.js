@@ -12,9 +12,12 @@ export function createWorldStationsController(params) {
   let worldRoot = null;
   let npcHosts = null;
 
-  function createDegradedBakedInteraction(baked, nearestHost) {
-    const sectionRole = String(nearestHost?.hostRole || baked.hostRole || 'info');
-    const destination = nearestHost?.displayName || 'nearest live host';
+  function createDegradedBakedInteraction(baked, nearestSameRoleHost, nearestHost) {
+    // Prefer a host that matches the baked station's game type so players are
+    // routed to a coinflip dealer for coinflip kiosks, RPS dealer for RPS kiosks, etc.
+    const routeHost = nearestSameRoleHost || nearestHost;
+    const sectionRole = String(baked.hostRole || routeHost?.hostRole || 'info');
+    const destination = routeHost?.displayName || 'nearest live host';
     return {
       title: `${baked.displayName || 'Section Kiosk'} Terminal`,
       inspect: `This kiosk provides guidance only in this section. Live ${sectionRole} gameplay is available at ${destination}.`,
@@ -52,11 +55,19 @@ export function createWorldStationsController(params) {
     for (const baked of state.bakedStations.values()) {
       let nearestHost = null;
       let nearestDistance = Number.POSITIVE_INFINITY;
+      let nearestSameRoleHost = null;
+      let nearestSameRoleDistance = Number.POSITIVE_INFINITY;
       for (const host of state.hostStations.values()) {
         const dist = Math.hypot(Number(host.x || 0) - Number(baked.x || 0), Number(host.z || 0) - Number(baked.z || 0));
         if (dist < nearestDistance) {
           nearestDistance = dist;
           nearestHost = host;
+        }
+        // Also track the nearest host that matches this baked station's game type
+        const sameRole = String(host.hostRole || '') === String(baked.hostRole || '') && baked.hostRole;
+        if (sameRole && dist < nearestSameRoleDistance) {
+          nearestSameRoleDistance = dist;
+          nearestSameRoleHost = host;
         }
       }
       if (nearestHost) {
@@ -74,7 +85,7 @@ export function createWorldStationsController(params) {
         baked.radius = 8;
         baked.actions = ['interact_open', 'interact_use'];
         baked.interactionTag = `baked_info_${String(baked.hostRole || 'info')}`;
-        baked.localInteraction = createDegradedBakedInteraction(baked, nearestHost);
+        baked.localInteraction = createDegradedBakedInteraction(baked, nearestSameRoleHost, nearestHost);
       } else {
         baked.degradedToLocal = false;
       }

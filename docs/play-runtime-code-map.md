@@ -26,8 +26,16 @@ This file explains what each major `/play` runtime module is responsible for.
   - Owns bounded exponential reconnect scheduling and retry status messaging.
 
 - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card.js`
-  - Renders and binds station + player interaction card UI.
-  - Handles dealer/cashier/prediction/world interaction card branches.
+  - Re-exports from `interaction-card/` module.
+- `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/templates/interaction-card/`
+  - Orchestrates station + player interaction card UI; dispatches to panel modules by station kind.
+  - `index.js`: Entry point, player challenge UI, `resolvePredictionRouteStation`.
+  - `helpers.js`: Button/timer helpers (`setPendingBtn`, `clearPendingBtn`, `flashBtn`, `startTimer`, `clearTimer`).
+  - `coinflip-panel.js`: Coinflip dealer mount + live update.
+  - `rps-dice-panel.js`: RPS and Dice Duel dealer mount + live update.
+  - `prediction-panel.js`: BTC prediction dealer mount + live update.
+  - `cashier-panel.js`: Cashier fund/withdraw/transfer UI.
+  - `world-panel.js`: World interactable + market board kiosk.
 
 - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/game-moves.js`
   - Validates and routes match/dealer move submissions.

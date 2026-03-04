@@ -37,6 +37,7 @@ type StationRouterContext = {
   challengeEscrowTxById: Map<string, { lock?: string; resolve?: string; refund?: string }>;
   challengeEscrowFailureById: Map<string, EscrowFailure>;
   escrowLockedChallenges: Set<string>;
+  housePoolRefundedChallenges: Set<string>;
   challengeService: ChallengeService;
   escrowAdapter: EscrowAdapter;
   walletIdFor: (playerId: string) => string | null;
@@ -399,10 +400,14 @@ export function createStationRouter(ctx: StationRouterContext) {
 
     const finalChallenge = submitted2.challenge ?? ctx.challengeService.getChallenge(created.challenge.id);
     const winnerId = finalChallenge?.winnerId ?? null;
+    // If the pool was dry the player won but received a refund (stake back, no profit).
+    const wasPoolRefund = ctx.housePoolRefundedChallenges.has(created.challenge.id);
     const payoutDelta =
+      wasPoolRefund ? 0 :           // won but refunded — net delta is zero
       winnerId === playerId ? wager :
       winnerId && winnerId !== playerId ? -wager :
       0;
+    const settlementReason = wasPoolRefund ? 'won_refund_only' : undefined;
 
     ctx.sendTo(playerId, {
       type: 'station_ui',
@@ -420,6 +425,7 @@ export function createStationRouter(ctx: StationRouterContext) {
         diceResult: finalChallenge?.diceResult ?? null,
         winnerId,
         payoutDelta,
+        ...(settlementReason ? { settlementReason } : {}),
         commitHash: pending.commitHash,
         method: pending.method,
         escrowTx: ctx.challengeEscrowTxById.get(created.challenge.id) ?? {}
@@ -429,6 +435,7 @@ export function createStationRouter(ctx: StationRouterContext) {
     pendingDealerRounds.delete(playerId);
     ctx.challengeEscrowTxById.delete(created.challenge.id);
     ctx.challengeEscrowFailureById.delete(created.challenge.id);
+    ctx.housePoolRefundedChallenges.delete(created.challenge.id);
   }
 
   async function handleStationInteract(playerId: string, payload: StationInteractMessage): Promise<boolean> {
