@@ -456,6 +456,7 @@ export class EscrowAdapter {
       .filter((entry) => entry.walletId.length > 0);
 
     const player   = statuses.find((entry) => entry.walletId === params.challengerWalletId);
+    const house    = statuses.find((entry) => entry.walletId === params.opponentWalletId);
     const failed   = statuses.find((entry) => !entry.ok) ?? (player && !player.ok ? player : null);
     const reason   = failed?.reason || params.reason || 'wallet_prepare_failed';
     const detail   = reason.toLowerCase();
@@ -503,7 +504,7 @@ export class EscrowAdapter {
       reason,
       reasonCode,
       reasonText,
-      preflight: { playerOk: Boolean(player?.ok), houseOk: true },
+      preflight: { playerOk: Boolean(player?.ok), houseOk: house !== undefined ? Boolean(house.ok) : true },
       raw: params.raw
     };
   }

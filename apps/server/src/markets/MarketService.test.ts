@@ -278,11 +278,11 @@ describe('MarketService settlement liquidity behavior', () => {
       }
     };
     const escrow = {
-      async refund() {
+      async settlePoolRound() {
         return { ok: true };
       },
-      async resolve() {
-        return { ok: false };
+      async payoutPoolBet() {
+        return { ok: true };
       }
     };
     const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
@@ -350,7 +350,10 @@ describe('MarketService settlement liquidity behavior', () => {
       }
     };
     const escrow = {
-      async refund() {
+      async cancelPoolRound() {
+        return { ok: true };
+      },
+      async payoutPoolBet() {
         return { ok: true };
       }
     };
@@ -626,7 +629,7 @@ describe('MarketService scheduled positions', () => {
       async preflightStake() {
         return { ok: true, preflight: { playerOk: true, houseOk: true } };
       },
-      async lockStake() {
+      async lockPoolBet() {
         return { ok: true };
       }
     };
@@ -709,10 +712,10 @@ describe('MarketService scheduled positions', () => {
       }
     };
     const escrow = {
-      async resolve() {
-        return { ok: true, payout: 10 };
+      async settlePoolRound() {
+        return { ok: true };
       },
-      async refund() {
+      async payoutPoolBet() {
         return { ok: true };
       }
     };

@@ -170,11 +170,11 @@ describe('EscrowAdapter onchain error decoding', () => {
     vi.restoreAllMocks();
   });
 
-  type TestEscrowContract = {
+  type TestPoolContract = {
     interface: {
-      parseError: () => { name: string };
+      parseError: (data: string) => { name: string } | null;
     };
-    createBet: () => Promise<never>;
+    deposit: () => Promise<unknown>;
   };
 
   function mockWalletAndPreflightFetches(): void {
@@ -218,11 +218,11 @@ describe('EscrowAdapter onchain error decoding', () => {
   it('maps BetAlreadyExists to BET_ID_ALREADY_USED', async () => {
     mockWalletAndPreflightFetches();
     const adapter = newOnchainAdapter();
-    (adapter as unknown as { escrowContract: TestEscrowContract }).escrowContract = {
+    (adapter as unknown as { poolContract: TestPoolContract }).poolContract = {
       interface: {
         parseError: () => ({ name: 'BetAlreadyExists' })
       },
-      createBet: vi.fn(async () => {
+      deposit: vi.fn(async () => {
         throw { data: '0xdeadbeef' };
       })
     };
@@ -237,17 +237,17 @@ describe('EscrowAdapter onchain error decoding', () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('bet_already_exists');
     expect(result.raw?.reasonCode).toBe('BET_ID_ALREADY_USED');
-    expect(result.raw?.reasonText).toBe('Existing escrow bet ID detected. Retry after refresh.');
+    expect(result.raw?.reasonText).toBe('Bet ID already in use. Retry after refresh.');
   });
 
   it('maps InvalidAmount to INVALID_WAGER', async () => {
     mockWalletAndPreflightFetches();
     const adapter = newOnchainAdapter();
-    (adapter as unknown as { escrowContract: TestEscrowContract }).escrowContract = {
+    (adapter as unknown as { poolContract: TestPoolContract }).poolContract = {
       interface: {
         parseError: () => ({ name: 'InvalidAmount' })
       },
-      createBet: vi.fn(async () => {
+      deposit: vi.fn(async () => {
         throw { data: '0xdeadbeef' };
       })
     };
@@ -267,13 +267,13 @@ describe('EscrowAdapter onchain error decoding', () => {
   it('keeps unknown errors on fallback reason code', async () => {
     mockWalletAndPreflightFetches();
     const adapter = newOnchainAdapter();
-    (adapter as unknown as { escrowContract: TestEscrowContract }).escrowContract = {
+    (adapter as unknown as { poolContract: TestPoolContract }).poolContract = {
       interface: {
         parseError: () => {
           throw new Error('unknown custom error');
         }
       },
-      createBet: vi.fn(async () => {
+      deposit: vi.fn(async () => {
         throw { shortMessage: 'execution reverted (unknown custom error)' };
       })
     };
