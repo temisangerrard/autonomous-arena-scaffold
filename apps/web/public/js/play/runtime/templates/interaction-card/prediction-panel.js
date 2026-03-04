@@ -6,6 +6,85 @@ import {
   clearTimer
 } from './helpers.js';
 
+function normalizePredictionRail(rail) {
+  return String(rail || 'btc_5m') === 'btc_24h' ? 'btc_24h' : 'btc_5m';
+}
+
+function normalizePredictionRound(round) {
+  return String(round || 'current') === 'next' ? 'next' : 'current';
+}
+
+function marketRail(entry) {
+  return String(entry?.rail || '').toLowerCase() === 'btc_24h' ? 'btc_24h' : 'btc_5m';
+}
+
+function isPlayableBtcMarket(entry) {
+  return (
+    String(entry?.oracleSource || '') === 'chainlink_btc_usd'
+    && String(entry?.status || 'open') === 'open'
+  );
+}
+
+function sortPlayableMarkets(a, b) {
+  const aRound = String(a?.roundType || 'current') === 'next' ? 1 : 0;
+  const bRound = String(b?.roundType || 'current') === 'next' ? 1 : 0;
+  return aRound - bRound || Number(a?.slotStart || a?.closeAt || 0) - Number(b?.slotStart || b?.closeAt || 0);
+}
+
+function playableMarketsForRail(markets, rail) {
+  return markets
+    .filter((entry) => marketRail(entry) === rail)
+    .sort(sortPlayableMarkets);
+}
+
+export function resolvePlayablePredictionSelection(params) {
+  const requestedRail = normalizePredictionRail(params?.selectedRail);
+  const requestedRound = normalizePredictionRound(params?.selectedRound);
+  const requestedMarketId = String(params?.selectedMarketId || '');
+  const allMarkets = (Array.isArray(params?.markets) ? params.markets : [])
+    .filter(isPlayableBtcMarket);
+  const railMarkets = playableMarketsForRail(allMarkets, requestedRail);
+  const selectedFromRequestedRail = (
+    railMarkets.find((entry) => String(entry.marketId || '') === requestedMarketId && normalizePredictionRound(entry?.roundType) === requestedRound)
+    || railMarkets.find((entry) => normalizePredictionRound(entry?.roundType) === requestedRound)
+    || railMarkets[0]
+    || null
+  );
+  if (selectedFromRequestedRail) {
+    return {
+      markets: allMarkets,
+      railMarkets,
+      selected: selectedFromRequestedRail,
+      selectedRail: requestedRail,
+      selectedRound: requestedRound,
+      selectedMarketId: String(selectedFromRequestedRail.marketId || '')
+    };
+  }
+
+  const fallback = (
+    allMarkets.find((entry) => normalizePredictionRound(entry?.roundType) === requestedRound)
+    || allMarkets.find((entry) => normalizePredictionRound(entry?.roundType) === 'current')
+    || allMarkets[0]
+    || null
+  );
+  const fallbackRail = normalizePredictionRail(fallback?.rail);
+  const fallbackRound = normalizePredictionRound(fallback?.roundType);
+  const fallbackRailMarkets = playableMarketsForRail(allMarkets, fallbackRail);
+  const selectedFallback = (
+    fallbackRailMarkets.find((entry) => String(entry.marketId || '') === String(fallback?.marketId || ''))
+    || fallbackRailMarkets[0]
+    || null
+  );
+  return {
+    markets: allMarkets,
+    railMarkets: fallbackRailMarkets,
+    selected: selectedFallback,
+    selectedRail: fallback ? fallbackRail : requestedRail,
+    selectedRound: fallback ? fallbackRound : requestedRound,
+    selectedMarketId: String(selectedFallback?.marketId || '')
+  };
+}
+
 export function mountPredictionPanel(params) {
   const {
     state,
@@ -65,13 +144,8 @@ export function mountPredictionPanel(params) {
   const marketStatusEl = document.getElementById('prediction-market-status');
   const pricesEl = document.getElementById('prediction-market-prices');
 
-  function marketRail(entry) {
-    return String(entry?.rail || '').toLowerCase() === 'btc_24h' ? 'btc_24h' : 'btc_5m';
-  }
-
   function selectedRail() {
-    const rail = String(state.ui?.prediction?.selectedRail || 'btc_5m');
-    return rail === 'btc_24h' ? 'btc_24h' : 'btc_5m';
+    return normalizePredictionRail(state.ui?.prediction?.selectedRail);
   }
 
   function setSelectedRail(rail) {
@@ -82,8 +156,7 @@ export function mountPredictionPanel(params) {
   }
 
   function selectedRound() {
-    const round = String(state.ui?.prediction?.selectedRound || 'current');
-    return round === 'next' ? 'next' : 'current';
+    return normalizePredictionRound(state.ui?.prediction?.selectedRound);
   }
 
   function setSelectedRound(round) {
@@ -99,20 +172,11 @@ export function mountPredictionPanel(params) {
 
   function activeBtcMarkets() {
     const markets = Array.isArray(state.ui?.prediction?.markets) ? state.ui.prediction.markets : [];
-    return markets.filter((entry) => (
-      String(entry?.oracleSource || '') === 'chainlink_btc_usd'
-      && String(entry?.status || 'open') === 'open'
-    ));
+    return markets.filter(isPlayableBtcMarket);
   }
 
   function activeBtcMarketsForRail(rail = selectedRail()) {
-    return activeBtcMarkets()
-      .filter((entry) => marketRail(entry) === rail)
-      .sort((a, b) => {
-        const aRound = String(a?.roundType || 'current') === 'next' ? 1 : 0;
-        const bRound = String(b?.roundType || 'current') === 'next' ? 1 : 0;
-        return aRound - bRound || Number(a?.slotStart || a?.closeAt || 0) - Number(b?.slotStart || b?.closeAt || 0);
-      });
+    return playableMarketsForRail(activeBtcMarkets(), rail);
   }
 
   function railDurationMs(rail = selectedRail()) {
@@ -143,15 +207,16 @@ export function mountPredictionPanel(params) {
   }
 
   function selectedBtcMarket() {
-    const btcMarkets = activeBtcMarketsForRail();
-    const round = selectedRound();
-    const selectedMarketId = String(state.ui?.prediction?.selectedMarketId || '');
-    return (
-      btcMarkets.find((entry) => String(entry.marketId || '') === selectedMarketId && String(entry?.roundType || 'current') === round)
-      || btcMarkets.find((entry) => String(entry?.roundType || 'current') === round)
-      || btcMarkets[0]
-      || null
-    );
+    const selection = resolvePlayablePredictionSelection({
+      markets: activeBtcMarkets(),
+      selectedRail: selectedRail(),
+      selectedRound: selectedRound(),
+      selectedMarketId: state.ui?.prediction?.selectedMarketId
+    });
+    state.ui.prediction.selectedRail = selection.selectedRail;
+    state.ui.prediction.selectedRound = selection.selectedRound;
+    state.ui.prediction.selectedMarketId = selection.selectedMarketId;
+    return selection.selected;
   }
 
   function renderPredictionRail() {
@@ -298,6 +363,7 @@ export function mountPredictionPanel(params) {
   renderPredictionRail();
 
   if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
+    state.ui.prediction.state = 'requesting';
     dispatchPrediction('prediction_markets_open');
   } else if (!selectedBtcMarket()) {
     state.ui.prediction.lastReason = 'prediction_no_live_btc_market';
@@ -317,11 +383,16 @@ export function updatePredictionLive(params) {
   } = params;
 
   const prediction = state.ui.prediction || {};
-  const allMarkets = (Array.isArray(prediction.markets) ? prediction.markets : []).filter((market) => (
-    String(market?.oracleSource || '') === 'chainlink_btc_usd'
-    && String(market?.status || 'open') === 'open'
-  ));
-  const railOf = (market) => (String(market?.rail || '').toLowerCase() === 'btc_24h' ? 'btc_24h' : 'btc_5m');
+  const selection = resolvePlayablePredictionSelection({
+    markets: prediction.markets,
+    selectedRail: prediction.selectedRail,
+    selectedRound: prediction.selectedRound,
+    selectedMarketId: prediction.selectedMarketId
+  });
+  prediction.selectedRail = selection.selectedRail;
+  prediction.selectedRound = selection.selectedRound;
+  prediction.selectedMarketId = selection.selectedMarketId;
+  const allMarkets = selection.markets;
   const railDurationMs = (rail) => (rail === 'btc_24h' ? 24 * 60 * 60_000 : 5 * 60_000);
   const railQuestion = (rail) => (
     rail === 'btc_24h'
@@ -344,22 +415,10 @@ export function updatePredictionLive(params) {
     return 'Live';
   };
 
-  const selectedRail = String(prediction.selectedRail || 'btc_5m') === 'btc_24h' ? 'btc_24h' : 'btc_5m';
-  const selectedRound = String(prediction.selectedRound || 'current') === 'next' ? 'next' : 'current';
-  const markets = allMarkets
-    .filter((market) => railOf(market) === selectedRail)
-    .sort((a, b) => {
-      const aRound = String(a?.roundType || 'current') === 'next' ? 1 : 0;
-      const bRound = String(b?.roundType || 'current') === 'next' ? 1 : 0;
-      return aRound - bRound || Number(a?.slotStart || a?.closeAt || 0) - Number(b?.slotStart || b?.closeAt || 0);
-    });
-  const selectedMarketId = String(prediction.selectedMarketId || '');
-  const selected = (
-    markets.find((market) => String(market.marketId || '') === selectedMarketId && String(market?.roundType || 'current') === selectedRound)
-    || markets.find((market) => String(market?.roundType || 'current') === selectedRound)
-    || markets[0]
-    || null
-  );
+  const selectedRail = selection.selectedRail;
+  const selectedRound = selection.selectedRound;
+  const markets = selection.railMarkets;
+  const selected = selection.selected;
 
   const previewEl = document.getElementById('prediction-market-preview');
   const statusEl = document.getElementById('prediction-status');
@@ -426,7 +485,9 @@ export function updatePredictionLive(params) {
     const mode = String(prediction.state || 'idle');
     const _btcYes = document.getElementById('prediction-btc-yes');
     const _btcNo = document.getElementById('prediction-btc-no');
-    if (mode === 'pending') {
+    if (mode === 'requesting') {
+      setStationStatus(statusEl, 'Loading markets…', 'neutral');
+    } else if (mode === 'pending') {
       setStationStatus(statusEl, 'Submitting order...', 'neutral');
     } else if (mode === 'error') {
       clearTimer('prediction:buy');

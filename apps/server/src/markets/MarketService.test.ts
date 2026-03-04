@@ -214,6 +214,7 @@ describe('MarketService active market guarantee', () => {
       markets: []
     });
     const service = new MarketService(serviceState.db as never, {} as never, {} as never, () => 'house_wallet');
+    (service as any).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
 
