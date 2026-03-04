@@ -1736,6 +1736,10 @@ void (async () => {
     .catch((error) => {
       log.warn({ error: String((error as Error)?.message || error) }, 'prediction market sync bootstrap failed');
     });
+  await marketService.refreshMarketOutcomes()
+    .catch((err) => {
+      log.warn({ err }, 'chainlink market bootstrap failed');
+    });
   setInterval(() => {
     void marketService.syncAndAutoActivate()
       .then((result) => {
