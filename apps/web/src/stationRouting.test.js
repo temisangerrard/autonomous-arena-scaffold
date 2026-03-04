@@ -48,7 +48,9 @@ describe('station routing proxy resolution', () => {
     expect(resolved).toBe('station_dealer_coinflip_a');
   });
 
-  it('disables baked dealer interaction when nearest live station is too far', () => {
+  it('routes a baked kiosk to the nearest matching server station regardless of distance', () => {
+    // Distance cap was intentionally removed so outer-world kiosks always proxy to a live
+    // dealer rather than degrading to a local-only interaction card.
     const state = makeState();
     state.serverStations.set('station_dealer_coinflip_a', {
       id: 'station_dealer_coinflip_a',
@@ -71,11 +73,12 @@ describe('station routing proxy resolution', () => {
     routing.mergeStations();
 
     const baked = state.bakedStations.get('station_baked_coinflip_far');
-    expect(Boolean(baked?.proxyEligible)).toBe(false);
-    expect(baked?.proxyStationId || '').toBe('');
+    // Even far-away kiosks are eligible once any matching server station exists
+    expect(Boolean(baked?.proxyEligible)).toBe(true);
+    expect(baked?.proxyStationId).toBe('station_dealer_coinflip_a');
 
     const resolved = routing.resolveStationIdForSend('station_baked_coinflip_far');
-    expect(resolved).toBe('');
+    expect(resolved).toBe('station_dealer_coinflip_a');
   });
 
   it('keeps explicit proxy mapping for host stations', () => {
