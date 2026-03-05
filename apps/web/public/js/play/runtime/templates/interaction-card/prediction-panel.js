@@ -346,10 +346,10 @@ export function mountPredictionPanel(params) {
 
     startTimer('prediction:buy', () => {
       clearPredictionBuyBtns();
-      state.ui.prediction.state = 'error';
-      state.ui.prediction.lastReason = 'prediction_timeout';
-      state.ui.prediction.lastReasonText = 'No server response. Try again.';
-      showToast('No server response. Try again.', 'error');
+      state.ui.prediction.state = 'pending';
+      state.ui.prediction.lastReason = 'prediction_processing';
+      state.ui.prediction.lastReasonText = 'Still confirming order…';
+      showToast('Still confirming order…', 'warning');
     }, 7000);
 
     const action = side === 'yes' ? 'prediction_market_buy_yes' : 'prediction_market_buy_no';

@@ -86,6 +86,14 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('No next BTC market is available right now.')).toBe(true);
   });
 
+  it('keeps prediction orders in processing state when server response is delayed', () => {
+    const source = readSource('prediction-panel.js');
+    expect(source.includes("startTimer('prediction:buy'")).toBe(true);
+    expect(source.includes("state.ui.prediction.lastReason = 'prediction_processing'")).toBe(true);
+    expect(source.includes("state.ui.prediction.lastReasonText = 'Still confirming order…'")).toBe(true);
+    expect(source.includes("showToast('Still confirming order…', 'warning')")).toBe(true);
+  });
+
   it('surfaces prediction rail timing and availability states', () => {
     const source = readSource('prediction-panel.js');
     expect(source.includes('Closing soon')).toBe(true);

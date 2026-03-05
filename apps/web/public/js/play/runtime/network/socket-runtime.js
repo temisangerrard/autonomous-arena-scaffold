@@ -265,6 +265,8 @@ export async function connectSocketRuntime(deps) {
         prediction.state = 'filled';
         prediction.selectedMarketId = String(view.marketId || prediction.selectedMarketId || '');
         prediction.positionStatus = String(view.positionStatus || '');
+        prediction.lastReason = '';
+        prediction.lastReasonText = '';
         if (Array.isArray(view.positions) && view.positions.length > 0) {
           prediction.positions = view.positions;
         }
