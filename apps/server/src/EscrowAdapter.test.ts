@@ -215,6 +215,61 @@ describe('EscrowAdapter onchain error decoding', () => {
     });
   }
 
+  it('surfaces mapped preflight reasonCode/reasonText for lockPoolBet failures', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/wallets/onchain/prepare-escrow')) {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({
+            ok: false,
+            reason: 'mainnet_gas_required:mainnet:user_funded',
+            results: [
+              {
+                walletId: 'wallet_player',
+                ok: false,
+                reason: 'mainnet_gas_required:mainnet:user_funded',
+                allowance: '100',
+                balance: '100',
+                nativeBalanceEth: '0.000000003'
+              }
+            ]
+          })
+        };
+      }
+      if (url.endsWith('/wallets')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            wallets: [
+              { id: 'wallet_player', address: '0x1111111111111111111111111111111111111111' }
+            ]
+          })
+        };
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ ok: false })
+      };
+    }) as unknown as typeof fetch);
+
+    const adapter = newOnchainAdapter();
+    const result = await adapter.lockPoolBet({
+      betId: 'mkt_test_preflight',
+      marketId: 'cl_btc_5m_1',
+      side: true,
+      playerWalletId: 'wallet_player',
+      amount: 1
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('mainnet_gas_required');
+    expect(result.raw?.reasonCode).toBe('PLAYER_GAS_LOW');
+    expect(String(result.raw?.reasonText || '')).toContain('Fund Base ETH');
+  });
+
   it('maps BetAlreadyExists to BET_ID_ALREADY_USED', async () => {
     mockWalletAndPreflightFetches();
     const adapter = newOnchainAdapter();

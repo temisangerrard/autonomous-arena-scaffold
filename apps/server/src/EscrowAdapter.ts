@@ -185,7 +185,17 @@ export class EscrowAdapter {
 
     const preflight = await this.prepareWalletsForOnchainEscrow([params.playerWalletId], params.amount);
     if (!preflight.ok) {
-      return { ok: false, reason: preflight.reason ?? 'wallet_prepare_failed', raw: preflight.raw };
+      const mapped = this.mapPrepareFailure({
+        challengerWalletId: params.playerWalletId,
+        opponentWalletId: params.playerWalletId,
+        reason: preflight.reason,
+        raw: preflight.raw
+      });
+      return {
+        ok: false,
+        reason: mapped.reason ?? 'wallet_prepare_failed',
+        raw: { reasonCode: mapped.reasonCode, reasonText: mapped.reasonText, ...(mapped.raw ?? {}) }
+      };
     }
 
     try {
@@ -487,10 +497,10 @@ export class EscrowAdapter {
       reasonText = isPlayer
         ? `Approval required for ${params.challengerWalletId} before pool deposit.`
         : 'Approval required before pool deposit.';
-    } else if (detail.includes('gas_topup_failed') || detail.includes('insufficient funds')) {
+    } else if (detail.includes('mainnet_gas_required') || detail.includes('user_funded') || detail.includes('gas_topup_failed') || detail.includes('insufficient funds')) {
       reasonCode = isPlayer ? 'PLAYER_GAS_LOW' : 'HOUSE_GAS_LOW';
       reasonText = isPlayer
-        ? `Insufficient ETH gas for ${params.challengerWalletId} approval.`
+        ? `This mainnet trade needs ETH gas in ${params.challengerWalletId}. Fund Base ETH and retry.`
         : 'House sponsor wallet is out of ETH gas.';
     } else if (detail.includes('insufficient_token_balance') || detail.includes('mint_failed')) {
       reasonCode = isPlayer ? 'PLAYER_BALANCE_LOW' : 'HOUSE_BALANCE_LOW';
