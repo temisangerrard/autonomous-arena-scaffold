@@ -112,6 +112,30 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       return;
     }
     const chainId = await provider.getNetwork().then((net) => Number(net.chainId ?? NaN)).catch(() => null);
+    const isBaseMainnet = Number(chainId) === 8453;
+    if (!isBaseMainnet) {
+      sendJson(res, {
+        ok: true,
+        configured: false,
+        reason: 'non_base_chain_for_admin',
+        chainId: Number.isFinite(Number(chainId)) ? Number(chainId) : null,
+        tokenAddress: deps.onchainTokenAddress || null,
+        escrowAddress: deps.onchainEscrowAddress || null,
+        tokenDecimals: deps.onchainTokenDecimals,
+        tokenSymbol: null,
+        sponsorAddress: deps.gasFunderSigner()?.address || null,
+        sponsorBalanceEth: null,
+        escrowBalanceEth: null,
+        wallets: [...deps.wallets.values()].map((wallet) => ({
+          id: wallet.id,
+          ownerProfileId: wallet.ownerProfileId,
+          address: wallet.address,
+          runtimeBalance: wallet.balance,
+          onchain: null
+        }))
+      });
+      return;
+    }
     const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, deps.onchainProvider as any) as Contract & { symbol: () => Promise<string> };
     const sponsorAddress = deps.gasFunderSigner()?.address || null;
     const [tokenSymbol, sponsorBalanceEth, escrowBalanceEth, walletOnchain] = await Promise.all([

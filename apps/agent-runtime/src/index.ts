@@ -1288,7 +1288,23 @@ async function onchainWalletSummary(wallet: WalletRecord): Promise<{
     };
   }
   const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  const isBaseMainnet = Number(chainId) === 8453;
   const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
+  if (!isBaseMainnet) {
+    return {
+      mode: 'onchain',
+      chainId,
+      tokenAddress: onchainTokenAddress,
+      tokenSymbol: null,
+      tokenDecimals: onchainTokenDecimals,
+      address: wallet.address,
+      nativeBalanceEth: null,
+      tokenBalance: null,
+      synced: false,
+      gasSponsored: gasPolicy.sponsorshipEnabled,
+      gasPolicyReason: 'non_base_chain'
+    };
+  }
   const token = new Contract(onchainTokenAddress, ERC20_ABI, onchainProvider) as Erc20Api;
   const [native, tokenBalanceRaw, symbol] = await Promise.all([
     onchainProvider.getBalance(wallet.address),

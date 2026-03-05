@@ -242,6 +242,12 @@
             </div>
             <div class="view-section">
               <h4 class="section-label">Controlled Wallets</h4>
+              <div class="treasury-wallets-toolbar">
+                <label class="checkbox-label">
+                  <input id="treasury-show-system-wallets" type="checkbox">
+                  Show system wallets
+                </label>
+              </div>
               <div class="table-wrap">
                 <table>
                   <thead>
@@ -312,7 +318,7 @@
               <div class="panel-card">
                 <h4>Risk Notes</h4>
                 <p class="muted" style="margin:0;font-size:13px;">
-                  Sponsor failures usually come from low sponsor ETH, stale RPC config, or missing wallet prep before placing wagers.
+                  Sponsor failures usually come from low sponsor ETH, stale Base RPC config, or missing wallet prep before placing wagers.
                 </p>
                 <p class="muted" style="margin:8px 0 0;font-size:13px;">
                   Use this section for audit/recovery while wallet and contract operations stay in their dedicated tabs.
@@ -350,6 +356,10 @@
         <!-- USERS -->
         <article class="view" id="view-users">
           <div class="view-header"><h3>Users</h3></div>
+          <div class="users-toolbar">
+            <div class="kpi-inline"><span class="label">Total</span><span id="users-count-total" class="value">0</span></div>
+            <div class="kpi-inline"><span class="label">Online</span><span id="users-count-online" class="value">0</span></div>
+          </div>
           <div class="table-wrap">
             <table>
               <thead>

@@ -1,6 +1,7 @@
 const state = {
   activeView: 'overview',
   activeTreasuryMode: 'wallet',
+  showSystemWallets: false,
   bootstrap: null,
   incidents: [],
   runbooks: [],
@@ -103,9 +104,12 @@ const el = {
   onchainPrepareAmount: document.getElementById('onchain-prepare-amount'),
   onchainPrepareRun: document.getElementById('onchain-prepare-run'),
   onchainPrepareResult: document.getElementById('onchain-prepare-result'),
+  treasuryShowSystemWallets: document.getElementById('treasury-show-system-wallets'),
   treasuryWalletsBody: document.getElementById('treasury-wallets-body'),
 
   usersBody: document.getElementById('users-body'),
+  usersCountTotal: document.getElementById('users-count-total'),
+  usersCountOnline: document.getElementById('users-count-online'),
 
   marketsSyncStatus: document.getElementById('markets-sync-status'),
   marketsSyncBtn: document.getElementById('markets-sync-btn'),
@@ -164,6 +168,23 @@ function formatMarketDate(ms) {
   const n = Number(ms || 0);
   if (!Number.isFinite(n) || n <= 0) return '-';
   return new Date(n).toLocaleString();
+}
+
+function formatAdminChainLabel(chainIdLike) {
+  const chainId = Number(chainIdLike ?? NaN);
+  if (chainId === 8453) return '8453 (Base Mainnet)';
+  if (Number.isFinite(chainId) && chainId > 0) return `${chainId} (unsupported for admin balances)`;
+  return '-';
+}
+
+function isPrimaryWalletEntry(entry) {
+  const walletId = String(entry?.id || '').trim().toLowerCase();
+  const owner = String(entry?.ownerProfileId || '').trim().toLowerCase();
+  if (!walletId && !owner) return false;
+  if (owner.startsWith('profile_')) return true;
+  if (owner.includes('house') || walletId.includes('house')) return true;
+  if (owner.includes('agent_1') || owner.includes('admin') || walletId.includes('treasury')) return true;
+  return false;
 }
 
 function normalizedMarketFilter(entry) {
@@ -591,7 +612,7 @@ function renderBots() {
 
 function renderTreasuryAssets() {
   const onchain = state.latestOnchainStatus || {};
-  if (el.onchainChainId) el.onchainChainId.value = String(onchain.chainId ?? '-');
+  if (el.onchainChainId) el.onchainChainId.value = formatAdminChainLabel(onchain.chainId);
   if (el.onchainTokenAddress) el.onchainTokenAddress.value = String(onchain.tokenAddress || '-');
   if (el.onchainEscrowAddress) el.onchainEscrowAddress.value = String(onchain.escrowAddress || '-');
   if (el.onchainEscrowEth) el.onchainEscrowEth.value = onchain.escrowBalanceEth == null ? '-' : `${Number(onchain.escrowBalanceEth).toFixed(6)} ETH`;
@@ -600,7 +621,8 @@ function renderTreasuryAssets() {
 
   if (!el.treasuryWalletsBody) return;
   el.treasuryWalletsBody.innerHTML = '';
-  const rows = Array.isArray(onchain.wallets) ? onchain.wallets : [];
+  const allRows = Array.isArray(onchain.wallets) ? onchain.wallets : [];
+  const rows = state.showSystemWallets ? allRows : allRows.filter((entry) => isPrimaryWalletEntry(entry));
   for (const entry of rows) {
     const tr = document.createElement('tr');
     const walletId = String(entry?.id || '');
@@ -617,7 +639,7 @@ function renderTreasuryAssets() {
       <td>${Number.isFinite(tokenBal) ? tokenBal.toFixed(2) : '-'}</td>
       <td>${Number.isFinite(ethBal) ? ethBal.toFixed(6) : '-'}</td>
       <td>
-        <div class="btn-row" style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div class="btn-row">
           <button data-action="treasury-fund" data-wallet-id="${escapeHtml(walletId)}">+10</button>
           <button data-action="treasury-withdraw" data-wallet-id="${escapeHtml(walletId)}">-5</button>
           <button data-action="treasury-export" data-wallet-id="${escapeHtml(walletId)}" data-profile-id="${escapeHtml(owner)}">Export</button>
@@ -631,8 +653,12 @@ function renderTreasuryAssets() {
 function renderUsers() {
   if (!el.usersBody) return;
   el.usersBody.innerHTML = '';
+  const users = state.latestUsers || [];
+  const onlineCount = users.filter((entry) => Boolean(entry?.online)).length;
+  if (el.usersCountTotal) el.usersCountTotal.textContent = String(users.length);
+  if (el.usersCountOnline) el.usersCountOnline.textContent = String(onlineCount);
 
-  for (const user of state.latestUsers || []) {
+  for (const user of users) {
     const online = Boolean(user.online);
     const dotClass = online ? 'online' : 'offline';
     const walletBalance = Number(user.walletBalance ?? 0);
@@ -644,8 +670,8 @@ function renderUsers() {
     tr.dataset.profileId = String(user.profileId || '');
     tr.innerHTML = `
       <td>
-        <div style="font-weight:650;">${escapeHtml(user.displayName || user.username || user.profileId)}</div>
-        <div class="mono" style="color:var(--text-secondary);">
+        <div class="users-name">${escapeHtml(user.displayName || user.username || user.profileId)}</div>
+        <div class="mono users-meta">
           @${escapeHtml(user.username || '-')}<br>
           profile ${escapeHtml(user.profileId)}<br>
           player ${escapeHtml(user.playerId)}
@@ -653,35 +679,35 @@ function renderUsers() {
       </td>
       <td>
         <div class="mono">${escapeHtml(user.subjectHash || '-')}</div>
-        <div class="mono" style="color:var(--text-secondary); margin-top:6px;">${escapeHtml(user.continuitySource || 'unknown')}</div>
+        <div class="mono users-meta">${escapeHtml(user.continuitySource || 'unknown')}</div>
       </td>
       <td>
         <div class="mono">${escapeHtml(user.walletId || '-')}</div>
-        <div class="mono" style="color:var(--text-secondary);">${escapeHtml(user.walletAddress || '')}</div>
-        <div style="margin-top:6px;"><span class="badge">Balance ${walletBalance.toFixed(2)}</span></div>
+        <div class="mono users-meta">${escapeHtml(user.walletAddress || '')}</div>
+        <div class="users-balance"><span class="badge">Balance ${walletBalance.toFixed(2)}</span></div>
       </td>
       <td>
         <div class="badge"><span class="dot ${dotClass}"></span>${online ? 'Online' : 'Offline'}</div>
-        <div class="mono" style="color:var(--text-secondary); margin-top:6px;">
+        <div class="mono users-meta">
           ${escapeHtml(user.serverId || '-')}<br>
           ${escapeHtml(coords)}<br>
           last ${escapeHtml(formatLastSeen(user.lastSeen))}
         </div>
       </td>
       <td>
-        <div class="btn-row" style="display:grid; gap:6px;">
+        <div class="users-ops">
           <select data-field="teleport-section">
             <option value="">Teleport: section…</option>
             <option value="0">S1</option><option value="1">S2</option><option value="2">S3</option><option value="3">S4</option>
             <option value="4">S5</option><option value="5">S6</option><option value="6">S7</option><option value="7">S8</option>
           </select>
           <button type="button" data-action="teleport-section">Teleport To Section</button>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div class="users-pair-grid">
             <input data-field="teleport-x" type="number" step="0.5" placeholder="x">
             <input data-field="teleport-z" type="number" step="0.5" placeholder="z">
           </div>
           <button type="button" data-action="teleport-coords">Teleport To Coords</button>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div class="users-pair-grid">
             <select data-field="wallet-direction"><option value="credit">Credit</option><option value="debit">Debit</option></select>
             <input data-field="wallet-amount" type="number" min="0" step="0.01" placeholder="amount">
           </div>
@@ -1399,6 +1425,10 @@ function bindEvents() {
       renderTreasuryModes();
     });
   }
+  el.treasuryShowSystemWallets?.addEventListener('change', () => {
+    state.showSystemWallets = Boolean(el.treasuryShowSystemWallets?.checked);
+    renderTreasuryAssets();
+  });
 
   el.refreshBtn?.addEventListener('click', async () => {
     setStatus('Refreshing workspace...');

@@ -172,6 +172,61 @@ pre {
 .treasury-panel.is-active {
   display: block;
 }
+.treasury-wallets-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.checkbox-label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font: 500 11px/1 'JetBrains Mono', monospace;
+  color: var(--muted);
+}
+.users-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.kpi-inline {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 252, 244, 0.9);
+  display: inline-flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.kpi-inline .label {
+  font: 500 10px/1 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.kpi-inline .value {
+  font: 600 14px/1 'JetBrains Mono', monospace;
+  color: var(--ink);
+}
+.users-name {
+  font-weight: 650;
+}
+.users-meta {
+  color: var(--muted);
+  margin-top: 6px;
+}
+.users-balance {
+  margin-top: 6px;
+}
+.users-ops {
+  display: grid;
+  gap: 6px;
+}
+.users-pair-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips button { font-size: 12px; }
