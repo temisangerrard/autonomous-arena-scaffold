@@ -1,189 +1,112 @@
 # Autonomous Agent Betting Arena
 
-3D browser arena with server-authoritative movement, autonomous agents, challenge lifecycle, and a super-agent control layer.
+Multiplayer betting game on Base where players can play directly or fund bots that play on their behalf.
 
-## Included Now
-- Web 3D world using train-station GLB assets
-- Server-authoritative movement + proximity events + challenge state machine
-- Agent runtime with deterministic bots and super-agent delegation
-- Agent control UI for bot tuning, OpenRouter key, and wallet policy skills
-- Challenge telemetry feed and operational landing page
+## What This App Is (Current)
 
-## Entry Points
-- Welcome/Auth: `http://localhost:3000/welcome`
-- Landing hub: `http://localhost:3000/home`
-- Player dashboard: `http://localhost:3000/dashboard`
-- Play: `http://localhost:3000/play?world=train_world`
-- Viewer: `http://localhost:3000/viewer?world=train_world`
-- Admin operations panel: `http://localhost:3000/admin`
+This product is a live, multiplayer arena with:
+- Real-time shared world presence
+- Onchain escrow settlement on Base
+- Human-vs-house and human-vs-human challenge flow
+- Bot runtime with wallet-aware autonomous play
+- Admin operations for wallets, contracts, markets, and treasury
 
-## Quick Start
-1. Install dependencies:
+## Games In The World (5 Live Experiences)
+
+1. Coinflip (house game)
+2. Rock Paper Scissors (house game)
+3. Dice Duel (house game)
+4. BTC Prediction Rail: 5-minute round
+5. BTC Prediction Rail: 24-hour round
+
+Notes:
+- House games are settled through the pari-mutuel pool model.
+- Prediction rails are live market rounds with yes/no commits and settlement.
+
+## Multiplayer + Bot Model
+
+Players can:
+- Sign up and play arena games directly
+- Fund their wallet and place wagers themselves
+- Fund bot wallets so autonomous bots can keep playing in the arena
+
+System supports:
+- Shared presence across instances
+- Distributed challenge ownership/locking
+- Server-authoritative game state and settlement flow
+
+## Onchain + Treasury Model
+
+- Network: Base mainnet
+- Escrow contract: `PariMutuelPool`
+- Player losses in house games feed contract `houseTreasury`
+- Player wins are paid from losing side liquidity and/or `houseTreasury`
+- Admin treasury now supports:
+  - Controlled wallet operations
+  - Internal transfers
+  - External withdraw (paste recipient)
+  - House treasury visibility and withdrawal
+
+## Admin/Ops Capabilities
+
+Admin panel includes:
+- Arena ops (profiles, bots, balances)
+- Treasury ops (wallets + contract ops + risk/recovery)
+- Markets lab and market controls
+- User operations (presence, wallet adjust, teleport, logout)
+- Runtime health/incident/activity visibility
+
+## Architecture
+
+- `apps/web`: web app + auth/session + admin proxy
+- `apps/server`: multiplayer game server + challenge lifecycle + settlement orchestration
+- `apps/agent-runtime`: bot runtime + wallet ops + onchain wallet helpers
+- `apps/contracts`: onchain escrow contracts (pari-mutuel pool + related scripts)
+- `packages/shared`: shared types/contracts
+
+## Local Run
+
+Install:
 ```bash
 npm install
 ```
-2. Build all workspaces:
+
+Build:
 ```bash
 npm run build
 ```
-3. Run services in separate terminals:
+
+Run services:
 ```bash
 npm run -w @arena/server start
 npm run -w @arena/agent-runtime start
 npm run -w @arena/web start
 ```
 
-Or start local dev watchers together:
+Or dev-up:
 ```bash
 npm run dev:up
 ```
 
-## Verify
-```bash
-curl http://localhost:3000/health
-curl http://localhost:4000/health
-curl http://localhost:4100/health
-curl http://localhost:4100/status
-curl http://localhost:4000/presence
-curl http://localhost:3000/api/chief/v1/heartbeat
-```
+## Main Local Entry Points
 
-Chief APIs:
-- `GET /api/chief/v1/heartbeat`
-- `POST /api/chief/v1/chat`
-- Compatibility shim: `POST /api/player/chief/chat`
+- Welcome/Auth: `http://localhost:3000/welcome`
+- Dashboard: `http://localhost:3000/dashboard`
+- Play: `http://localhost:3000/play?world=train_world`
+- Viewer: `http://localhost:3000/viewer?world=train_world`
+- Admin: `http://localhost:3000/admin`
+- Markets Lab: `http://localhost:3000/admin/markets-lab`
 
-## Backend Auto-Deploy (GitHub Actions -> Cloud Run)
+## Product Direction (What It Will Be)
 
-This repo now includes `.github/workflows/deploy-backend.yml` to auto-deploy:
-- `arena-server`
-- `arena-runtime`
+End goal:
+- Persistent competitive arena where users choose manual play, bot play, or hybrid play
+- Wallet-native economy where player and bot bankrolls are first-class
+- Fully transparent onchain settlement and treasury controls
+- Operator-grade admin tooling for risk, treasury, and live market/game management
 
-Triggers:
-- push to `main` (only when backend-related paths change)
-- manual run via `workflow_dispatch`
+## Related Docs
 
-Required GitHub repository secret:
-- `GCP_SA_KEY`: JSON key for a GCP service account in project `junipalee`
-
-Required IAM permissions for that service account:
-- `roles/cloudbuild.builds.editor`
-- `roles/run.admin`
-- `roles/iam.serviceAccountUser`
-- `roles/storage.admin` (for Cloud Build source/upload access)
-
-## Environment
-Copy `.env.example` to `.env` and fill values as needed.
-
-Google sign-in scaffold expects:
-- `GOOGLE_CLIENT_ID` in web env (OAuth Web Client ID)
-- `GOOGLE_NONCE_SECRET` in web env (required in production unless `GAME_WS_AUTH_SECRET` or `INTERNAL_SERVICE_TOKEN` is set)
-
-Local scaffold admin auth (dev-only escape hatch):
-- set `LOCAL_AUTH_ENABLED=true` only in local dev
-- set `ADMIN_USERNAME` + `ADMIN_PASSWORD` (do not ship defaults)
-- set `ADMIN_EMAILS` to promote Google accounts to admin
-- production requires `ADMIN_EMAILS` (startup fails if empty)
-
-WebSocket auth:
-- set `GAME_WS_AUTH_SECRET` on web + server + agent-runtime to require signed `/ws` connections
-
-Web auth/session persistence:
-- file-backed state at `WEB_STATE_FILE` (default `output/web-auth-state.json`, resolved from web process cwd)
-- keeps active sessions/identities through local restarts in scaffold mode
-- pass-through `clientId` is now used on `/play` websocket to keep the same in-world player id across reconnects
-
-Runtime continuity persistence:
-- set `RUNTIME_DATABASE_URL` (or `DATABASE_URL`) for canonical subject/profile/wallet continuity in Postgres
-- if Postgres is unavailable, runtime falls back to `AGENT_RUNTIME_STATE_FILE`
-
-Owner wallet floor behavior:
-- `USER_WALLET_AUTO_FLOOR=true` applies the owner wallet floor in development
-- in production the default is `false` (balances change only from explicit tx/onchain sync unless you force-enable it)
-
-Multiplayer shared presence (new scaffold):
-- set `REDIS_URL` to enable Redis-backed presence sync across server instances
-- each server advertises `SERVER_INSTANCE_ID`
-- server keeps player state in redis keys with ttl `PRESENCE_TTL_SECONDS`
-- inspect with `GET /presence` (all players) or `GET /presence?id=<playerId>`
-
-Distributed challenge scaffold (new):
-- challenge ownership tracked per challenge id in redis (`ownerServerId`)
-- per-player distributed challenge locks prevent duplicate cross-node matches
-- direct player event routing via redis bus for non-local participants
-- cross-node response/move forwarding to owner node (challenge command bus)
-- orphaned open challenges are auto-expired if owner server heartbeat disappears beyond `CHALLENGE_ORPHAN_GRACE_MS`
-- distributed recent feed available via `GET /challenges/recent`
-
-Gameplay modularization flags:
-- `PLAY_RUNTIME_V2_ENABLED=true` enables the new `/play` runtime entrypoint modules.
-- `STATION_PLUGIN_ROUTER_ENABLED=true` enables server station handler routing modules.
-- `DICE_DUEL_ENABLED=true` enables Dice Duel dealer stations and challenge type.
-- `MOBILE_LAYOUT_V2_ENABLED=true` enables expanded fixed right-side mobile action cluster.
-- `DIRECTIONING_V2_ENABLED=true` enables improved next-action directioning line.
-
-Auth UX is available on all pages via top-right shell nav (Home/Profile/Play/Viewer/Agents + login/logout).
-
-## Wallet Skills
-Installed via:
-```bash
-npx skills add coinbase/agentic-wallet-skills --all -y
-```
-
-Installed skill ids include:
-- `authenticate-wallet`
-- `fund`
-- `send-usdc`
-- `trade`
-- `query-onchain-data`
-- `pay-for-service`
-- `monetize-service`
-- `search-for-service`
-- `x402`
-- `solidity-contract-design` (super-agent capability tag)
-- `solidity-security-review` (super-agent capability tag)
-- `evm-gas-optimization` (super-agent capability tag)
-
-Super-agent ETH skills source:
-- `https://ethskills.com/` (synced into runtime cache via `/super-agent/ethskills/sync`)
-
-## Onchain Escrow
-Escrow is onchain-only.
-
-Required env vars:
-- `ESCROW_EXECUTION_MODE=onchain`
-- `CHAIN_RPC_URL`
-- `ESCROW_RESOLVER_PRIVATE_KEY`
-- `ESCROW_CONTRACT_ADDRESS`
-- `ESCROW_TOKEN_ADDRESS`
-- `ESCROW_TOKEN_DECIMALS` (default `6`)
-- `INTERNAL_SERVICE_TOKEN` (same value on server + agent-runtime)
-
-Server escrow adapter calls `BettingEscrow` contract methods:
-- `createBet`
-- `resolveBet`
-- `refundBet`
-
-Automatic wallet prep in onchain mode:
-- server calls runtime `/wallets/onchain/prepare-escrow` before each `createBet`
-- runtime signs `approve(escrow, amount)` from each participant wallet
-- if token exposes open `mint` (e.g. local `MockUSDC`), runtime mints missing balance before approve
-- optional gas auto-topup in runtime:
-  - `GAS_FUNDING_PRIVATE_KEY` (funder key)
-  - `MIN_WALLET_GAS_ETH` (default `0.0003`)
-  - `WALLET_GAS_TOPUP_ETH` (default `0.001`)
-
-## Important Asset Note
-The large `.glb` world files are intentionally ignored in git to keep repo size/pushes safe.
-To run full visuals after clone, place these files in the repo root:
-- `train_station_mega_world.glb`
-- `train_station_plaza_expanded.glb`
-- `train_station_world.glb`
-
-## Current Status + Scope
-See:
-- `ONE_PAGER.md` for full delivery/status
-- `progress.md` for running implementation notes
-
-## Suggested First Git Commit
-`feat: bootstrap autonomous arena with super-agent runtime, challenges, and ops control UI`
+- `progress.md`: implementation and deployment history
+- `ONE_PAGER.md`: product summary
+- `docs/`: supporting design and platform docs
