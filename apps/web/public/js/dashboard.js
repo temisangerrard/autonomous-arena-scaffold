@@ -401,8 +401,25 @@ function renderEscrowHistory(entries, errorMessage = '') {
     return;
   }
   const sourceEntries = Array.isArray(entries) ? entries : [];
+  const terminalEscrowChallenges = new Set(
+    sourceEntries
+      .filter((entry) => String(entry?.kind || '') === 'escrow')
+      .filter((entry) => {
+        const phase = String(entry?.phase || '').toLowerCase();
+        return phase === 'resolve' || phase === 'refund';
+      })
+      .map((entry) => String(entry?.challengeId || '').trim())
+      .filter(Boolean)
+  );
   const visibleEntries = sourceEntries.filter((entry) => {
     const kind = String(entry?.kind || 'escrow');
+    if (kind === 'escrow') {
+      const phase = String(entry?.phase || '').toLowerCase();
+      const challengeId = String(entry?.challengeId || '').trim();
+      if (phase === 'lock' && challengeId && terminalEscrowChallenges.has(challengeId)) {
+        return false;
+      }
+    }
     if (activityFilter === 'onchain') return kind === 'onchain_transfer';
     if (activityFilter === 'escrow') return kind === 'escrow';
     if (activityFilter === 'markets') return kind === 'market_position';
@@ -506,14 +523,66 @@ function renderEscrowHistory(entries, errorMessage = '') {
       }
 
       const outcome = String(entry?.outcome || entry?.phase || 'unknown');
+      const phase = String(entry?.phase || '').toLowerCase();
+      const gameType = String(entry?.gameType || '').toLowerCase();
       const challengeId = String(entry?.challengeId || 'n/a');
       const amountValue = Number(entry?.amount ?? entry?.wager ?? 0);
       const amount = Number.isFinite(amountValue) ? amountValue.toFixed(2) : '0.00';
       const payoutValue = Number(entry?.payout ?? 0);
       const payout = Number.isFinite(payoutValue) ? payoutValue.toFixed(2) : '0.00';
       const ok = entry?.ok === false ? 'failed' : 'ok';
-      const signClass = payoutValue > 0 ? 'positive' : 'negative';
-      const emoji = payoutValue > 0 ? '↗' : '↘';
+      const winnerId = String(entry?.winnerId || '').trim();
+      const challengerId = String(entry?.challengerId || '').trim();
+      const opponentId = String(entry?.opponentId || '').trim();
+      const reason = String(entry?.reason || '').trim();
+      const authProfileId = String(playerCtx?.profile?.id || '').trim();
+      const playerSeat = challengerId === authProfileId
+        ? 'challenger'
+        : opponentId === authProfileId
+          ? 'opponent'
+          : opponentId === 'system_house'
+            ? 'challenger'
+            : 'unknown';
+      let resultLabel = '';
+      let signClass = '';
+      let emoji = '•';
+      if (phase === 'resolve') {
+        if (!winnerId) {
+          resultLabel = 'Game PUSH';
+          emoji = '⏸';
+        } else {
+          const playerWon = (playerSeat === 'challenger' && winnerId === challengerId)
+            || (playerSeat === 'opponent' && winnerId === opponentId);
+          if (playerWon) {
+            resultLabel = 'Game WIN';
+            signClass = 'positive';
+            emoji = '↗';
+          } else {
+            resultLabel = 'Game LOSS';
+            signClass = 'negative';
+            emoji = '↘';
+          }
+        }
+      } else if (phase === 'refund') {
+        if (ok === 'ok' && reason === 'won_refund_only') {
+          resultLabel = 'Game WIN (Refund Only)';
+          signClass = 'positive';
+          emoji = '↗';
+        } else if (ok === 'ok') {
+          resultLabel = 'Refunded';
+          emoji = '↩';
+        } else {
+          resultLabel = 'Refund Failed';
+          signClass = 'negative';
+          emoji = '⚠';
+        }
+      } else if (phase === 'lock') {
+        resultLabel = 'Stake Locked';
+        emoji = '⏳';
+      } else {
+        resultLabel = outcome || 'Escrow update';
+      }
+      const gameLabel = gameType ? gameType.toUpperCase() : 'GAME';
       const source = String(entry?.activitySource || '');
       const sourceLabel =
         source === 'house_station'
@@ -528,11 +597,13 @@ function renderEscrowHistory(entries, errorMessage = '') {
         .map((item) => String(item).replace(/^agent_/, '@'))
         .join(' vs ');
       const sourceLine = botBits ? `${sourceLabel} · ${botBits}` : sourceLabel;
+      const detailBits = [`wager ${amount}`];
+      if (reason) detailBits.push(reason);
       return `<div class="tx-item">
         <div class="tx-icon ${ok === 'ok' ? 'in' : 'out'}">${emoji}</div>
         <div class="tx-details">
-          <div class="tx-type">${escapeHtml(outcome)} · ${escapeHtml(challengeId)}</div>
-          <div class="tx-time">${escapeHtml(at)} · ${txRef} · ${escapeHtml(sourceLine)}</div>
+          <div class="tx-type">${escapeHtml(`${gameLabel} ${resultLabel}`)} · ${escapeHtml(challengeId)}</div>
+          <div class="tx-time">${escapeHtml(at)} · ${txRef} · ${escapeHtml(sourceLine)}${detailBits.length ? ` · ${escapeHtml(detailBits.join(' · '))}` : ''}</div>
         </div>
         <div class="tx-amount ${signClass}">${escapeHtml(amount)} / ${escapeHtml(payout)}</div>
       </div>`;

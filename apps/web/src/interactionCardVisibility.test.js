@@ -116,4 +116,14 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Pick the face you think will land.')).toBe(true);
     expect(source.includes('Start Round')).toBe(true);
   });
+
+  it('renders escrow activity with explicit game outcomes and suppresses redundant lock rows', () => {
+    const source = readFileSync(resolve(__dirname, '../public/js/dashboard.js'), 'utf8');
+    expect(source.includes('const terminalEscrowChallenges = new Set(')).toBe(true);
+    expect(source.includes('Game WIN')).toBe(true);
+    expect(source.includes('Game LOSS')).toBe(true);
+    expect(source.includes('Game PUSH')).toBe(true);
+    expect(source.includes('Refund Failed')).toBe(true);
+    expect(source.includes('Stake Locked')).toBe(true);
+  });
 });
