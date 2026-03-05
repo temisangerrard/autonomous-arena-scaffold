@@ -509,7 +509,7 @@ export class Database {
       const result = await this.pool.query(
         `SELECT id, slug, question, category, close_at, resolve_at, status, oracle_source, oracle_market_id, outcome, yes_price, no_price, raw_json
          FROM markets
-         ORDER BY close_at ASC
+         ORDER BY close_at DESC
          LIMIT $1`,
         [safeLimit]
       );
