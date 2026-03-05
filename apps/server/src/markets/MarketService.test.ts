@@ -150,7 +150,7 @@ describe('MarketService active market guarantee', () => {
           closeAt: now + 60 * 60_000,
           resolveAt: null,
           status: 'open',
-          oracleSource: 'polymarket_gamma',
+          oracleSource: 'legacy_oracle',
           oracleMarketId: 'poly_active_elsewhere',
           outcome: null,
           yesPrice: 0.5,
@@ -213,7 +213,7 @@ describe('MarketService active market guarantee', () => {
     const serviceState = buildServiceState({
       markets: []
     });
-    const service = new MarketService(serviceState.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(serviceState.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
@@ -260,7 +260,7 @@ describe('MarketService settlement liquidity behavior', () => {
             closeAt: now - 1000,
             resolveAt: now,
             status: 'resolved' as const,
-            oracleSource: 'polymarket_gamma',
+            oracleSource: 'legacy_oracle',
             oracleMarketId: 'm_1',
             outcome: 'yes' as const,
             yesPrice: 0.5,
@@ -332,7 +332,7 @@ describe('MarketService settlement liquidity behavior', () => {
             closeAt: now - 1000,
             resolveAt: now,
             status: 'cancelled' as const,
-            oracleSource: 'polymarket_gamma',
+            oracleSource: 'legacy_oracle',
             oracleMarketId: 'm_c_1',
             outcome: null,
             yesPrice: 0.5,
@@ -410,7 +410,7 @@ describe('MarketService Chainlink markets', () => {
           closeAt: now + 40 * 24 * 60 * 60_000,
           resolveAt: null,
           status: 'open',
-          oracleSource: 'polymarket_gamma',
+          oracleSource: 'legacy_oracle',
           oracleMarketId: 'poly_other_1',
           outcome: null,
           yesPrice: 0.5,

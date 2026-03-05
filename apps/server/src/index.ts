@@ -1717,24 +1717,14 @@ void (async () => {
   await presenceStore.connect(config.redisUrl);
   await distributedChallengeStore.connect(config.redisUrl);
   await distributedBus.connect(config.redisUrl);
-  await marketService.syncAndAutoActivate()
-    .then((result) => {
-      log.info({ synced: result.synced, activated: result.activated, ok: result.ok }, 'prediction market sync bootstrap');
-    })
-    .catch((error) => {
-      log.warn({ error: String((error as Error)?.message || error) }, 'prediction market sync bootstrap failed');
-    });
   await marketService.refreshMarketOutcomes()
     .catch((err) => {
       log.warn({ err }, 'chainlink market bootstrap failed');
     });
   setInterval(() => {
-    void marketService.syncAndAutoActivate()
-      .then((result) => {
-        log.info({ synced: result.synced, activated: result.activated, ok: result.ok }, 'prediction market sync tick');
-      })
-      .catch((error) => {
-        log.warn({ error: String((error as Error)?.message || error) }, 'prediction market sync tick failed');
+    void marketService.refreshMarketOutcomes()
+      .catch((err) => {
+        log.warn({ err }, 'chainlink market refresh tick failed');
       });
   }, Math.max(30_000, Number(process.env.PREDICTION_ORACLE_SYNC_MS || 60_000))).unref();
   settlementWorker.start();

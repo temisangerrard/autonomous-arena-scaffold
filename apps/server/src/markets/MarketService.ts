@@ -59,7 +59,7 @@ const PREFERRED_MARKET_TERMS = (process.env.PREDICTION_PREFERRED_MARKET_TERMS ||
   .map((token) => token.trim().toLowerCase())
   .filter(Boolean);
 const CHAINLINK_MARKETS_ENABLED = String(process.env.PREDICTION_CHAINLINK_ENABLED ?? 'true').toLowerCase() !== 'false';
-const CHAINLINK_BTC_USD_FEED = (process.env.CHAINLINK_BTC_USD_FEED || '0x64c911996D3c6aC71f9b455B1E8E7266BcfBB23').trim(); // Base mainnet BTC/USD
+const CHAINLINK_BTC_USD_FEED = (process.env.CHAINLINK_BTC_USD_FEED || '0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F').trim(); // Base mainnet BTC/USD
 const CHAINLINK_DURATIONS = (process.env.PREDICTION_CHAINLINK_DURATIONS || '5m,24h')
   .split(',')
   .map((token) => token.trim().toLowerCase())
