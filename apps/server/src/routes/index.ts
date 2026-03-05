@@ -431,14 +431,48 @@ export function createRouter(ctx: RouteContext) {
         return;
       }
       const playerId = String(parsed.searchParams.get('playerId') || '').trim();
+      const walletId = String(parsed.searchParams.get('walletId') || '').trim();
       const limit = Math.max(1, Math.min(300, Number(parsed.searchParams.get('limit') ?? 60)));
-      if (!playerId) {
+      if (!playerId && !walletId) {
         res.statusCode = 400;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({ ok: false, reason: 'player_id_required' }));
+        res.end(JSON.stringify({ ok: false, reason: 'player_or_wallet_required' }));
         return;
       }
-      const recent = await ctx.database.getEscrowEventsForPlayer({ playerId, limit });
+      let recent: Array<Record<string, unknown>> = [];
+      if (playerId) {
+        recent = await ctx.database.getEscrowEventsForPlayer({ playerId, limit }) as unknown as Array<Record<string, unknown>>;
+      } else if (walletId) {
+        const candidatePlayerIds = new Set<string>();
+        const presence = await ctx.presenceStore.list().catch(() => []);
+        for (const entry of presence) {
+          if (String(entry?.walletId || '').trim() === walletId && String(entry?.playerId || '').trim()) {
+            candidatePlayerIds.add(String(entry.playerId).trim());
+          }
+        }
+        if (typeof (ctx.database as unknown as { listWalletMarketPositions?: unknown }).listWalletMarketPositions === 'function') {
+          const positions = await (ctx.database as unknown as {
+            listWalletMarketPositions: (walletId: string, limit?: number) => Promise<Array<{ playerId?: string }>>;
+          }).listWalletMarketPositions(walletId, limit).catch(() => []);
+          for (const position of positions) {
+            const pid = String(position?.playerId || '').trim();
+            if (pid) candidatePlayerIds.add(pid);
+          }
+        }
+        const merged: Array<Record<string, unknown>> = [];
+        for (const pid of candidatePlayerIds) {
+          const events = await ctx.database.getEscrowEventsForPlayer({ playerId: pid, limit }) as unknown as Array<Record<string, unknown>>;
+          merged.push(...events);
+        }
+        const deduped = new Map<string, Record<string, unknown>>();
+        for (const event of merged) {
+          const key = `${String(event.challengeId || '')}:${String(event.phase || '')}:${Number(event.at || 0)}`;
+          if (!deduped.has(key)) deduped.set(key, event);
+        }
+        recent = [...deduped.values()]
+          .sort((a, b) => Number(b.at || 0) - Number(a.at || 0))
+          .slice(0, limit);
+      }
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ ok: true, recent }));
       return;

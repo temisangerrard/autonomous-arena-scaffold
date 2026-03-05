@@ -2054,13 +2054,16 @@ const server = createServer(async (req, res) => {
       recent: []
     };
     try {
-      const [escrow, onchain] = await Promise.all([
-        serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
-          `/escrow/events/recent?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
-        ).catch(() => ({ recent: [] })),
-        runtimeGet<OnchainActivityPayload>(`/wallets/${encodeURIComponent(auth.identity.walletId)}/activity?limit=${limit}`)
-          .catch(() => onchainFallback)
-      ]);
+      let escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+        `/escrow/events/recent?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
+      ).catch(() => ({ recent: [] }));
+      if ((!Array.isArray(escrow?.recent) || escrow.recent.length === 0) && auth.identity.walletId) {
+        escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+          `/escrow/events/recent?walletId=${encodeURIComponent(auth.identity.walletId)}&limit=${limit}`
+        ).catch(() => escrow);
+      }
+      const onchain = await runtimeGet<OnchainActivityPayload>(`/wallets/${encodeURIComponent(auth.identity.walletId)}/activity?limit=${limit}`)
+        .catch(() => onchainFallback);
       let marketPositions = await serverGet<MarketPositionActivityPayload>(
         `/markets/player/positions?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
       ).catch(() => ({ ok: false, recent: [] }));

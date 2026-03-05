@@ -127,4 +127,60 @@ describe('internal route authorization', () => {
       expect(payload.recent[0]?.marketQuestion).toContain('BTC/USD');
     });
   });
+
+  it('returns escrow events by walletId via derived player ids', async () => {
+    const internalToken = 'test_internal_token';
+    const ctx = makeRouteContext(internalToken);
+    ctx.presenceStore = {
+      get: async () => null,
+      list: async () => ([
+        {
+          playerId: 'u_profile_3',
+          role: 'human',
+          displayName: 'Temisan',
+          walletId: 'wallet_37',
+          x: 0, y: 0, z: 0, yaw: 0, speed: 0, updatedAt: Date.now()
+        }
+      ])
+    } as unknown as RouteContext['presenceStore'];
+    (ctx.database as unknown as {
+      listWalletMarketPositions: (walletId: string, limit?: number) => Promise<Array<{ playerId: string }>>;
+      getEscrowEventsForPlayer: (params: { playerId: string; limit: number }) => Promise<Array<Record<string, unknown>>>;
+    }).listWalletMarketPositions = async () => ([{ playerId: 'u_profile_3' }]);
+    (ctx.database as unknown as {
+      getEscrowEventsForPlayer: (params: { playerId: string; limit: number }) => Promise<Array<Record<string, unknown>>>;
+    }).getEscrowEventsForPlayer = async ({ playerId }) => ([
+      {
+        challengeId: 'c_test_1',
+        phase: 'resolve',
+        ok: true,
+        reason: null,
+        txHash: '0xabc',
+        fee: null,
+        payout: null,
+        at: Date.now(),
+        challengerId: playerId,
+        opponentId: 'system_house',
+        winnerId: playerId,
+        gameType: 'rps',
+        wager: 1,
+        activitySource: 'house_station'
+      }
+    ]);
+
+    await withServer(ctx, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/escrow/events/recent?walletId=wallet_37&limit=10`, {
+        headers: {
+          'x-internal-token': internalToken
+        }
+      });
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.ok).toBe(true);
+      expect(Array.isArray(payload.recent)).toBe(true);
+      expect(payload.recent.length).toBe(1);
+      expect(payload.recent[0]?.gameType).toBe('rps');
+      expect(payload.recent[0]?.challengerId).toBe('u_profile_3');
+    });
+  });
 });
