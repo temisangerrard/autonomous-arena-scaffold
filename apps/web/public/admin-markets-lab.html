@@ -453,6 +453,54 @@
       </div>
     </section>
 
+    <!-- E2E Station Test Panel -->
+    <section class="panel" id="e2e-panel">
+      <div class="row">
+        <h2 class="panel-heading">E2E Station Test</h2>
+        <span class="badge live">Real Server Call</span>
+        <button id="e2e-refresh" class="btn btn-gold" type="button">Run Player View Check</button>
+      </div>
+      <div id="e2e-status" class="status">Click "Run Player View Check" to see exactly what a player sees when they open the prediction station.</div>
+
+      <div id="e2e-player-markets" hidden>
+        <div class="row" style="margin-bottom:6px;">
+          <span class="mono" style="font-size:11px; color:var(--muted);">WHAT PLAYER SEES (listActiveMarketsForPlayer)</span>
+          <span id="e2e-market-count" class="badge off">0 markets</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Question / ID</th>
+                <th>Rail / Round</th>
+                <th>Status</th>
+                <th>Close At</th>
+                <th>Prices</th>
+                <th>Test Quote</th>
+              </tr>
+            </thead>
+            <tbody id="e2e-markets-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="e2e-no-markets" hidden>
+        <div class="status" style="border-color:#d99f91; color:#7a261b;">
+          No markets returned for player. This is why the station shows nothing.
+          Check: are any Chainlink BTC markets active? Do they have closeAt &gt; now? Run Sync then activate a market above.
+        </div>
+        <div id="e2e-diagnosis" class="status" style="margin-top:6px;"></div>
+      </div>
+
+      <div id="e2e-quote-result" hidden>
+        <div class="row" style="margin-bottom:6px;">
+          <span class="mono" style="font-size:11px; color:var(--muted);">QUOTE RESULT</span>
+          <button id="e2e-quote-close" class="btn" type="button">Close</button>
+        </div>
+        <pre id="e2e-quote-body" class="status" style="white-space:pre-wrap; font:12px/1.5 var(--mono);"></pre>
+      </div>
+    </section>
+
     <section class="grid ops-only" id="ops-kpis">
       <article class="kpi"><div class="label">Enabled Markets</div><div class="value" id="kpi-enabled">0</div></article>
       <article class="kpi"><div class="label">Active Markets</div><div class="value" id="kpi-active">0</div></article>

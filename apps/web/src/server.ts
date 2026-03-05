@@ -2495,6 +2495,27 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
+    if (subpath === '/markets/player-view' && req.method === 'GET') {
+      try {
+        const payload = await serverGet('/admin/markets/player-view');
+        sendJson(res, payload);
+      } catch (error) {
+        const upstream = upstreamErrorJson(error, 'server_unavailable', 400);
+        sendJson(res, upstream.body, upstream.status);
+      }
+      return;
+    }
+    if (subpath === '/markets/quote' && req.method === 'POST') {
+      const body = await readJsonBody<unknown>(req);
+      try {
+        const payload = await serverPost('/admin/markets/quote', body ?? {});
+        sendJson(res, payload);
+      } catch (error) {
+        const upstream = upstreamErrorJson(error, 'server_request_failed', 400);
+        sendJson(res, upstream.body, upstream.status);
+      }
+      return;
+    }
     if (subpath === '/markets/live' && req.method === 'GET') {
       const limit = Math.max(1, Math.min(200, Number(requestUrl.searchParams.get('limit') || 60)));
       const query = String(requestUrl.searchParams.get('query') || '').trim();

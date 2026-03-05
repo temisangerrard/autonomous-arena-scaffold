@@ -2,6 +2,16 @@ const el = {
   status: document.getElementById('status'),
   refreshAll: document.getElementById('refresh-all'),
   syncMarkets: document.getElementById('sync-markets'),
+  e2eRefresh: document.getElementById('e2e-refresh'),
+  e2eStatus: document.getElementById('e2e-status'),
+  e2ePlayerMarkets: document.getElementById('e2e-player-markets'),
+  e2eNoMarkets: document.getElementById('e2e-no-markets'),
+  e2eMarketCount: document.getElementById('e2e-market-count'),
+  e2eMarketsBody: document.getElementById('e2e-markets-body'),
+  e2eDiagnosis: document.getElementById('e2e-diagnosis'),
+  e2eQuoteResult: document.getElementById('e2e-quote-result'),
+  e2eQuoteBody: document.getElementById('e2e-quote-body'),
+  e2eQuoteClose: document.getElementById('e2e-quote-close'),
   enabledBody: document.getElementById('enabled-body'),
   liveBody: document.getElementById('live-body'),
   liveQuery: document.getElementById('live-query'),
@@ -548,6 +558,129 @@ function bindEvents() {
       .catch((err) => setStatus(String(err?.message || err), true));
   });
 }
+
+// ── E2E Station Test ─────────────────────────────────────────────────────────
+
+function setE2eStatus(text, danger = false) {
+  if (!el.e2eStatus) return;
+  el.e2eStatus.textContent = text;
+  el.e2eStatus.style.borderColor = danger ? '#d99f91' : '#d8c8a6';
+  el.e2eStatus.style.color = danger ? '#7a261b' : '#574c3a';
+}
+
+function renderE2eMarkets(markets) {
+  if (!el.e2eMarketsBody) return;
+  if (!Array.isArray(markets) || markets.length === 0) {
+    el.e2eMarketsBody.innerHTML = '<tr><td colspan="6">No markets returned.</td></tr>';
+    return;
+  }
+  el.e2eMarketsBody.innerHTML = markets.map((m) => {
+    const marketId = escapeHtml(String(m.marketId || m.id || ''));
+    const question = escapeHtml(String(m.question || marketId).slice(0, 70));
+    const rail = escapeHtml(String(m.rail || '-'));
+    const round = escapeHtml(String(m.roundType || 'current'));
+    const status = escapeHtml(String(m.status || '-'));
+    const closeAt = formatDate(m.closeAt);
+    const spotPrice = m.currentSpotPrice ? `Spot $${Number(m.currentSpotPrice).toFixed(0)}` : '';
+    const lockPrice = m.lockPrice ? `Lock $${Number(m.lockPrice).toFixed(0)}` : '';
+    const prices = escapeHtml([spotPrice, lockPrice].filter(Boolean).join(' · ') || '-');
+    return `<tr>
+      <td>
+        <div class="question-text">${question}</div>
+        <div class="id-text">${marketId}</div>
+      </td>
+      <td class="mono">${rail} / ${round}</td>
+      <td><span class="badge live">${status}</span></td>
+      <td class="mono">${escapeHtml(closeAt)}</td>
+      <td class="mono">${prices}</td>
+      <td>
+        <div class="row">
+          <button class="btn btn-gold" data-e2e-quote="yes" data-market-id="${marketId}" type="button">Test YES</button>
+          <button class="btn" data-e2e-quote="no" data-market-id="${marketId}" type="button">Test NO</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function runE2ePlayerViewCheck() {
+  setE2eStatus('Calling listActiveMarketsForPlayer() on server…');
+  if (el.e2ePlayerMarkets) el.e2ePlayerMarkets.hidden = true;
+  if (el.e2eNoMarkets) el.e2eNoMarkets.hidden = true;
+  if (el.e2eQuoteResult) el.e2eQuoteResult.hidden = true;
+
+  try {
+    const payload = await apiGet('/api/admin/runtime/markets/player-view');
+    const markets = Array.isArray(payload?.markets) ? payload.markets : [];
+    const count = Number(payload?.count ?? markets.length);
+
+    if (el.e2eMarketCount) {
+      el.e2eMarketCount.textContent = `${count} market${count !== 1 ? 's' : ''}`;
+      el.e2eMarketCount.className = `badge ${count > 0 ? 'live' : 'off'}`;
+    }
+
+    if (markets.length === 0) {
+      if (el.e2eNoMarkets) el.e2eNoMarkets.hidden = false;
+      // Fetch admin state for diagnosis
+      const adminState = await apiGet('/api/admin/runtime/markets').catch(() => null);
+      if (el.e2eDiagnosis && adminState) {
+        const all = Array.isArray(adminState.markets) ? adminState.markets : [];
+        const active = all.filter((m) => m.active);
+        const chainlink = active.filter((m) => m.oracleSource === 'chainlink_btc_usd');
+        const notCancelled = chainlink.filter((m) => m.status !== 'cancelled');
+        const notExpired = notCancelled.filter((m) => Number(m.closeAt || 0) > Date.now());
+        el.e2eDiagnosis.textContent = [
+          `Admin DB: ${all.length} total markets`,
+          `Active: ${active.length}`,
+          `Chainlink BTC: ${chainlink.length}`,
+          `Not cancelled: ${notCancelled.length}`,
+          `closeAt > now (playable): ${notExpired.length}`,
+          notExpired.length === 0 ? '⚠ All chainlink markets are expired — run Sync to regenerate slots' : ''
+        ].filter(Boolean).join(' → ');
+      }
+      setE2eStatus('Player would see: no markets. Station shows "No current BTC market is live".', true);
+    } else {
+      renderE2eMarkets(markets);
+      if (el.e2ePlayerMarkets) el.e2ePlayerMarkets.hidden = false;
+      setE2eStatus(`Player station shows ${count} market${count !== 1 ? 's' : ''}. Click Test YES/NO to run a quote.`);
+    }
+  } catch (error) {
+    setE2eStatus(`Player view check failed: ${String(error?.message || error)}`, true);
+  }
+}
+
+async function runE2eQuote(marketId, side) {
+  const stake = 10;
+  setE2eStatus(`Getting ${side.toUpperCase()} quote for market ${marketId} stake=${stake} USDC…`);
+  try {
+    const payload = await apiPost('/api/admin/runtime/markets/quote', { marketId, side, stake });
+    if (el.e2eQuoteBody) {
+      el.e2eQuoteBody.textContent = JSON.stringify(payload, null, 2);
+    }
+    if (el.e2eQuoteResult) el.e2eQuoteResult.hidden = false;
+    if (payload?.ok) {
+      setE2eStatus(`Quote OK — price ${((payload.price || 0) * 100).toFixed(2)}%, est payout ${Number(payload.estimatedPayout || 0).toFixed(4)} USDC, status: ${payload.positionStatus || '?'}`);
+    } else {
+      setE2eStatus(`Quote failed: ${String(payload?.reason || payload?.reasonText || 'unknown')}`, true);
+    }
+  } catch (error) {
+    setE2eStatus(`Quote error: ${String(error?.message || error)}`, true);
+  }
+}
+
+el.e2eRefresh?.addEventListener('click', () => { void runE2ePlayerViewCheck(); });
+el.e2eQuoteClose?.addEventListener('click', () => { if (el.e2eQuoteResult) el.e2eQuoteResult.hidden = true; });
+document.getElementById('e2e-panel')?.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const side = target.getAttribute('data-e2e-quote');
+  const marketId = target.getAttribute('data-market-id');
+  if (side && marketId) {
+    void runE2eQuote(marketId, side);
+  }
+});
+
+// ── End E2E ───────────────────────────────────────────────────────────────────
 
 bindEvents();
 void refreshAll();

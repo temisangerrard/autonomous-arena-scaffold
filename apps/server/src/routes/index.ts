@@ -266,6 +266,30 @@ async function handleAdminMarkets(
     return;
   }
 
+  if (pathname === '/admin/markets/player-view' && req.method === 'GET') {
+    const markets = await ctx.marketService.listActiveMarketsForPlayer();
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: true, markets, count: markets.length }));
+    return;
+  }
+
+  if (pathname === '/admin/markets/quote' && req.method === 'POST') {
+    const body = await readJsonBody<{ marketId?: string; side?: string; stake?: number }>(req);
+    const marketId = String(body?.marketId || '').trim();
+    const side = String(body?.side || 'yes') === 'no' ? 'no' as const : 'yes' as const;
+    const stake = Math.max(1, Math.min(10000, Number(body?.stake || 10)));
+    if (!marketId) {
+      res.statusCode = 400;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: false, reason: 'market_id_required' }));
+      return;
+    }
+    const payload = await ctx.marketService.quote({ marketId, side, stake });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(payload));
+    return;
+  }
+
   if (pathname === '/admin/markets/live' && req.method === 'GET') {
     const limit = Math.max(1, Math.min(200, Number(parsed.searchParams.get('limit') || 60)));
     const query = String(parsed.searchParams.get('query') || '').trim();
