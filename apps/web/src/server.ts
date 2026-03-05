@@ -2482,6 +2482,7 @@ const server = createServer(async (req, res) => {
       '/house/config',
       '/house/transfer',
       '/house/refill',
+      '/house/treasury/withdraw',
       '/wallets/onchain/prepare-escrow',
       '/profiles/create',
       '/agents/reconcile',

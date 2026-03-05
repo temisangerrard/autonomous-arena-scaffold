@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="base:app_id" content="69a988a7223099cde83059f4">
   <title>Admin — Ops Command</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -327,6 +328,24 @@
                   <input id="onchain-sponsor-eth" type="text" readonly value="-">
                 </div>
               </div>
+              <div class="form-row form-row-3">
+                <div>
+                  <label class="form-label">House Treasury (USDC)</label>
+                  <input id="onchain-house-treasury" type="text" readonly value="-">
+                </div>
+                <div>
+                  <label class="form-label" for="onchain-treasury-withdraw-amount">Withdraw Amount</label>
+                  <input id="onchain-treasury-withdraw-amount" type="number" min="0.01" step="0.01" value="1">
+                </div>
+                <div>
+                  <label class="form-label" for="onchain-treasury-withdraw-recipient">Withdraw Recipient</label>
+                  <input id="onchain-treasury-withdraw-recipient" type="text" placeholder="0x...">
+                </div>
+              </div>
+              <div class="btn-row">
+                <button id="onchain-treasury-withdraw-run" type="button">Withdraw Treasury</button>
+              </div>
+              <pre id="onchain-treasury-withdraw-result">No treasury withdrawal yet.</pre>
               <div class="form-row">
                 <div>
                   <label class="form-label" for="onchain-prepare-wallets">Prepare Escrow Wallet IDs (comma-separated)</label>

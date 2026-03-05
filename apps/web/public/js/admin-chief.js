@@ -100,6 +100,11 @@ const el = {
   onchainEscrowEth: document.getElementById('onchain-escrow-eth'),
   onchainSponsorAddress: document.getElementById('onchain-sponsor-address'),
   onchainSponsorEth: document.getElementById('onchain-sponsor-eth'),
+  onchainHouseTreasury: document.getElementById('onchain-house-treasury'),
+  onchainTreasuryWithdrawAmount: document.getElementById('onchain-treasury-withdraw-amount'),
+  onchainTreasuryWithdrawRecipient: document.getElementById('onchain-treasury-withdraw-recipient'),
+  onchainTreasuryWithdrawRun: document.getElementById('onchain-treasury-withdraw-run'),
+  onchainTreasuryWithdrawResult: document.getElementById('onchain-treasury-withdraw-result'),
   onchainPrepareWallets: document.getElementById('onchain-prepare-wallets'),
   onchainPrepareAmount: document.getElementById('onchain-prepare-amount'),
   onchainPrepareRun: document.getElementById('onchain-prepare-run'),
@@ -630,6 +635,10 @@ function renderTreasuryAssets() {
   if (el.onchainEscrowEth) el.onchainEscrowEth.value = onchain.escrowBalanceEth == null ? '-' : `${Number(onchain.escrowBalanceEth).toFixed(6)} ETH`;
   if (el.onchainSponsorAddress) el.onchainSponsorAddress.value = String(onchain.sponsorAddress || '-');
   if (el.onchainSponsorEth) el.onchainSponsorEth.value = onchain.sponsorBalanceEth == null ? '-' : `${Number(onchain.sponsorBalanceEth).toFixed(6)} ETH`;
+  if (el.onchainHouseTreasury) {
+    const n = Number(onchain.houseTreasury ?? Number.NaN);
+    el.onchainHouseTreasury.value = Number.isFinite(n) ? `${n.toFixed(2)} USDC` : '-';
+  }
 
   if (!el.treasuryWalletsBody) return;
   el.treasuryWalletsBody.innerHTML = '';
@@ -1331,6 +1340,31 @@ function bindTreasuryActions() {
       const msg = String(error?.message || error);
       if (el.treasuryActionResult) el.treasuryActionResult.textContent = `error: ${msg}`;
       setStatus(`External withdraw failed: ${msg}`);
+    }
+  });
+
+  el.onchainTreasuryWithdrawRun?.addEventListener('click', async () => {
+    const recipient = normalizeHexAddress(el.onchainTreasuryWithdrawRecipient?.value);
+    const amount = Number(el.onchainTreasuryWithdrawAmount?.value || 0);
+    if (!recipient || amount <= 0) {
+      setStatus('Treasury withdraw needs recipient 0x address and amount > 0.');
+      return;
+    }
+    if (!window.confirm(`Withdraw ${amount} from house treasury to ${recipient}?`)) return;
+    try {
+      const payload = await apiPost('/api/admin/runtime/house/treasury/withdraw', { recipient, amount });
+      if (el.onchainTreasuryWithdrawResult) {
+        el.onchainTreasuryWithdrawResult.textContent = JSON.stringify(payload, null, 2);
+      }
+      addActivity('write', `Treasury withdraw ${amount}`, `recipient=${recipient}`);
+      await refreshAll({ silent: true });
+      setStatus('Treasury withdrawal completed.');
+    } catch (error) {
+      const msg = String(error?.message || error);
+      if (el.onchainTreasuryWithdrawResult) {
+        el.onchainTreasuryWithdrawResult.textContent = `error: ${msg}`;
+      }
+      setStatus(`Treasury withdrawal failed: ${msg}`);
     }
   });
 }
