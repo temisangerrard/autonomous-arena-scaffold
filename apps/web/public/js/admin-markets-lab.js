@@ -168,7 +168,9 @@ function simulateQuote() {
 
 async function loadEnabled() {
   const payload = await apiGet('/api/admin/runtime/markets');
-  state.adminMarkets = Array.isArray(payload?.markets) ? payload.markets : [];
+  const allMarkets = Array.isArray(payload?.markets) ? payload.markets : [];
+  // Markets Lab should only operate on internal Chainlink BTC rails.
+  state.adminMarkets = allMarkets.filter((entry) => String(entry?.oracleSource || '') === 'chainlink_btc_usd');
   state.liquidityHealth = payload?.liquidityHealth ?? null;
   state.eventCounts = Array.isArray(payload?.eventCounts) ? payload.eventCounts : [];
 }
