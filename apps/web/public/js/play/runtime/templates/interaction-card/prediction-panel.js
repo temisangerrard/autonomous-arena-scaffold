@@ -306,6 +306,12 @@ export function mountPredictionPanel(params) {
     return '';
   }
 
+  function isAutoRefreshablePredictionFailure(reasonText) {
+    return reasonText === 'Selected BTC market is no longer open.'
+      || reasonText === 'No current BTC market is live right now.'
+      || reasonText === 'No next BTC market is available right now.';
+  }
+
   function clearPredictionBuyBtns() {
     clearPendingBtn(btcYesBtn, 'BTC Up');
     clearPendingBtn(btcNoBtn, 'BTC Down');
@@ -314,6 +320,10 @@ export function mountPredictionPanel(params) {
   function submitPredictionOrder(side) {
     const failure = validatePredictionOrder();
     if (failure) {
+      if (isAutoRefreshablePredictionFailure(failure)) {
+        state.ui.prediction.state = 'list';
+        dispatchPrediction('prediction_markets_open');
+      }
       state.ui.prediction.state = 'error';
       state.ui.prediction.lastReason = 'prediction_precheck_failed';
       state.ui.prediction.lastReasonText = failure;

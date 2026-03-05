@@ -78,6 +78,8 @@ describe('interaction npc panel visibility', () => {
   it('uses local btc board prechecks before sending prediction orders', () => {
     const source = readSource('prediction-panel.js');
     expect(source.includes('function validatePredictionOrder')).toBe(true);
+    expect(source.includes('function isAutoRefreshablePredictionFailure')).toBe(true);
+    expect(source.includes("dispatchPrediction('prediction_markets_open')")).toBe(true);
     expect(source.includes('Insufficient USDC balance for this stake.')).toBe(true);
     expect(source.includes('Selected BTC market is no longer open.')).toBe(true);
     expect(source.includes('No current BTC market is live right now.')).toBe(true);
