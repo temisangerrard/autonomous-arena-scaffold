@@ -1,7 +1,7 @@
 const state = {
   activeView: 'overview',
   activeTreasuryMode: 'wallet',
-  showSystemWallets: false,
+  showSystemWallets: true,
   bootstrap: null,
   incidents: [],
   runbooks: [],
@@ -106,6 +106,13 @@ const el = {
   onchainPrepareResult: document.getElementById('onchain-prepare-result'),
   treasuryShowSystemWallets: document.getElementById('treasury-show-system-wallets'),
   treasuryWalletsBody: document.getElementById('treasury-wallets-body'),
+  treasuryActionSource: document.getElementById('treasury-action-source'),
+  treasuryActionAmount: document.getElementById('treasury-action-amount'),
+  treasuryTransferTarget: document.getElementById('treasury-transfer-target'),
+  treasuryTransferRun: document.getElementById('treasury-transfer-run'),
+  treasuryExternalAddress: document.getElementById('treasury-external-address'),
+  treasuryExternalWithdrawRun: document.getElementById('treasury-external-withdraw-run'),
+  treasuryActionResult: document.getElementById('treasury-action-result'),
 
   usersBody: document.getElementById('users-body'),
   usersCountTotal: document.getElementById('users-count-total'),
@@ -185,6 +192,11 @@ function isPrimaryWalletEntry(entry) {
   if (owner.includes('house') || walletId.includes('house')) return true;
   if (owner.includes('agent_1') || owner.includes('admin') || walletId.includes('treasury')) return true;
   return false;
+}
+
+function normalizeHexAddress(value) {
+  const raw = String(value || '').trim();
+  return /^0x[a-fA-F0-9]{40}$/.test(raw) ? raw : '';
 }
 
 function normalizedMarketFilter(entry) {
@@ -623,6 +635,31 @@ function renderTreasuryAssets() {
   el.treasuryWalletsBody.innerHTML = '';
   const allRows = Array.isArray(onchain.wallets) ? onchain.wallets : [];
   const rows = state.showSystemWallets ? allRows : allRows.filter((entry) => isPrimaryWalletEntry(entry));
+  const sourceOptions = rows
+    .map((entry) => {
+      const walletId = String(entry?.id || '').trim();
+      if (!walletId) return null;
+      const owner = String(entry?.ownerProfileId || '-');
+      const tokenBal = Number(entry?.onchain?.tokenBalance || 0);
+      return { walletId, label: `${walletId} · ${owner} · ${tokenBal.toFixed(2)}` };
+    })
+    .filter(Boolean);
+  if (el.treasuryActionSource) {
+    const current = String(el.treasuryActionSource.value || '');
+    el.treasuryActionSource.innerHTML = sourceOptions.map((entry) => `<option value="${escapeHtml(entry.walletId)}">${escapeHtml(entry.label)}</option>`).join('');
+    if (current && sourceOptions.some((entry) => entry.walletId === current)) {
+      el.treasuryActionSource.value = current;
+    }
+  }
+  if (el.treasuryTransferTarget) {
+    const current = String(el.treasuryTransferTarget.value || '');
+    const selectedSource = String(el.treasuryActionSource?.value || '');
+    const targets = sourceOptions.filter((entry) => entry.walletId !== selectedSource);
+    el.treasuryTransferTarget.innerHTML = targets.map((entry) => `<option value="${escapeHtml(entry.walletId)}">${escapeHtml(entry.label)}</option>`).join('');
+    if (current && targets.some((entry) => entry.walletId === current)) {
+      el.treasuryTransferTarget.value = current;
+    }
+  }
   for (const entry of rows) {
     const tr = document.createElement('tr');
     const walletId = String(entry?.id || '');
@@ -1248,6 +1285,54 @@ function bindTreasuryActions() {
       setStatus(`Prepare failed: ${msg}`);
     }
   });
+
+  el.treasuryActionSource?.addEventListener('change', () => {
+    renderTreasuryAssets();
+  });
+
+  el.treasuryTransferRun?.addEventListener('click', async () => {
+    const sourceWalletId = String(el.treasuryActionSource?.value || '').trim();
+    const targetWalletId = String(el.treasuryTransferTarget?.value || '').trim();
+    const amount = Number(el.treasuryActionAmount?.value || 0);
+    if (!sourceWalletId || !targetWalletId || amount <= 0) {
+      setStatus('Transfer needs source, target, and amount > 0.');
+      return;
+    }
+    if (!window.confirm(`Transfer ${amount} from ${sourceWalletId} to ${targetWalletId}?`)) return;
+    try {
+      const payload = await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(sourceWalletId)}/transfer`, { toWalletId: targetWalletId, amount });
+      if (el.treasuryActionResult) el.treasuryActionResult.textContent = JSON.stringify(payload, null, 2);
+      addActivity('write', `Treasury internal transfer ${amount}`, `${sourceWalletId} -> ${targetWalletId}`);
+      await refreshAll({ silent: true });
+      setStatus('Treasury transfer complete.');
+    } catch (error) {
+      const msg = String(error?.message || error);
+      if (el.treasuryActionResult) el.treasuryActionResult.textContent = `error: ${msg}`;
+      setStatus(`Transfer failed: ${msg}`);
+    }
+  });
+
+  el.treasuryExternalWithdrawRun?.addEventListener('click', async () => {
+    const walletId = String(el.treasuryActionSource?.value || '').trim();
+    const toAddress = normalizeHexAddress(el.treasuryExternalAddress?.value);
+    const amount = Number(el.treasuryActionAmount?.value || 0);
+    if (!walletId || !toAddress || amount <= 0) {
+      setStatus('External withdraw needs wallet, valid 0x address, and amount > 0.');
+      return;
+    }
+    if (!window.confirm(`Withdraw ${amount} from ${walletId} to ${toAddress}?`)) return;
+    try {
+      const payload = await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/withdraw`, { amount, toAddress });
+      if (el.treasuryActionResult) el.treasuryActionResult.textContent = JSON.stringify(payload, null, 2);
+      addActivity('write', `Treasury external withdraw ${amount}`, `${walletId} -> ${toAddress}`);
+      await refreshAll({ silent: true });
+      setStatus('External withdraw submitted.');
+    } catch (error) {
+      const msg = String(error?.message || error);
+      if (el.treasuryActionResult) el.treasuryActionResult.textContent = `error: ${msg}`;
+      setStatus(`External withdraw failed: ${msg}`);
+    }
+  });
 }
 
 function bindUsersActions() {
@@ -1429,6 +1514,9 @@ function bindEvents() {
     state.showSystemWallets = Boolean(el.treasuryShowSystemWallets?.checked);
     renderTreasuryAssets();
   });
+  if (el.treasuryShowSystemWallets) {
+    el.treasuryShowSystemWallets.checked = state.showSystemWallets;
+  }
 
   el.refreshBtn?.addEventListener('click', async () => {
     setStatus('Refreshing workspace...');

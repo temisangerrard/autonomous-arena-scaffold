@@ -1,4 +1,4 @@
-import { Contract, Interface, formatEther, formatUnits, id, parseUnits, zeroPadValue } from 'ethers';
+import { Contract, Interface, formatEther, formatUnits, getAddress, id, isAddress, parseUnits, zeroPadValue } from 'ethers';
 import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
 import type { EscrowLockRecord, WalletDenied, WalletRecord } from '@arena/shared';
 
@@ -236,7 +236,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       return;
     }
 
-    const body = await readJsonBody<{ amount?: number }>(req);
+    const body = await readJsonBody<{ amount?: number; toAddress?: string }>(req);
     const amount = Math.max(0, Number(body?.amount ?? 0));
     if (amount <= 0) {
       sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
@@ -294,7 +294,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       return;
     }
 
-    const body = await readJsonBody<{ amount?: number }>(req);
+    const body = await readJsonBody<{ amount?: number; toAddress?: string }>(req);
     const amount = Math.max(0, Number(body?.amount ?? 0));
     if (amount <= 0) {
       sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
@@ -309,9 +309,18 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
 
     if (deps.onchainProvider && deps.onchainTokenAddress) {
       const signer = deps.signerForWallet(wallet);
+      const explicitAddressRaw = String(body?.toAddress ?? '').trim();
+      if (explicitAddressRaw && !isAddress(explicitAddressRaw)) {
+        sendJson(res, { ok: false, reason: 'invalid_withdraw_address' }, 400);
+        return;
+      }
+      const explicitAddress = explicitAddressRaw && isAddress(explicitAddressRaw)
+        ? getAddress(explicitAddressRaw)
+        : '';
       // keep existing behavior: treasury env var is read in index.ts; use gas funder as fallback.
-      const treasury = process.env.WITHDRAW_TREASURY_ADDRESS?.trim() || deps.gasFunderSigner()?.address || '';
-      if (!signer || !treasury) {
+      const fallbackTreasury = process.env.WITHDRAW_TREASURY_ADDRESS?.trim() || deps.gasFunderSigner()?.address || '';
+      const destination = explicitAddress || fallbackTreasury;
+      if (!signer || !destination) {
         sendJson(res, { ok: false, reason: 'withdraw_destination_unavailable' }, 400);
         return;
       }
@@ -319,7 +328,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       const value = parseUnits(String(amount), deps.onchainTokenDecimals);
       try {
         await deps.ensureWalletGas(wallet.address);
-        const tx = await token.transfer(treasury, value);
+        const tx = await token.transfer(destination, value);
         await tx.wait();
         const summary = await deps.onchainWalletSummary(wallet);
         wallet.dailyTxCount += 1;
@@ -328,7 +337,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           ok: true,
           mode: 'onchain',
           txHash: tx.hash ?? null,
-          to: treasury,
+          to: destination,
           wallet: deps.walletSummary(wallet),
           onchain: summary
         });

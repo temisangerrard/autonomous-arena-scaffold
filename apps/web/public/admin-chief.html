@@ -244,19 +244,54 @@
               <h4 class="section-label">Controlled Wallets</h4>
               <div class="treasury-wallets-toolbar">
                 <label class="checkbox-label">
-                  <input id="treasury-show-system-wallets" type="checkbox">
+                  <input id="treasury-show-system-wallets" type="checkbox" checked>
                   Show system wallets
                 </label>
               </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Wallet</th><th>Owner</th><th>Address</th><th>Runtime</th><th>Token</th><th>ETH</th><th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="treasury-wallets-body"></tbody>
-                </table>
+              <div class="split">
+                <div class="panel-card">
+                  <h4>Treasury Action Center</h4>
+                  <p class="muted" style="margin:0 0 8px;font-size:13px;">Operate only wallets you control from this runtime. Choose source wallet first.</p>
+                  <div class="form-row">
+                    <div>
+                      <label class="form-label" for="treasury-action-source">Source Wallet</label>
+                      <select id="treasury-action-source"></select>
+                    </div>
+                    <div>
+                      <label class="form-label" for="treasury-action-amount">Amount</label>
+                      <input id="treasury-action-amount" type="number" min="0.01" step="0.01" value="5">
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div>
+                      <label class="form-label" for="treasury-transfer-target">Internal Transfer To</label>
+                      <select id="treasury-transfer-target"></select>
+                    </div>
+                    <div style="align-self:end;">
+                      <button id="treasury-transfer-run" type="button">Transfer Internal</button>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div>
+                      <label class="form-label" for="treasury-external-address">External Payout Address (paste)</label>
+                      <input id="treasury-external-address" type="text" placeholder="0x...">
+                    </div>
+                    <div style="align-self:end;">
+                      <button id="treasury-external-withdraw-run" type="button" class="primary">Withdraw To External</button>
+                    </div>
+                  </div>
+                  <pre id="treasury-action-result">Select source wallet and run an action.</pre>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Wallet</th><th>Owner</th><th>Address</th><th>Runtime</th><th>Token</th><th>ETH</th><th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="treasury-wallets-body"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </section>

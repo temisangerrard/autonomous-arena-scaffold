@@ -227,6 +227,16 @@ pre {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
+.treasury-wallets-toolbar + .split {
+  grid-template-columns: 1fr 1.4fr;
+}
+#treasury-transfer-run,
+#treasury-external-withdraw-run {
+  width: 100%;
+}
+#treasury-action-result {
+  min-height: 88px;
+}
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips button { font-size: 12px; }
