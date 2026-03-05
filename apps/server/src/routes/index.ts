@@ -6,7 +6,7 @@ import { createHealthStatus } from '../health.js';
 import type { PresenceStore } from '../PresenceStore.js';
 import type { DistributedChallengeStore } from '../DistributedChallengeStore.js';
 import type { ChallengeService } from '../ChallengeService.js';
-import type { Database } from '../Database.js';
+import type { Database, MarketPositionRecord } from '../Database.js';
 import { WORLD_SECTION_SPAWNS } from '../WorldSim.js';
 import type { AdminCommand } from '../DistributedBus.js';
 import { handleMetricsEndpoint, handleMetricsJsonEndpoint } from '../metrics.js';
@@ -458,16 +458,25 @@ export function createRouter(ctx: RouteContext) {
         return;
       }
       const playerId = String(parsed.searchParams.get('playerId') || '').trim();
+      const walletId = String(parsed.searchParams.get('walletId') || '').trim();
       const limit = Math.max(1, Math.min(300, Number(parsed.searchParams.get('limit') ?? 60)));
-      if (!playerId) {
+      if (!playerId && !walletId) {
         res.statusCode = 400;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({ ok: false, reason: 'player_id_required' }));
+        res.end(JSON.stringify({ ok: false, reason: 'player_or_wallet_required' }));
         return;
       }
       try {
+        const positionsPromise: Promise<MarketPositionRecord[]> = playerId
+          ? ctx.marketService.listPlayerPositions(playerId)
+          : Promise.resolve(
+            typeof (ctx.database as unknown as { listWalletMarketPositions?: unknown }).listWalletMarketPositions === 'function'
+              ? (ctx.database as unknown as { listWalletMarketPositions: (walletId: string, limit?: number) => Promise<MarketPositionRecord[]> })
+                .listWalletMarketPositions(walletId, limit)
+              : []
+          );
         const [positions, admin] = await Promise.all([
-          ctx.marketService.listPlayerPositions(playerId),
+          positionsPromise,
           ctx.marketService.getAdminState()
         ]);
         const marketById = new Map((admin.markets || []).map((market) => [market.id, market]));

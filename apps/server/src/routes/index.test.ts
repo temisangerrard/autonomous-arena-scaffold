@@ -68,4 +68,63 @@ describe('internal route authorization', () => {
       expect(payload.ok).toBe(true);
     });
   });
+
+  it('returns market positions by walletId when playerId is unavailable', async () => {
+    const internalToken = 'test_internal_token';
+    const ctx = makeRouteContext(internalToken);
+    (ctx.database as unknown as {
+      listWalletMarketPositions: (walletId: string, limit: number) => Promise<Array<Record<string, unknown>>>;
+    }).listWalletMarketPositions = async () => ([
+      {
+        id: 'mp_test_1',
+        marketId: 'cl_btc_5m_1772706600',
+        playerId: 'u_profile_3',
+        walletId: 'wallet_37',
+        side: 'yes',
+        stake: 1,
+        price: 0.5,
+        shares: 2,
+        status: 'open',
+        escrowBetId: 'mkt_1',
+        estimatedPayoutAtOpen: 2,
+        minPayoutAtOpen: 1,
+        payout: null,
+        settlementReason: null,
+        clobOrderId: null,
+        createdAt: Date.now(),
+        settledAt: null
+      }
+    ]);
+    ctx.marketService = {
+      getAdminState: async () => ({
+        markets: [
+          {
+            id: 'cl_btc_5m_1772706600',
+            question: 'Will BTC/USD be higher in 5 minutes?',
+            slug: 'btc-5m',
+            oracleSource: 'chainlink_btc_usd',
+            roundType: 'current',
+            currentSpotPrice: 73271,
+            lockPrice: 73250,
+            finalPrice: null
+          }
+        ]
+      })
+    } as unknown as RouteContext['marketService'];
+
+    await withServer(ctx, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/markets/player/positions?walletId=wallet_37&limit=10`, {
+        headers: {
+          'x-internal-token': internalToken
+        }
+      });
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.ok).toBe(true);
+      expect(Array.isArray(payload.recent)).toBe(true);
+      expect(payload.recent.length).toBe(1);
+      expect(payload.recent[0]?.walletId).toBe('wallet_37');
+      expect(payload.recent[0]?.marketQuestion).toContain('BTC/USD');
+    });
+  });
 });

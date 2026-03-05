@@ -2061,9 +2061,14 @@ const server = createServer(async (req, res) => {
         runtimeGet<OnchainActivityPayload>(`/wallets/${encodeURIComponent(auth.identity.walletId)}/activity?limit=${limit}`)
           .catch(() => onchainFallback)
       ]);
-      const marketPositions = await serverGet<MarketPositionActivityPayload>(
+      let marketPositions = await serverGet<MarketPositionActivityPayload>(
         `/markets/player/positions?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
       ).catch(() => ({ ok: false, recent: [] }));
+      if ((!Array.isArray(marketPositions?.recent) || marketPositions.recent.length === 0) && auth.identity.walletId) {
+        marketPositions = await serverGet<MarketPositionActivityPayload>(
+          `/markets/player/positions?walletId=${encodeURIComponent(auth.identity.walletId)}&limit=${limit}`
+        ).catch(() => marketPositions);
+      }
 
       const chainId = Number(onchain?.chainId ?? Number.NaN);
       const txBase = chainExplorerTxBase(Number.isFinite(chainId) ? chainId : null);
