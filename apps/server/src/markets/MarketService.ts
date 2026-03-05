@@ -431,6 +431,20 @@ export class MarketService {
       await this.ensureChainlinkBtcMarkets();
       const [markets, activation] = await Promise.all([this.db.listMarkets(200), this.activationMap()]);
       await this.promoteScheduledPositionsForCurrentMarkets(markets);
+      const marketById = new Map(markets.map((market) => [market.id, market]));
+      for (const entry of activation.values()) {
+        if (!entry.active) continue;
+        const market = marketById.get(entry.marketId);
+        if (!market || market.oracleSource === 'chainlink_btc_usd') continue;
+        await this.db.setMarketActivation({
+          marketId: entry.marketId,
+          active: false,
+          maxWager: Number(entry.maxWager ?? DEFAULT_MAX_WAGER),
+          houseSpreadBps: Number(entry.houseSpreadBps ?? DEFAULT_SPREAD_BPS),
+          updatedBy: 'system:disable_legacy'
+        });
+        activation.set(entry.marketId, { ...entry, active: false });
+      }
       const activePlayable = markets
         .map((market) => this.marketViewOf(market, activation.get(market.id) || null))
         .some((market) => market.active && market.oracleSource === 'chainlink_btc_usd' && this.isPlayableNow(market));
@@ -515,13 +529,14 @@ export class MarketService {
         if (a.closeAt !== b.closeAt) return a.closeAt - b.closeAt;
         return String(a.question || '').localeCompare(String(b.question || ''));
       });
+    const chainlinkViews = views.filter((entry) => entry.oracleSource === 'chainlink_btc_usd');
     return {
       ok: true,
-      markets: views,
+      markets: chainlinkViews,
       liquidityHealth: {
-        marketsWithBothSides: views.filter((v) => Number(v.yesLiquidity || 0) > 0 && Number(v.noLiquidity || 0) > 0).length,
-        activeMarkets: views.filter((v) => v.active).length,
-        refundOnlyRiskMarkets: views.filter((v) => Boolean(v.refundOnlyRisk)).length
+        marketsWithBothSides: chainlinkViews.filter((v) => Number(v.yesLiquidity || 0) > 0 && Number(v.noLiquidity || 0) > 0).length,
+        activeMarkets: chainlinkViews.filter((v) => v.active).length,
+        refundOnlyRiskMarkets: chainlinkViews.filter((v) => Boolean(v.refundOnlyRisk)).length
       },
       eventCounts: await this.db.listMarketInteractionCounts(24)
     };
