@@ -97,6 +97,7 @@ const redirects = [
   '/profile   /dashboard      302',
   '/agents    /admin          301',
   '/admin     /admin-chief.html    200',
+  '/admin/markets-lab /admin-markets-lab.html 200',
   '/admin-markets-lab /admin-markets-lab.html 200',
   '/users     /users.html     200',
   ''
