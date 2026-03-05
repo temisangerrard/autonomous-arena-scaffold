@@ -992,7 +992,7 @@ function bindSuperActions() {
     }
   });
 
-  el.applyBgCountBtn?.addEventListener('click', async () => {
+  const handleBgCountApply = async () => {
     const count = Number(el.bgCountInput?.value || 0);
     if (!window.confirm(`Reconcile background bots to ${count}?`)) return;
     try {
@@ -1003,7 +1003,9 @@ function bindSuperActions() {
     } catch (error) {
       setStatus(`Failed: ${String(error?.message || error)}`);
     }
-  });
+  };
+  el.applyBgCountBtn?.addEventListener('click', handleBgCountApply);
+  document.getElementById('apply-bg-count-inline')?.addEventListener('click', handleBgCountApply);
 
   el.superChatSendBtn?.addEventListener('click', async () => {
     const message = String(el.superChatInput?.value || '').trim();
@@ -1372,7 +1374,7 @@ function bindMarketsActions() {
 }
 
 function pollingIntervalMs() {
-  if (state.activeView === 'super' || state.activeView === 'activity') return 7000;
+  if (state.activeView === 'ops' || state.activeView === 'activity') return 7000;
   if (state.activeView === 'markets') return 9000;
   if (state.activeView === 'users') return 8000;
   return 12000;

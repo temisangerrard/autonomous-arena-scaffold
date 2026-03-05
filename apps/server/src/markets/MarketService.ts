@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { Contract, JsonRpcProvider, formatUnits } from 'ethers';
 import type { Database, MarketActivationRecord, MarketPositionRecord, MarketRecord } from '../Database.js';
 import type { EscrowAdapter } from '../EscrowAdapter.js';
 import { log as rootLog } from '../logger.js';
 import { METRIC_NAMES, metrics } from '../metrics.js';
 import { PolymarketFeed, type PolymarketNormalizedMarket } from './PolymarketFeed.js';
 import type { PolymarketClobClient } from './PolymarketClobClient.js';
-import { Contract, JsonRpcProvider, formatUnits } from 'ethers';
 
 const log = rootLog.child({ module: 'market-service' });
 
@@ -75,7 +75,7 @@ const PREFERRED_MARKET_TERMS = (process.env.PREDICTION_PREFERRED_MARKET_TERMS ||
   .map((token) => token.trim().toLowerCase())
   .filter(Boolean);
 const CHAINLINK_MARKETS_ENABLED = String(process.env.PREDICTION_CHAINLINK_ENABLED ?? 'true').toLowerCase() !== 'false';
-const CHAINLINK_BTC_USD_FEED = (process.env.CHAINLINK_BTC_USD_FEED || '0xc907E116054Ad103354f2D350FD2514433D57F6f').trim();
+const CHAINLINK_BTC_USD_FEED = (process.env.CHAINLINK_BTC_USD_FEED || '0x64c911996D3c6aC71f9b455B1E8E7266BcfBB23').trim(); // Base mainnet BTC/USD
 const CHAINLINK_DURATIONS = (process.env.PREDICTION_CHAINLINK_DURATIONS || '5m,24h')
   .split(',')
   .map((token) => token.trim().toLowerCase())
@@ -274,7 +274,7 @@ export class MarketService {
     }
     const rpcUrl = String(process.env.CHAIN_RPC_URL || '').trim();
     if (!rpcUrl) {
-      log.warn('chainlink_btc_usd: CHAIN_RPC_URL is not set');
+      log.warn('chainlink_btc_usd: CHAIN_RPC_URL is not set — set to https://mainnet.base.org for Base');
       return null;
     }
     log.debug({ rpcUrl, feedAddress: CHAINLINK_BTC_USD_FEED }, 'chainlink_btc_usd: fetching');
