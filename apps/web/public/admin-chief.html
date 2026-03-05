@@ -174,125 +174,152 @@
         <!-- TREASURY -->
         <article class="view" id="view-treasury">
           <div class="view-header"><h3>Treasury</h3></div>
-          <div class="split">
-            <div class="panel-card">
-              <h4>House Policy</h4>
-              <div class="form-row">
+          <div class="mode-switch treasury-modes" role="tablist" aria-label="Treasury sections">
+            <button type="button" class="mode-btn active" data-treasury-mode="wallet">Wallet Ops</button>
+            <button type="button" class="mode-btn" data-treasury-mode="contract">Contract Ops</button>
+            <button type="button" class="mode-btn" data-treasury-mode="risk">Risk &amp; Recovery</button>
+          </div>
+          <section class="treasury-panel is-active" data-treasury-panel="wallet">
+            <div class="split">
+              <div class="panel-card">
+                <h4>House Policy</h4>
+                <div class="form-row">
+                  <div>
+                    <label class="form-label">House Wallet</label>
+                    <input id="house-wallet-id" type="text" readonly value="-">
+                  </div>
+                  <div>
+                    <label class="form-label">House Balance</label>
+                    <input id="house-balance" type="text" readonly value="-">
+                  </div>
+                </div>
+                <div class="form-row form-row-3">
+                  <div>
+                    <label class="form-label" for="house-npc-floor">NPC Floor</label>
+                    <input id="house-npc-floor" type="number" min="0" step="1" value="40">
+                  </div>
+                  <div>
+                    <label class="form-label" for="house-npc-topup">NPC Topup</label>
+                    <input id="house-npc-topup" type="number" min="0" step="1" value="20">
+                  </div>
+                  <div>
+                    <label class="form-label" for="house-super-floor">Agent Floor</label>
+                    <input id="house-super-floor" type="number" min="0" step="1" value="120">
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <button id="house-apply" type="button" class="primary">Apply House Policy</button>
+                </div>
+                <div style="margin-top:12px;">
+                  <div class="chips" data-tool-group="treasury"></div>
+                </div>
+              </div>
+              <div class="panel-card">
+                <h4>Refill / Transfer</h4>
+                <div class="form-row">
+                  <div>
+                    <label class="form-label" for="house-refill-amount">Refill Amount</label>
+                    <input id="house-refill-amount" type="number" min="1" step="1" value="200">
+                  </div>
+                  <div style="align-self:end;">
+                    <button id="house-refill" type="button" style="width:100%;">Refill House</button>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div>
+                    <label class="form-label" for="house-transfer-wallet">To Wallet ID</label>
+                    <input id="house-transfer-wallet" type="text" placeholder="wallet_123">
+                  </div>
+                  <div>
+                    <label class="form-label" for="house-transfer-amount">Amount</label>
+                    <input id="house-transfer-amount" type="number" min="1" step="1" value="20">
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <button id="house-transfer" type="button">Transfer</button>
+                </div>
+              </div>
+            </div>
+            <div class="view-section">
+              <h4 class="section-label">Controlled Wallets</h4>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Wallet</th><th>Owner</th><th>Address</th><th>Runtime</th><th>Token</th><th>ETH</th><th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="treasury-wallets-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="treasury-panel" data-treasury-panel="contract">
+            <div class="view-section">
+              <h4 class="section-label">Onchain Contracts</h4>
+              <div class="form-row form-row-3">
                 <div>
-                  <label class="form-label">House Wallet</label>
-                  <input id="house-wallet-id" type="text" readonly value="-">
+                  <label class="form-label">Chain</label>
+                  <input id="onchain-chain-id" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label">House Balance</label>
-                  <input id="house-balance" type="text" readonly value="-">
+                  <label class="form-label">Token</label>
+                  <input id="onchain-token-address" type="text" readonly value="-">
+                </div>
+                <div>
+                  <label class="form-label">Escrow Contract</label>
+                  <input id="onchain-escrow-address" type="text" readonly value="-">
                 </div>
               </div>
               <div class="form-row form-row-3">
                 <div>
-                  <label class="form-label" for="house-npc-floor">NPC Floor</label>
-                  <input id="house-npc-floor" type="number" min="0" step="1" value="40">
+                  <label class="form-label">Escrow ETH</label>
+                  <input id="onchain-escrow-eth" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label" for="house-npc-topup">NPC Topup</label>
-                  <input id="house-npc-topup" type="number" min="0" step="1" value="20">
+                  <label class="form-label">Sponsor Wallet</label>
+                  <input id="onchain-sponsor-address" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label" for="house-super-floor">Agent Floor</label>
-                  <input id="house-super-floor" type="number" min="0" step="1" value="120">
+                  <label class="form-label">Sponsor ETH</label>
+                  <input id="onchain-sponsor-eth" type="text" readonly value="-">
                 </div>
               </div>
-              <div class="btn-row">
-                <button id="house-apply" type="button" class="primary">Apply House Policy</button>
-              </div>
-              <div style="margin-top:12px;">
-                <div class="chips" data-tool-group="treasury"></div>
-              </div>
-            </div>
-            <div class="panel-card">
-              <h4>Refill / Transfer</h4>
               <div class="form-row">
                 <div>
-                  <label class="form-label" for="house-refill-amount">Refill Amount</label>
-                  <input id="house-refill-amount" type="number" min="1" step="1" value="200">
+                  <label class="form-label" for="onchain-prepare-wallets">Prepare Escrow Wallet IDs (comma-separated)</label>
+                  <input id="onchain-prepare-wallets" type="text" placeholder="wallet_2,wallet_9">
+                </div>
+                <div>
+                  <label class="form-label" for="onchain-prepare-amount">Wager Amount</label>
+                  <input id="onchain-prepare-amount" type="number" min="0.01" step="0.01" value="1">
                 </div>
                 <div style="align-self:end;">
-                  <button id="house-refill" type="button" style="width:100%;">Refill House</button>
+                  <button id="onchain-prepare-run" type="button" class="primary" style="width:100%;">Prepare Escrow</button>
                 </div>
               </div>
-              <div class="form-row">
-                <div>
-                  <label class="form-label" for="house-transfer-wallet">To Wallet ID</label>
-                  <input id="house-transfer-wallet" type="text" placeholder="wallet_123">
-                </div>
-                <div>
-                  <label class="form-label" for="house-transfer-amount">Amount</label>
-                  <input id="house-transfer-amount" type="number" min="1" step="1" value="20">
-                </div>
-              </div>
-              <div class="btn-row">
-                <button id="house-transfer" type="button">Transfer</button>
-              </div>
-              <pre id="house-ledger" style="margin-top:10px;">Loading house ledger...</pre>
+              <pre id="onchain-prepare-result">No prepare run yet.</pre>
             </div>
-          </div>
-          <div class="view-section">
-            <h4 class="section-label">Onchain Contracts</h4>
-            <div class="form-row form-row-3">
-              <div>
-                <label class="form-label">Chain</label>
-                <input id="onchain-chain-id" type="text" readonly value="-">
+          </section>
+
+          <section class="treasury-panel" data-treasury-panel="risk">
+            <div class="split">
+              <div class="panel-card">
+                <h4>Transfer Ledger</h4>
+                <pre id="house-ledger">Loading house ledger...</pre>
               </div>
-              <div>
-                <label class="form-label">Token</label>
-                <input id="onchain-token-address" type="text" readonly value="-">
-              </div>
-              <div>
-                <label class="form-label">Escrow Contract</label>
-                <input id="onchain-escrow-address" type="text" readonly value="-">
+              <div class="panel-card">
+                <h4>Risk Notes</h4>
+                <p class="muted" style="margin:0;font-size:13px;">
+                  Sponsor failures usually come from low sponsor ETH, stale RPC config, or missing wallet prep before placing wagers.
+                </p>
+                <p class="muted" style="margin:8px 0 0;font-size:13px;">
+                  Use this section for audit/recovery while wallet and contract operations stay in their dedicated tabs.
+                </p>
               </div>
             </div>
-            <div class="form-row form-row-3">
-              <div>
-                <label class="form-label">Escrow ETH</label>
-                <input id="onchain-escrow-eth" type="text" readonly value="-">
-              </div>
-              <div>
-                <label class="form-label">Sponsor Wallet</label>
-                <input id="onchain-sponsor-address" type="text" readonly value="-">
-              </div>
-              <div>
-                <label class="form-label">Sponsor ETH</label>
-                <input id="onchain-sponsor-eth" type="text" readonly value="-">
-              </div>
-            </div>
-            <div class="form-row">
-              <div>
-                <label class="form-label" for="onchain-prepare-wallets">Prepare Escrow Wallet IDs (comma-separated)</label>
-                <input id="onchain-prepare-wallets" type="text" placeholder="wallet_2,wallet_9">
-              </div>
-              <div>
-                <label class="form-label" for="onchain-prepare-amount">Wager Amount</label>
-                <input id="onchain-prepare-amount" type="number" min="0.01" step="0.01" value="1">
-              </div>
-              <div style="align-self:end;">
-                <button id="onchain-prepare-run" type="button" class="primary" style="width:100%;">Prepare Escrow</button>
-              </div>
-            </div>
-            <pre id="onchain-prepare-result">No prepare run yet.</pre>
-          </div>
-          <div class="view-section">
-            <h4 class="section-label">Controlled Wallets</h4>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Wallet</th><th>Owner</th><th>Address</th><th>Runtime</th><th>Token</th><th>ETH</th><th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="treasury-wallets-body"></tbody>
-              </table>
-            </div>
-          </div>
+          </section>
         </article>
 
         <!-- MARKETS -->

@@ -1,5 +1,6 @@
 const state = {
   activeView: 'overview',
+  activeTreasuryMode: 'wallet',
   bootstrap: null,
   incidents: [],
   runbooks: [],
@@ -44,6 +45,8 @@ const el = {
   railButtons: [...document.querySelectorAll('.rail-btn')],
   views: [...document.querySelectorAll('.view')],
   toolGroups: [...document.querySelectorAll('[data-tool-group]')],
+  treasuryModeButtons: [...document.querySelectorAll('[data-treasury-mode]')],
+  treasuryPanels: [...document.querySelectorAll('[data-treasury-panel]')],
 
   overviewKpis: document.getElementById('overview-kpis'),
   runtimeSnapshot: document.getElementById('runtime-snapshot'),
@@ -349,11 +352,21 @@ function renderViews() {
   for (const view of el.views) {
     view.classList.toggle('active', view.id === `view-${state.activeView}`);
   }
+  renderTreasuryModes();
   if (state.activeView === 'markets' && (!Array.isArray(marketsState.markets) || marketsState.markets.length === 0)) {
     void marketsLoad().catch((error) => setStatus(`Markets load failed: ${String(error?.message || error)}`));
   }
   if (!state.lastLoadedAt) {
     void refreshAll({ silent: true });
+  }
+}
+
+function renderTreasuryModes() {
+  for (const btn of el.treasuryModeButtons) {
+    btn.classList.toggle('active', btn.dataset.treasuryMode === state.activeTreasuryMode);
+  }
+  for (const panel of el.treasuryPanels) {
+    panel.classList.toggle('is-active', panel.dataset.treasuryPanel === state.activeTreasuryMode);
   }
 }
 
@@ -1378,6 +1391,12 @@ function bindEvents() {
       state.activeView = String(btn.dataset.view || 'overview');
       renderViews();
       schedulePolling(true);
+    });
+  }
+  for (const btn of el.treasuryModeButtons) {
+    btn.addEventListener('click', () => {
+      state.activeTreasuryMode = String(btn.dataset.treasuryMode || 'wallet');
+      renderTreasuryModes();
     });
   }
 

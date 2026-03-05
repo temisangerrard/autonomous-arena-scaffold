@@ -143,6 +143,35 @@ pre {
 .views { display: grid; gap: 10px; }
 .view { display: none; }
 .view.active { display: block; }
+.mode-switch {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mode-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 252, 244, 0.9);
+  color: var(--muted);
+  padding: 6px 12px;
+  font: 500 11px/1 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mode-btn.active {
+  border-color: rgba(168, 120, 48, 0.8);
+  background: linear-gradient(125deg, rgba(212, 168, 75, 0.28), rgba(168, 120, 48, 0.16));
+  color: var(--ink);
+}
+.treasury-modes {
+  margin-bottom: 12px;
+}
+.treasury-panel {
+  display: none;
+}
+.treasury-panel.is-active {
+  display: block;
+}
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips button { font-size: 12px; }
