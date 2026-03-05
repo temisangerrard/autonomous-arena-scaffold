@@ -310,6 +310,15 @@ async function handleAdminMarkets(
     return;
   }
 
+  if (pathname === '/admin/markets/refresh' && req.method === 'POST') {
+    await ctx.marketService.refreshMarketOutcomes();
+    const state = await ctx.marketService.getAdminState();
+    const chainlinkMarkets = state.markets.filter((m) => m.oracleSource === 'chainlink_btc_usd');
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: true, chainlinkMarkets: chainlinkMarkets.length, markets: chainlinkMarkets }));
+    return;
+  }
+
   if ((pathname === '/admin/markets/activate' || pathname === '/admin/markets/deactivate') && req.method === 'POST') {
     const body = await readJsonBody<{
       marketId?: string;

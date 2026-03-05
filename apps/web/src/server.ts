@@ -2534,6 +2534,7 @@ const server = createServer(async (req, res) => {
     }
     if (
       (subpath === '/markets/sync'
+      || subpath === '/markets/refresh'
       || subpath === '/markets/activate'
       || subpath === '/markets/deactivate'
       || subpath === '/markets/config')

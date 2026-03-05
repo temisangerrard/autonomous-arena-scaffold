@@ -1,6 +1,7 @@
 const el = {
   status: document.getElementById('status'),
   refreshAll: document.getElementById('refresh-all'),
+  refreshChainlink: document.getElementById('refresh-chainlink'),
   syncMarkets: document.getElementById('sync-markets'),
   e2eRefresh: document.getElementById('e2e-refresh'),
   e2eStatus: document.getElementById('e2e-status'),
@@ -242,6 +243,23 @@ async function syncNow() {
   }
 }
 
+async function refreshChainlink() {
+  setStatus('Forcing Chainlink BTC market creation via oracle...');
+  try {
+    const payload = await apiPost('/api/admin/runtime/markets/refresh', {});
+    await refreshAll();
+    void runE2ePlayerViewCheck();
+    const count = Number(payload?.chainlinkMarkets || 0);
+    if (count > 0) {
+      setStatus(`Done — ${count} Chainlink BTC market(s) found/created.`);
+    } else {
+      setStatus('Refresh ran but oracle returned 0 Chainlink markets. Check server logs — CHAIN_RPC_URL may not be set.', true);
+    }
+  } catch (error) {
+    setStatus(`Chainlink refresh failed: ${String(error?.message || error)}`, true);
+  }
+}
+
 async function setMarketConfig(marketId, active) {
   await apiPost('/api/admin/runtime/markets/config', {
     marketId,
@@ -255,6 +273,7 @@ async function setMarketConfig(marketId, active) {
 function bindEvents() {
   el.refreshAll?.addEventListener('click', () => { void refreshAll(); });
   el.refreshLive?.addEventListener('click', () => { void loadLive().then(() => { renderLive(); renderKpis(); }).catch((err) => setStatus(String(err?.message || err), true)); });
+  el.refreshChainlink?.addEventListener('click', () => { void refreshChainlink(); });
   el.syncMarkets?.addEventListener('click', () => { void syncNow(); });
   el.simRun?.addEventListener('click', () => simulateQuote());
   el.simSide?.addEventListener('change', () => simulateQuote());
