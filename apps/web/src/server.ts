@@ -2516,25 +2516,8 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
-    if (subpath === '/markets/live' && req.method === 'GET') {
-      const limit = Math.max(1, Math.min(200, Number(requestUrl.searchParams.get('limit') || 60)));
-      const query = String(requestUrl.searchParams.get('query') || '').trim();
-      const queryBits = new URLSearchParams({
-        limit: String(limit)
-      });
-      if (query) queryBits.set('query', query);
-      try {
-        const payload = await serverGet(`/admin/markets/live?${queryBits.toString()}`);
-        sendJson(res, payload);
-      } catch (error) {
-        const upstream = upstreamErrorJson(error, 'server_unavailable', 400);
-        sendJson(res, upstream.body, upstream.status);
-      }
-      return;
-    }
     if (
-      (subpath === '/markets/sync'
-      || subpath === '/markets/refresh'
+      (subpath === '/markets/refresh'
       || subpath === '/markets/activate'
       || subpath === '/markets/deactivate'
       || subpath === '/markets/config')

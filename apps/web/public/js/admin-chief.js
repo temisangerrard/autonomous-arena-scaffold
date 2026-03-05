@@ -106,7 +106,6 @@ const el = {
 
   marketsSyncStatus: document.getElementById('markets-sync-status'),
   marketsSyncBtn: document.getElementById('markets-sync-btn'),
-  marketsAutoActivateBtn: document.getElementById('markets-autoactivate-btn'),
   marketsFilterStatus: document.getElementById('markets-filter-status'),
   marketsSearch: document.getElementById('markets-search'),
   marketsTable: document.getElementById('markets-table'),
@@ -279,20 +278,8 @@ async function marketsLoad() {
   marketsRenderTable();
 }
 
-async function marketsSync() {
-  const payload = await marketsRequest('/markets/sync', {
-    method: 'POST',
-    body: JSON.stringify({ limit: 60 })
-  });
-  await marketsLoad();
-  return payload;
-}
-
-async function marketsAutoActivate() {
-  const payload = await marketsRequest('/markets/sync', {
-    method: 'POST',
-    body: JSON.stringify({ limit: 60, autoActivate: true })
-  });
+async function marketsRefreshChainlink() {
+  const payload = await marketsRequest('/markets/refresh', { method: 'POST', body: '{}' });
   await marketsLoad();
   return payload;
 }
@@ -1294,24 +1281,13 @@ function bindUsersActions() {
 
 function bindMarketsActions() {
   el.marketsSyncBtn?.addEventListener('click', async () => {
-    setStatus('Syncing markets from Polymarket...');
+    setStatus('Creating BTC markets via Chainlink oracle...');
     try {
-      const payload = await marketsSync();
-      addActivity('write', 'Synced prediction markets', `synced=${Number(payload?.synced || 0)}`);
-      setStatus(`Markets synced (${Number(payload?.synced || 0)}).`);
+      const payload = await marketsRefreshChainlink();
+      addActivity('write', 'Refreshed Chainlink BTC markets', `chainlink=${Number(payload?.chainlinkMarkets || 0)}`);
+      setStatus(`BTC markets refreshed (${Number(payload?.chainlinkMarkets || 0)} chainlink markets).`);
     } catch (error) {
-      setStatus(`Markets sync failed: ${String(error?.message || error)}`);
-    }
-  });
-
-  el.marketsAutoActivateBtn?.addEventListener('click', async () => {
-    setStatus('Sync + auto-activate open markets...');
-    try {
-      const payload = await marketsAutoActivate();
-      addActivity('write', 'Auto-activate markets', `synced=${Number(payload?.synced || 0)}, activated=${Number(payload?.activated || 0)}`);
-      setStatus(`Auto-activate complete (synced=${Number(payload?.synced || 0)}, activated=${Number(payload?.activated || 0)}).`);
-    } catch (error) {
-      setStatus(`Auto-activate failed: ${String(error?.message || error)}`);
+      setStatus(`Refresh failed: ${String(error?.message || error)}`);
     }
   });
 

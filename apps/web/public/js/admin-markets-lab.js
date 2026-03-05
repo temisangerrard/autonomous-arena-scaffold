@@ -2,7 +2,6 @@ const el = {
   status: document.getElementById('status'),
   refreshAll: document.getElementById('refresh-all'),
   refreshChainlink: document.getElementById('refresh-chainlink'),
-  syncMarkets: document.getElementById('sync-markets'),
   e2eRefresh: document.getElementById('e2e-refresh'),
   e2eStatus: document.getElementById('e2e-status'),
   e2ePlayerMarkets: document.getElementById('e2e-player-markets'),
@@ -14,13 +13,8 @@ const el = {
   e2eQuoteBody: document.getElementById('e2e-quote-body'),
   e2eQuoteClose: document.getElementById('e2e-quote-close'),
   enabledBody: document.getElementById('enabled-body'),
-  liveBody: document.getElementById('live-body'),
-  liveQuery: document.getElementById('live-query'),
-  liveLimit: document.getElementById('live-limit'),
-  refreshLive: document.getElementById('refresh-live'),
   kpiEnabled: document.getElementById('kpi-enabled'),
   kpiActive: document.getElementById('kpi-active'),
-  kpiLive: document.getElementById('kpi-live'),
   kpiBoth: document.getElementById('kpi-both'),
   kpiRisk: document.getElementById('kpi-risk'),
   simMarket: document.getElementById('sim-market'),
@@ -32,7 +26,6 @@ const el = {
 
 const state = {
   adminMarkets: [],
-  liveMarkets: [],
   liquidityHealth: null,
   eventCounts: []
 };
@@ -90,12 +83,10 @@ function formatDate(ts) {
 function renderKpis() {
   const enabled = state.adminMarkets.length;
   const active = state.adminMarkets.filter((entry) => entry.active).length;
-  const live = state.liveMarkets.length;
   const both = state.liquidityHealth?.marketsWithBothSides ?? 0;
   const risk = state.liquidityHealth?.refundOnlyRiskMarkets ?? 0;
   if (el.kpiEnabled) el.kpiEnabled.textContent = String(enabled);
   if (el.kpiActive) el.kpiActive.textContent = String(active);
-  if (el.kpiLive) el.kpiLive.textContent = String(live);
   if (el.kpiBoth) el.kpiBoth.textContent = String(both);
   if (el.kpiRisk) {
     el.kpiRisk.textContent = String(risk);
@@ -106,7 +97,7 @@ function renderKpis() {
 function renderEnabled() {
   if (!el.enabledBody) return;
   if (!Array.isArray(state.adminMarkets) || state.adminMarkets.length === 0) {
-    el.enabledBody.innerHTML = '<tr><td colspan="4">No markets in app DB yet. Run sync from Polymarket.</td></tr>';
+    el.enabledBody.innerHTML = '<tr><td colspan="4">No markets in app DB yet. Click ⚡ Force Create BTC Markets.</td></tr>';
     return;
   }
 
@@ -134,32 +125,6 @@ function renderEnabled() {
               <button class="btn" data-action="adopt" data-market-id="${escapeHtml(marketId)}">Apply Defaults</button>
             </div>
           </td>
-        </tr>
-      `;
-    })
-    .join('');
-}
-
-function renderLive() {
-  if (!el.liveBody) return;
-  if (!Array.isArray(state.liveMarkets) || state.liveMarkets.length === 0) {
-    el.liveBody.innerHTML = '<tr><td colspan="5">No live markets returned for this query.</td></tr>';
-    return;
-  }
-
-  el.liveBody.innerHTML = state.liveMarkets
-    .map((entry) => {
-      const marketId = String(entry.marketId || '');
-      return `
-        <tr>
-          <td>
-            <div class="question-text">${escapeHtml(entry.question || marketId)}</div>
-            <div class="id-text">${escapeHtml(marketId)}</div>
-          </td>
-          <td><span class="mono">${escapeHtml((entry.category || '-').toUpperCase())}</span></td>
-          <td><span class="price-yes">Y ${escapeHtml(formatPrice(entry.yesPrice))}</span> &nbsp;<span class="price-no">N ${escapeHtml(formatPrice(entry.noPrice))}</span></td>
-          <td class="mono">${escapeHtml(formatDate(entry.closeAt))}</td>
-          <td><button class="btn btn-gold" data-action="promote" data-market-id="${escapeHtml(marketId)}">Enable In App</button></td>
         </tr>
       `;
     })
@@ -208,38 +173,17 @@ async function loadEnabled() {
   state.eventCounts = Array.isArray(payload?.eventCounts) ? payload.eventCounts : [];
 }
 
-async function loadLive() {
-  const query = String(el.liveQuery?.value || '').trim();
-  const limit = Math.max(1, Math.min(200, Number(el.liveLimit?.value || 50)));
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (query) params.set('query', query);
-  const payload = await apiGet(`/api/admin/runtime/markets/live?${params.toString()}`);
-  state.liveMarkets = Array.isArray(payload?.markets) ? payload.markets : [];
-}
-
 async function refreshAll() {
-  setStatus('Refreshing enabled + live markets...');
+  setStatus('Refreshing markets...');
   try {
-    await Promise.all([loadEnabled(), loadLive()]);
+    await loadEnabled();
     renderEnabled();
-    renderLive();
     renderKpis();
     renderSimulatorMarkets();
     simulateQuote();
     setStatus(`Markets lab updated at ${new Date().toLocaleTimeString()}.`);
   } catch (error) {
     setStatus(`Refresh failed: ${String(error?.message || error)}`, true);
-  }
-}
-
-async function syncNow() {
-  setStatus('Syncing app market DB from Polymarket...');
-  try {
-    const payload = await apiPost('/api/admin/runtime/markets/sync', { limit: 80 });
-    await refreshAll();
-    setStatus(`Sync complete. ${Number(payload?.synced || 0)} markets upserted.`);
-  } catch (error) {
-    setStatus(`Sync failed: ${String(error?.message || error)}`, true);
   }
 }
 
@@ -272,9 +216,7 @@ async function setMarketConfig(marketId, active) {
 
 function bindEvents() {
   el.refreshAll?.addEventListener('click', () => { void refreshAll(); });
-  el.refreshLive?.addEventListener('click', () => { void loadLive().then(() => { renderLive(); renderKpis(); }).catch((err) => setStatus(String(err?.message || err), true)); });
   el.refreshChainlink?.addEventListener('click', () => { void refreshChainlink(); });
-  el.syncMarkets?.addEventListener('click', () => { void syncNow(); });
   el.simRun?.addEventListener('click', () => simulateQuote());
   el.simSide?.addEventListener('change', () => simulateQuote());
   el.simMarket?.addEventListener('change', () => simulateQuote());
@@ -393,7 +335,7 @@ async function runE2ePlayerViewCheck() {
           `Chainlink BTC: ${chainlink.length}`,
           `Not cancelled: ${notCancelled.length}`,
           `closeAt > now (playable): ${notExpired.length}`,
-          notExpired.length === 0 ? '⚠ All chainlink markets are expired — run Sync to regenerate slots' : ''
+          notExpired.length === 0 ? '⚠ All chainlink markets are expired — click ⚡ Force Create BTC Markets' : ''
         ].filter(Boolean).join(' → ');
       }
       setE2eStatus('Player would see: no markets. Station shows "No current BTC market is live".', true);

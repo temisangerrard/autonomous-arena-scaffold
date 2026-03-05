@@ -99,7 +99,7 @@ function buildServiceState(input?: {
 describe('MarketService active market guarantee', () => {
   it('returns empty when no chainlink btc rail can be built', async () => {
     const state = buildServiceState({ markets: [] });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
@@ -128,7 +128,7 @@ describe('MarketService active market guarantee', () => {
         }
       ]
     });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
@@ -182,7 +182,7 @@ describe('MarketService active market guarantee', () => {
         }
       ]
     });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
@@ -194,7 +194,7 @@ describe('MarketService active market guarantee', () => {
   it('creates active chainlink btc markets when oracle data is available', async () => {
     const now = Date.now();
     const state = buildServiceState({ markets: [] });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: now,
@@ -286,7 +286,7 @@ describe('MarketService settlement liquidity behavior', () => {
         return { ok: true };
       }
     };
-    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(db as never, escrow as never, () => 'house_wallet');
 
     const result = await service.settleResolvedMarkets();
 
@@ -358,7 +358,7 @@ describe('MarketService settlement liquidity behavior', () => {
         return { ok: true };
       }
     };
-    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(db as never, escrow as never, () => 'house_wallet');
 
     const result = await service.settleResolvedMarkets();
 
@@ -444,7 +444,7 @@ describe('MarketService Chainlink markets', () => {
         }
       ]
     });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: now,
@@ -461,7 +461,7 @@ describe('MarketService Chainlink markets', () => {
 
   it('creates active BTC chainlink markets for 5m and 24h durations', async () => {
     const state = buildServiceState({ markets: [] });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: Date.now(),
@@ -481,7 +481,7 @@ describe('MarketService Chainlink markets', () => {
 
   it('does not set lock price for next-round markets before open', async () => {
     const state = buildServiceState({ markets: [] });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: Date.now(),
@@ -531,7 +531,7 @@ describe('MarketService Chainlink markets', () => {
         }
       ]
     });
-    const service = new MarketService(state.db as never, {} as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
     (service as any).latestBtcUsd = async () => ({
       price: 95_000,
       updatedAt: now,
@@ -634,7 +634,7 @@ describe('MarketService scheduled positions', () => {
         return { ok: true };
       }
     };
-    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(db as never, escrow as never, () => 'house_wallet');
 
     const result = await service.openPosition({
       playerId: 'player_1',
@@ -720,7 +720,7 @@ describe('MarketService scheduled positions', () => {
         return { ok: true };
       }
     };
-    const service = new MarketService(db as never, escrow as never, {} as never, () => 'house_wallet');
+    const service = new MarketService(db as never, escrow as never, () => 'house_wallet');
 
     const result = await service.settleResolvedMarkets();
 

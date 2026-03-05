@@ -4,8 +4,6 @@ import type { Database, MarketActivationRecord, MarketPositionRecord, MarketReco
 import type { EscrowAdapter } from '../EscrowAdapter.js';
 import { log as rootLog } from '../logger.js';
 import { METRIC_NAMES, metrics } from '../metrics.js';
-import { PolymarketFeed, type PolymarketNormalizedMarket } from './PolymarketFeed.js';
-import type { PolymarketClobClient } from './PolymarketClobClient.js';
 
 const log = rootLog.child({ module: 'market-service' });
 
@@ -51,24 +49,10 @@ export type QuoteResult = {
   positionStatus?: 'scheduled' | 'open';
 };
 
-export type LiveMarketPreview = {
-  marketId: string;
-  slug: string;
-  question: string;
-  category: string;
-  closeAt: number;
-  resolveAt: number | null;
-  status: 'open' | 'closed' | 'resolved' | 'cancelled';
-  outcome: 'yes' | 'no' | null;
-  yesPrice: number;
-  noPrice: number;
-  oracleMarketId: string;
-};
 
 const DEFAULT_MAX_WAGER = Math.max(1, Number(process.env.PREDICTION_MAX_WAGER_DEFAULT || 100));
 const DEFAULT_SPREAD_BPS = Math.max(0, Math.min(5000, Number(process.env.PREDICTION_SPREAD_BPS_DEFAULT || 300)));
 const MAX_OPEN_POSITIONS_PER_PLAYER = Math.max(1, Number(process.env.PREDICTION_MAX_OPEN_PER_PLAYER || 12));
-const ORACLE_STALE_MS = Math.max(30_000, Number(process.env.PREDICTION_ORACLE_STALE_MS || 3 * 60_000));
 const ENSURE_ACTIVE_MARKET_COOLDOWN_MS = Math.max(1_000, Number(process.env.PREDICTION_ENSURE_ACTIVE_COOLDOWN_MS || 5_000));
 const PREFERRED_MARKET_TERMS = (process.env.PREDICTION_PREFERRED_MARKET_TERMS || 'bitcoin,btc')
   .split(',')
@@ -97,7 +81,6 @@ type ChainlinkFeedContract = Contract & {
 };
 
 export class MarketService {
-  private lastSyncAt = 0;
   private ensureActiveMarketInFlight: Promise<void> | null = null;
   private ensureActiveMarketLastRunAt = 0;
   private chainlinkProvider: JsonRpcProvider | null = null;
@@ -107,9 +90,7 @@ export class MarketService {
   constructor(
     private readonly db: Database,
     private readonly escrowAdapter: EscrowAdapter,
-    private readonly feed: PolymarketFeed,
-    private readonly getHouseWalletId: () => string | null,
-    private readonly clobClient?: PolymarketClobClient
+    private readonly getHouseWalletId: () => string | null
   ) {}
 
   private normalizedPrice(price: number): number {
@@ -225,26 +206,6 @@ export class MarketService {
       if (haystack.includes(term)) score += 1;
     }
     return score;
-  }
-
-  private async upsertOracleMarkets(markets: PolymarketNormalizedMarket[]): Promise<void> {
-    for (const entry of markets) {
-      await this.db.upsertMarket({
-        id: entry.id,
-        slug: entry.slug,
-        question: entry.question,
-        category: entry.category,
-        closeAt: entry.closeAt,
-        resolveAt: entry.resolveAt,
-        status: entry.status,
-        oracleSource: 'polymarket_gamma',
-        oracleMarketId: entry.oracleMarketId,
-        outcome: entry.outcome,
-        yesPrice: entry.yesPrice,
-        noPrice: entry.noPrice,
-        rawJson: entry.raw
-      });
-    }
   }
 
   private durationMsFromToken(token: string): number | null {
@@ -516,128 +477,8 @@ export class MarketService {
     log.info('refreshMarketOutcomes: done');
   }
 
-  async syncFromOracle(limit = 60): Promise<{ ok: boolean; synced: number; error?: string }> {
-    try {
-      const markets = await this.feed.fetchMarkets(limit);
-      for (const entry of markets) {
-        await this.db.upsertMarket({
-          id: entry.id,
-          slug: entry.slug,
-          question: entry.question,
-          category: entry.category,
-          closeAt: entry.closeAt,
-          resolveAt: entry.resolveAt,
-          status: entry.status,
-          oracleSource: 'polymarket_gamma',
-          oracleMarketId: entry.oracleMarketId,
-          outcome: entry.outcome,
-          yesPrice: entry.yesPrice,
-          noPrice: entry.noPrice,
-          rawJson: entry.raw
-        });
-      }
-      this.lastSyncAt = Date.now();
-      return { ok: true, synced: markets.length };
-    } catch (error) {
-      return { ok: false, synced: 0, error: String((error as Error)?.message || error) };
-    }
-  }
-
-  async syncAndAutoActivate(limit = 60): Promise<{ ok: boolean; synced: number; activated: number; error?: string }> {
-    const syncResult = await this.syncFromOracle(limit);
-    if (!syncResult.ok) {
-      return {
-        ok: false,
-        synced: 0,
-        activated: 0,
-        error: syncResult.error || 'oracle_sync_failed'
-      };
-    }
-
-    try {
-      const [allMarkets, activations] = await Promise.all([
-        this.db.listMarkets(300),
-        this.activationMap()
-      ]);
-      const now = Date.now();
-      let activated = 0;
-
-      for (const market of allMarkets) {
-        // Preserve manual overrides if this market already has an activation record.
-        if (activations.has(market.id)) continue;
-        if (market.status !== 'open' || market.closeAt <= now) continue;
-        await this.db.setMarketActivation({
-          marketId: market.id,
-          active: true,
-          maxWager: DEFAULT_MAX_WAGER,
-          houseSpreadBps: DEFAULT_SPREAD_BPS,
-          updatedBy: 'auto-sync'
-        });
-        activated += 1;
-      }
-
-      return { ok: true, synced: syncResult.synced, activated };
-    } catch (error) {
-      return {
-        ok: false,
-        synced: syncResult.synced,
-        activated: 0,
-        error: String((error as Error)?.message || error)
-      };
-    }
-  }
-
-  async previewLiveMarkets(params?: { limit?: number; query?: string }): Promise<{
-    ok: boolean;
-    source: 'polymarket_gamma';
-    count: number;
-    markets: LiveMarketPreview[];
-    error?: string;
-  }> {
-    const limit = Math.max(1, Math.min(200, Number(params?.limit || 60)));
-    const query = String(params?.query || '').trim().toLowerCase();
-    try {
-      const fetched = await this.feed.fetchMarkets(limit);
-      const filtered = query
-        ? fetched.filter((entry) => {
-            const haystack = `${entry.question} ${entry.slug} ${entry.category}`.toLowerCase();
-            return haystack.includes(query);
-          })
-        : fetched;
-      const markets = filtered.map((entry) => ({
-        marketId: entry.id,
-        slug: entry.slug,
-        question: entry.question,
-        category: entry.category,
-        closeAt: entry.closeAt,
-        resolveAt: entry.resolveAt,
-        status: entry.status,
-        outcome: entry.outcome,
-        yesPrice: entry.yesPrice,
-        noPrice: entry.noPrice,
-        oracleMarketId: entry.oracleMarketId
-      }));
-      return {
-        ok: true,
-        source: 'polymarket_gamma',
-        count: markets.length,
-        markets
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        source: 'polymarket_gamma',
-        count: 0,
-        markets: [],
-        error: String((error as Error)?.message || error)
-      };
-    }
-  }
-
   async getAdminState(): Promise<{
     ok: true;
-    lastSyncAt: number;
-    staleMs: number;
     markets: MarketView[];
     liquidityHealth: {
       marketsWithBothSides: number;
@@ -676,8 +517,6 @@ export class MarketService {
       });
     return {
       ok: true,
-      lastSyncAt: this.lastSyncAt,
-      staleMs: this.lastSyncAt > 0 ? Math.max(0, Date.now() - this.lastSyncAt) : Number.MAX_SAFE_INTEGER,
       markets: views,
       liquidityHealth: {
         marketsWithBothSides: views.filter((v) => Number(v.yesLiquidity || 0) > 0 && Number(v.noLiquidity || 0) > 0).length,
@@ -760,9 +599,6 @@ export class MarketService {
     const view = this.marketViewOf(market, activation.get(market.id) || null);
     if (!view.active) {
       return { ok: false, reason: 'market_inactive', reasonText: 'This market is not active right now.' };
-    }
-    if (this.lastSyncAt > 0 && Date.now() - this.lastSyncAt > ORACLE_STALE_MS) {
-      return { ok: false, reason: 'oracle_unavailable', reasonText: 'Market feed is stale. Retry shortly.' };
     }
     if (view.status === 'resolved' || view.status === 'cancelled' || view.closeAt <= Date.now()) {
       return { ok: false, reason: 'market_closed', reasonText: 'This market is closed for new orders.' };
@@ -907,16 +743,6 @@ export class MarketService {
     const created = (await this.db.listPlayerMarketPositions(params.playerId, 10)).find((p) => p.id === positionId) || null;
     if (!created) {
       return { ok: false, reason: 'position_create_failed', reasonText: 'Position write failed.' };
-    }
-
-    // Fire-and-forget hedge on Polymarket CLOB — never blocks or fails the player response
-    if (this.clobClient && quote.market?.oracleMarketId && quote.positionStatus !== 'scheduled') {
-      const conditionId = quote.market.oracleMarketId;
-      const createdId   = created.id;
-      this.clobClient
-        .placeHedge(conditionId, params.side, quote.stake)
-        .then(({ orderId }) => this.db.setPositionClobOrder(createdId, orderId))
-        .catch((err: unknown) => log.warn({ err, positionId: createdId }, 'clob hedge failed (non-fatal)'));
     }
 
     return { ok: true, position: created, quote };

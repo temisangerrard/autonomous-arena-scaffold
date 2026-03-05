@@ -251,7 +251,7 @@
 
       <div id="e2e-no-markets" hidden>
         <div class="status" style="border-color:#d99f91; color:#7a261b;">
-          No markets returned for player — station shows nothing. Check: are Chainlink BTC markets active with closeAt &gt; now? Run Sync below then activate a market.
+          No markets returned for player — station shows nothing. Check: are Chainlink BTC markets active with closeAt &gt; now? Click ⚡ Force Create BTC Markets to regenerate slots.
         </div>
         <div id="e2e-diagnosis" class="status" style="margin-top:6px;"></div>
       </div>
@@ -269,7 +269,6 @@
     <section class="grid" id="ops-kpis">
       <article class="kpi"><div class="label">Enabled Markets</div><div class="value" id="kpi-enabled">—</div></article>
       <article class="kpi"><div class="label">Active Markets</div><div class="value" id="kpi-active">—</div></article>
-      <article class="kpi"><div class="label">Live API Markets</div><div class="value" id="kpi-live">—</div></article>
       <article class="kpi"><div class="label">Both-Sides Liquidity</div><div class="value" id="kpi-both">—</div></article>
       <article class="kpi"><div class="label">Refund-Only Risk</div><div class="value" id="kpi-risk">—</div></article>
     </section>
@@ -279,7 +278,6 @@
       <div class="row">
         <h2 class="panel-heading">Enabled In-App</h2>
         <button id="refresh-chainlink" class="btn" type="button" style="background:#2f8f5e;color:#fff;border-color:#2f8f5e">⚡ Force Create BTC Markets</button>
-        <button id="sync-markets" class="btn" type="button">Sync From Polymarket</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -292,35 +290,6 @@
             </tr>
           </thead>
           <tbody id="enabled-body"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Live Polymarket feed -->
-    <section class="panel" id="ops-live-feed">
-      <div class="row">
-        <h2 class="panel-heading">Live Polymarket Feed</h2>
-        <input id="live-query" type="text" placeholder="Search (btc, election, sports)" />
-        <select id="live-limit">
-          <option value="25">25</option>
-          <option value="50" selected>50</option>
-          <option value="100">100</option>
-          <option value="200">200</option>
-        </select>
-        <button id="refresh-live" class="btn" type="button">Load Live Feed</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Close</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="live-body"></tbody>
         </table>
       </div>
     </section>
