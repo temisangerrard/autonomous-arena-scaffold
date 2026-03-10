@@ -9,28 +9,28 @@ export function renderQuickstart(state, quickstartPanel, quickstartList) {
   const steps = [
     {
       done: connected,
-      label: 'Enter the Arena',
-      hint: connected ? 'You\'re in.' : 'Connecting…'
+      label: 'You\'re in the Arena',
+      hint: connected ? 'Connected — walk around to explore.' : 'Connecting to server…'
     },
     {
       done: nearStation,
-      label: 'Find a dealer',
-      hint: nearStation ? 'Station nearby.' : 'Walk toward a character — press E when prompted.'
+      label: 'Walk up to a dealer',
+      hint: nearStation ? 'Dealer nearby — press E to open.' : 'Move toward any character until a prompt appears.'
     },
     {
       done: state.quickstart.challengeSent,
-      label: 'Play your first round',
-      hint: state.quickstart.challengeSent ? 'Round started.' : 'Set a wager and hit Play inside the station panel.'
+      label: 'Start a game',
+      hint: state.quickstart.challengeSent ? 'Round started — pick your move!' : 'Open a station, set your wager, and hit Play.'
     },
     {
       done: state.quickstart.matchActive,
-      label: 'Lock in your move',
-      hint: state.quickstart.matchActive ? 'Move submitted.' : 'Pick your side — the house locks in instantly.'
+      label: 'Pick your side',
+      hint: state.quickstart.matchActive ? 'Move locked in.' : 'Tap or click your choice — Heads/Tails, Rock/Paper/Scissors, or a dice number.'
     },
     {
       done: state.quickstart.matchResolved,
-      label: 'Collect your result',
-      hint: state.quickstart.matchResolved ? 'Payout settled on-chain.' : 'The escrow reveals and settles automatically.'
+      label: 'Collect your winnings',
+      hint: state.quickstart.matchResolved ? '🎉 Payout settled!' : 'The escrow reveals automatically and pays instantly.'
     }
   ];
   const allDone = steps.every((s) => s.done);
@@ -46,7 +46,7 @@ export function renderQuickstart(state, quickstartPanel, quickstartList) {
     .join('');
   if (allDone) {
     quickstartList.insertAdjacentHTML('beforeend',
-      '<li class="qs-complete">You know how this works now. Good luck out there.</li>'
+      '<li class="qs-complete">You\'ve got the hang of it. Go win some more. 🏆</li>'
     );
   }
 }

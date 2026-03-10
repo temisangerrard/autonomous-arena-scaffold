@@ -22,6 +22,7 @@ const copyWalletAddress = document.getElementById('copy-wallet-address');
 const sidebarName = document.getElementById('sidebar-name');
 const sidebarHandle = document.getElementById('sidebar-handle');
 const sidebarWallet = document.getElementById('sidebar-wallet');
+const heroGreeting = document.getElementById('hero-greeting');
 
 const profileDisplayName = document.getElementById('profile-display-name');
 const profileUsername = document.getElementById('profile-username');
@@ -334,7 +335,9 @@ function renderContext() {
     }
   }
 
-  if (sidebarName) sidebarName.textContent = profile?.displayName || user?.name || 'Player';
+  const displayName = profile?.displayName || user?.name || 'Player';
+  if (sidebarName) sidebarName.textContent = displayName;
+  if (heroGreeting) heroGreeting.textContent = `Welcome back, ${displayName.split(' ')[0]}`;
   if (sidebarHandle) sidebarHandle.textContent = `@${profile?.username || 'player'}`;
   if (sidebarWallet) sidebarWallet.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(2) : '—';
 
