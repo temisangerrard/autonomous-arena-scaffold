@@ -926,21 +926,22 @@
         </div>
       </div>
 
+      <!-- Enter Arena — primary action, always visible at top -->
+      <div class="sidebar-actions" style="margin-top:0;margin-bottom:14px;">
+        <a id="dashboard-enter-play" class="btn-enter" href="/play?world=mega" style="min-height:46px;font-size:15px;font-weight:700;letter-spacing:0.03em;">&#9654; Enter Arena</a>
+      </div>
+
       <div class="sidebar-balance">
-        <span class="sidebar-balance__label">Balance</span>
+        <span class="sidebar-balance__label">Token Balance</span>
         <span class="sidebar-balance__value" id="sidebar-wallet">0.00</span>
       </div>
 
       <nav class="sidebar-nav">
-        <button type="button" data-view="bots" class="active"><span class="nav-icon">BT</span><span>My Bots</span></button>
-        <button type="button" data-view="wallet"><span class="nav-icon">WL</span><span>Wallet</span></button>
-        <button type="button" data-view="settings"><span class="nav-icon">ST</span><span>Settings</span></button>
-        <button type="button" data-view="super"><span class="nav-icon">CH</span><span>Chief</span></button>
+        <button type="button" data-view="bots" class="active"><span class="nav-icon" style="font-size:14px;">🏠</span><span>Home</span></button>
+        <button type="button" data-view="wallet"><span class="nav-icon" style="font-size:14px;">💰</span><span>Wallet</span></button>
+        <button type="button" data-view="settings"><span class="nav-icon" style="font-size:14px;">⚙</span><span>Settings</span></button>
+        <button type="button" data-view="super"><span class="nav-icon" style="font-size:14px;">🤖</span><span>Agent</span></button>
       </nav>
-
-      <div class="sidebar-actions">
-        <a id="dashboard-enter-play" class="btn-enter" href="/play?world=mega"><span>Enter Arena</span></a>
-      </div>
     </aside>
 
     <section class="dashboard-content">
@@ -948,34 +949,30 @@
 
         <section class="hero-card">
           <div>
-            <h1>Arena Dashboard</h1>
-            <p class="hero-card__sub">Your wallet, bots, and match history — all in one place.</p>
+            <h1 id="hero-greeting">Welcome back</h1>
+            <p class="hero-card__sub">Your token balance, match history, and settings — all here.</p>
             <div id="dashboard-status" class="status-line" aria-live="polite"></div>
           </div>
-          <a class="btn-gold" href="/play?world=mega" id="hero-enter-play" style="white-space:nowrap;font-size:16px;padding:10px 24px;">▶ Enter Arena</a>
+          <a class="btn-gold" href="/play?world=mega" id="hero-enter-play" style="white-space:nowrap;font-size:16px;padding:12px 28px;font-weight:700;">&#9654; Enter Arena</a>
         </section>
 
-        <!-- Bots View -->
+        <!-- Home View (default) -->
         <section id="view-bots" class="dash-view active">
-          <div class="card-grid" style="margin-bottom:14px;">
-            <article class="panel">
-              <h2>Your Character</h2>
-              <p class="muted" style="margin:0;font-style:italic;">One player, one bot. Tune its personality and it keeps playing while you're offline.</p>
-            </article>
 
-            <article class="panel">
-              <h2>Get started</h2>
-              <p class="muted" style="margin:0 0 10px;font-style:italic;">Walk the arena, find a dealer, and place your first wager. Payouts settle on-chain instantly.</p>
-              <ul id="onboarding-list" class="welcome-checks" style="margin:0 0 12px;"></ul>
-              <div class="actions" style="gap:8px;">
-                <a class="btn-gold" href="/play?world=mega" style="flex:1;text-align:center;">▶ Enter Arena</a>
-                <a class="btn-ghost" href="/viewer?world=mega">World Map</a>
-              </div>
-            </article>
-          </div>
+          <!-- New-player call-to-action — full width -->
+          <article class="panel" style="margin-bottom:14px;background:linear-gradient(135deg,rgba(198,152,49,0.08),rgba(253,248,237,0.97));border-color:rgba(198,152,49,0.45);">
+            <h2 style="margin-bottom:6px;">Your first game</h2>
+            <p class="muted" style="margin:0 0 14px;">Walk up to any dealer in the Arena, press <strong>E</strong>, set a wager, and pick your side. The escrow pays double instantly when you win.</p>
+            <ul id="onboarding-list" class="welcome-checks" style="margin:0 0 14px;"></ul>
+            <div class="actions" style="gap:8px;">
+              <a class="btn-gold" href="/play?world=mega" style="flex:1;text-align:center;font-size:15px;min-height:42px;">&#9654; Enter Arena now</a>
+              <a class="btn-ghost" href="/viewer?world=mega">World Map</a>
+            </div>
+          </article>
 
           <article class="panel" style="margin-bottom:14px;">
-            <h2>Bot Roster</h2>
+            <h2>Your player bot</h2>
+            <p class="muted" style="margin:0 0 12px;font-style:italic;">Your bot keeps playing while you're offline. Tune its personality and wager limits in Settings.</p>
             <div id="bot-list" class="bot-grid"></div>
           </article>
 
