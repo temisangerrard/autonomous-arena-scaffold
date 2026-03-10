@@ -948,11 +948,11 @@
 
         <section class="hero-card">
           <div>
-            <h1>Command Center</h1>
-            <p class="hero-card__sub">Your arena, your bots, your economy.</p>
+            <h1>Arena Dashboard</h1>
+            <p class="hero-card__sub">Your wallet, bots, and match history — all in one place.</p>
             <div id="dashboard-status" class="status-line" aria-live="polite"></div>
           </div>
-          <a class="btn-gold" href="/play?world=mega" id="hero-enter-play" style="white-space:nowrap;">Enter Arena</a>
+          <a class="btn-gold" href="/play?world=mega" id="hero-enter-play" style="white-space:nowrap;font-size:16px;padding:10px 24px;">▶ Enter Arena</a>
         </section>
 
         <!-- Bots View -->
@@ -964,10 +964,12 @@
             </article>
 
             <article class="panel">
-              <h2>Onboarding</h2>
-              <ul id="onboarding-list" class="welcome-checks" style="margin:0;"></ul>
-              <div style="margin-top:10px;" class="actions">
-                <a class="btn-ghost" href="/viewer?world=mega">World Viewer</a>
+              <h2>Get started</h2>
+              <p class="muted" style="margin:0 0 10px;font-style:italic;">Walk the arena, find a dealer, and place your first wager. Payouts settle on-chain instantly.</p>
+              <ul id="onboarding-list" class="welcome-checks" style="margin:0 0 12px;"></ul>
+              <div class="actions" style="gap:8px;">
+                <a class="btn-gold" href="/play?world=mega" style="flex:1;text-align:center;">▶ Enter Arena</a>
+                <a class="btn-ghost" href="/viewer?world=mega">World Map</a>
               </div>
             </article>
           </div>
@@ -977,20 +979,6 @@
             <div id="bot-list" class="bot-grid"></div>
           </article>
 
-          <article class="super-bar" id="chief-inline">
-            <div class="super-head">
-              <h2 class="super-title">Chief of Staff</h2>
-              <span class="ready">Ready</span>
-            </div>
-            <textarea id="super-agent-message" class="field" rows="2"
-              style="background:rgba(0,0,0,0.28);color:#e0d2b6;border-color:rgba(198,152,49,0.2);"
-              placeholder="fund 10 · set personality aggressive · status"></textarea>
-            <div class="actions" style="margin-top:8px;">
-              <button id="super-agent-send" class="btn-gold" type="button">Send</button>
-              <button id="super-agent-quick-status" class="btn-dark" type="button">Status</button>
-            </div>
-            <pre id="super-agent-response" class="super-response">Chief ready.</pre>
-          </article>
         </section>
 
         <!-- Wallet View -->

@@ -105,6 +105,11 @@ export function renderInteractionPromptLine(params) {
   const incoming = challengeController.currentIncomingChallenge();
   if (isStation(targetId)) {
     const station = state.stations instanceof Map ? state.stations.get(targetId) : null;
+    // Dud baked station — no server proxy so interacting will fail. Hide the prompt entirely.
+    if (station?.source === 'baked' && station?.proxyMissing && station?.kind !== 'world_interactable') {
+      interactionPrompt.classList.remove('visible');
+      return;
+    }
     const local = station?.localInteraction;
     const gameHintByKind = {
       dealer_coinflip: ' — press E to play Coin Flip',
