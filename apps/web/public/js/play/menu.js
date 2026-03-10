@@ -1,5 +1,5 @@
 export function initMenu(dom, { queryParams }) {
-  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuLogout } = dom;
+  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuHowToPlay, menuLogout, onboardingOverlay } = dom;
 
   function setMenuOpen(nextOpen) {
     if (!topbarMenuPop) return;
@@ -20,6 +20,21 @@ export function initMenu(dom, { queryParams }) {
   menuViewer?.addEventListener('click', () => {
     const world = queryParams.get('world') || 'mega';
     window.location.href = `/viewer?world=${encodeURIComponent(world)}`;
+  });
+
+  menuHowToPlay?.addEventListener('click', () => {
+    setMenuOpen(false);
+    if (onboardingOverlay) {
+      // Reset to step 0 and show
+      document.querySelectorAll('.onboarding__step').forEach((el) => { el.style.display = 'none'; });
+      const step0 = document.querySelector('.onboarding__step[data-step="0"]');
+      if (step0) step0.style.display = 'block';
+      document.querySelectorAll('.onboarding__dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === 0);
+        dot.classList.remove('completed');
+      });
+      onboardingOverlay.classList.add('visible');
+    }
   });
 
   menuLogout?.addEventListener('click', async () => {

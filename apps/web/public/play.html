@@ -28,22 +28,23 @@
         <div class="onboarding__dot" data-step="1"></div>
         <div class="onboarding__dot" data-step="2"></div>
         <div class="onboarding__dot" data-step="3"></div>
-        <div class="onboarding__dot" data-step="4"></div>
       </div>
       <div id="onboarding-content">
-        <!-- Step 0: Welcome -->
+        <!-- Step 0: Welcome & what is this -->
         <div class="onboarding__step" data-step="0">
-          <h2 class="onboarding__title" id="onboarding-title">The Arena</h2>
-          <p class="onboarding__desc">"Welcome. People come here from all over — some to test their luck, some their nerve. The dealers run fair games and the escrow never lies.<br><br>Walk around. Find someone to play against."<br><span class="onboarding__speaker">— Mara, Welcome Conductor</span></p>
+          <div class="onboarding__icon">🎰</div>
+          <h2 class="onboarding__title" id="onboarding-title">Welcome to the Arena</h2>
+          <p class="onboarding__desc">This is a 3D betting arcade where you wager tokens against AI dealers. Win and your balance grows. Lose and the house keeps them. Every payout settles instantly on-chain — no waiting, no middlemen.<br><br><strong>You've been given starting tokens. Let's spend some.</strong></p>
           <div class="onboarding__actions">
-            <button class="onboarding__btn onboarding__btn--primary" data-action="next">Show me around</button>
+            <button class="onboarding__btn onboarding__btn--primary" data-action="next">How does it work?</button>
           </div>
-          <p class="onboarding__skip"><a id="skip-tutorial">I know my way — enter now</a></p>
+          <p class="onboarding__skip"><a id="skip-tutorial">Skip — I'll figure it out</a></p>
         </div>
-        <!-- Step 1: Movement -->
+        <!-- Step 1: Move & find a dealer -->
         <div class="onboarding__step onboarding__step--hidden" data-step="1">
-          <h2 class="onboarding__title">Getting around</h2>
-          <p class="onboarding__desc">Walk with <strong>WASD</strong>. Each character you see is a dealer or host — walk close enough and you'll be prompted to interact.</p>
+          <div class="onboarding__icon">🚶</div>
+          <h2 class="onboarding__title">Find a dealer</h2>
+          <p class="onboarding__desc">Walk toward any character in the arena. On desktop use <strong>WASD</strong> to move. On mobile, use the on-screen joystick.</p>
           <div class="onboarding__keys">
             <div class="onboarding__key">
               <div class="onboarding__key-btn">W</div>
@@ -62,68 +63,45 @@
               <span class="onboarding__key-label">Right</span>
             </div>
           </div>
+          <p class="onboarding__desc" style="margin-top:12px;margin-bottom:0">Get close and a prompt will appear. Press <strong>E</strong> (or tap it on mobile) to open their station.</p>
           <div class="onboarding__actions">
             <button class="onboarding__btn onboarding__btn--secondary" data-action="prev">Back</button>
-            <button class="onboarding__btn onboarding__btn--primary" data-action="next">Next</button>
+            <button class="onboarding__btn onboarding__btn--primary" data-action="next">Got it</button>
           </div>
         </div>
-        <!-- Step 2: Camera -->
+        <!-- Step 2: Set wager & play -->
         <div class="onboarding__step onboarding__step--hidden" data-step="2">
-          <h2 class="onboarding__title">Camera</h2>
-          <p class="onboarding__desc">Hold <strong>Shift + Right-drag</strong> to orbit around your character. Press <strong>R</strong> to snap the view back behind you. Scroll to zoom.</p>
-          <div class="onboarding__keys">
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">R</div>
-              <span class="onboarding__key-label">Reset</span>
+          <div class="onboarding__icon">🎲</div>
+          <h2 class="onboarding__title">Place your bet</h2>
+          <p class="onboarding__desc">Inside the station panel, set your wager amount and hit <strong>Play</strong>. A round starts and the dealer locks in their move instantly.</p>
+          <div class="onboarding__checklist">
+            <div class="onboarding__check-item">
+              <span class="onboarding__check-num">1</span>
+              <span>Type your wager (or use the preset amounts)</span>
             </div>
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">⇕</div>
-              <span class="onboarding__key-label">Zoom</span>
+            <div class="onboarding__check-item">
+              <span class="onboarding__check-num">2</span>
+              <span>Hit <strong>Play</strong> to start the round</span>
+            </div>
+            <div class="onboarding__check-item">
+              <span class="onboarding__check-num">3</span>
+              <span>Pick your side — Heads/Tails, Rock/Paper/Scissors, or a dice value</span>
             </div>
           </div>
           <div class="onboarding__actions">
             <button class="onboarding__btn onboarding__btn--secondary" data-action="prev">Back</button>
-            <button class="onboarding__btn onboarding__btn--primary" data-action="next">Next</button>
+            <button class="onboarding__btn onboarding__btn--primary" data-action="next">And then?</button>
           </div>
         </div>
-        <!-- Step 3: Dealers -->
+        <!-- Step 3: Result & payout -->
         <div class="onboarding__step onboarding__step--hidden" data-step="3">
-          <h2 class="onboarding__title">The dealers</h2>
-          <p class="onboarding__desc">Walk up to Flint, Vera, or Kobi and press <strong>E</strong> to open a game station. Set your wager and hit Play. Every result is settled on-chain — no middlemen.</p>
-          <div class="onboarding__keys">
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">E</div>
-              <span class="onboarding__key-label">Open station</span>
-            </div>
-          </div>
-          <div class="onboarding__actions">
-            <button class="onboarding__btn onboarding__btn--secondary" data-action="prev">Back</button>
-            <button class="onboarding__btn onboarding__btn--primary" data-action="next">Next</button>
-          </div>
-        </div>
-        <!-- Step 4: Making your move -->
-        <div class="onboarding__step onboarding__step--hidden" data-step="4">
-          <h2 class="onboarding__title">Making your move</h2>
-          <p class="onboarding__desc">Once a round is live, pick your side. Coin Flip: <strong>H / T</strong>. Rock Paper Scissors: <strong>1 / 2 / 3</strong>. Dice: <strong>1–6</strong>. Escrow reveals and pays out instantly.</p>
-          <div class="onboarding__keys">
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">H</div>
-              <span class="onboarding__key-label">Heads</span>
-            </div>
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">1</div>
-              <span class="onboarding__key-label">Rock</span>
-            </div>
-            <div class="onboarding__key">
-              <div class="onboarding__key-btn">1–6</div>
-              <span class="onboarding__key-label">Dice</span>
-            </div>
-          </div>
+          <div class="onboarding__icon">🏆</div>
+          <h2 class="onboarding__title">Collect your winnings</h2>
+          <p class="onboarding__desc">Once both sides are locked in, the result reveals automatically. Win and the escrow pays double your wager to your wallet instantly. Lose and the house takes it.<br><br>Your balance is always visible in the top-left corner. The <strong>First steps</strong> guide at the bottom will track your progress.</p>
           <div class="onboarding__actions">
             <button class="onboarding__btn onboarding__btn--secondary" data-action="prev">Back</button>
             <button class="onboarding__btn onboarding__btn--primary" data-action="start">Enter the Arena</button>
           </div>
-          <p class="onboarding__skip"><a id="skip-tutorial">Skip — enter now</a></p>
         </div>
       </div>
     </div>
@@ -168,6 +146,7 @@
   <nav id="topbar-menu-pop" class="menu-pop" role="menu" aria-hidden="true">
     <button id="menu-dashboard" type="button" role="menuitem" class="menu-item menu-item--dashboard">Dashboard</button>
     <button id="menu-viewer" type="button" role="menuitem" class="menu-item menu-item--viewer">World Map</button>
+    <button id="menu-how-to-play" type="button" role="menuitem" class="menu-item menu-item--how-to-play">How to play</button>
     <div class="menu-pop__divider" role="separator" aria-hidden="true"></div>
     <button id="menu-logout" type="button" role="menuitem" class="menu-item menu-item--logout">Sign Out</button>
   </nav>

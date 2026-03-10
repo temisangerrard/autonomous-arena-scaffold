@@ -10,6 +10,7 @@ export function getDom() {
     topbarMenuPop: document.getElementById('topbar-menu-pop'),
     menuDashboard: document.getElementById('menu-dashboard'),
     menuViewer: document.getElementById('menu-viewer'),
+    menuHowToPlay: document.getElementById('menu-how-to-play'),
     menuLogout: document.getElementById('menu-logout'),
     feedPanel: document.getElementById('challenge-feed-panel'),
     challengeStatusLine: document.getElementById('challenge-status-line'),
