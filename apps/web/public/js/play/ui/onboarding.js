@@ -1,5 +1,5 @@
 const ONBOARDING_KEY = 'arena_onboarding_completed';
-const ONBOARDING_STEPS = 5;
+const ONBOARDING_STEPS = 4;
 
 export function initOnboarding(dom, { showToast, announce }) {
   const overlay = dom.onboardingOverlay;

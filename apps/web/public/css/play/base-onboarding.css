@@ -171,3 +171,28 @@
       color: #a68523;
       letter-spacing: 0.03em;
     }
+    /* Numbered checklist used in "Place your bet" step */
+    .onboarding__checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .onboarding__check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font: 15px/1.4 'Crimson Text', serif;
+      color: #5a4d3a;
+    }
+    .onboarding__check-num {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #d4a84b 0%, #c49a38 100%);
+      color: #1a1408;
+      font: 700 12px/24px 'IBM Plex Mono', monospace;
+      text-align: center;
+    }
