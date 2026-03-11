@@ -6,9 +6,7 @@ export function initOnboarding(dom, { showToast, announce }) {
   const progress = dom.onboardingProgress;
   if (!overlay) return;
 
-  const completed = localStorage.getItem(ONBOARDING_KEY) === 'true';
-  if (completed) return;
-
+  const completedAtInit = localStorage.getItem(ONBOARDING_KEY) === 'true';
   let onboardingStep = 0;
 
   function updateProgress() {
@@ -21,35 +19,43 @@ export function initOnboarding(dom, { showToast, announce }) {
   }
 
   function showStep(step) {
+    const clamped = Math.max(0, Math.min(ONBOARDING_STEPS - 1, Number(step) || 0));
+    onboardingStep = clamped;
     document.querySelectorAll('.onboarding__step').forEach((el) => {
       el.style.display = 'none';
     });
-    const current = document.querySelector(`.onboarding__step[data-step="${step}"]`);
+    const current = document.querySelector(`.onboarding__step[data-step="${onboardingStep}"]`);
     if (current) current.style.display = 'block';
     updateProgress();
     const title = current?.querySelector('.onboarding__title')?.textContent || '';
-    announce?.(`Step ${step + 1}: ${title}`);
+    announce?.(`Step ${onboardingStep + 1}: ${title}`);
   }
 
   function complete() {
+    const alreadyCompleted = localStorage.getItem(ONBOARDING_KEY) === 'true';
     localStorage.setItem(ONBOARDING_KEY, 'true');
     overlay.classList.remove('visible');
-    showToast?.('Welcome to the Arena! Good luck!', 'success');
+    if (!alreadyCompleted) {
+      showToast?.('Welcome to the Arena! Good luck!', 'success');
+    }
+  }
+
+  function openOnboarding(step = 0) {
+    showStep(step);
+    overlay.classList.add('visible');
   }
 
   function handleAction(event) {
     const action = event.target?.dataset?.action;
     if (action === 'next') {
       if (onboardingStep < ONBOARDING_STEPS - 1) {
-        onboardingStep += 1;
-        showStep(onboardingStep);
+        showStep(onboardingStep + 1);
       }
       return;
     }
     if (action === 'prev') {
       if (onboardingStep > 0) {
-        onboardingStep -= 1;
-        showStep(onboardingStep);
+        showStep(onboardingStep - 1);
       }
       return;
     }
@@ -67,7 +73,12 @@ export function initOnboarding(dom, { showToast, announce }) {
     e.preventDefault();
     complete();
   });
-  updateProgress();
-  showStep(0);
-}
 
+  dom.openOnboarding = (step = 0) => openOnboarding(step);
+  dom.closeOnboarding = () => overlay.classList.remove('visible');
+
+  showStep(0);
+  if (!completedAtInit) {
+    overlay.classList.add('visible');
+  }
+}
