@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEnvFromFile } from './lib/env.js';
+import { initializeCdpClient } from './lib/cdpClient.js';
 import { formatCodebaseContext, getTroubleshootingGuide } from './codebaseContext.js';
 import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
 import {
@@ -153,6 +154,7 @@ const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.e
 const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
   ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
   : process.env.NODE_ENV !== 'production';
+const cdpClientState = await initializeCdpClient(process.env);
 
 function startupDiagnostics() {
   console.log('[agent-runtime] startup diagnostics', {
@@ -161,6 +163,10 @@ function startupDiagnostics() {
     wsAuthConfigured: Boolean(wsAuthSecret),
     internalTokenConfigured: Boolean(internalToken),
     openRouterConfigured: Boolean(runtimeSecrets.openRouterApiKey),
+    cdpApiKeyIdConfigured: Boolean(process.env.CDP_API_KEY_ID),
+    cdpApiKeySecretConfigured: Boolean(process.env.CDP_API_KEY_SECRET),
+    cdpProjectIdConfigured: Boolean(process.env.CDP_PROJECT_ID),
+    cdpClientAvailable: cdpClientState.available,
     onchainRpcConfigured: Boolean(onchainRpcUrl),
     onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress),
     builderCode: builderCodeContext.code,
@@ -1433,6 +1439,17 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
   const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
   if (walletProvider === 'coinbase_embedded') {
+    if (!cdpClientState.available) {
+      return {
+        ok: false,
+        reason: `paymaster_unavailable:${cdpClientState.reason || 'cdp_client_unavailable'}`,
+        walletId,
+        address: owner,
+        allowance: '0',
+        balance: '0',
+        nativeBalanceEth: '0'
+      };
+    }
     const paymasterAllowed = coinbasePaymasterEnabled && coinbasePaymasterAllowEscrow && Boolean(onchainEscrowAddress);
     if (!paymasterAllowed) {
       const reason = !coinbasePaymasterEnabled
