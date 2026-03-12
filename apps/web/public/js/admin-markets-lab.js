@@ -21,13 +21,17 @@ const el = {
   simSide: document.getElementById('sim-side'),
   simStake: document.getElementById('sim-stake'),
   simRun: document.getElementById('sim-run'),
-  simOutput: document.getElementById('sim-output')
+  simOutput: document.getElementById('sim-output'),
+  reconcileRefresh: document.getElementById('reconcile-refresh'),
+  reconcileIncludeLegacy: document.getElementById('reconcile-include-legacy'),
+  reconcileBody: document.getElementById('reconcile-body')
 };
 
 const state = {
   adminMarkets: [],
   liquidityHealth: null,
-  eventCounts: []
+  eventCounts: [],
+  reconcileRows: []
 };
 
 function escapeHtml(value) {
@@ -175,14 +179,94 @@ async function loadEnabled() {
   state.eventCounts = Array.isArray(payload?.eventCounts) ? payload.eventCounts : [];
 }
 
+async function loadSettlementIntegrity() {
+  const includeLegacy = Boolean(el.reconcileIncludeLegacy?.checked);
+  const payload = await apiGet(`/api/admin/runtime/markets/reconcile?includeLegacy=${includeLegacy ? 'true' : 'false'}&limit=160`);
+  state.reconcileRows = Array.isArray(payload?.rows) ? payload.rows : [];
+}
+
+function issueLabel(issue) {
+  if (issue === 'orphan_market') return 'Orphan market';
+  if (issue === 'legacy_market') return 'Legacy market';
+  if (issue === 'missing_onchain_bet') return 'Missing onchain bet';
+  if (issue === 'db_open_onchain_final') return 'DB open, onchain final';
+  return String(issue || 'unknown');
+}
+
+function actionLabel(action) {
+  if (action === 'void_refund') return 'Void + Refund';
+  if (action === 'db_close_legacy') return 'DB Close Legacy';
+  if (action === 'sync_onchain_final') return 'Sync Onchain Final';
+  return 'Repair';
+}
+
+function renderSettlementIntegrity() {
+  if (!el.reconcileBody) return;
+  const rows = Array.isArray(state.reconcileRows) ? state.reconcileRows : [];
+  if (rows.length === 0) {
+    el.reconcileBody.innerHTML = '<tr><td colspan="4">No settlement integrity issues found.</td></tr>';
+    return;
+  }
+  el.reconcileBody.innerHTML = rows.map((row) => {
+    const positionId = String(row.positionId || '');
+    const marketId = String(row.marketId || '');
+    const issue = String(row.issue || 'unknown');
+    const action = String(row.recommendedAction || 'db_close_legacy');
+    const marketSource = row.marketOracleSource == null ? 'missing' : String(row.marketOracleSource);
+    const onchainStatus = String(row.onchainStatus || 'none');
+    const onchainPayout = Number(row.onchainPayout ?? 0);
+    const stake = Number(row.stake ?? 0);
+    return `<tr>
+      <td>
+        <div class="question-text">${escapeHtml(positionId)}</div>
+        <div class="id-text">${escapeHtml(marketId)} · ${escapeHtml(String(row.playerId || ''))} · ${escapeHtml(String(row.walletId || ''))}</div>
+      </td>
+      <td>
+        <span class="badge warn">${escapeHtml(issueLabel(issue))}</span>
+        <div class="id-text" style="margin-top:5px;">source=${escapeHtml(marketSource)}</div>
+      </td>
+      <td class="mono">
+        db=${escapeHtml(String(row.dbStatus || 'open'))} · onchain=${escapeHtml(onchainStatus)}<br>
+        stake=${stake.toFixed(2)} · payout=${onchainPayout.toFixed(2)}
+      </td>
+      <td>
+        <button class="btn btn-gold" data-action="repair-position"
+          data-position-id="${escapeHtml(positionId)}"
+          data-market-id="${escapeHtml(marketId)}"
+          data-escrow-bet-id="${escapeHtml(String(row.escrowBetId || ''))}"
+          data-repair="${escapeHtml(action)}"
+          type="button">${escapeHtml(actionLabel(action))}</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function runRepairPosition(positionId, marketId, action, escrowBetId = '') {
+  setStatus(`Repairing ${positionId} (${action})...`);
+  await apiPost('/api/admin/runtime/markets/reconcile/repair', {
+    positionId,
+    marketId,
+    escrowBetId,
+    action
+  });
+  await loadSettlementIntegrity();
+  renderSettlementIntegrity();
+  await refreshAll();
+  setStatus(`Repaired ${positionId} with ${action}.`);
+}
+
 async function refreshAll() {
   setStatus('Refreshing markets...');
   try {
-    await loadEnabled();
+    await Promise.all([
+      loadEnabled(),
+      loadSettlementIntegrity()
+    ]);
     renderEnabled();
     renderKpis();
     renderSimulatorMarkets();
     simulateQuote();
+    renderSettlementIntegrity();
     setStatus(`Markets lab updated at ${new Date().toLocaleTimeString()}.`);
   } catch (error) {
     setStatus(`Refresh failed: ${String(error?.message || error)}`, true);
@@ -219,6 +303,17 @@ async function setMarketConfig(marketId, active) {
 function bindEvents() {
   el.refreshAll?.addEventListener('click', () => { void refreshAll(); });
   el.refreshChainlink?.addEventListener('click', () => { void refreshChainlink(); });
+  el.reconcileRefresh?.addEventListener('click', () => {
+    void loadSettlementIntegrity()
+      .then(() => renderSettlementIntegrity())
+      .then(() => setStatus(`Settlement integrity refreshed at ${new Date().toLocaleTimeString()}.`))
+      .catch((err) => setStatus(String(err?.message || err), true));
+  });
+  el.reconcileIncludeLegacy?.addEventListener('change', () => {
+    void loadSettlementIntegrity()
+      .then(() => renderSettlementIntegrity())
+      .catch((err) => setStatus(String(err?.message || err), true));
+  });
   el.simRun?.addEventListener('click', () => simulateQuote());
   el.simSide?.addEventListener('change', () => simulateQuote());
   el.simMarket?.addEventListener('change', () => simulateQuote());
@@ -246,6 +341,21 @@ function bindEvents() {
         .then(() => refreshAll())
         .catch((err) => setStatus(String(err?.message || err), true));
     }
+  });
+
+  el.reconcileBody?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const action = String(target.getAttribute('data-action') || '');
+    if (action !== 'repair-position') return;
+    const positionId = String(target.getAttribute('data-position-id') || '').trim();
+    const marketId = String(target.getAttribute('data-market-id') || '').trim();
+    const escrowBetId = String(target.getAttribute('data-escrow-bet-id') || '').trim();
+    const repair = String(target.getAttribute('data-repair') || '').trim();
+    if (!positionId || !marketId || !repair) return;
+    void runRepairPosition(positionId, marketId, repair, escrowBetId).catch((err) => {
+      setStatus(`Repair failed: ${String(err?.message || err)}`, true);
+    });
   });
 
   el.liveBody?.addEventListener('click', (event) => {

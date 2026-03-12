@@ -34,6 +34,8 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     maxWager?: number;
     managedBySuperAgent?: boolean;
   }) => { ok: true; botId: string } | { ok: false; reason: string; botId?: string; profileId?: string };
+  getProfileOnboardingState: (profileId: string) => { completed: boolean; completedAt: number | null };
+  markProfileOnboardingCompleted: (profileId: string, completedAt?: number) => { completed: boolean; completedAt: number | null };
   getSubjectLinkBySubject: (subject: string) => {
     subject: string;
     profileId: string;
@@ -286,5 +288,29 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
 
     sendJson(res, { ok: true, botId: result.botId, profileId: profile.id });
     deps.schedulePersistState();
+  });
+
+  router.get('/profiles/:profileId/onboarding', (req, res, params) => {
+    const profileId = String(params?.profileId ?? '').trim();
+    const profile = profileId ? deps.profiles.get(profileId) : null;
+    if (!profile) {
+      sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+      return;
+    }
+    const state = deps.getProfileOnboardingState(profile.id);
+    sendJson(res, { ok: true, profileId: profile.id, ...state });
+  });
+
+  router.post('/profiles/:profileId/onboarding/complete', async (req, res, params) => {
+    const profileId = String(params?.profileId ?? '').trim();
+    const profile = profileId ? deps.profiles.get(profileId) : null;
+    if (!profile) {
+      sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+      return;
+    }
+    const body = await readJsonBody<{ completedAt?: number }>(req);
+    const completedAt = Number(body?.completedAt || 0) || Date.now();
+    const state = deps.markProfileOnboardingCompleted(profile.id, completedAt);
+    sendJson(res, { ok: true, profileId: profile.id, ...state });
   });
 }

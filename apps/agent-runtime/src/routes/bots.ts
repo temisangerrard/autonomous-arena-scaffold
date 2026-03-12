@@ -59,6 +59,12 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
     if (typeof body.maxWager === 'number') {
       patch.maxWager = Math.max(1, Math.min(100, Math.floor(body.maxWager)));
     }
+    if (typeof body.sessionLossLimit === 'number') {
+      patch.sessionLossLimit = Math.max(0, Math.min(1000000, body.sessionLossLimit));
+    }
+    if (typeof body.sessionWinTarget === 'number') {
+      patch.sessionWinTarget = Math.max(0, Math.min(1000000, body.sessionWinTarget));
+    }
     if (typeof patch.baseWager === 'number' && typeof patch.maxWager === 'number' && patch.maxWager < patch.baseWager) {
       patch.maxWager = patch.baseWager;
     } else if (typeof patch.baseWager === 'number' && typeof patch.maxWager !== 'number') {

@@ -24,6 +24,7 @@ export type RuntimeDbState = {
   subjectLinks: SubjectLinkRecord[];
   profiles: Profile[];
   wallets: WalletRecord[];
+  profileOnboardingCompletedAt: Array<{ profileId: string; completedAt: number }>;
   ownerBots: OwnerBotState[];
   counters: {
     profileCounter: number;
@@ -68,6 +69,12 @@ CREATE TABLE IF NOT EXISTS runtime_owner_bots (
   owner_profile_id TEXT NOT NULL,
   config_json JSONB NOT NULL,
   meta_json JSONB NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS runtime_profile_onboarding (
+  profile_id TEXT PRIMARY KEY,
+  onboarding_completed_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL
 );
 
@@ -147,12 +154,13 @@ export class RuntimeDatabase {
       return null;
     }
 
-    const [subjectRes, profileRes, walletRes, ownerBotRes, counterRes] = await Promise.all([
+    const [subjectRes, profileRes, walletRes, onboardingRes, ownerBotRes, counterRes] = await Promise.all([
       this.pool.query('SELECT subject, profile_id, wallet_id, linked_at, updated_at FROM auth_subject_links'),
       this.pool.query('SELECT profile_id, username, display_name, wallet_id, created_at FROM runtime_profiles'),
       this.pool.query(`SELECT wallet_id, owner_profile_id, address, encrypted_private_key, balance,
           daily_tx_count, tx_day_stamp, created_at, last_tx_at
         FROM runtime_wallets`),
+      this.pool.query('SELECT profile_id, onboarding_completed_at FROM runtime_profile_onboarding'),
       this.pool.query('SELECT bot_id, config_json, meta_json FROM runtime_owner_bots'),
       this.pool.query('SELECT profile_counter, wallet_counter, background_counter FROM runtime_counters WHERE singleton = $1', ['runtime'])
     ]);
@@ -193,6 +201,13 @@ export class RuntimeDatabase {
       }))
       .filter((entry) => entry.id && entry.ownerProfileId && entry.address && entry.encryptedPrivateKey);
 
+    const profileOnboardingCompletedAt = onboardingRes.rows
+      .map((row) => ({
+        profileId: asStr(row.profile_id),
+        completedAt: asNum(row.onboarding_completed_at)
+      }))
+      .filter((entry) => entry.profileId && Number.isFinite(entry.completedAt) && entry.completedAt > 0);
+
     const ownerBots: OwnerBotState[] = [];
     for (const row of ownerBotRes.rows) {
       const behavior = parseJson<AgentBehaviorConfig>(row.config_json);
@@ -214,7 +229,7 @@ export class RuntimeDatabase {
       backgroundCounter: Math.max(1, asNum(countersRow.background_counter, 1))
     };
 
-    const hasRows = subjectLinks.length > 0 || profiles.length > 0 || wallets.length > 0 || ownerBots.length > 0;
+    const hasRows = subjectLinks.length > 0 || profiles.length > 0 || wallets.length > 0 || ownerBots.length > 0 || profileOnboardingCompletedAt.length > 0;
     if (!hasRows) {
       return null;
     }
@@ -223,6 +238,7 @@ export class RuntimeDatabase {
       subjectLinks,
       profiles,
       wallets,
+      profileOnboardingCompletedAt,
       ownerBots,
       counters
     };
@@ -238,6 +254,7 @@ export class RuntimeDatabase {
       await this.pool.query('DELETE FROM auth_subject_links');
       await this.pool.query('DELETE FROM runtime_profiles');
       await this.pool.query('DELETE FROM runtime_wallets');
+      await this.pool.query('DELETE FROM runtime_profile_onboarding');
       await this.pool.query('DELETE FROM runtime_owner_bots');
 
       for (const link of state.subjectLinks) {
@@ -274,6 +291,14 @@ export class RuntimeDatabase {
             wallet.lastTxAt,
             now
           ]
+        );
+      }
+
+      for (const entry of state.profileOnboardingCompletedAt) {
+        await this.pool.query(
+          `INSERT INTO runtime_profile_onboarding (profile_id, onboarding_completed_at, updated_at)
+           VALUES ($1, $2, $3)`,
+          [entry.profileId, entry.completedAt, now]
         );
       }
 

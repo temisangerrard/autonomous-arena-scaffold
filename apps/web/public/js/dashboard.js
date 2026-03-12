@@ -739,11 +739,17 @@ function openBotModal(botId) {
   if (botCooldown) botCooldown.value = String(bot.behavior.challengeCooldownMs || 2600);
   if (botBaseWager) botBaseWager.value = String(bot.behavior.baseWager || 1);
   if (botMaxWager) botMaxWager.value = String(bot.behavior.maxWager || 3);
-  // Reset advanced fields
+  // Populate advanced session guard fields
   const lossLimitEl = document.getElementById('bot-loss-limit');
   const winTargetEl = document.getElementById('bot-win-target');
-  if (lossLimitEl) lossLimitEl.value = '';
-  if (winTargetEl) winTargetEl.value = '';
+  if (lossLimitEl) {
+    const value = Number(bot.behavior.sessionLossLimit || 0);
+    lossLimitEl.value = value > 0 ? String(value) : '';
+  }
+  if (winTargetEl) {
+    const value = Number(bot.behavior.sessionWinTarget || 0);
+    winTargetEl.value = value > 0 ? String(value) : '';
+  }
   // Reset to step 1
   setWizardStep(1);
   botModal.classList.add('open');
@@ -874,6 +880,8 @@ botSave?.addEventListener('click', async () => {
     const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
     const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
     const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
+    const sessionLossLimit = Math.max(0, Number(document.getElementById('bot-loss-limit')?.value || 0));
+    const sessionWinTarget = Math.max(0, Number(document.getElementById('bot-win-target')?.value || 0));
     setStatus(`Saving ${botId}...`);
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
@@ -884,7 +892,9 @@ botSave?.addEventListener('click', async () => {
         challengeCooldownMs: cooldown,
         mode: wizardMode,
         baseWager,
-        maxWager
+        maxWager,
+        sessionLossLimit,
+        sessionWinTarget
       })
     });
     await refreshContext();

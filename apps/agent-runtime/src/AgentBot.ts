@@ -27,6 +27,8 @@ export type AgentBehaviorConfig = {
   patrolRadius?: number;
   baseWager: number;
   maxWager: number;
+  sessionLossLimit?: number;
+  sessionWinTarget?: number;
 };
 
 type AgentBotConfig = {
@@ -89,6 +91,7 @@ export class AgentBot {
     challengesLost: 0,
     lastChallengeAt: null as number | null
   };
+  private sessionNetPnl = 0;
 
   constructor(config: AgentBotConfig) {
     this.config = config;
@@ -543,14 +546,18 @@ export class AgentBot {
     if (record.event === 'resolved' && challenge) {
       this.submittedMoveByChallenge.delete(challenge.id);
       this.challengeSuppressedUntil = Date.now() + 1400;
+      const wager = Math.max(0, Number(challenge.wager || 0));
       if (challenge.winnerId === this.playerId) {
         this.stats.challengesWon += 1;
+        this.sessionNetPnl += wager;
       } else if (
         challenge.challengerId === this.playerId ||
         challenge.opponentId === this.playerId
       ) {
         this.stats.challengesLost += 1;
+        this.sessionNetPnl -= wager;
       }
+      this.enforceSessionRiskStops();
     }
 
     if ((record.event === 'declined' || record.event === 'expired') && challenge) {
@@ -575,6 +582,18 @@ export class AgentBot {
       return Date.now() % 5 !== 0;
     }
     return Date.now() % 3 === 0;
+  }
+
+  private enforceSessionRiskStops(): void {
+    const lossLimit = Number(this.config.behavior.sessionLossLimit || 0);
+    const winTarget = Number(this.config.behavior.sessionWinTarget || 0);
+    const hitLossLimit = lossLimit > 0 && this.sessionNetPnl <= -lossLimit;
+    const hitWinTarget = winTarget > 0 && this.sessionNetPnl >= winTarget;
+    if (!hitLossLimit && !hitWinTarget) {
+      return;
+    }
+    this.config.behavior.challengeEnabled = false;
+    this.config.behavior.mode = 'passive';
   }
 
   private maybeSubmitGameMove(challenge: ChallengePayload): void {

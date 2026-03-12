@@ -1,4 +1,4 @@
-import { JsonRpcProvider, Wallet, Contract, keccak256, toUtf8Bytes, parseUnits } from 'ethers';
+import { JsonRpcProvider, Wallet, Contract, keccak256, toUtf8Bytes, parseUnits, formatUnits } from 'ethers';
 
 type LockParams = {
   challengeId: string;
@@ -19,6 +19,18 @@ export type EscrowResult = {
   fee?: number;
   payout?: number;
   raw?: Record<string, unknown>;
+};
+
+export type PoolBetStatus = 'none' | 'open' | 'settled' | 'refunded';
+
+export type PoolBetInspection = {
+  ok: boolean;
+  reason?: string;
+  exists: boolean;
+  status: PoolBetStatus;
+  stake?: number;
+  payout?: number;
+  player?: string;
 };
 
 type EscrowOnchainReasonCode =
@@ -75,6 +87,14 @@ type PoolContractApi = Contract & {
   settleRound: (roundId: string, yesWon: boolean) => Promise<{ hash: string; wait: () => Promise<{ hash?: string } | null> }>;
   cancelRound: (roundId: string) => Promise<{ hash: string; wait: () => Promise<{ hash?: string } | null> }>;
   payoutBet: (betId: string) => Promise<{ hash: string; wait: () => Promise<{ hash?: string } | null> }>;
+  bets: (betId: string) => Promise<{
+    roundId: string;
+    player: string;
+    stake: bigint;
+    side: boolean;
+    status: number;
+    payout: bigint;
+  }>;
 };
 
 const POOL_ABI = [
@@ -82,6 +102,7 @@ const POOL_ABI = [
   'function settleRound(bytes32 roundId, bool yesWon) external',
   'function cancelRound(bytes32 roundId) external',
   'function payoutBet(bytes32 betId) external',
+  'function bets(bytes32 betId) view returns (bytes32 roundId, address player, uint256 stake, bool side, uint8 status, uint256 payout)',
   'error InvalidAddress()',
   'error InvalidAmount()',
   'error BetAlreadyExists()',
@@ -246,6 +267,52 @@ export class EscrowAdapter {
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
       return this.onchainErrorResult(error, 'onchain_payout_bet_failed');
+    }
+  }
+
+  async inspectPoolBet(params: { betId: string }): Promise<PoolBetInspection> {
+    const pool = this.poolContract;
+    if (!pool) {
+      return { ok: false, reason: 'onchain_config_missing', exists: false, status: 'none' };
+    }
+    try {
+      const row = await pool.bets(this.betIdFor(params.betId));
+      const statusRaw = Number((row as { status?: unknown })?.status ?? 0);
+      const stakeRaw = (row as { stake?: bigint })?.stake ?? 0n;
+      const payoutRaw = (row as { payout?: bigint })?.payout ?? 0n;
+      const player = String((row as { player?: unknown })?.player || '');
+      const status: PoolBetStatus =
+        statusRaw === 1 ? 'open' :
+        statusRaw === 2 ? 'settled' :
+        statusRaw === 3 ? 'refunded' :
+        'none';
+      const exists = status !== 'none';
+      return {
+        ok: true,
+        exists,
+        status,
+        stake: Number(formatUnits(stakeRaw, this.tokenDecimals)),
+        payout: Number(formatUnits(payoutRaw, this.tokenDecimals)),
+        player
+      };
+    } catch (error) {
+      return { ok: false, reason: this.errorReason(error, 'onchain_inspect_failed'), exists: false, status: 'none' };
+    }
+  }
+
+  async forceRefundPoolBet(params: { marketId: string; betId: string }): Promise<EscrowResult> {
+    const pool = this.poolContract;
+    if (!pool) return this.poolNotConfiguredError();
+    const roundId = this.roundIdFor(params.marketId);
+    const betId = this.betIdFor(params.betId);
+    try {
+      // If the round is already finalised, payoutBet can still succeed for Open bets.
+      await pool.cancelRound(roundId).then((tx) => tx.wait()).catch(() => null);
+      const payoutTx = await pool.payoutBet(betId);
+      const receipt = await payoutTx.wait();
+      return { ok: true, txHash: receipt?.hash ?? payoutTx.hash };
+    } catch (error) {
+      return this.onchainErrorResult(error, 'onchain_force_refund_failed');
     }
   }
 

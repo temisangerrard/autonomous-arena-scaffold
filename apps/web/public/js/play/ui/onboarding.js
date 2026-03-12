@@ -1,3 +1,5 @@
+import { resolveOnboardingCompleted } from './onboarding-state.js';
+
 const ONBOARDING_KEY = 'arena_onboarding_completed';
 const ONBOARDING_STEPS = 4;
 
@@ -6,8 +8,60 @@ export function initOnboarding(dom, { showToast, announce }) {
   const progress = dom.onboardingProgress;
   if (!overlay) return;
 
-  const completedAtInit = localStorage.getItem(ONBOARDING_KEY) === 'true';
   let onboardingStep = 0;
+  let completed = false;
+
+  function readLocalCompleted() {
+    try {
+      return localStorage.getItem(ONBOARDING_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  function writeLocalCompleted(value) {
+    try {
+      if (value) {
+        localStorage.setItem(ONBOARDING_KEY, 'true');
+      } else {
+        localStorage.removeItem(ONBOARDING_KEY);
+      }
+    } catch {
+      // ignore storage failure
+    }
+  }
+
+  async function readServerCompleted() {
+    try {
+      const response = await fetch('/api/player/onboarding', {
+        method: 'GET',
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        return { completed: null };
+      }
+      const payload = await response.json();
+      if (!payload || payload.ok !== true || typeof payload.completed !== 'boolean') {
+        return { completed: null };
+      }
+      return { completed: payload.completed };
+    } catch {
+      return { completed: null };
+    }
+  }
+
+  async function markServerCompleted() {
+    try {
+      await fetch('/api/player/onboarding/complete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ completedAt: Date.now() })
+      });
+    } catch {
+      // best effort
+    }
+  }
 
   function updateProgress() {
     if (!progress) return;
@@ -32,8 +86,10 @@ export function initOnboarding(dom, { showToast, announce }) {
   }
 
   function complete() {
-    const alreadyCompleted = localStorage.getItem(ONBOARDING_KEY) === 'true';
-    localStorage.setItem(ONBOARDING_KEY, 'true');
+    const alreadyCompleted = completed || readLocalCompleted();
+    completed = true;
+    writeLocalCompleted(true);
+    void markServerCompleted();
     overlay.classList.remove('visible');
     if (!alreadyCompleted) {
       showToast?.('Welcome to the Arena! Good luck!', 'success');
@@ -64,7 +120,6 @@ export function initOnboarding(dom, { showToast, announce }) {
     }
   }
 
-  overlay.classList.add('visible');
   document.querySelectorAll('.onboarding__btn').forEach((btn) => {
     btn.addEventListener('click', handleAction);
   });
@@ -78,7 +133,22 @@ export function initOnboarding(dom, { showToast, announce }) {
   dom.closeOnboarding = () => overlay.classList.remove('visible');
 
   showStep(0);
-  if (!completedAtInit) {
-    overlay.classList.add('visible');
-  }
+  overlay.classList.remove('visible');
+
+  void (async () => {
+    const localCompleted = readLocalCompleted();
+    const serverState = await readServerCompleted();
+    completed = resolveOnboardingCompleted({
+      serverCompleted: serverState.completed,
+      localCompleted
+    });
+    // One-time migration path for legacy local completion into account-backed state.
+    if (!completed && serverState.completed === false && localCompleted) {
+      completed = true;
+      void markServerCompleted();
+    }
+    if (!completed) {
+      overlay.classList.add('visible');
+    }
+  })();
 }
