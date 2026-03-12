@@ -51,15 +51,17 @@ const botReviewList = document.getElementById('bot-review-list');
 // Bot creation is intentionally disabled: one player == one character bot.
 const createBot = null;
 
-const superAgentMessage = document.getElementById('super-agent-message');
-const superAgentSend = document.getElementById('super-agent-send');
-const superAgentQuickStatus = document.getElementById('super-agent-quick-status');
-const superAgentResponse = document.getElementById('super-agent-response');
-
-const superAgentMessageAlt = document.getElementById('super-agent-message-alt');
-const superAgentSendAlt = document.getElementById('super-agent-send-alt');
-const superAgentQuickStatusAlt = document.getElementById('super-agent-quick-status-alt');
-const superAgentResponseAlt = document.getElementById('super-agent-response-alt');
+// Chief of Staff
+const chiefMessage = document.getElementById('chief-message');
+const chiefSend = document.getElementById('chief-send');
+const chiefBadge = document.getElementById('chief-badge');
+const chiefReplyArea = document.getElementById('chief-reply-area');
+const chiefReplyText = document.getElementById('chief-reply-text');
+const chiefConfirmPrompt = document.getElementById('chief-confirm-prompt');
+const chiefConfirmText = document.getElementById('chief-confirm-text');
+const chiefConfirmBtn = document.getElementById('chief-confirm-btn');
+const chiefDetails = document.getElementById('chief-details');
+const chiefActionsBody = document.getElementById('chief-actions-body');
 
 const onboardingList = document.getElementById('onboarding-list');
 const escrowHistory = document.getElementById('escrow-history');
@@ -74,7 +76,7 @@ const botModalSub = document.getElementById('bot-modal-sub');
 
 const sidebarButtons = [...document.querySelectorAll('.sidebar-nav [data-view]')];
 const views = [...document.querySelectorAll('.dash-view')];
-const quickCommandButtons = [...document.querySelectorAll('[data-quick-cmd]')];
+const chiefChipButtons = [...document.querySelectorAll('[data-chief-cmd]')];
 const walletTabButtons = [...document.querySelectorAll('[data-wallet-tab]')];
 const walletPanes = [...document.querySelectorAll('[data-wallet-pane]')];
 
@@ -954,92 +956,103 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-async function sendSuperAgent(message) {
-  const trimmed = String(message || '').trim();
-  const confirmMatch = trimmed.match(/^confirm\s+([a-z0-9_:-]+)$/i);
-  const payload = confirmMatch?.[1]
-    ? { confirmToken: confirmMatch[1] }
-    : { message: trimmed };
+// ── Chief of Staff ────────────────────────────────────────────────────────
+let chiefPendingToken = null;
 
-  const result = await api('/api/chief/v1/chat', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  const actions = Array.isArray(result?.actions)
-    ? result.actions.map((entry) => `${entry.tool} (${entry.status})`).join(', ')
-    : '';
-  const confirmation = result?.requiresConfirmation
-    ? `\n\nConfirmation required. Re-send with token:\nconfirm ${String(result?.confirmToken || '').trim()}`
-    : '';
-  const reply = String(result?.reply || 'No reply.')
-    + (actions ? `\n\nActions: ${actions}` : '')
-    + confirmation;
-  if (superAgentResponse) {
-    superAgentResponse.textContent = reply;
+function chiefSetThinking(on) {
+  if (chiefBadge) {
+    chiefBadge.textContent = on ? 'Thinking…' : 'Ready';
+    chiefBadge.classList.toggle('thinking', on);
   }
-  if (superAgentResponseAlt) {
-    superAgentResponseAlt.textContent = reply;
+  if (chiefSend) chiefSend.disabled = on;
+}
+
+function chiefRenderReply(result) {
+  const replyText = String(result?.reply || 'No reply.');
+  const actions = Array.isArray(result?.actions) ? result.actions : [];
+  const needsConfirm = Boolean(result?.requiresConfirmation);
+  const token = String(result?.confirmToken || '').trim();
+
+  // Show reply area
+  if (chiefReplyArea) chiefReplyArea.hidden = false;
+
+  // Reply text
+  if (chiefReplyText) chiefReplyText.textContent = replyText;
+
+  // Confirmation prompt
+  chiefPendingToken = needsConfirm && token ? token : null;
+  if (chiefConfirmPrompt) chiefConfirmPrompt.hidden = !chiefPendingToken;
+  if (chiefConfirmText && chiefPendingToken) {
+    chiefConfirmText.textContent = 'This action needs your approval to proceed.';
+  }
+
+  // Actions detail block
+  if (actions.length > 0 && chiefDetails && chiefActionsBody) {
+    chiefActionsBody.innerHTML = actions.map((a) => {
+      const statusKey = String(a.status || 'planned').toLowerCase();
+      const label = statusKey.charAt(0).toUpperCase() + statusKey.slice(1);
+      return `<div class="chief-action-row">
+        <span class="chief-action-status chief-action-status--${statusKey}">${label}</span>
+        <span>${String(a.tool || '')}</span>
+      </div>`;
+    }).join('');
+    chiefDetails.hidden = false;
+    chiefDetails.open = false;
+  } else if (chiefDetails) {
+    chiefDetails.hidden = true;
   }
 }
 
-function getSuperMessage() {
-  const primary = String(superAgentMessage?.value || '').trim();
-  const alternate = String(superAgentMessageAlt?.value || '').trim();
-  return primary || alternate;
-}
-
-function setSuperMessage(value) {
-  if (superAgentMessage) {
-    superAgentMessage.value = value;
-  }
-  if (superAgentMessageAlt) {
-    superAgentMessageAlt.value = value;
-  }
-}
-
-async function runSuperCommand(inputValue) {
-  const message = String(inputValue || '').trim();
-  if (!message) {
-    setStatus('Enter a message for Super Agent.');
-    return;
-  }
+async function chiefSendMessage(payload) {
+  chiefSetThinking(true);
   try {
-    setStatus('Super Agent thinking...');
-    await sendSuperAgent(message);
-    setStatus('Super Agent replied.');
+    const result = await api('/api/chief/v1/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    chiefRenderReply(result);
   } catch (error) {
-    setStatus(`Super Agent error: ${String(error.message || error)}`);
+    if (chiefReplyArea) chiefReplyArea.hidden = false;
+    if (chiefReplyText) chiefReplyText.textContent = `Error: ${String(error.message || error)}`;
+    if (chiefConfirmPrompt) chiefConfirmPrompt.hidden = true;
+    if (chiefDetails) chiefDetails.hidden = true;
+  } finally {
+    chiefSetThinking(false);
   }
 }
 
-superAgentSend?.addEventListener('click', async () => {
-  await runSuperCommand(getSuperMessage());
+async function chiefRun(message) {
+  const trimmed = String(message || '').trim();
+  if (!trimmed) return;
+  if (chiefMessage) chiefMessage.value = '';
+  await chiefSendMessage({ message: trimmed });
+}
+
+chiefSend?.addEventListener('click', () => {
+  const msg = String(chiefMessage?.value || '').trim();
+  chiefRun(msg);
 });
 
-superAgentSendAlt?.addEventListener('click', async () => {
-  await runSuperCommand(getSuperMessage());
+chiefMessage?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    chiefRun(String(chiefMessage.value || ''));
+  }
 });
 
-superAgentQuickStatus?.addEventListener('click', async () => {
-  setSuperMessage('status');
-  await runSuperCommand('status');
+chiefConfirmBtn?.addEventListener('click', async () => {
+  if (!chiefPendingToken) return;
+  const token = chiefPendingToken;
+  chiefPendingToken = null;
+  if (chiefConfirmPrompt) chiefConfirmPrompt.hidden = true;
+  await chiefSendMessage({ confirmToken: token });
 });
 
-superAgentQuickStatusAlt?.addEventListener('click', async () => {
-  setSuperMessage('status');
-  await runSuperCommand('status');
-});
-
-for (const button of quickCommandButtons) {
-  button.addEventListener('click', async () => {
-    const cmd = String(button.getAttribute('data-quick-cmd') || '').trim();
-    if (!cmd) {
-      return;
-    }
-    setSuperMessage(cmd);
-    await runSuperCommand(cmd);
+for (const chip of chiefChipButtons) {
+  chip.addEventListener('click', () => {
+    const cmd = String(chip.getAttribute('data-chief-cmd') || '').trim();
+    if (cmd) chiefRun(cmd);
   });
 }
 

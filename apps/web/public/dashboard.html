@@ -485,74 +485,217 @@
       font: 400 12px/1.3 var(--dash-mono);
     }
 
-    /* ── Chief / Super Bar ───────────────────── */
-    .super-bar {
+    /* ── Chief Panel ──────────────────────────── */
+    .chief-panel {
       background: #1e1a14;
       border: 1px solid rgba(198, 152, 49, 0.28);
       border-radius: 12px;
-      padding: 16px;
+      padding: 20px;
     }
 
-    .super-head {
+    .chief-head {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
     }
 
-    .super-title {
-      margin: 0;
+    .chief-title {
+      margin: 0 0 5px;
       font: italic 700 20px/1 var(--dash-display);
       color: #e8d4a0;
     }
 
-    .ready {
+    .chief-desc {
+      margin: 0;
+      font: 400 13px/1.4 var(--dash-serif);
+      color: #9a8870;
+      font-style: italic;
+    }
+
+    .chief-badge {
+      flex-shrink: 0;
       border-radius: 999px;
-      padding: 3px 8px;
+      padding: 3px 10px;
       background: rgba(47, 143, 94, 0.14);
       color: #7adaaa;
       font: 400 10px/1 var(--dash-mono);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       border: 1px solid rgba(47, 143, 94, 0.28);
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
     }
 
-    .quick-pills {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin: 8px 0;
-    }
-
-    .quick-pills button {
-      border-radius: 6px;
-      border: 1px solid rgba(198, 152, 49, 0.22);
-      background: rgba(198, 152, 49, 0.07);
+    .chief-badge.thinking {
+      background: rgba(198, 152, 49, 0.14);
       color: #d4bc82;
-      min-height: 30px;
-      padding: 0 10px;
-      font: 400 11px/1 var(--dash-mono);
-      cursor: pointer;
-      transition: border-color 0.12s;
+      border-color: rgba(198, 152, 49, 0.3);
     }
 
-    .quick-pills button:hover {
+    /* ── Command palette ─────────────────────── */
+    .chief-commands {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.18);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .chief-cmd-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chief-cmd-label {
+      font: 600 10px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #5a5040;
+      white-space: nowrap;
+      min-width: 38px;
+    }
+
+    .chief-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .chief-chip {
+      border-radius: 6px;
+      border: 1px solid rgba(198, 152, 49, 0.2);
+      background: rgba(198, 152, 49, 0.06);
+      color: #c8a868;
+      min-height: 28px;
+      padding: 0 10px;
+      font: 400 12px/1 var(--dash-serif);
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+
+    .chief-chip:hover {
       border-color: rgba(198, 152, 49, 0.5);
+      background: rgba(198, 152, 49, 0.12);
       color: #e8d09a;
     }
 
-    .super-response {
-      margin-top: 10px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      background: rgba(0, 0, 0, 0.2);
+    /* ── Input row ────────────────────────────── */
+    .chief-input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 14px;
+    }
+
+    .chief-textarea {
+      background: rgba(0, 0, 0, 0.25) !important;
+      color: #e0d2b6 !important;
+      border-color: rgba(198, 152, 49, 0.18) !important;
+      resize: none;
+    }
+
+    .chief-textarea::placeholder { color: #5a5040; }
+
+    /* ── Reply area ───────────────────────────── */
+    .chief-reply-area {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 14px;
+    }
+
+    .chief-reply-text {
+      margin: 0 0 12px;
+      font: 400 14px/1.6 var(--dash-serif);
       color: #e0d2b6;
-      padding: 10px 12px;
-      min-height: 90px;
-      max-height: 240px;
-      overflow: auto;
       white-space: pre-wrap;
-      font: 400 13px/1.5 var(--dash-serif);
+    }
+
+    .chief-confirm-prompt {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      background: rgba(198, 152, 49, 0.08);
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      border-radius: 8px;
+    }
+
+    .chief-confirm-prompt__text {
+      margin: 0;
+      font: 400 13px/1.4 var(--dash-serif);
+      color: #d4bc82;
+    }
+
+    .chief-details {
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .chief-details__summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 12px;
+      cursor: pointer;
+      font: 600 10px/1 var(--dash-mono);
+      color: #5a5040;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(0, 0, 0, 0.12);
+      user-select: none;
+    }
+
+    .chief-details__summary::-webkit-details-marker { display: none; }
+    .chief-details[open] .advanced-toggle__chevron { transform: rotate(90deg); }
+
+    .chief-details__body {
+      padding: 10px 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chief-action-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font: 400 11px/1.3 var(--dash-mono);
+      color: #7a6a52;
+    }
+
+    .chief-action-status {
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .chief-action-status--executed {
+      background: rgba(47, 143, 94, 0.15);
+      color: #7adaaa;
+    }
+
+    .chief-action-status--planned {
+      background: rgba(198, 152, 49, 0.14);
+      color: #d4bc82;
+    }
+
+    .chief-action-status--blocked,
+    .chief-action-status--fallback {
+      background: rgba(180, 77, 60, 0.14);
+      color: #e07060;
     }
 
     /* ── Wallet ──────────────────────────────── */
@@ -1366,24 +1509,74 @@
 
         <!-- Chief View -->
         <section id="view-super" class="dash-view">
-          <article class="super-bar">
-            <div class="super-head">
-              <h2 class="super-title">Chief of Staff</h2>
-              <span class="ready">Ready</span>
+          <article class="chief-panel">
+
+            <!-- Header -->
+            <div class="chief-head">
+              <div>
+                <h2 class="chief-title">Chief of Staff</h2>
+                <p class="chief-desc">Natural language control for your bot and wallet. Ask anything.</p>
+              </div>
+              <span class="chief-badge" id="chief-badge">Ready</span>
             </div>
-            <p class="muted" style="margin:0 0 8px;color:#b09870;font-style:italic;">Wallet, gas, and bot tuning while offline.</p>
-            <div class="quick-pills">
-              <button type="button" data-quick-cmd="status">status</button>
-              <button type="button" data-quick-cmd="help">help</button>
+
+            <!-- Command palette -->
+            <div class="chief-commands" aria-label="Quick commands">
+              <div class="chief-cmd-group">
+                <span class="chief-cmd-label">Arena</span>
+                <div class="chief-chips">
+                  <button type="button" class="chief-chip" data-chief-cmd="status">Arena status</button>
+                </div>
+              </div>
+              <div class="chief-cmd-group">
+                <span class="chief-cmd-label">Bot</span>
+                <div class="chief-chips">
+                  <button type="button" class="chief-chip" data-chief-cmd="set personality aggressive">Aggressive</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set personality conservative">Conservative</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set personality social">Social</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set mode active">Active mode</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set mode passive">Passive mode</button>
+                </div>
+              </div>
+              <div class="chief-cmd-group">
+                <span class="chief-cmd-label">Wallet</span>
+                <div class="chief-chips">
+                  <button type="button" class="chief-chip" data-chief-cmd="fix gas">Fix gas</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="fund 10">Fund +10</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="withdraw 10">Withdraw 10</button>
+                </div>
+              </div>
             </div>
-            <textarea id="super-agent-message-alt" class="field" rows="3"
-              style="background:rgba(0,0,0,0.28);color:#e0d2b6;border-color:rgba(198,152,49,0.2);"
-              placeholder="fund 10 · set personality aggressive · set target any"></textarea>
-            <div class="actions" style="margin-top:8px;">
-              <button id="super-agent-send-alt" class="btn-gold" type="button">Send</button>
-              <button id="super-agent-quick-status-alt" class="btn-dark" type="button">Status</button>
+
+            <!-- Free-text input -->
+            <div class="chief-input-row">
+              <textarea id="chief-message" class="field chief-textarea" rows="2"
+                placeholder="e.g. set personality aggressive · fund 50 · status"></textarea>
+              <button id="chief-send" class="btn-gold" type="button">Send</button>
             </div>
-            <pre id="super-agent-response-alt" class="super-response">Chief ready.</pre>
+
+            <!-- Reply area (hidden until first reply) -->
+            <div id="chief-reply-area" class="chief-reply-area" hidden>
+
+              <!-- Main reply text -->
+              <p class="chief-reply-text" id="chief-reply-text"></p>
+
+              <!-- Confirmation prompt -->
+              <div class="chief-confirm-prompt" id="chief-confirm-prompt" hidden>
+                <p class="chief-confirm-prompt__text" id="chief-confirm-text">This action requires confirmation.</p>
+                <button id="chief-confirm-btn" class="btn-gold" type="button">Confirm</button>
+              </div>
+
+              <!-- Actions detail (collapsed) -->
+              <details class="chief-details" id="chief-details" hidden>
+                <summary class="chief-details__summary">
+                  Details <span class="advanced-toggle__chevron">▸</span>
+                </summary>
+                <div class="chief-details__body" id="chief-actions-body"></div>
+              </details>
+
+            </div>
+
           </article>
         </section>
 
