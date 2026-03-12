@@ -309,7 +309,7 @@ function renderContext() {
   if (walletBalance) walletBalance.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(4) : '—';
   if (walletBalanceNote) {
     if (!onchainMode) {
-      walletBalanceNote.textContent = 'mUSDC';
+      walletBalanceNote.textContent = 'USDC · Base mainnet';
     } else if (isBaseMainnet) {
       walletBalanceNote.textContent = `${tokenSymbol} · Base mainnet`;
     } else {
@@ -374,19 +374,16 @@ function renderContext() {
   }
 
   if (onboardingList) {
-    const hasUser = Boolean(user?.email);
-    const hasProfile = Boolean(profile?.id);
     const hasFunds = hasOnchainBalance && Number(tokenBalance) > 0;
-    const hasBot = bots.length > 0;
-    const hasActiveBot = bots.some((entry) => entry.behavior?.mode !== 'passive' && entry.behavior?.challengeEnabled !== false);
-    const hasPlayLink = Boolean(inviteLink?.value);
+    const hasGas = onchainMode && Number(nativeBalance || 0) > 0;
+    const hasWalletAddress = Boolean((profile?.wallet?.address || walletSummaryCtx?.onchain?.address || '').trim());
+    const readyToPlay = hasFunds && hasGas;
     const rows = [
-      [hasUser, 'Signed in'],
-      [hasProfile, 'Player profile provisioned'],
-      [hasFunds, 'Wallet funded'],
-      [hasBot, 'Character bot provisioned'],
-      [hasActiveBot, 'Bot in active mode'],
-      [hasPlayLink, 'Play link ready to share']
+      [hasWalletAddress, 'Copy your wallet address (Wallet tab)'],
+      [hasFunds, 'USDC funded for wagers'],
+      [hasGas, 'ETH funded for Base gas fees'],
+      [readyToPlay, 'Enter Arena'],
+      [readyToPlay, 'Check stations and place your stake']
     ];
     onboardingList.innerHTML = rows
       .map(([ok, text]) => `<li>${ok ? '[x]' : '[ ]'} ${escapeHtml(text)}</li>`)
