@@ -1932,8 +1932,14 @@ async function createCoinbaseWalletForProfile(params: {
   const authMethods = params.email
     ? [{ type: 'email', email: params.email }]
     : [{ type: 'jwt', kid: 'arena-runtime', sub: params.externalSubject || params.profileId }];
+  const cdpUserId = String(params.profileId || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100) || `profile-${Date.now()}`;
   const endUser = await cdp.endUser.createEndUser({
-    userId: params.profileId,
+    userId: cdpUserId,
     authenticationMethods: authMethods,
     evmAccount: {
       createSmartAccount: true,
