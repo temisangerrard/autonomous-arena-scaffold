@@ -37,14 +37,17 @@ const walletTransferWalletId = document.getElementById('wallet-transfer-wallet-i
 const walletTransferAmount = document.getElementById('wallet-transfer-amount');
 const walletTransfer = document.getElementById('wallet-transfer');
 
-const botPersonality = document.getElementById('bot-personality');
+// Wizard element refs
 const botTarget = document.getElementById('bot-target');
 const botCooldown = document.getElementById('bot-cooldown');
-const botMode = document.getElementById('bot-mode');
 const botBaseWager = document.getElementById('bot-base-wager');
 const botMaxWager = document.getElementById('bot-max-wager');
 const botSave = document.getElementById('bot-save');
 const botList = document.getElementById('bot-list');
+const botModeStrip = document.getElementById('bot-mode-strip');
+const botWizardBack = document.getElementById('bot-wizard-back');
+const botWizardNext = document.getElementById('bot-wizard-next');
+const botReviewList = document.getElementById('bot-review-list');
 // Bot creation is intentionally disabled: one player == one character bot.
 const createBot = null;
 
@@ -653,6 +656,71 @@ async function refreshContext() {
   renderContext();
 }
 
+// ── Wizard state ──────────────────────────────────────────────────────────
+let wizardStep = 1;
+let wizardPersonality = 'social';
+let wizardMode = 'active';
+
+function setWizardPersonality(value) {
+  wizardPersonality = value;
+  document.querySelectorAll('.personality-card').forEach((card) => {
+    const selected = card.dataset.personality === value;
+    card.classList.toggle('selected', selected);
+    card.setAttribute('aria-pressed', String(selected));
+  });
+}
+
+function setWizardMode(value) {
+  wizardMode = value;
+  if (botModeStrip) {
+    botModeStrip.querySelectorAll('.toggle-pill').forEach((pill) => {
+      pill.classList.toggle('active', pill.dataset.value === value);
+    });
+  }
+}
+
+function buildReview() {
+  if (!botReviewList) return;
+  const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
+  const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
+  const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
+  const lossLimit = Number(document.getElementById('bot-loss-limit')?.value || 0);
+  const winTarget = Number(document.getElementById('bot-win-target')?.value || 0);
+  const targetLabel = (botTarget?.value || 'human_first').replace(/_/g, ' ');
+  const rows = [
+    ['Personality', wizardPersonality.charAt(0).toUpperCase() + wizardPersonality.slice(1)],
+    ['Mode', wizardMode.charAt(0).toUpperCase() + wizardMode.slice(1)],
+    ['Target', targetLabel],
+    ['Base Wager', String(baseWager)],
+    ['Max Wager', String(maxWager)],
+    ['Cooldown', `${cooldown.toLocaleString()} ms`],
+  ];
+  if (lossLimit > 0) rows.push(['Loss Limit', String(lossLimit)]);
+  if (winTarget > 0) rows.push(['Win Target', String(winTarget)]);
+  botReviewList.innerHTML = rows.map(([dt, dd]) =>
+    `<dt>${dt}</dt><dd>${dd}</dd>`
+  ).join('');
+}
+
+function setWizardStep(step) {
+  wizardStep = step;
+  for (let i = 1; i <= 3; i++) {
+    const pane = document.getElementById(`bot-wizard-step-${i}`);
+    if (pane) pane.hidden = i !== step;
+  }
+  document.querySelectorAll('.wizard-step').forEach((el) => {
+    const s = Number(el.dataset.step);
+    el.classList.toggle('active', s === step);
+    el.classList.toggle('done', s < step);
+    const dot = el.querySelector('.wizard-step__dot');
+    if (dot) dot.textContent = s < step ? '✓' : String(s);
+  });
+  if (botWizardBack) botWizardBack.style.display = step > 1 ? '' : 'none';
+  if (botWizardNext) botWizardNext.style.display = step < 3 ? '' : 'none';
+  if (botSave) botSave.style.display = step === 3 ? '' : 'none';
+  if (step === 3) buildReview();
+}
+
 function openBotModal(botId) {
   const bot = getBotById(botId);
   if (!bot || !botModal) {
@@ -660,17 +728,25 @@ function openBotModal(botId) {
   }
   selectedBotId = botId;
   if (botModalTitle) {
-    botModalTitle.textContent = `Edit ${bot.meta?.displayName || bot.id}`;
+    botModalTitle.textContent = `Configure ${bot.meta?.displayName || bot.id}`;
   }
   if (botModalSub) {
     botModalSub.textContent = `${bot.id} · patrol S${bot.meta?.patrolSection ?? '-'} · ${bot.connected ? 'connected' : 'disconnected'}`;
   }
-  if (botPersonality) botPersonality.value = bot.behavior.personality;
-  if (botTarget) botTarget.value = bot.behavior.targetPreference;
+  // Populate fields from bot state
+  setWizardPersonality(bot.behavior.personality || 'social');
+  setWizardMode(bot.behavior.mode || 'active');
+  if (botTarget) botTarget.value = bot.behavior.targetPreference || 'human_first';
   if (botCooldown) botCooldown.value = String(bot.behavior.challengeCooldownMs || 2600);
-  if (botMode) botMode.value = bot.behavior.mode || 'active';
   if (botBaseWager) botBaseWager.value = String(bot.behavior.baseWager || 1);
   if (botMaxWager) botMaxWager.value = String(bot.behavior.maxWager || 3);
+  // Reset advanced fields
+  const lossLimitEl = document.getElementById('bot-loss-limit');
+  const winTargetEl = document.getElementById('bot-win-target');
+  if (lossLimitEl) lossLimitEl.value = '';
+  if (winTargetEl) winTargetEl.value = '';
+  // Reset to step 1
+  setWizardStep(1);
   botModal.classList.add('open');
   botModal.setAttribute('aria-hidden', 'false');
 }
@@ -796,20 +872,18 @@ botSave?.addEventListener('click', async () => {
       setStatus('No bot selected.');
       return;
     }
-
     const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
     const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
     const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
-
     setStatus(`Saving ${botId}...`);
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        personality: botPersonality?.value || 'social',
+        personality: wizardPersonality,
         targetPreference: botTarget?.value || 'human_first',
         challengeCooldownMs: cooldown,
-        mode: botMode?.value || 'active',
+        mode: wizardMode,
         baseWager,
         maxWager
       })
@@ -819,6 +893,33 @@ botSave?.addEventListener('click', async () => {
     setStatus(`Saved ${botId}.`);
   } catch (error) {
     setStatus(`Bot save failed: ${String(error.message || error)}`);
+  }
+});
+
+// Wizard navigation
+botWizardNext?.addEventListener('click', () => {
+  if (wizardStep < 3) setWizardStep(wizardStep + 1);
+});
+
+botWizardBack?.addEventListener('click', () => {
+  if (wizardStep > 1) setWizardStep(wizardStep - 1);
+});
+
+// Personality card selection
+document.querySelectorAll('.personality-card').forEach((card) => {
+  card.addEventListener('click', () => {
+    const value = card.dataset.personality;
+    if (value) setWizardPersonality(value);
+  });
+});
+
+// Mode toggle strip
+botModeStrip?.addEventListener('click', (event) => {
+  const pill = event.target instanceof HTMLElement
+    ? event.target.closest('.toggle-pill')
+    : null;
+  if (pill instanceof HTMLElement && pill.dataset.value) {
+    setWizardMode(pill.dataset.value);
   }
 });
 

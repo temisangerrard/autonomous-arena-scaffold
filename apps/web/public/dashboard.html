@@ -860,6 +860,237 @@
       cursor: pointer;
     }
 
+    /* ── Wizard ───────────────────────────────── */
+    .modal--wizard { width: min(640px, 100%); }
+
+    .wizard-steps {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .wizard-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .wizard-step__dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid rgba(198, 152, 49, 0.3);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 600 11px/1 var(--dash-mono);
+      color: var(--dash-muted);
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+
+    .wizard-step.active .wizard-step__dot {
+      border-color: var(--dash-gold);
+      background: rgba(198, 152, 49, 0.12);
+      color: #8a6010;
+    }
+
+    .wizard-step.done .wizard-step__dot {
+      border-color: var(--dash-good);
+      background: rgba(47, 143, 94, 0.12);
+      color: var(--dash-good);
+    }
+
+    .wizard-step__label {
+      font: 400 10px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--dash-muted);
+    }
+
+    .wizard-step.active .wizard-step__label {
+      color: #8a6010;
+      font-weight: 600;
+    }
+
+    .wizard-step.done .wizard-step__label { color: var(--dash-good); }
+
+    .wizard-connector {
+      flex: 1;
+      height: 1px;
+      background: rgba(198, 152, 49, 0.22);
+      margin: 0 8px;
+      margin-bottom: 16px;
+    }
+
+    .wizard-pane__hint {
+      margin: 0 0 14px;
+      color: var(--dash-muted);
+      font-style: italic;
+    }
+
+    /* ── Personality Cards ────────────────────── */
+    .personality-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .personality-card {
+      background: transparent;
+      border: 2px solid rgba(198, 152, 49, 0.28);
+      border-radius: 12px;
+      padding: 14px 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+      transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+    }
+
+    .personality-card:hover {
+      border-color: rgba(198, 152, 49, 0.55);
+      background: rgba(198, 152, 49, 0.04);
+    }
+
+    .personality-card.selected,
+    .personality-card[aria-pressed="true"] {
+      border-color: var(--dash-gold);
+      background: rgba(198, 152, 49, 0.08);
+      box-shadow: 0 0 0 1px rgba(198, 152, 49, 0.28), 0 4px 16px rgba(198, 152, 49, 0.1);
+    }
+
+    .personality-card__avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: block;
+      flex-shrink: 0;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .personality-card__avatar.personality-aggressive  { background: linear-gradient(135deg, #e8846a, #c04830); }
+    .personality-card__avatar.personality-conservative { background: linear-gradient(135deg, #9ad4b4, #5dba8e); }
+    .personality-card__avatar.personality-social       { background: linear-gradient(135deg, #b8b4e8, #7e7acc); }
+
+    .personality-card__name {
+      font: 600 14px/1 var(--dash-serif);
+      color: var(--dash-ink);
+    }
+
+    .personality-card__desc {
+      font: 400 12px/1.45 var(--dash-serif);
+      color: var(--dash-muted);
+    }
+
+    /* ── Mode Toggle Strip ───────────────────── */
+    .toggle-strip {
+      display: flex;
+      border: 1px solid rgba(198, 152, 49, 0.38);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .toggle-pill {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--dash-muted);
+      font: 600 13px/1 var(--dash-serif);
+      padding: 9px 12px;
+      cursor: pointer;
+      transition: background 0.14s, color 0.14s;
+    }
+
+    .toggle-pill:not(:last-child) { border-right: 1px solid rgba(198, 152, 49, 0.28); }
+
+    .toggle-pill.active {
+      background: rgba(198, 152, 49, 0.12);
+      color: var(--dash-ink);
+    }
+
+    /* ── Field Hint ───────────────────────────── */
+    .field-hint {
+      display: block;
+      margin-top: 4px;
+      font: 400 11px/1.3 var(--dash-mono);
+      color: var(--dash-muted);
+    }
+
+    /* ── Advanced Section ─────────────────────── */
+    #bot-advanced {
+      border: 1px solid rgba(198, 152, 49, 0.22);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .advanced-toggle {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      cursor: pointer;
+      font: 600 13px/1 var(--dash-serif);
+      color: var(--dash-muted);
+      background: rgba(198, 152, 49, 0.04);
+      user-select: none;
+    }
+
+    .advanced-toggle::-webkit-details-marker { display: none; }
+
+    .advanced-toggle__chevron {
+      transition: transform 0.18s;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+
+    #bot-advanced[open] .advanced-toggle__chevron { transform: rotate(90deg); }
+
+    .advanced-body {
+      padding: 14px;
+      border-top: 1px solid rgba(198, 152, 49, 0.18);
+    }
+
+    /* ── Review List ───────────────────────────── */
+    .review-list {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 20px;
+      margin: 0;
+      align-items: baseline;
+    }
+
+    .review-list dt {
+      font: 600 11px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--dash-muted);
+      white-space: nowrap;
+    }
+
+    .review-list dd {
+      margin: 0;
+      font: 400 14px/1.4 var(--dash-serif);
+      color: var(--dash-ink);
+    }
+
+    /* ── Wizard Footer ────────────────────────── */
+    .wizard-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(198, 152, 49, 0.18);
+    }
+
+    .wizard-footer .btn-ghost { margin-right: auto; }
+
     .mono {
       font-family: var(--dash-mono);
       font-size: 11px;
@@ -1160,58 +1391,136 @@
     </section>
   </main>
 
-  <!-- Bot Edit Modal -->
+  <!-- Bot Edit Modal – Wizard -->
   <div id="bot-modal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bot-modal-title">
+    <div class="modal modal--wizard" role="dialog" aria-modal="true" aria-labelledby="bot-modal-title">
+
+      <!-- Header -->
       <div class="modal-head">
-        <h3 id="bot-modal-title">Edit Bot</h3>
+        <h3 id="bot-modal-title">Configure Bot</h3>
         <button id="bot-modal-close" class="modal-close" type="button">Close</button>
       </div>
-      <p id="bot-modal-sub" class="muted" style="margin:0 0 14px;font-style:italic;">Configure behavior and wager policy.</p>
-      <div class="input-row" style="margin-bottom:10px;">
-        <div>
-          <label class="label" for="bot-personality">Personality</label>
-          <select id="bot-personality" class="field">
-            <option value="aggressive">Aggressive</option>
-            <option value="social">Social</option>
-            <option value="conservative">Conservative</option>
-          </select>
+      <p id="bot-modal-sub" class="muted" style="margin:0 0 16px;font-style:italic;"></p>
+
+      <!-- Step progress -->
+      <div class="wizard-steps" aria-hidden="true">
+        <div class="wizard-step active" data-step="1">
+          <span class="wizard-step__dot">1</span>
+          <span class="wizard-step__label">Personality</span>
         </div>
-        <div>
-          <label class="label" for="bot-target">Target Preference</label>
-          <select id="bot-target" class="field">
-            <option value="human_first">Human first</option>
-            <option value="human_only">Human only</option>
-            <option value="any">Any</option>
-          </select>
+        <div class="wizard-connector"></div>
+        <div class="wizard-step" data-step="2">
+          <span class="wizard-step__dot">2</span>
+          <span class="wizard-step__label">Wager &amp; Timing</span>
         </div>
-      </div>
-      <div class="input-row" style="margin-bottom:10px;">
-        <div>
-          <label class="label" for="bot-cooldown">Challenge Cooldown (ms)</label>
-          <input id="bot-cooldown" class="field" type="number" min="1200" step="100" value="2600">
-        </div>
-        <div>
-          <label class="label" for="bot-mode">Mode</label>
-          <select id="bot-mode" class="field">
-            <option value="active">Active</option>
-            <option value="passive">Passive</option>
-          </select>
+        <div class="wizard-connector"></div>
+        <div class="wizard-step" data-step="3">
+          <span class="wizard-step__dot">3</span>
+          <span class="wizard-step__label">Review</span>
         </div>
       </div>
-      <div class="input-row" style="margin-bottom:14px;">
-        <div>
-          <label class="label" for="bot-base-wager">Base Wager</label>
-          <input id="bot-base-wager" class="field" type="number" min="1" step="1" value="1">
+
+      <!-- Step 1 · Personality -->
+      <div class="wizard-pane" id="bot-wizard-step-1">
+        <p class="wizard-pane__hint">Choose how your bot behaves in the arena.</p>
+
+        <div class="personality-cards" role="radiogroup" aria-label="Personality">
+          <button class="personality-card" data-personality="aggressive" type="button" aria-pressed="false">
+            <span class="personality-card__avatar personality-aggressive"></span>
+            <span class="personality-card__name">Aggressive</span>
+            <span class="personality-card__desc">Hunts high-wager PvP. Raises bets when winning.</span>
+          </button>
+          <button class="personality-card" data-personality="conservative" type="button" aria-pressed="false">
+            <span class="personality-card__avatar personality-conservative"></span>
+            <span class="personality-card__name">Conservative</span>
+            <span class="personality-card__desc">Prefers low-risk play. Steady and cautious.</span>
+          </button>
+          <button class="personality-card" data-personality="social" type="button" aria-pressed="false">
+            <span class="personality-card__avatar personality-social"></span>
+            <span class="personality-card__name">Social</span>
+            <span class="personality-card__desc">Mixed play, any target. Balanced wagers.</span>
+          </button>
         </div>
-        <div>
-          <label class="label" for="bot-max-wager">Max Wager</label>
-          <input id="bot-max-wager" class="field" type="number" min="1" step="1" value="3">
+
+        <div class="input-row" style="margin-top:16px;">
+          <div>
+            <span class="label">Mode</span>
+            <div class="toggle-strip" role="radiogroup" aria-label="Mode" id="bot-mode-strip">
+              <button type="button" class="toggle-pill" data-value="active">Active</button>
+              <button type="button" class="toggle-pill" data-value="passive">Passive</button>
+            </div>
+          </div>
+          <div>
+            <label class="label" for="bot-target">Target Preference</label>
+            <select id="bot-target" class="field">
+              <option value="human_first">Human first</option>
+              <option value="human_only">Human only</option>
+              <option value="any">Any</option>
+            </select>
+          </div>
         </div>
       </div>
-      <div class="actions">
-        <button id="bot-save" class="btn-gold" type="button">Save Bot</button>
+
+      <!-- Step 2 · Wager & Timing -->
+      <div class="wizard-pane" id="bot-wizard-step-2" hidden>
+        <p class="wizard-pane__hint">Set wager limits and challenge frequency.</p>
+
+        <div class="input-row" style="margin-bottom:12px;">
+          <div>
+            <label class="label" for="bot-base-wager">Base Wager</label>
+            <input id="bot-base-wager" class="field" type="number" min="1" max="50" step="1" value="1">
+            <span class="field-hint">Min bet per challenge (1 – 50)</span>
+          </div>
+          <div>
+            <label class="label" for="bot-max-wager">Max Wager</label>
+            <input id="bot-max-wager" class="field" type="number" min="1" max="100" step="1" value="3">
+            <span class="field-hint">Ceiling for escalation (≥ base)</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="label" for="bot-cooldown">Challenge Cooldown</label>
+          <input id="bot-cooldown" class="field" type="number" min="1200" max="120000" step="100" value="2600">
+          <span class="field-hint">Milliseconds between challenges (1 200 – 120 000)</span>
+        </div>
+
+        <!-- Advanced: session limits -->
+        <details id="bot-advanced">
+          <summary class="advanced-toggle">
+            Advanced · Session Limits
+            <span class="advanced-toggle__chevron">▸</span>
+          </summary>
+          <div class="advanced-body">
+            <p class="wizard-pane__hint" style="margin-top:8px;">Bot auto-pauses when these thresholds are hit.</p>
+            <div class="input-row">
+              <div>
+                <label class="label" for="bot-loss-limit">Session Loss Limit</label>
+                <input id="bot-loss-limit" class="field" type="number" min="0" step="1" placeholder="e.g. 20">
+                <span class="field-hint">Stop after losing this much (0 = off)</span>
+              </div>
+              <div>
+                <label class="label" for="bot-win-target">Session Win Target</label>
+                <input id="bot-win-target" class="field" type="number" min="0" step="1" placeholder="e.g. 50">
+                <span class="field-hint">Stop after winning this much (0 = off)</span>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
+
+      <!-- Step 3 · Review -->
+      <div class="wizard-pane" id="bot-wizard-step-3" hidden>
+        <p class="wizard-pane__hint">Review your configuration before saving.</p>
+        <dl class="review-list" id="bot-review-list"></dl>
+      </div>
+
+      <!-- Footer -->
+      <div class="wizard-footer">
+        <button id="bot-wizard-back" class="btn-ghost" type="button" style="display:none;">← Back</button>
+        <button id="bot-wizard-next" class="btn-dark" type="button">Next →</button>
+        <button id="bot-save" class="btn-gold" type="button" style="display:none;">Save Bot</button>
+      </div>
+
     </div>
   </div>
 
