@@ -1,3 +1,5 @@
+import { CdpClient } from '@coinbase/cdp-sdk';
+
 export type CdpClientConfig = {
   apiKeyId: string;
   apiKeySecret: string;
@@ -71,8 +73,10 @@ export async function initializeCdpClient(
 }
 
 async function defaultSdkFactory(params: CdpClientConfig): Promise<unknown> {
-  // Placeholder object keeps initialization centralized and testable.
-  // Replace this with an actual CDP SDK constructor when the SDK package is added.
-  return { provider: 'cdp', ...params };
+  // projectId is still required by our app-level contract even though the current SDK
+  // constructor only accepts API key credentials.
+  return new CdpClient({
+    apiKeyId: params.apiKeyId,
+    apiKeySecret: params.apiKeySecret
+  });
 }
-

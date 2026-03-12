@@ -35,4 +35,28 @@ describe('initializeCdpClient', () => {
     expect(state.client).toBeTruthy();
     expect(sdkFactory).toHaveBeenCalledTimes(1);
   });
+
+  it('returns cdp_client_init_failed when default sdk constructor throws', async () => {
+    vi.resetModules();
+    vi.doMock('@coinbase/cdp-sdk', () => ({
+      CdpClient: class {
+        constructor() {
+          throw new Error('boom');
+        }
+      }
+    }));
+
+    const { initializeCdpClient: initializeWithDefaultFactory } = await import('./cdpClient.js');
+    const state = await initializeWithDefaultFactory({
+      CDP_API_KEY_ID: 'id',
+      CDP_API_KEY_SECRET: 'secret',
+      CDP_PROJECT_ID: 'project-id'
+    });
+
+    expect(state.available).toBe(false);
+    expect(state.reason).toBe('cdp_client_init_failed');
+
+    vi.resetModules();
+    vi.doUnmock('@coinbase/cdp-sdk');
+  });
 });
