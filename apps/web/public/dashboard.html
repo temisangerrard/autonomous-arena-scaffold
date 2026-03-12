@@ -485,74 +485,217 @@
       font: 400 12px/1.3 var(--dash-mono);
     }
 
-    /* ── Chief / Super Bar ───────────────────── */
-    .super-bar {
+    /* ── Chief Panel ──────────────────────────── */
+    .chief-panel {
       background: #1e1a14;
       border: 1px solid rgba(198, 152, 49, 0.28);
       border-radius: 12px;
-      padding: 16px;
+      padding: 20px;
     }
 
-    .super-head {
+    .chief-head {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
     }
 
-    .super-title {
-      margin: 0;
+    .chief-title {
+      margin: 0 0 5px;
       font: italic 700 20px/1 var(--dash-display);
       color: #e8d4a0;
     }
 
-    .ready {
+    .chief-desc {
+      margin: 0;
+      font: 400 13px/1.4 var(--dash-serif);
+      color: #9a8870;
+      font-style: italic;
+    }
+
+    .chief-badge {
+      flex-shrink: 0;
       border-radius: 999px;
-      padding: 3px 8px;
+      padding: 3px 10px;
       background: rgba(47, 143, 94, 0.14);
       color: #7adaaa;
       font: 400 10px/1 var(--dash-mono);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       border: 1px solid rgba(47, 143, 94, 0.28);
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
     }
 
-    .quick-pills {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin: 8px 0;
-    }
-
-    .quick-pills button {
-      border-radius: 6px;
-      border: 1px solid rgba(198, 152, 49, 0.22);
-      background: rgba(198, 152, 49, 0.07);
+    .chief-badge.thinking {
+      background: rgba(198, 152, 49, 0.14);
       color: #d4bc82;
-      min-height: 30px;
-      padding: 0 10px;
-      font: 400 11px/1 var(--dash-mono);
-      cursor: pointer;
-      transition: border-color 0.12s;
+      border-color: rgba(198, 152, 49, 0.3);
     }
 
-    .quick-pills button:hover {
+    /* ── Command palette ─────────────────────── */
+    .chief-commands {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.18);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .chief-cmd-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chief-cmd-label {
+      font: 600 10px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #5a5040;
+      white-space: nowrap;
+      min-width: 38px;
+    }
+
+    .chief-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .chief-chip {
+      border-radius: 6px;
+      border: 1px solid rgba(198, 152, 49, 0.2);
+      background: rgba(198, 152, 49, 0.06);
+      color: #c8a868;
+      min-height: 28px;
+      padding: 0 10px;
+      font: 400 12px/1 var(--dash-serif);
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+
+    .chief-chip:hover {
       border-color: rgba(198, 152, 49, 0.5);
+      background: rgba(198, 152, 49, 0.12);
       color: #e8d09a;
     }
 
-    .super-response {
-      margin-top: 10px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      background: rgba(0, 0, 0, 0.2);
+    /* ── Input row ────────────────────────────── */
+    .chief-input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 14px;
+    }
+
+    .chief-textarea {
+      background: rgba(0, 0, 0, 0.25) !important;
+      color: #e0d2b6 !important;
+      border-color: rgba(198, 152, 49, 0.18) !important;
+      resize: none;
+    }
+
+    .chief-textarea::placeholder { color: #5a5040; }
+
+    /* ── Reply area ───────────────────────────── */
+    .chief-reply-area {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 14px;
+    }
+
+    .chief-reply-text {
+      margin: 0 0 12px;
+      font: 400 14px/1.6 var(--dash-serif);
       color: #e0d2b6;
-      padding: 10px 12px;
-      min-height: 90px;
-      max-height: 240px;
-      overflow: auto;
       white-space: pre-wrap;
-      font: 400 13px/1.5 var(--dash-serif);
+    }
+
+    .chief-confirm-prompt {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      background: rgba(198, 152, 49, 0.08);
+      border: 1px solid rgba(198, 152, 49, 0.3);
+      border-radius: 8px;
+    }
+
+    .chief-confirm-prompt__text {
+      margin: 0;
+      font: 400 13px/1.4 var(--dash-serif);
+      color: #d4bc82;
+    }
+
+    .chief-details {
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .chief-details__summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 12px;
+      cursor: pointer;
+      font: 600 10px/1 var(--dash-mono);
+      color: #5a5040;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(0, 0, 0, 0.12);
+      user-select: none;
+    }
+
+    .chief-details__summary::-webkit-details-marker { display: none; }
+    .chief-details[open] .advanced-toggle__chevron { transform: rotate(90deg); }
+
+    .chief-details__body {
+      padding: 10px 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chief-action-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font: 400 11px/1.3 var(--dash-mono);
+      color: #7a6a52;
+    }
+
+    .chief-action-status {
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .chief-action-status--executed {
+      background: rgba(47, 143, 94, 0.15);
+      color: #7adaaa;
+    }
+
+    .chief-action-status--planned {
+      background: rgba(198, 152, 49, 0.14);
+      color: #d4bc82;
+    }
+
+    .chief-action-status--blocked,
+    .chief-action-status--fallback {
+      background: rgba(180, 77, 60, 0.14);
+      color: #e07060;
     }
 
     /* ── Wallet ──────────────────────────────── */
@@ -860,6 +1003,237 @@
       cursor: pointer;
     }
 
+    /* ── Wizard ───────────────────────────────── */
+    .modal--wizard { width: min(640px, 100%); }
+
+    .wizard-steps {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .wizard-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .wizard-step__dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid rgba(198, 152, 49, 0.3);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 600 11px/1 var(--dash-mono);
+      color: var(--dash-muted);
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+
+    .wizard-step.active .wizard-step__dot {
+      border-color: var(--dash-gold);
+      background: rgba(198, 152, 49, 0.12);
+      color: #8a6010;
+    }
+
+    .wizard-step.done .wizard-step__dot {
+      border-color: var(--dash-good);
+      background: rgba(47, 143, 94, 0.12);
+      color: var(--dash-good);
+    }
+
+    .wizard-step__label {
+      font: 400 10px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--dash-muted);
+    }
+
+    .wizard-step.active .wizard-step__label {
+      color: #8a6010;
+      font-weight: 600;
+    }
+
+    .wizard-step.done .wizard-step__label { color: var(--dash-good); }
+
+    .wizard-connector {
+      flex: 1;
+      height: 1px;
+      background: rgba(198, 152, 49, 0.22);
+      margin: 0 8px;
+      margin-bottom: 16px;
+    }
+
+    .wizard-pane__hint {
+      margin: 0 0 14px;
+      color: var(--dash-muted);
+      font-style: italic;
+    }
+
+    /* ── Personality Cards ────────────────────── */
+    .personality-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .personality-card {
+      background: transparent;
+      border: 2px solid rgba(198, 152, 49, 0.28);
+      border-radius: 12px;
+      padding: 14px 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+      transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+    }
+
+    .personality-card:hover {
+      border-color: rgba(198, 152, 49, 0.55);
+      background: rgba(198, 152, 49, 0.04);
+    }
+
+    .personality-card.selected,
+    .personality-card[aria-pressed="true"] {
+      border-color: var(--dash-gold);
+      background: rgba(198, 152, 49, 0.08);
+      box-shadow: 0 0 0 1px rgba(198, 152, 49, 0.28), 0 4px 16px rgba(198, 152, 49, 0.1);
+    }
+
+    .personality-card__avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: block;
+      flex-shrink: 0;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .personality-card__avatar.personality-aggressive  { background: linear-gradient(135deg, #e8846a, #c04830); }
+    .personality-card__avatar.personality-conservative { background: linear-gradient(135deg, #9ad4b4, #5dba8e); }
+    .personality-card__avatar.personality-social       { background: linear-gradient(135deg, #b8b4e8, #7e7acc); }
+
+    .personality-card__name {
+      font: 600 14px/1 var(--dash-serif);
+      color: var(--dash-ink);
+    }
+
+    .personality-card__desc {
+      font: 400 12px/1.45 var(--dash-serif);
+      color: var(--dash-muted);
+    }
+
+    /* ── Mode Toggle Strip ───────────────────── */
+    .toggle-strip {
+      display: flex;
+      border: 1px solid rgba(198, 152, 49, 0.38);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .toggle-pill {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--dash-muted);
+      font: 600 13px/1 var(--dash-serif);
+      padding: 9px 12px;
+      cursor: pointer;
+      transition: background 0.14s, color 0.14s;
+    }
+
+    .toggle-pill:not(:last-child) { border-right: 1px solid rgba(198, 152, 49, 0.28); }
+
+    .toggle-pill.active {
+      background: rgba(198, 152, 49, 0.12);
+      color: var(--dash-ink);
+    }
+
+    /* ── Field Hint ───────────────────────────── */
+    .field-hint {
+      display: block;
+      margin-top: 4px;
+      font: 400 11px/1.3 var(--dash-mono);
+      color: var(--dash-muted);
+    }
+
+    /* ── Advanced Section ─────────────────────── */
+    #bot-advanced {
+      border: 1px solid rgba(198, 152, 49, 0.22);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .advanced-toggle {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      cursor: pointer;
+      font: 600 13px/1 var(--dash-serif);
+      color: var(--dash-muted);
+      background: rgba(198, 152, 49, 0.04);
+      user-select: none;
+    }
+
+    .advanced-toggle::-webkit-details-marker { display: none; }
+
+    .advanced-toggle__chevron {
+      transition: transform 0.18s;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+
+    #bot-advanced[open] .advanced-toggle__chevron { transform: rotate(90deg); }
+
+    .advanced-body {
+      padding: 14px;
+      border-top: 1px solid rgba(198, 152, 49, 0.18);
+    }
+
+    /* ── Review List ───────────────────────────── */
+    .review-list {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 20px;
+      margin: 0;
+      align-items: baseline;
+    }
+
+    .review-list dt {
+      font: 600 11px/1 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--dash-muted);
+      white-space: nowrap;
+    }
+
+    .review-list dd {
+      margin: 0;
+      font: 400 14px/1.4 var(--dash-serif);
+      color: var(--dash-ink);
+    }
+
+    /* ── Wizard Footer ────────────────────────── */
+    .wizard-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(198, 152, 49, 0.18);
+    }
+
+    .wizard-footer .btn-ghost { margin-right: auto; }
+
     .mono {
       font-family: var(--dash-mono);
       font-size: 11px;
@@ -1135,24 +1509,74 @@
 
         <!-- Chief View -->
         <section id="view-super" class="dash-view">
-          <article class="super-bar">
-            <div class="super-head">
-              <h2 class="super-title">Chief of Staff</h2>
-              <span class="ready">Ready</span>
+          <article class="chief-panel">
+
+            <!-- Header -->
+            <div class="chief-head">
+              <div>
+                <h2 class="chief-title">Chief of Staff</h2>
+                <p class="chief-desc">Natural language control for your bot and wallet. Ask anything.</p>
+              </div>
+              <span class="chief-badge" id="chief-badge">Ready</span>
             </div>
-            <p class="muted" style="margin:0 0 8px;color:#b09870;font-style:italic;">Wallet, gas, and bot tuning while offline.</p>
-            <div class="quick-pills">
-              <button type="button" data-quick-cmd="status">status</button>
-              <button type="button" data-quick-cmd="help">help</button>
+
+            <!-- Command palette -->
+            <div class="chief-commands" aria-label="Quick commands">
+              <div class="chief-cmd-group">
+                <span class="chief-cmd-label">Arena</span>
+                <div class="chief-chips">
+                  <button type="button" class="chief-chip" data-chief-cmd="status">Arena status</button>
+                </div>
+              </div>
+              <div class="chief-cmd-group">
+                <span class="chief-cmd-label">Bot</span>
+                <div class="chief-chips">
+                  <button type="button" class="chief-chip" data-chief-cmd="set personality aggressive">Aggressive</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set personality conservative">Conservative</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set personality social">Social</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set mode active">Active mode</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="set mode passive">Passive mode</button>
+                </div>
+              </div>
+              <div class="chief-cmd-group">
+                <span class="chief-cmd-label">Wallet</span>
+                <div class="chief-chips">
+                  <button type="button" class="chief-chip" data-chief-cmd="fix gas">Fix gas</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="fund 10">Fund +10</button>
+                  <button type="button" class="chief-chip" data-chief-cmd="withdraw 10">Withdraw 10</button>
+                </div>
+              </div>
             </div>
-            <textarea id="super-agent-message-alt" class="field" rows="3"
-              style="background:rgba(0,0,0,0.28);color:#e0d2b6;border-color:rgba(198,152,49,0.2);"
-              placeholder="fund 10 · set personality aggressive · set target any"></textarea>
-            <div class="actions" style="margin-top:8px;">
-              <button id="super-agent-send-alt" class="btn-gold" type="button">Send</button>
-              <button id="super-agent-quick-status-alt" class="btn-dark" type="button">Status</button>
+
+            <!-- Free-text input -->
+            <div class="chief-input-row">
+              <textarea id="chief-message" class="field chief-textarea" rows="2"
+                placeholder="e.g. set personality aggressive · fund 50 · status"></textarea>
+              <button id="chief-send" class="btn-gold" type="button">Send</button>
             </div>
-            <pre id="super-agent-response-alt" class="super-response">Chief ready.</pre>
+
+            <!-- Reply area (hidden until first reply) -->
+            <div id="chief-reply-area" class="chief-reply-area" hidden>
+
+              <!-- Main reply text -->
+              <p class="chief-reply-text" id="chief-reply-text"></p>
+
+              <!-- Confirmation prompt -->
+              <div class="chief-confirm-prompt" id="chief-confirm-prompt" hidden>
+                <p class="chief-confirm-prompt__text" id="chief-confirm-text">This action requires confirmation.</p>
+                <button id="chief-confirm-btn" class="btn-gold" type="button">Confirm</button>
+              </div>
+
+              <!-- Actions detail (collapsed) -->
+              <details class="chief-details" id="chief-details" hidden>
+                <summary class="chief-details__summary">
+                  Details <span class="advanced-toggle__chevron">▸</span>
+                </summary>
+                <div class="chief-details__body" id="chief-actions-body"></div>
+              </details>
+
+            </div>
+
           </article>
         </section>
 
@@ -1160,58 +1584,136 @@
     </section>
   </main>
 
-  <!-- Bot Edit Modal -->
+  <!-- Bot Edit Modal – Wizard -->
   <div id="bot-modal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bot-modal-title">
+    <div class="modal modal--wizard" role="dialog" aria-modal="true" aria-labelledby="bot-modal-title">
+
+      <!-- Header -->
       <div class="modal-head">
-        <h3 id="bot-modal-title">Edit Bot</h3>
+        <h3 id="bot-modal-title">Configure Bot</h3>
         <button id="bot-modal-close" class="modal-close" type="button">Close</button>
       </div>
-      <p id="bot-modal-sub" class="muted" style="margin:0 0 14px;font-style:italic;">Configure behavior and wager policy.</p>
-      <div class="input-row" style="margin-bottom:10px;">
-        <div>
-          <label class="label" for="bot-personality">Personality</label>
-          <select id="bot-personality" class="field">
-            <option value="aggressive">Aggressive</option>
-            <option value="social">Social</option>
-            <option value="conservative">Conservative</option>
-          </select>
+      <p id="bot-modal-sub" class="muted" style="margin:0 0 16px;font-style:italic;"></p>
+
+      <!-- Step progress -->
+      <div class="wizard-steps" aria-hidden="true">
+        <div class="wizard-step active" data-step="1">
+          <span class="wizard-step__dot">1</span>
+          <span class="wizard-step__label">Personality</span>
         </div>
-        <div>
-          <label class="label" for="bot-target">Target Preference</label>
-          <select id="bot-target" class="field">
-            <option value="human_first">Human first</option>
-            <option value="human_only">Human only</option>
-            <option value="any">Any</option>
-          </select>
+        <div class="wizard-connector"></div>
+        <div class="wizard-step" data-step="2">
+          <span class="wizard-step__dot">2</span>
+          <span class="wizard-step__label">Wager &amp; Timing</span>
         </div>
-      </div>
-      <div class="input-row" style="margin-bottom:10px;">
-        <div>
-          <label class="label" for="bot-cooldown">Challenge Cooldown (ms)</label>
-          <input id="bot-cooldown" class="field" type="number" min="1200" step="100" value="2600">
-        </div>
-        <div>
-          <label class="label" for="bot-mode">Mode</label>
-          <select id="bot-mode" class="field">
-            <option value="active">Active</option>
-            <option value="passive">Passive</option>
-          </select>
+        <div class="wizard-connector"></div>
+        <div class="wizard-step" data-step="3">
+          <span class="wizard-step__dot">3</span>
+          <span class="wizard-step__label">Review</span>
         </div>
       </div>
-      <div class="input-row" style="margin-bottom:14px;">
-        <div>
-          <label class="label" for="bot-base-wager">Base Wager</label>
-          <input id="bot-base-wager" class="field" type="number" min="1" step="1" value="1">
+
+      <!-- Step 1 · Personality -->
+      <div class="wizard-pane" id="bot-wizard-step-1">
+        <p class="wizard-pane__hint">Choose how your bot behaves in the arena.</p>
+
+        <div class="personality-cards" role="radiogroup" aria-label="Personality">
+          <button class="personality-card" data-personality="aggressive" type="button" aria-pressed="false">
+            <span class="personality-card__avatar personality-aggressive"></span>
+            <span class="personality-card__name">Aggressive</span>
+            <span class="personality-card__desc">Hunts high-wager PvP. Raises bets when winning.</span>
+          </button>
+          <button class="personality-card" data-personality="conservative" type="button" aria-pressed="false">
+            <span class="personality-card__avatar personality-conservative"></span>
+            <span class="personality-card__name">Conservative</span>
+            <span class="personality-card__desc">Prefers low-risk play. Steady and cautious.</span>
+          </button>
+          <button class="personality-card" data-personality="social" type="button" aria-pressed="false">
+            <span class="personality-card__avatar personality-social"></span>
+            <span class="personality-card__name">Social</span>
+            <span class="personality-card__desc">Mixed play, any target. Balanced wagers.</span>
+          </button>
         </div>
-        <div>
-          <label class="label" for="bot-max-wager">Max Wager</label>
-          <input id="bot-max-wager" class="field" type="number" min="1" step="1" value="3">
+
+        <div class="input-row" style="margin-top:16px;">
+          <div>
+            <span class="label">Mode</span>
+            <div class="toggle-strip" role="radiogroup" aria-label="Mode" id="bot-mode-strip">
+              <button type="button" class="toggle-pill" data-value="active">Active</button>
+              <button type="button" class="toggle-pill" data-value="passive">Passive</button>
+            </div>
+          </div>
+          <div>
+            <label class="label" for="bot-target">Target Preference</label>
+            <select id="bot-target" class="field">
+              <option value="human_first">Human first</option>
+              <option value="human_only">Human only</option>
+              <option value="any">Any</option>
+            </select>
+          </div>
         </div>
       </div>
-      <div class="actions">
-        <button id="bot-save" class="btn-gold" type="button">Save Bot</button>
+
+      <!-- Step 2 · Wager & Timing -->
+      <div class="wizard-pane" id="bot-wizard-step-2" hidden>
+        <p class="wizard-pane__hint">Set wager limits and challenge frequency.</p>
+
+        <div class="input-row" style="margin-bottom:12px;">
+          <div>
+            <label class="label" for="bot-base-wager">Base Wager</label>
+            <input id="bot-base-wager" class="field" type="number" min="1" max="50" step="1" value="1">
+            <span class="field-hint">Min bet per challenge (1 – 50)</span>
+          </div>
+          <div>
+            <label class="label" for="bot-max-wager">Max Wager</label>
+            <input id="bot-max-wager" class="field" type="number" min="1" max="100" step="1" value="3">
+            <span class="field-hint">Ceiling for escalation (≥ base)</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="label" for="bot-cooldown">Challenge Cooldown</label>
+          <input id="bot-cooldown" class="field" type="number" min="1200" max="120000" step="100" value="2600">
+          <span class="field-hint">Milliseconds between challenges (1 200 – 120 000)</span>
+        </div>
+
+        <!-- Advanced: session limits -->
+        <details id="bot-advanced">
+          <summary class="advanced-toggle">
+            Advanced · Session Limits
+            <span class="advanced-toggle__chevron">▸</span>
+          </summary>
+          <div class="advanced-body">
+            <p class="wizard-pane__hint" style="margin-top:8px;">Bot auto-pauses when these thresholds are hit.</p>
+            <div class="input-row">
+              <div>
+                <label class="label" for="bot-loss-limit">Session Loss Limit</label>
+                <input id="bot-loss-limit" class="field" type="number" min="0" step="1" placeholder="e.g. 20">
+                <span class="field-hint">Stop after losing this much (0 = off)</span>
+              </div>
+              <div>
+                <label class="label" for="bot-win-target">Session Win Target</label>
+                <input id="bot-win-target" class="field" type="number" min="0" step="1" placeholder="e.g. 50">
+                <span class="field-hint">Stop after winning this much (0 = off)</span>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
+
+      <!-- Step 3 · Review -->
+      <div class="wizard-pane" id="bot-wizard-step-3" hidden>
+        <p class="wizard-pane__hint">Review your configuration before saving.</p>
+        <dl class="review-list" id="bot-review-list"></dl>
+      </div>
+
+      <!-- Footer -->
+      <div class="wizard-footer">
+        <button id="bot-wizard-back" class="btn-ghost" type="button" style="display:none;">← Back</button>
+        <button id="bot-wizard-next" class="btn-dark" type="button">Next →</button>
+        <button id="bot-save" class="btn-gold" type="button" style="display:none;">Save Bot</button>
+      </div>
+
     </div>
   </div>
 

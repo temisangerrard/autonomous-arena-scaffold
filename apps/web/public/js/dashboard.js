@@ -37,26 +37,31 @@ const walletTransferWalletId = document.getElementById('wallet-transfer-wallet-i
 const walletTransferAmount = document.getElementById('wallet-transfer-amount');
 const walletTransfer = document.getElementById('wallet-transfer');
 
-const botPersonality = document.getElementById('bot-personality');
+// Wizard element refs
 const botTarget = document.getElementById('bot-target');
 const botCooldown = document.getElementById('bot-cooldown');
-const botMode = document.getElementById('bot-mode');
 const botBaseWager = document.getElementById('bot-base-wager');
 const botMaxWager = document.getElementById('bot-max-wager');
 const botSave = document.getElementById('bot-save');
 const botList = document.getElementById('bot-list');
+const botModeStrip = document.getElementById('bot-mode-strip');
+const botWizardBack = document.getElementById('bot-wizard-back');
+const botWizardNext = document.getElementById('bot-wizard-next');
+const botReviewList = document.getElementById('bot-review-list');
 // Bot creation is intentionally disabled: one player == one character bot.
 const createBot = null;
 
-const superAgentMessage = document.getElementById('super-agent-message');
-const superAgentSend = document.getElementById('super-agent-send');
-const superAgentQuickStatus = document.getElementById('super-agent-quick-status');
-const superAgentResponse = document.getElementById('super-agent-response');
-
-const superAgentMessageAlt = document.getElementById('super-agent-message-alt');
-const superAgentSendAlt = document.getElementById('super-agent-send-alt');
-const superAgentQuickStatusAlt = document.getElementById('super-agent-quick-status-alt');
-const superAgentResponseAlt = document.getElementById('super-agent-response-alt');
+// Chief of Staff
+const chiefMessage = document.getElementById('chief-message');
+const chiefSend = document.getElementById('chief-send');
+const chiefBadge = document.getElementById('chief-badge');
+const chiefReplyArea = document.getElementById('chief-reply-area');
+const chiefReplyText = document.getElementById('chief-reply-text');
+const chiefConfirmPrompt = document.getElementById('chief-confirm-prompt');
+const chiefConfirmText = document.getElementById('chief-confirm-text');
+const chiefConfirmBtn = document.getElementById('chief-confirm-btn');
+const chiefDetails = document.getElementById('chief-details');
+const chiefActionsBody = document.getElementById('chief-actions-body');
 
 const onboardingList = document.getElementById('onboarding-list');
 const escrowHistory = document.getElementById('escrow-history');
@@ -71,7 +76,7 @@ const botModalSub = document.getElementById('bot-modal-sub');
 
 const sidebarButtons = [...document.querySelectorAll('.sidebar-nav [data-view]')];
 const views = [...document.querySelectorAll('.dash-view')];
-const quickCommandButtons = [...document.querySelectorAll('[data-quick-cmd]')];
+const chiefChipButtons = [...document.querySelectorAll('[data-chief-cmd]')];
 const walletTabButtons = [...document.querySelectorAll('[data-wallet-tab]')];
 const walletPanes = [...document.querySelectorAll('[data-wallet-pane]')];
 
@@ -653,6 +658,71 @@ async function refreshContext() {
   renderContext();
 }
 
+// ── Wizard state ──────────────────────────────────────────────────────────
+let wizardStep = 1;
+let wizardPersonality = 'social';
+let wizardMode = 'active';
+
+function setWizardPersonality(value) {
+  wizardPersonality = value;
+  document.querySelectorAll('.personality-card').forEach((card) => {
+    const selected = card.dataset.personality === value;
+    card.classList.toggle('selected', selected);
+    card.setAttribute('aria-pressed', String(selected));
+  });
+}
+
+function setWizardMode(value) {
+  wizardMode = value;
+  if (botModeStrip) {
+    botModeStrip.querySelectorAll('.toggle-pill').forEach((pill) => {
+      pill.classList.toggle('active', pill.dataset.value === value);
+    });
+  }
+}
+
+function buildReview() {
+  if (!botReviewList) return;
+  const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
+  const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
+  const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
+  const lossLimit = Number(document.getElementById('bot-loss-limit')?.value || 0);
+  const winTarget = Number(document.getElementById('bot-win-target')?.value || 0);
+  const targetLabel = (botTarget?.value || 'human_first').replace(/_/g, ' ');
+  const rows = [
+    ['Personality', wizardPersonality.charAt(0).toUpperCase() + wizardPersonality.slice(1)],
+    ['Mode', wizardMode.charAt(0).toUpperCase() + wizardMode.slice(1)],
+    ['Target', targetLabel],
+    ['Base Wager', String(baseWager)],
+    ['Max Wager', String(maxWager)],
+    ['Cooldown', `${cooldown.toLocaleString()} ms`],
+  ];
+  if (lossLimit > 0) rows.push(['Loss Limit', String(lossLimit)]);
+  if (winTarget > 0) rows.push(['Win Target', String(winTarget)]);
+  botReviewList.innerHTML = rows.map(([dt, dd]) =>
+    `<dt>${dt}</dt><dd>${dd}</dd>`
+  ).join('');
+}
+
+function setWizardStep(step) {
+  wizardStep = step;
+  for (let i = 1; i <= 3; i++) {
+    const pane = document.getElementById(`bot-wizard-step-${i}`);
+    if (pane) pane.hidden = i !== step;
+  }
+  document.querySelectorAll('.wizard-step').forEach((el) => {
+    const s = Number(el.dataset.step);
+    el.classList.toggle('active', s === step);
+    el.classList.toggle('done', s < step);
+    const dot = el.querySelector('.wizard-step__dot');
+    if (dot) dot.textContent = s < step ? '✓' : String(s);
+  });
+  if (botWizardBack) botWizardBack.style.display = step > 1 ? '' : 'none';
+  if (botWizardNext) botWizardNext.style.display = step < 3 ? '' : 'none';
+  if (botSave) botSave.style.display = step === 3 ? '' : 'none';
+  if (step === 3) buildReview();
+}
+
 function openBotModal(botId) {
   const bot = getBotById(botId);
   if (!bot || !botModal) {
@@ -660,17 +730,25 @@ function openBotModal(botId) {
   }
   selectedBotId = botId;
   if (botModalTitle) {
-    botModalTitle.textContent = `Edit ${bot.meta?.displayName || bot.id}`;
+    botModalTitle.textContent = `Configure ${bot.meta?.displayName || bot.id}`;
   }
   if (botModalSub) {
     botModalSub.textContent = `${bot.id} · patrol S${bot.meta?.patrolSection ?? '-'} · ${bot.connected ? 'connected' : 'disconnected'}`;
   }
-  if (botPersonality) botPersonality.value = bot.behavior.personality;
-  if (botTarget) botTarget.value = bot.behavior.targetPreference;
+  // Populate fields from bot state
+  setWizardPersonality(bot.behavior.personality || 'social');
+  setWizardMode(bot.behavior.mode || 'active');
+  if (botTarget) botTarget.value = bot.behavior.targetPreference || 'human_first';
   if (botCooldown) botCooldown.value = String(bot.behavior.challengeCooldownMs || 2600);
-  if (botMode) botMode.value = bot.behavior.mode || 'active';
   if (botBaseWager) botBaseWager.value = String(bot.behavior.baseWager || 1);
   if (botMaxWager) botMaxWager.value = String(bot.behavior.maxWager || 3);
+  // Reset advanced fields
+  const lossLimitEl = document.getElementById('bot-loss-limit');
+  const winTargetEl = document.getElementById('bot-win-target');
+  if (lossLimitEl) lossLimitEl.value = '';
+  if (winTargetEl) winTargetEl.value = '';
+  // Reset to step 1
+  setWizardStep(1);
   botModal.classList.add('open');
   botModal.setAttribute('aria-hidden', 'false');
 }
@@ -796,20 +874,18 @@ botSave?.addEventListener('click', async () => {
       setStatus('No bot selected.');
       return;
     }
-
     const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
     const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
     const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
-
     setStatus(`Saving ${botId}...`);
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        personality: botPersonality?.value || 'social',
+        personality: wizardPersonality,
         targetPreference: botTarget?.value || 'human_first',
         challengeCooldownMs: cooldown,
-        mode: botMode?.value || 'active',
+        mode: wizardMode,
         baseWager,
         maxWager
       })
@@ -819,6 +895,33 @@ botSave?.addEventListener('click', async () => {
     setStatus(`Saved ${botId}.`);
   } catch (error) {
     setStatus(`Bot save failed: ${String(error.message || error)}`);
+  }
+});
+
+// Wizard navigation
+botWizardNext?.addEventListener('click', () => {
+  if (wizardStep < 3) setWizardStep(wizardStep + 1);
+});
+
+botWizardBack?.addEventListener('click', () => {
+  if (wizardStep > 1) setWizardStep(wizardStep - 1);
+});
+
+// Personality card selection
+document.querySelectorAll('.personality-card').forEach((card) => {
+  card.addEventListener('click', () => {
+    const value = card.dataset.personality;
+    if (value) setWizardPersonality(value);
+  });
+});
+
+// Mode toggle strip
+botModeStrip?.addEventListener('click', (event) => {
+  const pill = event.target instanceof HTMLElement
+    ? event.target.closest('.toggle-pill')
+    : null;
+  if (pill instanceof HTMLElement && pill.dataset.value) {
+    setWizardMode(pill.dataset.value);
   }
 });
 
@@ -853,92 +956,103 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-async function sendSuperAgent(message) {
-  const trimmed = String(message || '').trim();
-  const confirmMatch = trimmed.match(/^confirm\s+([a-z0-9_:-]+)$/i);
-  const payload = confirmMatch?.[1]
-    ? { confirmToken: confirmMatch[1] }
-    : { message: trimmed };
+// ── Chief of Staff ────────────────────────────────────────────────────────
+let chiefPendingToken = null;
 
-  const result = await api('/api/chief/v1/chat', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  const actions = Array.isArray(result?.actions)
-    ? result.actions.map((entry) => `${entry.tool} (${entry.status})`).join(', ')
-    : '';
-  const confirmation = result?.requiresConfirmation
-    ? `\n\nConfirmation required. Re-send with token:\nconfirm ${String(result?.confirmToken || '').trim()}`
-    : '';
-  const reply = String(result?.reply || 'No reply.')
-    + (actions ? `\n\nActions: ${actions}` : '')
-    + confirmation;
-  if (superAgentResponse) {
-    superAgentResponse.textContent = reply;
+function chiefSetThinking(on) {
+  if (chiefBadge) {
+    chiefBadge.textContent = on ? 'Thinking…' : 'Ready';
+    chiefBadge.classList.toggle('thinking', on);
   }
-  if (superAgentResponseAlt) {
-    superAgentResponseAlt.textContent = reply;
+  if (chiefSend) chiefSend.disabled = on;
+}
+
+function chiefRenderReply(result) {
+  const replyText = String(result?.reply || 'No reply.');
+  const actions = Array.isArray(result?.actions) ? result.actions : [];
+  const needsConfirm = Boolean(result?.requiresConfirmation);
+  const token = String(result?.confirmToken || '').trim();
+
+  // Show reply area
+  if (chiefReplyArea) chiefReplyArea.hidden = false;
+
+  // Reply text
+  if (chiefReplyText) chiefReplyText.textContent = replyText;
+
+  // Confirmation prompt
+  chiefPendingToken = needsConfirm && token ? token : null;
+  if (chiefConfirmPrompt) chiefConfirmPrompt.hidden = !chiefPendingToken;
+  if (chiefConfirmText && chiefPendingToken) {
+    chiefConfirmText.textContent = 'This action needs your approval to proceed.';
+  }
+
+  // Actions detail block
+  if (actions.length > 0 && chiefDetails && chiefActionsBody) {
+    chiefActionsBody.innerHTML = actions.map((a) => {
+      const statusKey = String(a.status || 'planned').toLowerCase();
+      const label = statusKey.charAt(0).toUpperCase() + statusKey.slice(1);
+      return `<div class="chief-action-row">
+        <span class="chief-action-status chief-action-status--${statusKey}">${label}</span>
+        <span>${String(a.tool || '')}</span>
+      </div>`;
+    }).join('');
+    chiefDetails.hidden = false;
+    chiefDetails.open = false;
+  } else if (chiefDetails) {
+    chiefDetails.hidden = true;
   }
 }
 
-function getSuperMessage() {
-  const primary = String(superAgentMessage?.value || '').trim();
-  const alternate = String(superAgentMessageAlt?.value || '').trim();
-  return primary || alternate;
-}
-
-function setSuperMessage(value) {
-  if (superAgentMessage) {
-    superAgentMessage.value = value;
-  }
-  if (superAgentMessageAlt) {
-    superAgentMessageAlt.value = value;
-  }
-}
-
-async function runSuperCommand(inputValue) {
-  const message = String(inputValue || '').trim();
-  if (!message) {
-    setStatus('Enter a message for Super Agent.');
-    return;
-  }
+async function chiefSendMessage(payload) {
+  chiefSetThinking(true);
   try {
-    setStatus('Super Agent thinking...');
-    await sendSuperAgent(message);
-    setStatus('Super Agent replied.');
+    const result = await api('/api/chief/v1/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    chiefRenderReply(result);
   } catch (error) {
-    setStatus(`Super Agent error: ${String(error.message || error)}`);
+    if (chiefReplyArea) chiefReplyArea.hidden = false;
+    if (chiefReplyText) chiefReplyText.textContent = `Error: ${String(error.message || error)}`;
+    if (chiefConfirmPrompt) chiefConfirmPrompt.hidden = true;
+    if (chiefDetails) chiefDetails.hidden = true;
+  } finally {
+    chiefSetThinking(false);
   }
 }
 
-superAgentSend?.addEventListener('click', async () => {
-  await runSuperCommand(getSuperMessage());
+async function chiefRun(message) {
+  const trimmed = String(message || '').trim();
+  if (!trimmed) return;
+  if (chiefMessage) chiefMessage.value = '';
+  await chiefSendMessage({ message: trimmed });
+}
+
+chiefSend?.addEventListener('click', () => {
+  const msg = String(chiefMessage?.value || '').trim();
+  chiefRun(msg);
 });
 
-superAgentSendAlt?.addEventListener('click', async () => {
-  await runSuperCommand(getSuperMessage());
+chiefMessage?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    chiefRun(String(chiefMessage.value || ''));
+  }
 });
 
-superAgentQuickStatus?.addEventListener('click', async () => {
-  setSuperMessage('status');
-  await runSuperCommand('status');
+chiefConfirmBtn?.addEventListener('click', async () => {
+  if (!chiefPendingToken) return;
+  const token = chiefPendingToken;
+  chiefPendingToken = null;
+  if (chiefConfirmPrompt) chiefConfirmPrompt.hidden = true;
+  await chiefSendMessage({ confirmToken: token });
 });
 
-superAgentQuickStatusAlt?.addEventListener('click', async () => {
-  setSuperMessage('status');
-  await runSuperCommand('status');
-});
-
-for (const button of quickCommandButtons) {
-  button.addEventListener('click', async () => {
-    const cmd = String(button.getAttribute('data-quick-cmd') || '').trim();
-    if (!cmd) {
-      return;
-    }
-    setSuperMessage(cmd);
-    await runSuperCommand(cmd);
+for (const chip of chiefChipButtons) {
+  chip.addEventListener('click', () => {
+    const cmd = String(chip.getAttribute('data-chief-cmd') || '').trim();
+    if (cmd) chiefRun(cmd);
   });
 }
 
