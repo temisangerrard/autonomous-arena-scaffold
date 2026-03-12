@@ -17,14 +17,14 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     displayName?: string;
     personality?: Personality;
     targetPreference?: AgentBehaviorConfig['targetPreference'];
-  }) => { ok: true; profile: Profile; wallet: unknown; botId: string } | { ok: false; reason: string };
+  }) => Promise<{ ok: true; profile: Profile; wallet: unknown; botId: string } | { ok: false; reason: string }>;
   provisionProfileForSubject: (params: {
     externalSubject: string;
     email?: string;
     displayName?: string;
     personality?: Personality;
     targetPreference?: AgentBehaviorConfig['targetPreference'];
-  }) => { ok: true; created: boolean; profile: Profile; wallet: unknown; botId: string | null } | { ok: false; reason: string };
+  }) => Promise<{ ok: true; created: boolean; profile: Profile; wallet: unknown; botId: string | null } | { ok: false; reason: string }>;
   createOwnerBotForProfile: (profile: Profile, body: {
     displayName?: string;
     personality?: Personality;
@@ -84,7 +84,7 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
       return;
     }
 
-    const created = deps.createProfileWithBot({
+    const created = await deps.createProfileWithBot({
       username: body.username,
       displayName: body.displayName,
       personality: body.personality,
@@ -114,7 +114,7 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
       return;
     }
 
-    const provisioned = deps.provisionProfileForSubject({
+    const provisioned = await deps.provisionProfileForSubject({
       externalSubject: body.externalSubject,
       email: body.email,
       displayName: body.displayName,

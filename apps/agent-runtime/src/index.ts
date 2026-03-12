@@ -150,6 +150,9 @@ const walletGasTopupMaxEth = process.env.WALLET_GAS_TOPUP_MAX_ETH ?? '0.02';
 const mainnetGasSponsorEnabled = String(process.env.MAINNET_GAS_SPONSOR_ENABLED ?? 'false').trim().toLowerCase() === 'true';
 const coinbasePaymasterEnabled = String(process.env.COINBASE_PAYMASTER_ENABLED ?? 'false').trim().toLowerCase() === 'true';
 const coinbasePaymasterAllowEscrow = String(process.env.COINBASE_PAYMASTER_ALLOW_ESCROW ?? 'true').trim().toLowerCase() !== 'false';
+const walletProviderDefault = String(process.env.WALLET_PROVIDER_DEFAULT ?? 'internal').trim().toLowerCase() === 'coinbase_embedded'
+  ? 'coinbase_embedded'
+  : 'internal';
 const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
 const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
   ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
@@ -167,6 +170,7 @@ function startupDiagnostics() {
     cdpApiKeySecretConfigured: Boolean(process.env.CDP_API_KEY_SECRET),
     cdpProjectIdConfigured: Boolean(process.env.CDP_PROJECT_ID),
     cdpClientAvailable: cdpClientState.available,
+    walletProviderDefault,
     onchainRpcConfigured: Boolean(onchainRpcUrl),
     onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress),
     builderCode: builderCodeContext.code,
@@ -1898,11 +1902,91 @@ function canLockStake(wallet: WalletRecord, amount: number): WalletDenied | null
   return null;
 }
 
-function createProfileWithBot(params: {
+async function createCoinbaseWalletForProfile(params: {
+  profileId: string;
+  externalSubject: string;
+  email?: string;
+  displayName?: string;
+}): Promise<{ ok: true; wallet: WalletRecord } | { ok: false; reason: string }> {
+  if (!cdpClientState.available || !cdpClientState.client) {
+    return { ok: false, reason: `cdp_client_unavailable:${cdpClientState.reason || 'unknown'}` };
+  }
+
+  const cdp = cdpClientState.client as {
+    endUser?: {
+      createEndUser?: (options: {
+        userId?: string;
+        authenticationMethods: Array<Record<string, unknown>>;
+        evmAccount?: { createSmartAccount?: boolean; enableSpendPermissions?: boolean };
+      }) => Promise<{
+        userId?: string;
+        evmSmartAccountObjects?: Array<{ address?: string }>;
+        evmSmartAccounts?: string[];
+      }>;
+    };
+  };
+  if (!cdp.endUser?.createEndUser) {
+    return { ok: false, reason: 'cdp_end_user_api_unavailable' };
+  }
+
+  const authMethods = params.email
+    ? [{ type: 'email', email: params.email }]
+    : [{ type: 'jwt', kid: 'arena-runtime', sub: params.externalSubject || params.profileId }];
+  const endUser = await cdp.endUser.createEndUser({
+    userId: params.profileId,
+    authenticationMethods: authMethods,
+    evmAccount: {
+      createSmartAccount: true,
+      enableSpendPermissions: false
+    }
+  });
+  const address = String(
+    endUser?.evmSmartAccountObjects?.[0]?.address
+      || endUser?.evmSmartAccounts?.[0]
+      || ''
+  ).trim();
+  if (!address) {
+    return { ok: false, reason: 'cdp_smart_wallet_address_missing' };
+  }
+
+  const wallet: WalletRecord = {
+    id: `wallet_${walletCounter++}`,
+    ownerProfileId: params.profileId,
+    address,
+    encryptedPrivateKey: null,
+    walletProvider: 'coinbase_embedded',
+    externalWalletAddress: address,
+    externalWalletRef: String(endUser?.userId || params.profileId),
+    externalWalletLinkedAt: Date.now(),
+    balance: userSeedBalance,
+    dailyTxCount: 0,
+    txDayStamp: dayStamp(),
+    createdAt: Date.now(),
+    lastTxAt: null
+  };
+  wallets.set(wallet.id, wallet);
+  return { ok: true, wallet };
+}
+
+async function createWalletForNewProfile(params: {
+  profileId: string;
+  externalSubject: string;
+  email?: string;
+  displayName?: string;
+}): Promise<{ ok: true; wallet: WalletRecord } | { ok: false; reason: string }> {
+  if (walletProviderDefault !== 'coinbase_embedded') {
+    return { ok: true, wallet: createWallet(params.profileId, userSeedBalance) };
+  }
+  return createCoinbaseWalletForProfile(params);
+}
+
+async function createProfileWithBot(params: {
   username: string;
   displayName?: string;
   personality?: Personality;
   targetPreference?: AgentBehaviorConfig['targetPreference'];
+  externalSubject?: string;
+  email?: string;
 }) {
   const username = params.username.trim();
   const normalized = username.toLowerCase();
@@ -1919,7 +2003,16 @@ function createProfileWithBot(params: {
   const botId = `agent_${profileId}`;
   const patrolSection = hashString(profileId) % PATROL_SECTION_COUNT;
 
-  const wallet = createWallet(profileId, userSeedBalance);
+  const walletResult = await createWalletForNewProfile({
+    profileId,
+    externalSubject: String(params.externalSubject || profileId),
+    email: params.email,
+    displayName: params.displayName
+  });
+  if (!walletResult.ok) {
+    return { ok: false as const, reason: walletResult.reason };
+  }
+  const wallet = walletResult.wallet;
 
   const profile: Profile = {
     id: profileId,
@@ -1968,7 +2061,7 @@ function createProfileWithBot(params: {
   };
 }
 
-function provisionProfileForSubject(params: {
+async function provisionProfileForSubject(params: {
   externalSubject: string;
   email?: string;
   displayName?: string;
@@ -2005,11 +2098,13 @@ function provisionProfileForSubject(params: {
   const seed = normalizeUsernameSeed(emailLocal || params.displayName || subject.slice(0, 12));
   const username = uniqueUsernameFromSeed(seed);
 
-  const created = createProfileWithBot({
+  const created = await createProfileWithBot({
     username,
     displayName: params.displayName,
     personality: params.personality,
-    targetPreference: params.targetPreference
+    targetPreference: params.targetPreference,
+    externalSubject: subject,
+    email: params.email
   });
 
   if (!created.ok) {
