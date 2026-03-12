@@ -55,7 +55,11 @@ CREATE TABLE IF NOT EXISTS runtime_wallets (
   wallet_id TEXT PRIMARY KEY,
   owner_profile_id TEXT NOT NULL,
   address TEXT NOT NULL,
-  encrypted_private_key TEXT NOT NULL,
+  encrypted_private_key TEXT,
+  wallet_provider TEXT NOT NULL DEFAULT 'internal',
+  external_wallet_address TEXT,
+  external_wallet_ref TEXT,
+  external_wallet_linked_at BIGINT,
   balance DOUBLE PRECISION NOT NULL,
   daily_tx_count INTEGER NOT NULL,
   tx_day_stamp TEXT NOT NULL,
@@ -63,6 +67,14 @@ CREATE TABLE IF NOT EXISTS runtime_wallets (
   last_tx_at BIGINT,
   updated_at BIGINT NOT NULL
 );
+
+ALTER TABLE runtime_wallets ADD COLUMN IF NOT EXISTS wallet_provider TEXT NOT NULL DEFAULT 'internal';
+ALTER TABLE runtime_wallets ADD COLUMN IF NOT EXISTS external_wallet_address TEXT;
+ALTER TABLE runtime_wallets ADD COLUMN IF NOT EXISTS external_wallet_ref TEXT;
+ALTER TABLE runtime_wallets ADD COLUMN IF NOT EXISTS external_wallet_linked_at BIGINT;
+ALTER TABLE runtime_wallets ALTER COLUMN encrypted_private_key DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_runtime_wallets_provider ON runtime_wallets(wallet_provider);
+CREATE INDEX IF NOT EXISTS idx_runtime_wallets_external_address ON runtime_wallets(external_wallet_address);
 
 CREATE TABLE IF NOT EXISTS runtime_owner_bots (
   bot_id TEXT PRIMARY KEY,
@@ -157,7 +169,8 @@ export class RuntimeDatabase {
     const [subjectRes, profileRes, walletRes, onboardingRes, ownerBotRes, counterRes] = await Promise.all([
       this.pool.query('SELECT subject, profile_id, wallet_id, linked_at, updated_at FROM auth_subject_links'),
       this.pool.query('SELECT profile_id, username, display_name, wallet_id, created_at FROM runtime_profiles'),
-      this.pool.query(`SELECT wallet_id, owner_profile_id, address, encrypted_private_key, balance,
+      this.pool.query(`SELECT wallet_id, owner_profile_id, address, encrypted_private_key, wallet_provider,
+          external_wallet_address, external_wallet_ref, external_wallet_linked_at, balance,
           daily_tx_count, tx_day_stamp, created_at, last_tx_at
         FROM runtime_wallets`),
       this.pool.query('SELECT profile_id, onboarding_completed_at FROM runtime_profile_onboarding'),
@@ -188,18 +201,26 @@ export class RuntimeDatabase {
       .filter((entry) => entry.id && entry.walletId && entry.username);
 
     const wallets: WalletRecord[] = walletRes.rows
-      .map((row) => ({
-        id: asStr(row.wallet_id),
-        ownerProfileId: asStr(row.owner_profile_id),
-        address: asStr(row.address),
-        encryptedPrivateKey: asStr(row.encrypted_private_key),
-        balance: asNum(row.balance),
-        dailyTxCount: asNum(row.daily_tx_count),
-        txDayStamp: asStr(row.tx_day_stamp),
-        createdAt: asNum(row.created_at),
-        lastTxAt: row.last_tx_at == null ? null : asNum(row.last_tx_at)
-      }))
-      .filter((entry) => entry.id && entry.ownerProfileId && entry.address && entry.encryptedPrivateKey);
+      .map((row) => {
+        const walletProvider: WalletRecord['walletProvider'] =
+          asStr(row.wallet_provider, 'internal') === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
+        return {
+          id: asStr(row.wallet_id),
+          ownerProfileId: asStr(row.owner_profile_id),
+          address: asStr(row.address),
+          encryptedPrivateKey: asStr(row.encrypted_private_key) || null,
+          walletProvider,
+          externalWalletAddress: asStr(row.external_wallet_address) || null,
+          externalWalletRef: asStr(row.external_wallet_ref) || null,
+          externalWalletLinkedAt: row.external_wallet_linked_at == null ? null : asNum(row.external_wallet_linked_at),
+          balance: asNum(row.balance),
+          dailyTxCount: asNum(row.daily_tx_count),
+          txDayStamp: asStr(row.tx_day_stamp),
+          createdAt: asNum(row.created_at),
+          lastTxAt: row.last_tx_at == null ? null : asNum(row.last_tx_at)
+        };
+      })
+      .filter((entry) => entry.id && entry.ownerProfileId && entry.address);
 
     const profileOnboardingCompletedAt = onboardingRes.rows
       .map((row) => ({
@@ -276,14 +297,19 @@ export class RuntimeDatabase {
       for (const wallet of state.wallets) {
         await this.pool.query(
           `INSERT INTO runtime_wallets (
-              wallet_id, owner_profile_id, address, encrypted_private_key, balance, daily_tx_count,
+              wallet_id, owner_profile_id, address, encrypted_private_key, wallet_provider,
+              external_wallet_address, external_wallet_ref, external_wallet_linked_at, balance, daily_tx_count,
               tx_day_stamp, created_at, last_tx_at, updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [
             wallet.id,
             wallet.ownerProfileId,
             wallet.address,
             wallet.encryptedPrivateKey,
+            wallet.walletProvider ?? 'internal',
+            wallet.externalWalletAddress ?? null,
+            wallet.externalWalletRef ?? null,
+            wallet.externalWalletLinkedAt ?? null,
             wallet.balance,
             wallet.dailyTxCount,
             wallet.txDayStamp,

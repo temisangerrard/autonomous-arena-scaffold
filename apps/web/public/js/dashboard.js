@@ -300,6 +300,7 @@ function renderContext() {
   const onchainMode = walletSummaryCtx?.onchain?.mode === 'onchain';
   const gasSponsored = Boolean(walletSummaryCtx?.onchain?.gasSponsored);
   const isBaseMainnet = chainId === 8453;
+  const canExportKey = Boolean(profile?.wallet?.canExportKey ?? walletSummaryCtx?.wallet?.canExportKey ?? true);
 
   if (meEmail) meEmail.textContent = user?.email || '-';
   if (meRole) meRole.textContent = user?.role || '-';
@@ -345,6 +346,11 @@ function renderContext() {
   if (heroGreeting) heroGreeting.textContent = `Welcome back, ${displayName.split(' ')[0]}`;
   if (sidebarHandle) sidebarHandle.textContent = `@${profile?.username || 'player'}`;
   if (sidebarWallet) sidebarWallet.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(2) : '—';
+  if (exportPrivateKey) {
+    exportPrivateKey.style.display = canExportKey ? '' : 'none';
+    exportPrivateKey.disabled = !canExportKey;
+    exportPrivateKey.title = canExportKey ? '' : 'Private key export is disabled for this wallet provider.';
+  }
 
   if (profileDisplayName) profileDisplayName.value = profile?.displayName || '';
   if (profileUsername) profileUsername.value = profile?.username || '';
@@ -1106,6 +1112,10 @@ copyWalletAddress?.addEventListener('click', async () => {
 });
 
 exportPrivateKey?.addEventListener('click', async () => {
+  if (exportPrivateKey?.disabled) {
+    setStatus('Private key export is disabled for this wallet provider.');
+    return;
+  }
   const approved = window.confirm('Export private key? Keep it offline and secure.');
   if (!approved) {
     return;

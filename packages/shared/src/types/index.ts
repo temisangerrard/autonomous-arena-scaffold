@@ -22,7 +22,11 @@ export interface WalletRecord {
   id: string;
   ownerProfileId: string;
   address: string;
-  encryptedPrivateKey: string;
+  encryptedPrivateKey: string | null;
+  walletProvider?: 'internal' | 'coinbase_embedded';
+  externalWalletAddress?: string | null;
+  externalWalletRef?: string | null;
+  externalWalletLinkedAt?: number | null;
   balance: number;
   dailyTxCount: number;
   txDayStamp: string;

@@ -61,6 +61,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
   }>;
   builderCodeSuffix: string;
 }) {
+  const walletProviderFor = (wallet: WalletRecord): 'internal' | 'coinbase_embedded' =>
+    wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
   const transferTopic = id('Transfer(address,address,uint256)');
   const transferInterface = new Interface([
     'event Transfer(address indexed from, address indexed to, uint256 value)'
@@ -102,6 +104,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           id: wallet.id,
           ownerProfileId: wallet.ownerProfileId,
           address: wallet.address,
+          walletProvider: walletProviderFor(wallet),
+          canExportKey: walletProviderFor(wallet) === 'internal',
           runtimeBalance: wallet.balance,
           onchain: null
         }))
@@ -136,6 +140,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           id: wallet.id,
           ownerProfileId: wallet.ownerProfileId,
           address: wallet.address,
+          walletProvider: walletProviderFor(wallet),
+          canExportKey: walletProviderFor(wallet) === 'internal',
           runtimeBalance: wallet.balance,
           onchain: null
         }))
@@ -159,6 +165,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           id: wallet.id,
           ownerProfileId: wallet.ownerProfileId,
           address: wallet.address,
+          walletProvider: walletProviderFor(wallet),
+          canExportKey: walletProviderFor(wallet) === 'internal',
           runtimeBalance: wallet.balance,
           onchain: await deps.onchainWalletSummary(wallet).catch(() => null)
         }))
@@ -770,6 +778,14 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     const body = await readJsonBody<{ profileId?: string }>(req);
     if (!body?.profileId || body.profileId !== wallet.ownerProfileId) {
       sendJson(res, { ok: false, reason: 'owner_mismatch' }, 403);
+      return;
+    }
+    if (walletProviderFor(wallet) !== 'internal') {
+      sendJson(res, { ok: false, reason: 'export_not_allowed_for_provider' }, 403);
+      return;
+    }
+    if (!wallet.encryptedPrivateKey) {
+      sendJson(res, { ok: false, reason: 'wallet_key_unavailable' }, 404);
       return;
     }
 

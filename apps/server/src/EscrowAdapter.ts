@@ -551,6 +551,9 @@ export class EscrowAdapter {
     } else if (detail.includes('wallet_prepare_http_5') || detail.includes('wallet_prepare_timeout') || detail.includes('wallet_prepare_unreachable')) {
       reasonCode = 'INTERNAL_TRANSPORT_ERROR';
       reasonText = 'Runtime escrow preparation endpoint is unavailable. Retry shortly.';
+    } else if (detail.includes('paymaster_unavailable') || detail.includes('paymaster_policy_denied')) {
+      reasonCode = 'INTERNAL_TRANSPORT_ERROR';
+      reasonText = 'Coinbase paymaster is unavailable for escrow preflight. Retry shortly.';
     } else if (detail.includes('rpc') || detail.includes('network') || detail.includes('onchain_config_missing')) {
       reasonCode = 'RPC_UNAVAILABLE';
       reasonText = 'Onchain network is unavailable. Try again shortly.';
@@ -569,7 +572,7 @@ export class EscrowAdapter {
       reasonText = isPlayer
         ? `This mainnet trade needs ETH gas in ${params.challengerWalletId}. Fund Base ETH and retry.`
         : 'House sponsor wallet is out of ETH gas.';
-    } else if (detail.includes('insufficient_token_balance') || detail.includes('mint_failed')) {
+    } else if (detail.includes('insufficient_token_balance')) {
       reasonCode = isPlayer ? 'PLAYER_BALANCE_LOW' : 'HOUSE_BALANCE_LOW';
       reasonText = isPlayer
         ? `Insufficient token balance for ${params.challengerWalletId}. Fund wallet and retry.`
@@ -607,7 +610,13 @@ export class EscrowAdapter {
   private shouldRetryPrepareFailure(reason: string | undefined, status: number): boolean {
     const r = String(reason || '').toLowerCase();
     if (status === 429 || status >= 500) return true;
-    return r.includes('timeout') || r.includes('unreachable') || r.includes('transport') || r.includes('rate') || r.includes('too_many');
+    return r.includes('timeout')
+      || r.includes('unreachable')
+      || r.includes('transport')
+      || r.includes('rate')
+      || r.includes('too_many')
+      || r.includes('paymaster_unavailable')
+      || r.includes('paymaster_policy_denied');
   }
 
   private async delayPrepareRetry(attempt: number): Promise<void> {

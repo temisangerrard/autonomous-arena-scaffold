@@ -147,6 +147,8 @@ const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
 const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
 const walletGasTopupMaxEth = process.env.WALLET_GAS_TOPUP_MAX_ETH ?? '0.02';
 const mainnetGasSponsorEnabled = String(process.env.MAINNET_GAS_SPONSOR_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+const coinbasePaymasterEnabled = String(process.env.COINBASE_PAYMASTER_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+const coinbasePaymasterAllowEscrow = String(process.env.COINBASE_PAYMASTER_ALLOW_ESCROW ?? 'true').trim().toLowerCase() !== 'false';
 const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
 const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
   ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
@@ -895,11 +897,17 @@ function walletSummary(wallet: WalletRecord | null) {
   if (!wallet) {
     return null;
   }
+  const walletProvider = wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
 
   return {
     id: wallet.id,
     ownerProfileId: wallet.ownerProfileId,
     address: wallet.address,
+    walletProvider,
+    externalWalletAddress: wallet.externalWalletAddress ?? null,
+    externalWalletRef: wallet.externalWalletRef ?? null,
+    externalWalletLinkedAt: wallet.externalWalletLinkedAt ?? null,
+    canExportKey: walletProvider === 'internal',
     balance: wallet.balance,
     dailyTxCount: wallet.dailyTxCount,
     txDayStamp: wallet.txDayStamp,
@@ -1386,6 +1394,10 @@ function signerForWallet(wallet: WalletRecord): Wallet | null {
   if (!onchainProvider) {
     return null;
   }
+  const walletProvider = wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
+  if (walletProvider !== 'internal' || !wallet.encryptedPrivateKey) {
+    return null;
+  }
   const key = decryptSecret(wallet.encryptedPrivateKey);
   if (!key) {
     return null;
@@ -1410,15 +1422,84 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   if (!onchainProvider || !onchainTokenAddress || !onchainEscrowAddress) {
     return { ok: false, reason: 'onchain_config_missing', walletId };
   }
+  const walletProvider = wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
+  const owner = wallet.externalWalletAddress || wallet.address;
+  const token = new Contract(
+    onchainTokenAddress,
+    ERC20_ABI,
+    walletProvider === 'coinbase_embedded' ? onchainProvider : signerForWallet(wallet)
+  ) as Erc20Api;
+  const required = parseUnits(String(amount), onchainTokenDecimals);
+  const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
+  if (walletProvider === 'coinbase_embedded') {
+    const paymasterAllowed = coinbasePaymasterEnabled && coinbasePaymasterAllowEscrow && Boolean(onchainEscrowAddress);
+    if (!paymasterAllowed) {
+      const reason = !coinbasePaymasterEnabled
+        ? 'paymaster_unavailable:coinbase_paymaster_disabled'
+        : 'paymaster_policy_denied:escrow_not_allowlisted';
+      return {
+        ok: false,
+        reason,
+        walletId,
+        address: owner,
+        allowance: '0',
+        balance: '0',
+        nativeBalanceEth: '0'
+      };
+    }
+    try {
+      const [currentNative, balance, allowance] = await Promise.all([
+        onchainProvider.getBalance(owner),
+        token.balanceOf(owner) as Promise<bigint>,
+        token.allowance(owner, onchainEscrowAddress) as Promise<bigint>
+      ]);
+      if (allowance < required) {
+        return {
+          ok: false,
+          reason: 'allowance_too_low',
+          walletId,
+          address: owner,
+          allowance: formatUnits(allowance, onchainTokenDecimals),
+          balance: formatUnits(balance, onchainTokenDecimals),
+          nativeBalanceEth: formatEther(currentNative)
+        };
+      }
+      if (balance < required) {
+        return {
+          ok: false,
+          reason: 'insufficient_token_balance',
+          walletId,
+          address: owner,
+          allowance: formatUnits(allowance, onchainTokenDecimals),
+          balance: formatUnits(balance, onchainTokenDecimals),
+          nativeBalanceEth: formatEther(currentNative)
+        };
+      }
+      return {
+        ok: true,
+        walletId,
+        address: owner,
+        approved: false,
+        allowance: formatUnits(allowance, onchainTokenDecimals),
+        balance: formatUnits(balance, onchainTokenDecimals),
+        nativeBalanceEth: formatEther(currentNative)
+      };
+    } catch (error) {
+      const text = String((error as Error)?.message || 'coinbase_preflight_failed').replace(/\s+/g, ' ').trim().slice(0, 140);
+      return {
+        ok: false,
+        reason: `wallet_prepare_failed:${text}`,
+        walletId,
+        address: owner
+      };
+    }
+  }
   const signer = signerForWallet(wallet);
   if (!signer) {
     return { ok: false, reason: 'wallet_signer_unavailable', walletId };
   }
-  const owner = signer.address;
-  const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
-  const required = parseUnits(String(amount), onchainTokenDecimals);
-  const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
-  const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
+  const signerOwner = signer.address;
   let currentNative = 0n;
   let balance = 0n;
   let allowance = 0n;
@@ -1460,7 +1541,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     const nativeValue = extra.native ?? currentNative;
     console.warn('[runtime] escrow_preflight_failed', {
       walletId,
-      address: owner,
+      address: signerOwner,
       chainId,
       reason,
       retryCount: retryCountFor(reason)
@@ -1469,7 +1550,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
       ok: false,
       reason,
       walletId,
-      address: owner,
+      address: signerOwner,
       allowance: formatUnits(allowanceValue, onchainTokenDecimals),
       balance: formatUnits(balanceValue, onchainTokenDecimals),
       nativeBalanceEth: formatEther(nativeValue)
@@ -1478,7 +1559,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
 
   try {
     if (onchainProvider) {
-      currentNative = await onchainProvider.getBalance(owner);
+      currentNative = await onchainProvider.getBalance(signerOwner);
     }
     if (onchainProvider) {
       const minNative = parseEther(minWalletGasEth);
@@ -1519,12 +1600,12 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
             }
             const topupTx = await sendNativeWithBuilderCode(
               gasFunder,
-              { to: owner, value: topup },
+              { to: signerOwner, value: topup },
               builderCodeContext.suffixHex
             );
             await topupTx.wait();
           }, 'gas_topup_failed', 3);
-          currentNative = await onchainProvider.getBalance(owner);
+          currentNative = await onchainProvider.getBalance(signerOwner);
           if (currentNative < minNative) {
             return fail('gas_topup_insufficient_after_topup:retry=3', { allowance, balance, native: currentNative });
           }
@@ -1534,9 +1615,9 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
       }
     }
 
-    balance = await token.balanceOf(owner) as bigint;
+    balance = await token.balanceOf(signerOwner) as bigint;
 
-    allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
+    allowance = await token.allowance(signerOwner, onchainEscrowAddress) as bigint;
     let approved = false;
     if (allowance < required) {
       try {
@@ -1550,7 +1631,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
           );
           await approveTx.wait();
         }, 'approve_failed', 3);
-        allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
+        allowance = await token.allowance(signerOwner, onchainEscrowAddress) as bigint;
         approved = true;
       } catch (error) {
         return fail(`approve_failed:retry=3:${errorText(error, 'approve_failed')}`, { allowance, balance, native: currentNative });
@@ -1568,7 +1649,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     return {
       ok: true,
       walletId,
-      address: owner,
+      address: signerOwner,
       approved,
       allowance: formatUnits(allowance, onchainTokenDecimals),
       balance: formatUnits(balance, onchainTokenDecimals),
@@ -1590,6 +1671,10 @@ function createWallet(ownerProfileId: string, initialBalance = 0): WalletRecord 
     ownerProfileId,
     address: addressFromPrivateKey(privateKey),
     encryptedPrivateKey: encryptSecret(privateKey),
+    walletProvider: 'internal',
+    externalWalletAddress: null,
+    externalWalletRef: null,
+    externalWalletLinkedAt: null,
     balance: initialBalance,
     dailyTxCount: 0,
     txDayStamp: dayStamp(),
@@ -1603,6 +1688,9 @@ function createWallet(ownerProfileId: string, initialBalance = 0): WalletRecord 
 function reconcileWalletAddressesFromKeys(): void {
   let updated = 0;
   for (const wallet of wallets.values()) {
+    if ((wallet.walletProvider ?? 'internal') !== 'internal' || !wallet.encryptedPrivateKey) {
+      continue;
+    }
     const key = decryptSecret(wallet.encryptedPrivateKey);
     if (!key) {
       continue;

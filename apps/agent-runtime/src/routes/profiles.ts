@@ -257,6 +257,57 @@ export function registerProfileRoutes(router: SimpleRouter, deps: {
     deps.schedulePersistState();
   });
 
+  router.post('/profiles/:profileId/wallet/provider-link', async (req, res, params) => {
+    if (!deps.isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    const profileId = String(params?.profileId ?? '').trim();
+    const profile = profileId ? deps.profiles.get(profileId) : null;
+    if (!profile) {
+      sendJson(res, { ok: false, reason: 'profile_not_found' }, 404);
+      return;
+    }
+    const wallet = deps.wallets.get(profile.walletId) ?? null;
+    if (!wallet) {
+      sendJson(res, { ok: false, reason: 'wallet_not_found' }, 404);
+      return;
+    }
+
+    const body = await readJsonBody<{
+      provider?: 'internal' | 'coinbase_embedded';
+      externalWalletAddress?: string;
+      externalWalletRef?: string;
+      linkedAt?: number;
+    }>(req);
+    const provider = body?.provider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
+    const externalWalletAddress = String(body?.externalWalletAddress ?? '').trim();
+    const externalWalletRef = String(body?.externalWalletRef ?? '').trim();
+    const linkedAt = Number(body?.linkedAt || Date.now()) || Date.now();
+
+    wallet.walletProvider = provider;
+    wallet.externalWalletAddress = provider === 'coinbase_embedded'
+      ? (externalWalletAddress || wallet.externalWalletAddress || wallet.address)
+      : null;
+    wallet.externalWalletRef = provider === 'coinbase_embedded' ? (externalWalletRef || null) : null;
+    wallet.externalWalletLinkedAt = provider === 'coinbase_embedded' ? linkedAt : null;
+    if (provider === 'coinbase_embedded') {
+      wallet.encryptedPrivateKey = null;
+      if (wallet.externalWalletAddress) {
+        wallet.address = wallet.externalWalletAddress;
+      }
+    }
+
+    sendJson(res, {
+      ok: true,
+      profile: {
+        ...profile,
+        wallet: deps.walletSummary(wallet)
+      }
+    });
+    deps.schedulePersistState();
+  });
+
   router.post('/profiles/:profileId/bots/create', async (req, res, params) => {
     const profileId = String(params?.profileId ?? '').trim();
     const profile = profileId ? deps.profiles.get(profileId) : null;
