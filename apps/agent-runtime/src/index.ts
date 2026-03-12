@@ -17,6 +17,11 @@ import {
   redactSecrets
 } from './lib/crypto.js';
 import { sendJson, setCorsHeaders, SimpleRouter } from './lib/http.js';
+import {
+  resolveBuilderCodeContext,
+  sendContractCallWithBuilderCode,
+  sendNativeWithBuilderCode
+} from './lib/builderCode.js';
 import { classifyEscrowApprovalNetwork, type EscrowApprovalNetwork } from '@arena/shared';
 import type {
   BotRecord,
@@ -52,6 +57,7 @@ const port = Number(process.env.PORT ?? 4100);
 const wsBaseUrl = process.env.GAME_WS_URL ?? 'ws://localhost:4000/ws';
 const personalities: Personality[] = ['aggressive', 'conservative', 'social'];
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
+const builderCodeContext = resolveBuilderCodeContext(process.env);
 
 let wsBaseUrlValid = true;
 try {
@@ -154,7 +160,9 @@ function startupDiagnostics() {
     internalTokenConfigured: Boolean(internalToken),
     openRouterConfigured: Boolean(runtimeSecrets.openRouterApiKey),
     onchainRpcConfigured: Boolean(onchainRpcUrl),
-    onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress)
+    onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress),
+    builderCode: builderCodeContext.code,
+    builderCodeEnabled: builderCodeContext.enabled
   });
 }
 
@@ -258,6 +266,7 @@ const escrowLocks = new Map<string, EscrowLockRecord>();
 const escrowSettlements: EscrowSettlementRecord[] = [];
 const backgroundBotIds = new Set<string>();
 const subjectLinks = new Map<string, SubjectLinkRecord>();
+const profileOnboardingCompletedAt = new Map<string, number>();
 const runtimeDb = new RuntimeDatabase();
 
 type HouseLedgerEntry = {
@@ -342,6 +351,10 @@ type PersistedRuntimeState = {
     linkedAt?: number;
     updatedAt?: number;
     continuitySource?: 'postgres' | 'runtime-file' | 'memory';
+  }>;
+  profileOnboardingCompletedAt?: Array<{
+    profileId: string;
+    completedAt: number;
   }>;
   profiles: Profile[];
   wallets: WalletRecord[];
@@ -855,6 +868,29 @@ function publicProfiles() {
   }));
 }
 
+function getProfileOnboardingState(profileId: string): { completed: boolean; completedAt: number | null } {
+  const normalized = String(profileId || '').trim();
+  if (!normalized) {
+    return { completed: false, completedAt: null };
+  }
+  const completedAt = profileOnboardingCompletedAt.get(normalized);
+  if (!Number.isFinite(completedAt) || !completedAt || completedAt <= 0) {
+    return { completed: false, completedAt: null };
+  }
+  return { completed: true, completedAt };
+}
+
+function markProfileOnboardingCompleted(profileId: string, completedAt = Date.now()): { completed: boolean; completedAt: number | null } {
+  const normalized = String(profileId || '').trim();
+  if (!normalized) {
+    return { completed: false, completedAt: null };
+  }
+  const nextCompletedAt = Math.max(1, Number(completedAt) || Date.now());
+  profileOnboardingCompletedAt.set(normalized, nextCompletedAt);
+  schedulePersistState();
+  return { completed: true, completedAt: nextCompletedAt };
+}
+
 function walletSummary(wallet: WalletRecord | null) {
   if (!wallet) {
     return null;
@@ -1214,7 +1250,6 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
   'function transfer(address to, uint256 amount) returns (bool)',
-  'function mint(address to, uint256 amount)',
   'function symbol() view returns (string)'
 ];
 
@@ -1223,7 +1258,6 @@ type Erc20Api = Contract & {
   allowance: (owner: string, spender: string) => Promise<bigint>;
   approve: (spender: string, amount: bigint) => Promise<{ wait: () => Promise<unknown> }>;
   transfer: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
-  mint: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
   symbol: () => Promise<string>;
 };
 
@@ -1253,9 +1287,13 @@ async function ensureWalletGas(address: string): Promise<string | null> {
     return null;
   }
   const topup = parseEther(walletGasTopupEth);
-  const topupTx = await funder.sendTransaction({ to: address, value: topup });
+  const topupTx = await sendNativeWithBuilderCode(
+    funder,
+    { to: address, value: topup },
+    builderCodeContext.suffixHex
+  );
   await topupTx.wait();
-  return topupTx.hash;
+  return topupTx.hash ?? null;
 }
 
 async function onchainWalletSummary(wallet: WalletRecord): Promise<{
@@ -1361,7 +1399,6 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   walletId: string;
   address?: string;
   approved?: boolean;
-  minted?: boolean;
   allowance?: string;
   balance?: string;
   nativeBalanceEth?: string;
@@ -1480,7 +1517,11 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
             if (topup <= 0n) {
               return;
             }
-            const topupTx = await gasFunder.sendTransaction({ to: owner, value: topup });
+            const topupTx = await sendNativeWithBuilderCode(
+              gasFunder,
+              { to: owner, value: topup },
+              builderCodeContext.suffixHex
+            );
             await topupTx.wait();
           }, 'gas_topup_failed', 3);
           currentNative = await onchainProvider.getBalance(owner);
@@ -1494,28 +1535,19 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     }
 
     balance = await token.balanceOf(owner) as bigint;
-    let minted = false;
-    let mintFailureReason = '';
-    if (balance < required) {
-      try {
-        await attemptWithRetry(async () => {
-          const mintTx = await token.mint(owner, required - balance);
-          await mintTx.wait();
-        }, 'mint_failed', 2);
-        balance = await token.balanceOf(owner) as bigint;
-        minted = true;
-      } catch (error) {
-        // likely real USDC (no mint); keep explicit reason if still underfunded.
-        mintFailureReason = errorText(error, 'mint_failed');
-      }
-    }
 
     allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
     let approved = false;
     if (allowance < required) {
       try {
         await attemptWithRetry(async () => {
-          const approveTx = await token.approve(onchainEscrowAddress, required);
+          const approveTx = await sendContractCallWithBuilderCode(
+            token,
+            signer,
+            'approve',
+            [onchainEscrowAddress, required],
+            builderCodeContext.suffixHex
+          );
           await approveTx.wait();
         }, 'approve_failed', 3);
         allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
@@ -1530,12 +1562,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     }
 
     if (balance < required) {
-      return fail(
-        mintFailureReason
-          ? `mint_failed:${mintFailureReason}`
-          : 'insufficient_token_balance',
-        { allowance, balance, native: currentNative }
-      );
+      return fail('insufficient_token_balance', { allowance, balance, native: currentNative });
     }
 
     return {
@@ -1543,7 +1570,6 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
       walletId,
       address: owner,
       approved,
-      minted,
       allowance: formatUnits(allowance, onchainTokenDecimals),
       balance: formatUnits(balance, onchainTokenDecimals),
       nativeBalanceEth: formatEther(currentNative)
@@ -2060,6 +2086,10 @@ function buildPersistedState(): PersistedRuntimeState {
       updatedAt: entry.updatedAt,
       continuitySource: entry.continuitySource
     })),
+    profileOnboardingCompletedAt: [...profileOnboardingCompletedAt.entries()].map(([profileId, completedAt]) => ({
+      profileId,
+      completedAt
+    })),
     profiles: [...profiles.values()],
     wallets: [...wallets.values()],
     ownerBots,
@@ -2083,6 +2113,12 @@ async function persistRuntimeState(): Promise<void> {
         updatedAt: Number(entry.updatedAt || 0) || Date.now(),
         continuitySource: 'postgres'
       })),
+      profileOnboardingCompletedAt: (state.profileOnboardingCompletedAt || [])
+        .map((entry) => ({
+          profileId: String(entry.profileId || '').trim(),
+          completedAt: Number(entry.completedAt || 0)
+        }))
+        .filter((entry) => entry.profileId && entry.completedAt > 0),
       profiles: state.profiles,
       wallets: state.wallets,
       ownerBots: state.ownerBots,
@@ -2186,6 +2222,16 @@ function applyPersistedState(data: PersistedRuntimeState, defaultSource: Subject
     }
   }
 
+  profileOnboardingCompletedAt.clear();
+  for (const entry of data.profileOnboardingCompletedAt || []) {
+    const profileId = String(entry?.profileId || '').trim();
+    const completedAt = Number(entry?.completedAt || 0);
+    if (!profileId || !Number.isFinite(completedAt) || completedAt <= 0) {
+      continue;
+    }
+    profileOnboardingCompletedAt.set(profileId, completedAt);
+  }
+
   for (const entry of data.ownerBots || []) {
     if (!entry?.record?.id || !entry?.behavior) {
       continue;
@@ -2220,6 +2266,7 @@ if (dbState) {
     superAgentEthSkills: superAgentEthSkills.slice(0, 40),
     superAgentLlmUsage: { ...superAgentLlmUsage },
     subjectLinks: dbState.subjectLinks,
+    profileOnboardingCompletedAt: dbState.profileOnboardingCompletedAt,
     profiles: dbState.profiles,
     wallets: dbState.wallets,
     ownerBots: dbState.ownerBots,
@@ -2315,6 +2362,8 @@ registerRuntimeRoutes(router, {
     subjectLinks,
     walletSummary,
     publicProfiles,
+    getProfileOnboardingState,
+    markProfileOnboardingCompleted,
     createProfileWithBot,
     provisionProfileForSubject,
     getSubjectLinkBySubject,
@@ -2345,7 +2394,8 @@ registerRuntimeRoutes(router, {
     signerForWallet,
     decryptSecret,
     onchainWalletSummary,
-    prepareWalletForEscrowOnchain
+    prepareWalletForEscrowOnchain,
+    builderCodeSuffix: builderCodeContext.suffixHex
   },
   superAgent: {
     bots,
