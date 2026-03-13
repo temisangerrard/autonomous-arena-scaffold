@@ -37,7 +37,7 @@
 Current canonical repo-backed deployment artifact:
 - Base mainnet escrow deployment (artifact timestamp: 2026-03-02T13:35:03.572Z)
   - Network: Base
-  - Escrow contract: `0x4F9045975139B53c252bEA93e8C908F6784133fE`
+  - Escrow contract: `0xc071a2a0da5901a8c036cc5d2d2d4ffc7b09787d`
   - Token (USDC): `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
   - Source artifact: `output/escrow-deploy-base.json`
 
@@ -78,7 +78,7 @@ Analytics:
   - Intends to raise VC capital.
 - Public contract disclosure policy:
   - Include current Base artifact-backed deployment plus legacy/testnet historical context.
-  - Base artifact escrow address: `0x4F9045975139B53c252bEA93e8C908F6784133fE`.
+  - Base artifact escrow address: `0xc071a2a0da5901a8c036cc5d2d2d4ffc7b09787d`.
   - Legacy Sepolia escrow address: `0x57CA81bAA10A0eDF72EE2aE8Af51954F76becd77`.
 - Missing links to keep as placeholders:
   - Demo URL: TBD (recording in progress).
