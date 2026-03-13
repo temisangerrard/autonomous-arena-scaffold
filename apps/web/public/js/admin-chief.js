@@ -1,3 +1,5 @@
+import { buildHouseFundsView } from './admin-house-funds.js';
+
 const state = {
   activeView: 'overview',
   activeTreasuryMode: 'wallet',
@@ -84,6 +86,9 @@ const el = {
 
   houseWalletId: document.getElementById('house-wallet-id'),
   houseBalance: document.getElementById('house-balance'),
+  houseFundsTotal: document.getElementById('house-funds-total'),
+  houseFundsNote: document.getElementById('house-funds-note'),
+  houseFundsBody: document.getElementById('house-funds-body'),
   houseNpcFloor: document.getElementById('house-npc-floor'),
   houseNpcTopup: document.getElementById('house-npc-topup'),
   houseSuperFloor: document.getElementById('house-super-floor'),
@@ -630,6 +635,7 @@ function renderBots() {
 
 function renderTreasuryAssets() {
   const onchain = state.latestOnchainStatus || {};
+  const houseFundsView = buildHouseFundsView(onchain);
   if (el.onchainChainId) el.onchainChainId.value = formatAdminChainLabel(onchain.chainId);
   if (el.onchainTokenAddress) el.onchainTokenAddress.value = String(onchain.tokenAddress || '-');
   if (el.onchainEscrowAddress) el.onchainEscrowAddress.value = String(onchain.escrowAddress || '-');
@@ -639,6 +645,21 @@ function renderTreasuryAssets() {
   if (el.onchainHouseTreasury) {
     const n = Number(onchain.houseTreasury ?? Number.NaN);
     el.onchainHouseTreasury.value = Number.isFinite(n) ? `${n.toFixed(2)} USDC` : '-';
+  }
+  if (el.houseFundsTotal) el.houseFundsTotal.value = houseFundsView.totalLabel;
+  if (el.houseFundsNote) el.houseFundsNote.value = houseFundsView.note;
+  if (el.houseFundsBody) {
+    el.houseFundsBody.innerHTML = '';
+    for (const source of houseFundsView.sources) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(String(source.label || source.sourceType || '-'))}</td>
+        <td>${escapeHtml(String(source.balanceLabel || '-'))}</td>
+        <td class="mono">${escapeHtml(String(source.address || source.walletId || '-'))}</td>
+        <td><button data-action="house-funds-source" data-source-type="${escapeHtml(String(source.sourceType || ''))}" data-wallet-id="${escapeHtml(String(source.walletId || ''))}" data-action-kind="${escapeHtml(String(source.action || ''))}">${escapeHtml(String(source.actionLabel || 'Open'))}</button></td>
+      `;
+      el.houseFundsBody.appendChild(tr);
+    }
   }
 
   if (!el.treasuryWalletsBody) return;
@@ -1267,6 +1288,45 @@ function bindTreasuryActions() {
       }
     } catch (error) {
       setStatus(`Failed: ${String(error?.message || error)}`);
+    }
+  });
+
+  el.houseFundsBody?.addEventListener('click', async (event) => {
+    const button = event.target instanceof HTMLElement ? event.target.closest('button[data-action="house-funds-source"]') : null;
+    if (!button) return;
+    const actionKind = String(button.getAttribute('data-action-kind') || '');
+    const sourceType = String(button.getAttribute('data-source-type') || '');
+    const walletId = String(button.getAttribute('data-wallet-id') || '');
+    if (actionKind === 'withdraw_treasury') {
+      state.activeTreasuryMode = 'contract';
+      renderAll();
+      setStatus('Treasury source selected. Use Contract Ops to withdraw from on-chain treasury.');
+      return;
+    }
+    if (actionKind === 'runtime_only') {
+      state.activeTreasuryMode = 'wallet';
+      renderAll();
+      setStatus('Runtime source selected. Use wallet transfer/refill controls for runtime-only balance.');
+      return;
+    }
+    if (actionKind !== 'transfer_wallet') return;
+    const toAddress = normalizeHexAddress(window.prompt('Send house wallet funds to address:', el.treasuryExternalAddress?.value || '') || '');
+    const amount = Number(window.prompt('Amount to send from house wallet (USDC):', String(el.treasuryActionAmount?.value || '1')) || 0);
+    if (!walletId || !toAddress || amount <= 0) {
+      setStatus('House wallet send cancelled.');
+      return;
+    }
+    if (!window.confirm(`Send ${amount} from ${walletId} to ${toAddress}?`)) return;
+    try {
+      const payload = await apiPost('/api/admin/runtime/house/wallet/transfer', { recipient: toAddress, amount });
+      if (el.treasuryActionResult) el.treasuryActionResult.textContent = JSON.stringify(payload, null, 2);
+      addActivity('write', `House wallet send ${amount}`, `${sourceType} -> ${toAddress}`);
+      await refreshAll({ silent: true });
+      setStatus('House wallet transfer submitted.');
+    } catch (error) {
+      const msg = String(error?.message || error);
+      if (el.treasuryActionResult) el.treasuryActionResult.textContent = `error: ${msg}`;
+      setStatus(`House wallet transfer failed: ${msg}`);
     }
   });
 

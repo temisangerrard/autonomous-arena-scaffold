@@ -14,6 +14,16 @@ type PoolTreasuryApi = Contract & {
   withdrawTreasury: (recipient: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
 };
 
+type HouseFundSource = {
+  sourceType: 'contract_treasury' | 'house_wallet_onchain' | 'runtime_wallet';
+  label: string;
+  balanceUsdc: string;
+  walletId: string | null;
+  address: string | null;
+  action: 'withdraw_treasury' | 'transfer_wallet' | 'runtime_only';
+  description: string;
+};
+
 export function registerWalletRoutes(router: SimpleRouter, deps: {
   isInternalAuthorized: (req: import('node:http').IncomingMessage) => boolean;
   wallets: Map<string, WalletRecord>;
@@ -49,6 +59,13 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     gasSponsored: boolean;
     gasPolicyReason: string;
   }>;
+  readTokenSymbol?: () => Promise<string | null>;
+  readHouseTreasury?: () => Promise<bigint | null>;
+  transferOnchainTokenFromWallet?: (params: {
+    wallet: WalletRecord;
+    recipient: string;
+    amount: bigint;
+  }) => Promise<{ txHash?: string | null }>;
   prepareWalletForEscrowOnchain: (walletId: string, amount: number) => Promise<{
     ok: boolean;
     reason?: string;
@@ -84,6 +101,51 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     'function resolveBetFromOracle(bytes32 betId)',
     'function setFeeConfig(address recipient, uint16 bps)'
   ]);
+  const buildHouseFunds = (params: {
+    houseWallet: WalletRecord | null;
+    houseOnchainBalance: string | null;
+    houseTreasuryRaw: bigint | null;
+    tokenDecimals: number;
+  }): { totalVisibleUsdc: string; sources: HouseFundSource[] } => {
+    const runtimeValue = Math.max(0, Number(params.houseWallet?.balance || 0));
+    const onchainValue = Math.max(0, Number(params.houseOnchainBalance || 0));
+    const treasuryValue = params.houseTreasuryRaw == null
+      ? 0
+      : Math.max(0, Number(formatUnits(params.houseTreasuryRaw, params.tokenDecimals)));
+    const sources: HouseFundSource[] = [
+      {
+        sourceType: 'contract_treasury',
+        label: 'On-chain treasury',
+        balanceUsdc: treasuryValue.toFixed(params.tokenDecimals),
+        walletId: null,
+        address: deps.onchainEscrowAddress || null,
+        action: 'withdraw_treasury',
+        description: 'Withdrawable USDC held in PariMutuelPool.houseTreasury.'
+      }
+    ];
+    if (params.houseWallet) {
+      sources.push({
+        sourceType: 'house_wallet_onchain',
+        label: 'House wallet (on-chain)',
+        balanceUsdc: onchainValue.toFixed(params.tokenDecimals),
+        walletId: params.houseWallet.id,
+        address: params.houseWallet.address,
+        action: 'transfer_wallet',
+        description: 'USDC held directly by the system_house wallet onchain.'
+      });
+      sources.push({
+        sourceType: 'runtime_wallet',
+        label: 'House wallet (runtime)',
+        balanceUsdc: runtimeValue.toFixed(params.tokenDecimals),
+        walletId: params.houseWallet.id,
+        address: params.houseWallet.address,
+        action: 'runtime_only',
+        description: 'Internal runtime balance used for ops/NPC liquidity, not an on-chain token balance.'
+      });
+    }
+    const totalVisibleUsdc = (treasuryValue + onchainValue + runtimeValue).toFixed(params.tokenDecimals);
+    return { totalVisibleUsdc, sources };
+  };
 
   router.get('/onchain/status', async (req, res) => {
     if (!deps.isInternalAuthorized(req)) {
@@ -160,10 +222,10 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     ) as PoolTreasuryApi;
     const sponsorAddress = deps.gasFunderSigner()?.address || null;
     const [tokenSymbol, sponsorBalanceEth, escrowBalanceEth, houseTreasuryRaw, walletOnchain] = await Promise.all([
-      token.symbol().catch(() => 'TOKEN'),
+      (deps.readTokenSymbol ? deps.readTokenSymbol().catch(() => 'TOKEN') : token.symbol().catch(() => 'TOKEN')),
       sponsorAddress ? provider.getBalance(sponsorAddress).then((v) => formatEther(v)).catch(() => null) : Promise.resolve(null),
       provider.getBalance(deps.onchainEscrowAddress).then((v) => formatEther(v)).catch(() => null),
-      pool.houseTreasury().catch(() => null),
+      (deps.readHouseTreasury ? deps.readHouseTreasury().catch(() => null) : pool.houseTreasury().catch(() => null)),
       Promise.all(
         [...deps.wallets.values()].map(async (wallet) => ({
           id: wallet.id,
@@ -176,6 +238,16 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
         }))
       )
     ]);
+    const houseWallet = [...deps.wallets.values()].find((wallet) => wallet.ownerProfileId === 'system_house') ?? null;
+    const houseOnchainBalance = houseWallet
+      ? walletOnchain.find((entry) => entry.id === houseWallet.id)?.onchain?.tokenBalance ?? null
+      : null;
+    const houseFunds = buildHouseFunds({
+      houseWallet,
+      houseOnchainBalance,
+      houseTreasuryRaw,
+      tokenDecimals: deps.onchainTokenDecimals
+    });
 
     sendJson(res, {
       ok: true,
@@ -189,6 +261,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       sponsorBalanceEth,
       escrowBalanceEth,
       houseTreasury: houseTreasuryRaw == null ? null : formatUnits(houseTreasuryRaw, deps.onchainTokenDecimals),
+      houseFunds,
       wallets: walletOnchain
     });
   });
@@ -247,6 +320,79 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       });
     } catch (error) {
       sendJson(res, { ok: false, reason: String((error as Error).message || 'treasury_withdraw_failed').slice(0, 220) }, 400);
+    }
+  });
+
+  router.post('/house/wallet/transfer', async (req, res) => {
+    if (!deps.isInternalAuthorized(req)) {
+      sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+      return;
+    }
+    if (!deps.onchainProvider || !deps.onchainTokenAddress) {
+      sendJson(res, { ok: false, reason: 'onchain_not_configured' }, 400);
+      return;
+    }
+    const houseWallet = [...deps.wallets.values()].find((wallet) => wallet.ownerProfileId === 'system_house') ?? null;
+    if (!houseWallet) {
+      sendJson(res, { ok: false, reason: 'house_wallet_missing' }, 404);
+      return;
+    }
+    const body = await readJsonBody<{ recipient?: string; amount?: number }>(req);
+    const recipientRaw = String(body?.recipient || '').trim();
+    const amount = Math.max(0, Number(body?.amount || 0));
+    if (!recipientRaw || !isAddress(recipientRaw)) {
+      sendJson(res, { ok: false, reason: 'invalid_recipient' }, 400);
+      return;
+    }
+    if (amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
+      return;
+    }
+
+    try {
+      const normalizedRecipient = getAddress(recipientRaw);
+      const value = parseUnits(String(amount), deps.onchainTokenDecimals);
+      if (deps.transferOnchainTokenFromWallet) {
+        const result = await deps.transferOnchainTokenFromWallet({
+          wallet: houseWallet,
+          recipient: normalizedRecipient,
+          amount: value
+        });
+        sendJson(res, {
+          ok: true,
+          sourceType: 'house_wallet_onchain',
+          txHash: result.txHash ?? null,
+          walletId: houseWallet.id,
+          recipient: normalizedRecipient,
+          amount
+        });
+        return;
+      }
+
+      const signer = deps.signerForWallet(houseWallet);
+      if (!signer) {
+        sendJson(res, { ok: false, reason: 'house_wallet_signer_unavailable' }, 400);
+        return;
+      }
+      const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, signer as any) as Erc20Api;
+      const tx = await sendContractCallWithBuilderCode(
+        token,
+        signer,
+        'transfer',
+        [normalizedRecipient, value],
+        deps.builderCodeSuffix
+      );
+      await tx.wait();
+      sendJson(res, {
+        ok: true,
+        sourceType: 'house_wallet_onchain',
+        txHash: tx.hash ?? null,
+        walletId: houseWallet.id,
+        recipient: normalizedRecipient,
+        amount
+      });
+    } catch (error) {
+      sendJson(res, { ok: false, reason: String((error as Error).message || 'house_wallet_transfer_failed').slice(0, 220) }, 400);
     }
   });
 
