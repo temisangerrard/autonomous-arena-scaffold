@@ -24,6 +24,12 @@ type HouseFundSource = {
   description: string;
 };
 
+type HouseFundsView = {
+  totalVisibleUsdc: string;
+  historicalTreasuryOutflowsUsdc: string;
+  sources: HouseFundSource[];
+};
+
 export function registerWalletRoutes(router: SimpleRouter, deps: {
   isInternalAuthorized: (req: import('node:http').IncomingMessage) => boolean;
   wallets: Map<string, WalletRecord>;
@@ -61,6 +67,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
   }>;
   readTokenSymbol?: () => Promise<string | null>;
   readHouseTreasury?: () => Promise<bigint | null>;
+  readTreasuryWithdrawnTotal?: () => Promise<bigint | null>;
   transferOnchainTokenFromWallet?: (params: {
     wallet: WalletRecord;
     recipient: string;
@@ -101,17 +108,70 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     'function resolveBetFromOracle(bytes32 betId)',
     'function setFeeConfig(address recipient, uint16 bps)'
   ]);
+  const treasuryAdminTxInterface = new Interface([
+    'function withdrawTreasury(address recipient, uint256 amount)'
+  ]);
+  let treasuryWithdrawnCache:
+    | { cacheKey: string; value: bigint | null }
+    | null = null;
+  const readTreasuryWithdrawnTotal = async (): Promise<bigint | null> => {
+    if (deps.readTreasuryWithdrawnTotal) {
+      return deps.readTreasuryWithdrawnTotal().catch(() => null);
+    }
+    const provider = deps.onchainProvider as {
+      getLogs?: (filter: { address: string; topics?: string[]; fromBlock?: number | bigint; toBlock?: number | bigint | string }) => Promise<Array<{ transactionHash?: string | null }>>;
+      getTransaction?: (hash: string) => Promise<{ to?: string | null; data?: string | null } | null>;
+    };
+    if (!provider?.getLogs || !provider?.getTransaction || !deps.onchainEscrowAddress) return null;
+    const cacheKey = getAddress(deps.onchainEscrowAddress);
+    if (treasuryWithdrawnCache?.cacheKey === cacheKey) return treasuryWithdrawnCache.value;
+    try {
+      const logs = await provider.getLogs({
+        address: deps.onchainEscrowAddress,
+        topics: [id('TreasuryChanged(uint256)')],
+        fromBlock: 0,
+        toBlock: 'latest'
+      });
+      const seen = new Set<string>();
+      let total = 0n;
+      for (const log of logs) {
+        const txHash = String(log.transactionHash || '').trim();
+        if (!txHash || seen.has(txHash)) continue;
+        seen.add(txHash);
+        const tx = await provider.getTransaction(txHash).catch(() => null);
+        if (!tx?.to || !tx.data) continue;
+        if (getAddress(tx.to) !== cacheKey) continue;
+        try {
+          const decoded = treasuryAdminTxInterface.parseTransaction({ data: tx.data });
+          if (decoded?.name === 'withdrawTreasury') {
+            total += BigInt(decoded.args[1]?.toString?.() ?? '0');
+          }
+        } catch {
+          continue;
+        }
+      }
+      treasuryWithdrawnCache = { cacheKey, value: total };
+      return total;
+    } catch {
+      treasuryWithdrawnCache = { cacheKey, value: null };
+      return null;
+    }
+  };
   const buildHouseFunds = (params: {
     houseWallet: WalletRecord | null;
     houseOnchainBalance: string | null;
     houseTreasuryRaw: bigint | null;
+    historicalTreasuryOutflowsRaw: bigint | null;
     tokenDecimals: number;
-  }): { totalVisibleUsdc: string; sources: HouseFundSource[] } => {
+  }): HouseFundsView => {
     const runtimeValue = Math.max(0, Number(params.houseWallet?.balance || 0));
     const onchainValue = Math.max(0, Number(params.houseOnchainBalance || 0));
     const treasuryValue = params.houseTreasuryRaw == null
       ? 0
       : Math.max(0, Number(formatUnits(params.houseTreasuryRaw, params.tokenDecimals)));
+    const historicalOutflowsValue = params.historicalTreasuryOutflowsRaw == null
+      ? 0
+      : Math.max(0, Number(formatUnits(params.historicalTreasuryOutflowsRaw, params.tokenDecimals)));
     const sources: HouseFundSource[] = [
       {
         sourceType: 'contract_treasury',
@@ -144,7 +204,11 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       });
     }
     const totalVisibleUsdc = (treasuryValue + onchainValue + runtimeValue).toFixed(params.tokenDecimals);
-    return { totalVisibleUsdc, sources };
+    return {
+      totalVisibleUsdc,
+      historicalTreasuryOutflowsUsdc: historicalOutflowsValue.toFixed(params.tokenDecimals),
+      sources
+    };
   };
 
   router.get('/onchain/status', async (req, res) => {
@@ -221,11 +285,12 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       deps.onchainProvider as ContractRunner
     ) as PoolTreasuryApi;
     const sponsorAddress = deps.gasFunderSigner()?.address || null;
-    const [tokenSymbol, sponsorBalanceEth, escrowBalanceEth, houseTreasuryRaw, walletOnchain] = await Promise.all([
+    const [tokenSymbol, sponsorBalanceEth, escrowBalanceEth, houseTreasuryRaw, historicalTreasuryOutflowsRaw, walletOnchain] = await Promise.all([
       (deps.readTokenSymbol ? deps.readTokenSymbol().catch(() => 'TOKEN') : token.symbol().catch(() => 'TOKEN')),
       sponsorAddress ? provider.getBalance(sponsorAddress).then((v) => formatEther(v)).catch(() => null) : Promise.resolve(null),
       provider.getBalance(deps.onchainEscrowAddress).then((v) => formatEther(v)).catch(() => null),
       (deps.readHouseTreasury ? deps.readHouseTreasury().catch(() => null) : pool.houseTreasury().catch(() => null)),
+      readTreasuryWithdrawnTotal(),
       Promise.all(
         [...deps.wallets.values()].map(async (wallet) => ({
           id: wallet.id,
@@ -246,6 +311,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       houseWallet,
       houseOnchainBalance,
       houseTreasuryRaw,
+      historicalTreasuryOutflowsRaw,
       tokenDecimals: deps.onchainTokenDecimals
     });
 

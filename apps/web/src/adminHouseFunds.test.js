@@ -6,6 +6,7 @@ describe('admin house funds helper', () => {
     const view = buildHouseFundsView({
       houseFunds: {
         totalVisibleUsdc: '8.500000',
+        historicalTreasuryOutflowsUsdc: '1.000000',
         sources: [
           {
             sourceType: 'contract_treasury',
@@ -39,7 +40,8 @@ describe('admin house funds helper', () => {
     });
 
     expect(view.totalLabel).toBe('8.50 USDC');
-    expect(view.note).toContain('multiple house-controlled sources');
+    expect(view.historicalOutflowsLabel).toBe('1.00 USDC');
+    expect(view.note).toContain('historical treasury withdrawals');
     expect(view.sources).toEqual([
       expect.objectContaining({ sourceType: 'contract_treasury', actionLabel: 'Withdraw Treasury' }),
       expect.objectContaining({ sourceType: 'house_wallet_onchain', actionLabel: 'Send On-Chain' }),

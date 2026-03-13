@@ -107,6 +107,7 @@ function registerWithWallet(wallet: WalletRecord): SimpleRouter {
     }),
     readTokenSymbol: async () => 'USDC',
     readHouseTreasury: async () => 0n,
+    readTreasuryWithdrawnTotal: async () => 0n,
     transferOnchainTokenFromWallet: async () => ({ txHash: '0xhouse' }),
     prepareWalletForEscrowOnchain: async (walletId) => ({ ok: true, walletId }),
     builderCodeSuffix: ''
@@ -207,6 +208,7 @@ describe('wallet onchain admin routes', () => {
       }),
       readTokenSymbol: async () => 'USDC',
       readHouseTreasury: async () => 500000n,
+      readTreasuryWithdrawnTotal: async () => 1250000n,
       transferOnchainTokenFromWallet: async () => ({ txHash: '0xhouse' }),
       prepareWalletForEscrowOnchain: async (walletId) => ({ ok: true, walletId }),
       builderCodeSuffix: ''
@@ -224,6 +226,7 @@ describe('wallet onchain admin routes', () => {
       ok: true,
       houseFunds: {
         totalVisibleUsdc: '8.500000',
+        historicalTreasuryOutflowsUsdc: '1.250000',
         sources: [
           expect.objectContaining({ sourceType: 'contract_treasury' }),
           expect.objectContaining({ sourceType: 'house_wallet_onchain', walletId: 'wallet_house' }),
@@ -281,6 +284,7 @@ describe('wallet onchain admin routes', () => {
       }),
       readTokenSymbol: async () => 'USDC',
       readHouseTreasury: async () => 0n,
+      readTreasuryWithdrawnTotal: async () => 0n,
       transferOnchainTokenFromWallet: async () => ({ txHash: '0xhouse' }),
       prepareWalletForEscrowOnchain: async (walletId) => ({ ok: true, walletId }),
       builderCodeSuffix: ''

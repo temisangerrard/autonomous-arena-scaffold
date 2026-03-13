@@ -87,6 +87,7 @@ const el = {
   houseWalletId: document.getElementById('house-wallet-id'),
   houseBalance: document.getElementById('house-balance'),
   houseFundsTotal: document.getElementById('house-funds-total'),
+  houseFundsOutflows: document.getElementById('house-funds-outflows'),
   houseFundsNote: document.getElementById('house-funds-note'),
   houseFundsBody: document.getElementById('house-funds-body'),
   houseNpcFloor: document.getElementById('house-npc-floor'),
@@ -647,6 +648,7 @@ function renderTreasuryAssets() {
     el.onchainHouseTreasury.value = Number.isFinite(n) ? `${n.toFixed(2)} USDC` : '-';
   }
   if (el.houseFundsTotal) el.houseFundsTotal.value = houseFundsView.totalLabel;
+  if (el.houseFundsOutflows) el.houseFundsOutflows.value = houseFundsView.historicalOutflowsLabel;
   if (el.houseFundsNote) el.houseFundsNote.value = houseFundsView.note;
   if (el.houseFundsBody) {
     el.houseFundsBody.innerHTML = '';
