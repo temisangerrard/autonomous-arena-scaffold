@@ -40,7 +40,9 @@ export function createQuickPlayPanel({ sendStationInteract, showToast }) {
     if (list) list.textContent = 'Loading…';
     try {
       const r = await fetch('/api/game/stations/playable');
+      if (!r.ok) throw new Error(`quick_play_http_${r.status}`);
       const data = await r.json().catch(() => ({}));
+      if (!data?.ok) throw new Error(String(data?.reason || 'quick_play_unavailable'));
       stations = Array.isArray(data?.stations) ? data.stations : [];
       render();
     } catch {
