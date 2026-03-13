@@ -19,6 +19,7 @@
     "test:e2e:run": "npx playwright test --config=playwright.e2e.config.js",
     "typecheck": "npm run -ws typecheck",
     "format": "prettier --write .",
+    "world:publish": "node scripts/publish-world-assets.mjs",
     "migrate": "npx tsx scripts/migrate.ts up",
     "migrate:status": "npx tsx scripts/migrate.ts status",
     "migrate:rollback": "npx tsx scripts/migrate.ts rollback",

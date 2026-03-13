@@ -11,7 +11,7 @@
 /presence*    https://arena-server-broken-haze-6531.fly.dev/presence:splat    200
 /challenges/* https://arena-server-broken-haze-6531.fly.dev/challenges/:splat 200
 /runtime/*    https://arena-agent-runtime.fly.dev/:splat           200
-/assets/world/* https://arena-web.fly.dev/assets/world/:splat 200
+/assets/world/* https://arena-world-assets.netlify.app/assets/world/:splat 200
 
 # Pretty routes -> static HTML
 /welcome   /welcome.html   200
