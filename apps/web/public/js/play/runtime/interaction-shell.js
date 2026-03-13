@@ -21,7 +21,8 @@ export function setInteractOpenState(params) {
     const preferredTargetId = String(state.ui?.targetId || '');
     const nearbyStations = state.nearbyStationIds instanceof Set ? state.nearbyStationIds : new Set();
     const nearbyPlayers = state.nearbyIds instanceof Set ? state.nearbyIds : new Set();
-    if (preferredTargetId && nearbyStations.has(preferredTargetId)) {
+    const knownStations = state.stations instanceof Map ? state.stations : new Map();
+    if (preferredTargetId && (nearbyStations.has(preferredTargetId) || knownStations.has(preferredTargetId))) {
       state.ui.interactionMode = 'station';
     } else if (preferredTargetId && nearbyPlayers.has(preferredTargetId)) {
       state.ui.interactionMode = 'player';
@@ -46,6 +47,8 @@ export function setInteractOpenState(params) {
       // ignore
     }
     state.ui.dealer.state = 'idle';
+    state.ui.dealer.quickPlayEnabled = false;
+    state.ui.dealer.quickPlayStationId = '';
     state.ui.dealer.escrowTx = null;
     state.ui.world.stationId = '';
     state.ui.world.detail = '';
@@ -58,6 +61,8 @@ export function setInteractOpenState(params) {
     interactionCardState.interactionStationRenderKey = '';
     state.ui.interactionMode = 'none';
     state.ui.dealer.state = 'idle';
+    state.ui.dealer.quickPlayEnabled = false;
+    state.ui.dealer.quickPlayStationId = '';
     state.ui.dealer.escrowTx = null;
     state.ui.world.stationId = '';
     state.ui.world.detail = '';

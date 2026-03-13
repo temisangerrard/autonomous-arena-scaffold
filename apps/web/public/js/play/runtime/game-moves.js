@@ -63,7 +63,11 @@ export function sendGameMoveRuntime(params) {
         stationId: routedStationId,
         action,
         pick: move,
-        playerSeed: makePlayerSeed()
+        playerSeed: makePlayerSeed(),
+        ...(state.ui.dealer.quickPlayEnabled
+          && String(state.ui.dealer.quickPlayStationId || '') === routedStationId
+          ? { quickPlay: true }
+          : {})
       })
     );
     state.ui.dealer.state = 'dealing';

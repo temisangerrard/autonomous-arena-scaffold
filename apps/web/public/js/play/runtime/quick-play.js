@@ -12,7 +12,28 @@ const GAME_LABELS = {
   prediction: 'Prediction Markets'
 };
 
-export function createQuickPlayPanel({ sendStationInteract, showToast }) {
+export function launchQuickPlayStation(params) {
+  const {
+    station,
+    resolveIncomingStationId,
+    setInteractOpen,
+    state
+  } = params;
+
+  const localTargetId = String(resolveIncomingStationId?.(station?.id) || station?.id || '').trim();
+  if (!localTargetId) {
+    return '';
+  }
+
+  state.ui.targetId = localTargetId;
+  state.ui.interactionMode = 'station';
+  setInteractOpen(true);
+  state.ui.dealer.quickPlayEnabled = true;
+  state.ui.dealer.quickPlayStationId = String(station?.id || '').trim();
+  return localTargetId;
+}
+
+export function createQuickPlayPanel({ openQuickPlayStation, showToast }) {
   const panel = document.getElementById('quick-play-panel');
   const backdrop = document.getElementById('quick-play-backdrop');
   const btn = document.getElementById('topbar-quick-play');
@@ -62,39 +83,29 @@ export function createQuickPlayPanel({ sendStationInteract, showToast }) {
     card.appendChild(title);
 
     const action = GAME_START_ACTIONS[station.gameType];
-    const needsWager = station.gameType !== 'prediction';
-
-    let wagerInput = null;
-    if (needsWager) {
-      const wagerRow = document.createElement('div');
-      wagerRow.className = 'qp-card__wager-row';
-      const label = document.createElement('label');
-      label.textContent = 'Wager ';
-      wagerInput = document.createElement('input');
-      wagerInput.type = 'number';
-      wagerInput.className = 'qp-card__wager';
-      wagerInput.min = '0';
-      wagerInput.step = '1';
-      wagerInput.value = '1';
-      label.appendChild(wagerInput);
-      wagerRow.appendChild(label);
-      card.appendChild(wagerRow);
+    if (station.displayName && station.displayName !== title.textContent) {
+      const subtitle = document.createElement('div');
+      subtitle.className = 'qp-card__meta';
+      subtitle.textContent = station.displayName;
+      card.appendChild(subtitle);
     }
 
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
     playBtn.className = 'qp-card__play';
     playBtn.textContent = station.available
-      ? (needsWager ? 'Play' : 'Open Markets')
+      ? (station.gameType === 'prediction' ? 'Open Card' : 'Play')
       : 'Unavailable';
     playBtn.disabled = !station.available;
 
     playBtn.addEventListener('click', () => {
       if (!action) { showToast('Unsupported game type.'); return; }
-      const extra = { quickPlay: true };
-      if (needsWager) extra.wager = Math.max(0, Number(wagerInput?.value || 0));
-      const sent = sendStationInteract(station.id, action, extra);
-      if (sent) close();
+      const launched = openQuickPlayStation?.(station);
+      if (!launched) {
+        showToast('Station unavailable.');
+        return;
+      }
+      close();
     });
 
     card.appendChild(playBtn);
