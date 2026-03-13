@@ -35,9 +35,11 @@ const googleAuthEnabled = googleClientId.length > 0;
 const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY?.trim() ?? '';
 const firebaseAuthDomain = process.env.FIREBASE_AUTH_DOMAIN?.trim() ?? '';
 const firebaseProjectId = process.env.FIREBASE_PROJECT_ID?.trim() ?? '';
+const cdpProjectId = process.env.CDP_PROJECT_ID?.trim() ?? '';
 const firebaseGoogleAuthEnabled = (process.env.FIREBASE_GOOGLE_AUTH_ENABLED ?? 'true') === 'true'
   && firebaseWebApiKey.length > 0
   && firebaseAuthDomain.length > 0;
+const firebaseClientAuthEnabled = firebaseWebApiKey.length > 0 && firebaseAuthDomain.length > 0;
 const emailAuthEnabled = firebaseWebApiKey.length > 0;
 const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
@@ -1217,9 +1219,11 @@ const server = createServer(async (req, res) => {
       googleAuthEnabled,
       googleClientId,
       firebaseGoogleAuthEnabled,
+      firebaseClientAuthEnabled,
       firebaseWebApiKey,
       firebaseAuthDomain,
       firebaseProjectId,
+      cdpProjectId,
       localAuthEnabled,
       // Used by the static frontend to connect to backend infra.
       gameWsUrl: publicGameWsUrl,
@@ -1429,8 +1433,8 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/auth/firebase' && req.method === 'POST') {
-    if (!firebaseGoogleAuthEnabled) {
-      sendJson(res, { ok: false, reason: 'firebase_google_auth_disabled' }, 403);
+    if (!firebaseClientAuthEnabled) {
+      sendJson(res, { ok: false, reason: 'firebase_client_auth_disabled' }, 403);
       return;
     }
     if (!isSameOriginRequest(req)) {

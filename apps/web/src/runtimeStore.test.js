@@ -21,10 +21,15 @@ function makeState() {
     outgoingChallengeId: null,
     walletBalance: null,
     walletChainId: null,
+    walletExternalAddress: null,
     walletTokenSymbol: null,
     walletTokenDecimals: null,
     walletMode: null,
-    walletSynced: false
+    walletSynced: false,
+    walletProvider: null,
+    walletEscrowApprovalCapUsdc: null,
+    walletEscrowApprovalTokenAddress: null,
+    walletEscrowApprovalSpenderAddress: null
   };
 }
 
@@ -54,7 +59,12 @@ describe('runtime store', () => {
       tokenSymbol: 'USDC',
       tokenDecimals: 6,
       mode: 'onchain',
-      synced: true
+      synced: true,
+      walletProvider: 'coinbase_embedded',
+      walletExternalAddress: '0x2222222222222222222222222222222222222222',
+      escrowApprovalCapUsdc: 25,
+      escrowApprovalTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      escrowApprovalSpenderAddress: '0xc071a2a0da5901a8c036cc5d2d2d4ffc7b09787d'
     });
     expect(selectWalletView(store.getState())).toMatchObject({
       balance: 12.5,
@@ -62,7 +72,12 @@ describe('runtime store', () => {
       tokenSymbol: 'USDC',
       tokenDecimals: 6,
       mode: 'onchain',
-      synced: true
+      synced: true,
+      provider: 'coinbase_embedded',
+      externalAddress: '0x2222222222222222222222222222222222222222',
+      escrowApprovalCapUsdc: 25,
+      escrowApprovalTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      escrowApprovalSpenderAddress: '0xc071a2a0da5901a8c036cc5d2d2d4ffc7b09787d'
     });
   });
 });

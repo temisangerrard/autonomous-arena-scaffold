@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEnvFromFile } from './lib/env.js';
 import { initializeCdpClient } from './lib/cdpClient.js';
+import { buildCoinbaseEndUserIdentity, isExistingEndUserConflict } from './lib/cdpEndUserIdentity.js';
 import { formatCodebaseContext, getTroubleshootingGuide } from './codebaseContext.js';
 import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
 import {
@@ -150,6 +151,7 @@ const walletGasTopupMaxEth = process.env.WALLET_GAS_TOPUP_MAX_ETH ?? '0.02';
 const mainnetGasSponsorEnabled = String(process.env.MAINNET_GAS_SPONSOR_ENABLED ?? 'false').trim().toLowerCase() === 'true';
 const coinbasePaymasterEnabled = String(process.env.COINBASE_PAYMASTER_ENABLED ?? 'false').trim().toLowerCase() === 'true';
 const coinbasePaymasterAllowEscrow = String(process.env.COINBASE_PAYMASTER_ALLOW_ESCROW ?? 'true').trim().toLowerCase() !== 'false';
+const coinbaseEscrowApprovalCapUsdc = Math.max(1, Number(process.env.COINBASE_ESCROW_APPROVAL_CAP_USDC ?? 25));
 const walletProviderDefault = String(process.env.WALLET_PROVIDER_DEFAULT ?? 'internal').trim().toLowerCase() === 'coinbase_embedded'
   ? 'coinbase_embedded'
   : 'internal';
@@ -917,6 +919,14 @@ function walletSummary(wallet: WalletRecord | null) {
     externalWalletAddress: wallet.externalWalletAddress ?? null,
     externalWalletRef: wallet.externalWalletRef ?? null,
     externalWalletLinkedAt: wallet.externalWalletLinkedAt ?? null,
+    escrowApproval: walletProvider === 'coinbase_embedded'
+      ? {
+          mode: 'capped',
+          capUsdc: coinbaseEscrowApprovalCapUsdc,
+          tokenAddress: onchainTokenAddress || null,
+          spenderAddress: onchainEscrowAddress || null
+        }
+      : null,
     canExportKey: walletProvider === 'internal',
     balance: wallet.balance,
     dailyTxCount: wallet.dailyTxCount,
@@ -1424,6 +1434,10 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   allowance?: string;
   balance?: string;
   nativeBalanceEth?: string;
+  approvalCapUsdc?: number;
+  approvalTargetAmount?: string;
+  approvalTokenAddress?: string;
+  approvalSpenderAddress?: string;
 }> {
   const wallet = walletById(walletId);
   if (!wallet) {
@@ -1475,6 +1489,22 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
         token.balanceOf(owner) as Promise<bigint>,
         token.allowance(owner, onchainEscrowAddress) as Promise<bigint>
       ]);
+      const approvalCap = parseUnits(String(coinbaseEscrowApprovalCapUsdc), onchainTokenDecimals);
+      if (required > approvalCap) {
+        return {
+          ok: false,
+          reason: 'approval_cap_exceeded',
+          walletId,
+          address: owner,
+          allowance: formatUnits(allowance, onchainTokenDecimals),
+          balance: formatUnits(balance, onchainTokenDecimals),
+          nativeBalanceEth: formatEther(currentNative),
+          approvalCapUsdc: coinbaseEscrowApprovalCapUsdc,
+          approvalTargetAmount: String(coinbaseEscrowApprovalCapUsdc),
+          approvalTokenAddress: onchainTokenAddress,
+          approvalSpenderAddress: onchainEscrowAddress
+        };
+      }
       if (allowance < required) {
         return {
           ok: false,
@@ -1483,7 +1513,11 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
           address: owner,
           allowance: formatUnits(allowance, onchainTokenDecimals),
           balance: formatUnits(balance, onchainTokenDecimals),
-          nativeBalanceEth: formatEther(currentNative)
+          nativeBalanceEth: formatEther(currentNative),
+          approvalCapUsdc: coinbaseEscrowApprovalCapUsdc,
+          approvalTargetAmount: String(coinbaseEscrowApprovalCapUsdc),
+          approvalTokenAddress: onchainTokenAddress,
+          approvalSpenderAddress: onchainEscrowAddress
         };
       }
       if (balance < required) {
@@ -1504,7 +1538,11 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
         approved: false,
         allowance: formatUnits(allowance, onchainTokenDecimals),
         balance: formatUnits(balance, onchainTokenDecimals),
-        nativeBalanceEth: formatEther(currentNative)
+        nativeBalanceEth: formatEther(currentNative),
+        approvalCapUsdc: coinbaseEscrowApprovalCapUsdc,
+        approvalTargetAmount: String(coinbaseEscrowApprovalCapUsdc),
+        approvalTokenAddress: onchainTokenAddress,
+        approvalSpenderAddress: onchainEscrowAddress
       };
     } catch (error) {
       const text = String((error as Error)?.message || 'coinbase_preflight_failed').replace(/\s+/g, ' ').trim().slice(0, 140);
@@ -1922,6 +1960,23 @@ async function createCoinbaseWalletForProfile(params: {
         userId?: string;
         evmSmartAccountObjects?: Array<{ address?: string }>;
         evmSmartAccounts?: string[];
+        addEvmSmartAccount?: (options?: { enableSpendPermissions?: boolean }) => Promise<{
+          evmSmartAccount?: { address?: string };
+          evmSmartAccountObject?: { address?: string };
+        }>;
+      }>;
+      getEndUser?: (options: { userId: string }) => Promise<{
+        userId?: string;
+        evmSmartAccountObjects?: Array<{ address?: string }>;
+        evmSmartAccounts?: string[];
+        addEvmSmartAccount?: (options?: { enableSpendPermissions?: boolean }) => Promise<{
+          evmSmartAccount?: { address?: string };
+          evmSmartAccountObject?: { address?: string };
+        }>;
+      }>;
+      addEndUserEvmSmartAccount?: (options: { userId: string; enableSpendPermissions?: boolean }) => Promise<{
+        evmSmartAccount?: { address?: string };
+        evmSmartAccountObject?: { address?: string };
       }>;
     };
   };
@@ -1929,23 +1984,54 @@ async function createCoinbaseWalletForProfile(params: {
     return { ok: false, reason: 'cdp_end_user_api_unavailable' };
   }
 
-  const authMethods = params.email
-    ? [{ type: 'email', email: params.email }]
-    : [{ type: 'jwt', kid: 'arena-runtime', sub: params.externalSubject || params.profileId }];
-  const cdpUserId = String(params.profileId || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 100) || `profile-${Date.now()}`;
-  const endUser = await cdp.endUser.createEndUser({
-    userId: cdpUserId,
-    authenticationMethods: authMethods,
-    evmAccount: {
-      createSmartAccount: true,
-      enableSpendPermissions: false
-    }
+  const identity = buildCoinbaseEndUserIdentity({
+    profileId: params.profileId,
+    externalSubject: params.externalSubject,
+    email: params.email
   });
+  const cdpUserId = identity.userId;
+  let endUser: {
+    userId?: string;
+    evmSmartAccountObjects?: Array<{ address?: string }>;
+    evmSmartAccounts?: string[];
+    addEvmSmartAccount?: (options?: { enableSpendPermissions?: boolean }) => Promise<{
+      evmSmartAccount?: { address?: string };
+      evmSmartAccountObject?: { address?: string };
+    }>;
+  };
+  try {
+    endUser = await cdp.endUser.createEndUser({
+      userId: cdpUserId,
+      authenticationMethods: identity.authenticationMethods,
+      evmAccount: {
+        createSmartAccount: true,
+        enableSpendPermissions: false
+      }
+    });
+  } catch (error) {
+    if (!isExistingEndUserConflict(error) || !cdp.endUser.getEndUser) {
+      throw error;
+    }
+    endUser = await cdp.endUser.getEndUser({ userId: cdpUserId });
+    if (!endUser?.evmSmartAccountObjects?.[0]?.address && !endUser?.evmSmartAccounts?.[0]) {
+      const added = endUser.addEvmSmartAccount
+        ? await endUser.addEvmSmartAccount({ enableSpendPermissions: false })
+        : cdp.endUser.addEndUserEvmSmartAccount
+          ? await cdp.endUser.addEndUserEvmSmartAccount({ userId: cdpUserId, enableSpendPermissions: false })
+          : null;
+      if (added) {
+        endUser = {
+          ...endUser,
+          evmSmartAccountObjects: added.evmSmartAccountObject?.address
+            ? [{ address: added.evmSmartAccountObject.address }]
+            : endUser.evmSmartAccountObjects,
+          evmSmartAccounts: added.evmSmartAccount?.address
+            ? [added.evmSmartAccount.address]
+            : endUser.evmSmartAccounts
+        };
+      }
+    }
+  }
   const address = String(
     endUser?.evmSmartAccountObjects?.[0]?.address
       || endUser?.evmSmartAccounts?.[0]
