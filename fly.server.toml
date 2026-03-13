@@ -1,5 +1,5 @@
 # Fly.io configuration for Arena Server
-app = "arena-server"
+app = "arena-server-broken-haze-6531"
 primary_region = "sjc"
 
 [env]

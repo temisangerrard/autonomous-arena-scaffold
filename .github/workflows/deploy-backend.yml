@@ -16,6 +16,8 @@ on:
       - "apps/agent-runtime/**"
       - "apps/web/src/**"
       - "packages/shared/**"
+      - "package.json"
+      - "package-lock.json"
       - "Dockerfile.server"
       - "Dockerfile.agent-runtime"
       - "Dockerfile.web"
@@ -78,16 +80,22 @@ jobs:
             server:
               - 'apps/server/**'
               - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
               - 'Dockerfile.server'
               - 'fly.server.toml'
             runtime:
               - 'apps/agent-runtime/**'
               - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
               - 'Dockerfile.agent-runtime'
               - 'fly.agent-runtime.toml'
             web:
               - 'apps/web/src/**'
               - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
               - 'Dockerfile.web'
               - 'fly.web.toml'
 

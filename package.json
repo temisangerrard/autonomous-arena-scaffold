@@ -27,6 +27,9 @@
     "load-test:heavy": "LOAD_TEST_VIRTUAL_USERS=50 LOAD_TEST_DURATION=60 npx tsx scripts/load-test.ts",
     "ops:runtime-sponsorship": "node scripts/check-runtime-sponsorship.mjs"
   },
+  "dependencies": {
+    "yallist": "^4.0.0"
+  },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
     "@types/node": "^22.13.4",
