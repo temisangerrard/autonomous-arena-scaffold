@@ -66,6 +66,7 @@ import { createLabelFor, isStationId } from './selectors.js';
 import { startRuntimeLifecycle } from './startup-lifecycle.js';
 import { bindInteractionUi } from './interaction-bindings.js';
 import { createArenaConfigRuntime } from './network/arena-config.js';
+import { createQuickPlayPanel } from './quick-play.js';
 import { connectSocketRuntime } from './network/socket-runtime.js';
 import { createRetryScheduler } from './network/retry-scheduler.js';
 import { renderInteractionCardTemplate } from './templates/interaction-card/index.js';
@@ -598,6 +599,8 @@ installRuntimeTestHooks({
   frame: frameLoop.frame,
   queryParams
 });
+
+createQuickPlayPanel({ sendStationInteract, showToast });
 
 void connectSocket();
 startRuntimeLifecycle({

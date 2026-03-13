@@ -14,6 +14,8 @@ type InputMessage = {
 export type StationInteractMessage = {
   type: 'station_interact';
   stationId: string;
+  /** When true, proximity check is skipped — used by the quick-play panel */
+  quickPlay?: boolean;
 } & (
   | {
       action: 'coinflip_house_start';

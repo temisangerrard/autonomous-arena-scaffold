@@ -138,6 +138,7 @@
     <div class="topbar-right">
       <span id="topbar-streak" class="topbar-pill streak" title="Win streak">Streak 0</span>
       <span id="topbar-bot" class="topbar-pill bot" title="Bot mode"><i class="topbar-pill__dot" aria-hidden="true"></i>Bot: Auto</span>
+      <button id="topbar-quick-play" class="topbar-pill qp-btn" type="button" aria-label="Quick Play — start a game without walking">&#9889; Play</button>
       <button id="topbar-menu" class="menu-ghost" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="topbar-menu-pop">&#9776;</button>
     </div>
   </header>
@@ -214,6 +215,16 @@
       <p class="control-hints__note">Press <kbd>?</kbd> to close</p>
     </div>
   </div>
+
+  <!-- Quick Play Panel -->
+  <div id="quick-play-backdrop" class="qp-backdrop" hidden></div>
+  <aside id="quick-play-panel" class="qp-panel" hidden aria-label="Quick play — start a game directly">
+    <div class="qp-panel__head">
+      <span class="qp-panel__title">Quick Play</span>
+      <button id="quick-play-close" class="qp-panel__close" type="button" aria-label="Close quick play panel">&#215;</button>
+    </div>
+    <div id="quick-play-list" class="qp-list"></div>
+  </aside>
 
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>

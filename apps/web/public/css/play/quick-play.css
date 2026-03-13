@@ -1,0 +1,125 @@
+/* ── Quick Play Panel ─────────────────────────────────────────────────── */
+
+.qp-btn {
+  cursor: pointer;
+  background: rgba(220, 170, 40, 0.15);
+  border: 1px solid rgba(220, 170, 40, 0.4);
+  color: #daa520;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.qp-btn:hover { background: rgba(220, 170, 40, 0.25); }
+
+.qp-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 800;
+}
+
+.qp-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 801;
+  background: rgba(18, 14, 8, 0.97);
+  border: 1px solid rgba(180, 140, 40, 0.35);
+  border-radius: 12px;
+  min-width: 300px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+}
+
+.qp-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(180, 140, 40, 0.2);
+}
+
+.qp-panel__title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #daa520;
+  letter-spacing: 0.04em;
+}
+
+.qp-panel__close {
+  background: none;
+  border: none;
+  color: rgba(210, 190, 140, 0.7);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.qp-panel__close:hover { color: #daa520; }
+
+.qp-list {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  color: rgba(220, 200, 155, 0.8);
+  font-size: 13px;
+}
+
+.qp-card {
+  background: rgba(255, 250, 235, 0.04);
+  border: 1px solid rgba(180, 140, 40, 0.2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.qp-card--unavailable { opacity: 0.45; }
+
+.qp-card__title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #e8d8a0;
+}
+
+.qp-card__wager-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(220, 200, 155, 0.8);
+  font-size: 13px;
+}
+
+.qp-card__wager {
+  width: 72px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(180, 140, 40, 0.35);
+  border-radius: 5px;
+  color: #e8d8a0;
+  padding: 3px 6px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.qp-card__play {
+  align-self: flex-end;
+  background: linear-gradient(135deg, rgba(180, 120, 20, 0.9), rgba(140, 90, 10, 0.9));
+  border: 1px solid rgba(220, 170, 40, 0.5);
+  border-radius: 6px;
+  color: #f5e6b0;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 16px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.qp-card__play:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(200, 140, 30, 0.95), rgba(160, 110, 20, 0.95));
+}
+.qp-card__play:disabled { opacity: 0.45; cursor: not-allowed; }

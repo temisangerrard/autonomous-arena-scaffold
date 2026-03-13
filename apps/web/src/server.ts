@@ -2422,6 +2422,41 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // Bot wallet readiness — proxies to agent-runtime /bots/:botId/wallet
+  const botWalletMatch = pathname.match(/^\/api\/player\/bots\/([^/]+)\/wallet$/);
+  if (botWalletMatch && req.method === 'GET') {
+    const auth = await requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    const botId = botWalletMatch[1];
+    const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [] }));
+    const ownerBot = (runtimeStatus.bots ?? []).find((entry) => entry.id === botId && entry.meta?.ownerProfileId === auth.identity.profileId);
+    if (!ownerBot) {
+      sendJson(res, { ok: false, reason: 'bot_not_owned' }, 403);
+      return;
+    }
+    try {
+      const payload = await runtimeGet(`/bots/${botId}/wallet`);
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'wallet_readiness_unavailable' }, 503);
+    }
+    return;
+  }
+
+  // Playable stations list — proxies to game server /stations/playable
+  if (pathname === '/api/game/stations/playable' && req.method === 'GET') {
+    try {
+      const payload = await serverGet('/stations/playable');
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'stations_unavailable' }, 503);
+    }
+    return;
+  }
+
   if (pathname === '/api/chief/v1/chat' && req.method === 'POST') {
     const auth = await requireRole(req, ['player', 'admin']);
     if (!auth.ok) {

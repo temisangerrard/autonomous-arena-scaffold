@@ -11,6 +11,7 @@ import { WORLD_SECTION_SPAWNS } from '../WorldSim.js';
 import type { AdminCommand } from '../DistributedBus.js';
 import { handleMetricsEndpoint, handleMetricsJsonEndpoint } from '../metrics.js';
 import type { MarketService } from '../markets/MarketService.js';
+import type { SnapshotStation } from '@arena/shared';
 
 export type RouteContext = {
   serverInstanceId: string;
@@ -22,6 +23,8 @@ export type RouteContext = {
   publishAdminCommand: (serverId: string, command: AdminCommand) => Promise<void>;
   teleportLocal: (playerId: string, x: number, z: number) => boolean;
   marketService?: MarketService | null;
+  /** Lazy getter for station list — set after stationRouter is initialized */
+  getStations?: () => SnapshotStation[];
 };
 
 /**
@@ -156,6 +159,38 @@ function handleFavicon(req: IncomingMessage, res: ServerResponse): void {
   void req;
   res.statusCode = 204;
   res.end();
+}
+
+/** Map station kind to a game-type string for the quick-play surface */
+const PLAYABLE_KIND_TO_GAME: Record<string, string> = {
+  dealer_rps: 'rps',
+  dealer_coinflip: 'coinflip',
+  dealer_dice_duel: 'dice_duel',
+  dealer_prediction: 'prediction',
+};
+
+/**
+ * Handle GET /stations/playable
+ * Returns dealer stations with game type, position, and availability.
+ */
+function handleStationsPlayable(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: RouteContext
+): void {
+  void req;
+  const all = ctx.getStations?.() ?? [];
+  const playable = all
+    .filter(s => s.kind in PLAYABLE_KIND_TO_GAME)
+    .map(s => ({
+      id: s.id,
+      displayName: s.displayName,
+      gameType: PLAYABLE_KIND_TO_GAME[s.kind],
+      position: { x: s.x, z: s.z },
+      available: true
+    }));
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ ok: true, stations: playable, count: playable.length }));
 }
 
 /**
@@ -611,6 +646,11 @@ export function createRouter(ctx: RouteContext) {
 
     if (req.url?.startsWith('/admin/markets')) {
       await handleAdminMarkets(req, res, ctx, parsed);
+      return;
+    }
+
+    if (req.url === '/stations/playable') {
+      handleStationsPlayable(req, res, ctx);
       return;
     }
 

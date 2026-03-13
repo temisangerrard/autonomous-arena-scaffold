@@ -485,6 +485,27 @@
       font: 400 12px/1.3 var(--dash-mono);
     }
 
+    /* ── Wallet Readiness Badge ───────────────── */
+    .readiness-badge {
+      display: inline-block;
+      border-radius: 4px;
+      border: 1px solid;
+      padding: 2px 7px;
+      font: 500 10px/1.4 var(--dash-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+    }
+    .readiness-badge--ready { color: #2d7a3a; border-color: rgba(45,122,58,0.4); background: rgba(45,122,58,0.08); }
+    .readiness-badge--warning { color: #8a6200; border-color: rgba(198,152,49,0.45); background: rgba(198,152,49,0.08); }
+    .readiness-badge--error { color: #992b2b; border-color: rgba(153,43,43,0.4); background: rgba(153,43,43,0.07); }
+    .readiness-badge--muted { color: #888; border-color: rgba(136,136,136,0.3); background: rgba(136,136,136,0.07); }
+
+    /* ── Autoplay wizard fields ───────────────── */
+    .check-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+    .check-row label { display: flex; align-items: center; gap: 5px; font: 400 13px var(--dash-sans); cursor: pointer; }
+    .autoplay-fields { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+
     /* ── Chief Panel ──────────────────────────── */
     .chief-panel {
       background: #1e1a14;
@@ -1678,15 +1699,65 @@
           <span class="field-hint">Milliseconds between challenges (1 200 – 120 000)</span>
         </div>
 
-        <!-- Advanced: session limits -->
+        <!-- Advanced: session limits + autoplay strategy -->
         <details id="bot-advanced">
           <summary class="advanced-toggle">
-            Advanced · Session Limits
+            Advanced · Autoplay &amp; Session Limits
             <span class="advanced-toggle__chevron">▸</span>
           </summary>
           <div class="advanced-body">
-            <p class="wizard-pane__hint" style="margin-top:8px;">Bot auto-pauses when these thresholds are hit.</p>
-            <div class="input-row">
+            <p class="wizard-pane__hint" style="margin-top:8px;">Configure automated play strategy and session guards.</p>
+
+            <!-- Autoplay strategy toggle -->
+            <div style="margin-bottom:10px;">
+              <label class="label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input id="bot-autoplay-enabled" type="checkbox">
+                Enable Autoplay Strategy
+              </label>
+              <span class="field-hint">Bot plays dealer stations automatically when you're offline</span>
+            </div>
+
+            <!-- Autoplay fields (shown when enabled) -->
+            <div id="bot-autoplay-fields" class="autoplay-fields" hidden>
+              <div>
+                <span class="label">Allowed Games</span>
+                <div class="check-row">
+                  <label><input id="bot-game-rps" type="checkbox" name="bot-autoplay-game" value="rps" checked> RPS</label>
+                  <label><input id="bot-game-coinflip" type="checkbox" name="bot-autoplay-game" value="coinflip" checked> Coinflip</label>
+                  <label><input id="bot-game-dice_duel" type="checkbox" name="bot-autoplay-game" value="dice_duel"> Dice Duel</label>
+                </div>
+              </div>
+
+              <div>
+                <label class="label" for="bot-autoplay-wager-mode">Wager Mode</label>
+                <select id="bot-autoplay-wager-mode" class="field">
+                  <option value="fixed">Fixed amount</option>
+                  <option value="percent_wallet">% of wallet balance</option>
+                  <option value="martingale">Martingale (double-on-loss)</option>
+                </select>
+              </div>
+
+              <div id="bot-autoplay-pct-row" hidden>
+                <label class="label" for="bot-autoplay-wallet-pct">Wallet %</label>
+                <input id="bot-autoplay-wallet-pct" class="field" type="number" min="1" max="100" step="1" value="10">
+                <span class="field-hint">% of wallet balance per play (1 – 100)</span>
+              </div>
+
+              <div id="bot-autoplay-martingale-row" hidden>
+                <label class="label" for="bot-autoplay-martingale-mult">Martingale Multiplier</label>
+                <input id="bot-autoplay-martingale-mult" class="field" type="number" min="1.1" max="10" step="0.1" value="2">
+                <span class="field-hint">Multiply wager after each loss, resets on win (1.1 – 10×)</span>
+              </div>
+
+              <div>
+                <label class="label" for="bot-autoplay-cooldown">Play Interval (ms)</label>
+                <input id="bot-autoplay-cooldown" class="field" type="number" min="0" max="600000" step="100" value="2000">
+                <span class="field-hint">Pause between plays (0 – 600 000 ms)</span>
+              </div>
+            </div>
+
+            <!-- Session guards -->
+            <div class="input-row" style="margin-top:12px;">
               <div>
                 <label class="label" for="bot-loss-limit">Session Loss Limit</label>
                 <input id="bot-loss-limit" class="field" type="number" min="0" step="1" placeholder="e.g. 20">
