@@ -1,4 +1,4 @@
-import { Contract, Interface, formatEther, formatUnits, getAddress, id, isAddress, parseUnits, zeroPadValue } from 'ethers';
+import { Contract, Interface, formatEther, formatUnits, getAddress, id, isAddress, parseUnits, zeroPadValue, type ContractRunner } from 'ethers';
 import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
 import type { EscrowLockRecord, WalletDenied, WalletRecord } from '@arena/shared';
 
@@ -141,11 +141,11 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       });
       return;
     }
-    const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, deps.onchainProvider as any) as Contract & { symbol: () => Promise<string> };
+    const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, deps.onchainProvider as ContractRunner) as Contract & { symbol: () => Promise<string> };
     const pool = new Contract(
       deps.onchainEscrowAddress,
       ['function houseTreasury() view returns (uint256)'],
-      deps.onchainProvider as any
+      deps.onchainProvider as ContractRunner
     ) as PoolTreasuryApi;
     const sponsorAddress = deps.gasFunderSigner()?.address || null;
     const [tokenSymbol, sponsorBalanceEth, escrowBalanceEth, houseTreasuryRaw, walletOnchain] = await Promise.all([
@@ -634,7 +634,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           toBlock,
           topics: [transferTopic, null, indexed]
         }),
-        (new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, deps.onchainProvider as any) as Contract & { symbol: () => Promise<string> })
+        (new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, deps.onchainProvider as ContractRunner) as Contract & { symbol: () => Promise<string> })
           .symbol()
           .catch(() => 'TOKEN')
       ]);

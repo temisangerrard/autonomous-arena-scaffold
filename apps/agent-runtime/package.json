@@ -20,8 +20,10 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "@types/pg": "^8.16.0",
     "@types/ws": "^8.18.1",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "vitest": "^4.1.0"
   }
 }

@@ -1,3 +1,4 @@
+/* global URL */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildStations } from '../../server/src/game/stations/catalog.ts';

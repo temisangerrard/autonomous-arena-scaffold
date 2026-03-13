@@ -8,7 +8,6 @@ import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, parseEther
 import {
   addressFromPrivateKey as addressFromPrivateKeyRaw,
   createEncryptionKey,
-  createInternalTokenFromKey,
   decryptSecret as decryptSecretRaw,
   encryptSecret as encryptSecretRaw,
   hashString,
