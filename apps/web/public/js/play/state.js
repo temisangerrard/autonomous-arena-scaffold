@@ -39,6 +39,7 @@ export function createInitialState() {
     deskAutoCollapsedByMatch: false,
     walletBalance: null,
     walletChainId: null,
+    walletExternalAddress: null,
     escrowApproval: {
       mode: 'manual',
       network: 'unknown',

@@ -70,6 +70,11 @@ function reduce(state, action) {
       state.walletTokenDecimals = Number.isFinite(Number(action.tokenDecimals)) ? Number(action.tokenDecimals) : null;
       state.walletMode = action.mode ? String(action.mode) : null;
       state.walletSynced = Boolean(action.synced);
+      state.walletProvider = action.walletProvider ? String(action.walletProvider) : null;
+      state.walletExternalAddress = action.walletExternalAddress ? String(action.walletExternalAddress) : null;
+      state.walletEscrowApprovalCapUsdc = Number.isFinite(Number(action.escrowApprovalCapUsdc)) ? Number(action.escrowApprovalCapUsdc) : null;
+      state.walletEscrowApprovalTokenAddress = action.escrowApprovalTokenAddress ? String(action.escrowApprovalTokenAddress) : null;
+      state.walletEscrowApprovalSpenderAddress = action.escrowApprovalSpenderAddress ? String(action.escrowApprovalSpenderAddress) : null;
       return;
     default:
       return;
@@ -136,6 +141,11 @@ export function selectWalletView(state) {
     tokenSymbol: state?.walletTokenSymbol ? String(state.walletTokenSymbol) : null,
     tokenDecimals: Number.isFinite(Number(state?.walletTokenDecimals)) ? Number(state.walletTokenDecimals) : null,
     mode: state?.walletMode ? String(state.walletMode) : null,
-    synced: Boolean(state?.walletSynced)
+    synced: Boolean(state?.walletSynced),
+    provider: state?.walletProvider ? String(state.walletProvider) : null,
+    externalAddress: state?.walletExternalAddress ? String(state.walletExternalAddress) : null,
+    escrowApprovalCapUsdc: Number.isFinite(Number(state?.walletEscrowApprovalCapUsdc)) ? Number(state.walletEscrowApprovalCapUsdc) : null,
+    escrowApprovalTokenAddress: state?.walletEscrowApprovalTokenAddress ? String(state.walletEscrowApprovalTokenAddress) : null,
+    escrowApprovalSpenderAddress: state?.walletEscrowApprovalSpenderAddress ? String(state.walletEscrowApprovalSpenderAddress) : null
   };
 }

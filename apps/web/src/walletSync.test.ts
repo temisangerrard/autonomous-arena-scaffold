@@ -53,7 +53,7 @@ describe('wallet sync controller', () => {
 
     const first = createWalletSyncController({
       apiJson: firstApi,
-      state: { walletBalance: null, walletChainId: null },
+      state: { walletBalance: null, walletChainId: null, walletExternalAddress: null },
       dispatch: vi.fn(),
       syncEscrowApprovalPolicy: vi.fn()
     });
@@ -65,7 +65,7 @@ describe('wallet sync controller', () => {
     const secondApi = vi.fn(async () => ({ onchain: { tokenBalance: 10, chainId: 8453 } }));
     const second = createWalletSyncController({
       apiJson: secondApi,
-      state: { walletBalance: null, walletChainId: null },
+      state: { walletBalance: null, walletChainId: null, walletExternalAddress: null },
       dispatch: vi.fn(),
       syncEscrowApprovalPolicy: vi.fn()
     });
@@ -87,7 +87,7 @@ describe('wallet sync controller', () => {
           synced: true
         }
       })),
-      state: { walletBalance: null, walletChainId: null, walletTokenSymbol: null, walletTokenDecimals: null, walletMode: null, walletSynced: false },
+      state: { walletBalance: null, walletChainId: null, walletExternalAddress: null, walletTokenSymbol: null, walletTokenDecimals: null, walletMode: null, walletSynced: false },
       dispatch,
       syncEscrowApprovalPolicy: vi.fn()
     });
@@ -101,7 +101,12 @@ describe('wallet sync controller', () => {
       tokenSymbol: 'USDC',
       tokenDecimals: 6,
       mode: 'onchain',
-      synced: true
+      synced: true,
+      walletProvider: null,
+      walletExternalAddress: null,
+      escrowApprovalCapUsdc: null,
+      escrowApprovalTokenAddress: null,
+      escrowApprovalSpenderAddress: null
     });
   });
 });

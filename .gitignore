@@ -51,6 +51,7 @@ apps/contracts/typechain-types/
 .zencoder/
 skills/
 .claude/worktrees/
+.worktrees/
 .npm-cache/
 apps/.npm-cache/
 

@@ -65,11 +65,17 @@ async function fetchJson(url, init = {}) {
   return response.json().catch(() => ({}));
 }
 
+function firebaseClientEnabled(config) {
+  return Boolean(
+    config?.firebaseWebApiKey
+    && config?.firebaseAuthDomain
+  );
+}
+
 function firebaseGoogleEnabled(config) {
   return Boolean(
     config?.firebaseGoogleAuthEnabled
-    && config?.firebaseWebApiKey
-    && config?.firebaseAuthDomain
+    && firebaseClientEnabled(config)
   );
 }
 
@@ -82,18 +88,8 @@ async function getFirebaseGoogleClient(config) {
     return firebaseGoogleClientPromise;
   }
   firebaseGoogleClientPromise = (async () => {
-    const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
-    const authMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js');
-    const appName = 'arena-firebase-shell';
-    const existing = appMod.getApps().find((item) => item.name === appName);
-    const app = existing ?? appMod.initializeApp({
-      apiKey: config.firebaseWebApiKey,
-      authDomain: config.firebaseAuthDomain,
-      projectId: config.firebaseProjectId || undefined
-    }, appName);
-    const auth = authMod.getAuth(app);
-    const provider = new authMod.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    const firebase = await import('./lib/firebase-browser-auth.js');
+    const { auth, provider, authMod } = await firebase.getFirebaseBrowserClient(config);
     return { auth, provider, signInWithPopup: authMod.signInWithPopup };
   })();
   return firebaseGoogleClientPromise;
@@ -206,11 +202,21 @@ async function handleEmailAuth(mode, config) {
   }
 
   try {
-    const payload = await fetchJson('/api/auth/email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password, mode })
-    });
+    const payload = firebaseClientEnabled(config)
+      ? await (async () => {
+          const firebase = await import('./lib/firebase-browser-auth.js');
+          const auth = await firebase.authenticateFirebaseEmail(config, { mode, email, password });
+          return fetchJson('/api/auth/firebase', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ idToken: auth.idToken })
+          });
+        })()
+      : await fetchJson('/api/auth/email', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email, password, mode })
+        });
     if (!payload?.ok || !payload?.user) {
       throw new Error(payload?.reason || 'auth_failed');
     }
@@ -304,6 +310,12 @@ async function handleLogout(config) {
       headers: { 'content-type': 'application/json' },
       body: '{}'
     });
+  } catch {
+    // best effort
+  }
+  try {
+    const firebase = await import('./lib/firebase-browser-auth.js');
+    await firebase.signOutFirebaseBrowserSession(config);
   } catch {
     // best effort
   }

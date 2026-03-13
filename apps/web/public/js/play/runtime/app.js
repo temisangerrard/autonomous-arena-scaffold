@@ -70,6 +70,8 @@ import { connectSocketRuntime } from './network/socket-runtime.js';
 import { createRetryScheduler } from './network/retry-scheduler.js';
 import { renderInteractionCardTemplate } from './templates/interaction-card/index.js';
 import { createRuntimeStore } from './store.js';
+import { createCoinbaseWalletApprovalClient } from '../../lib/coinbase-wallet.js';
+import { getFirebaseIdToken } from '../../lib/firebase-browser-auth.js';
 import { dealerReasonLabel } from './dealer-reasons.js';
 import { HOST_STATION_PROXY_MAP, createWorldNpcHosts } from './world-npc-hosts.js';
 import { extractBakedNpcStations } from './baked-npc-stations.js';
@@ -113,6 +115,10 @@ const refreshWalletBalanceAndShowDelta = (beforeBalance, challenge = null) => re
 });
 
 const { showToast } = createToaster(dom.toastContainer);
+const walletApprovalClient = createCoinbaseWalletApprovalClient({
+  windowRef: window,
+  getFirebaseIdToken: async () => await getFirebaseIdToken(window.ARENA_CONFIG || window.__ARENA_CONFIG || {}, { forceRefresh: true })
+});
 const { announce } = createAnnouncer(dom.srAnnouncer);
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => initOnboarding(dom, { showToast, announce }));
@@ -391,6 +397,7 @@ const resetCameraBehindPlayer = () => {
 const escrowApproval = createEscrowApprovalController({
   state,
   apiJson,
+  walletApprovalClient,
   formatUsdAmount,
   challengeReasonLabel: (reason) => challengeReasonLabel(reason),
   showToast
