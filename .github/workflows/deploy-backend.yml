@@ -92,6 +92,7 @@ jobs:
               - 'Dockerfile.agent-runtime'
               - 'fly.agent-runtime.toml'
             web:
+              - 'apps/web/public/**'
               - 'apps/web/src/**'
               - 'packages/shared/**'
               - 'package.json'
