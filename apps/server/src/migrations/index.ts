@@ -12,7 +12,7 @@ import { log as rootLog } from '../logger.js';
 
 const log = rootLog.child({ module: 'migrations' });
 
-export type Migration = {
+type Migration = {
   version: number;
   name: string;
   up: string;
@@ -282,7 +282,7 @@ export type PgPool = {
 /**
  * Get current schema version from database
  */
-export async function getCurrentVersion(pool: PgPool): Promise<number> {
+async function getCurrentVersion(pool: PgPool): Promise<number> {
   try {
     const result = await pool.query(
       "SELECT MAX(version) as version FROM schema_migrations"
@@ -298,7 +298,7 @@ export async function getCurrentVersion(pool: PgPool): Promise<number> {
 /**
  * Check if a specific migration has been applied
  */
-export async function isMigrationApplied(pool: PgPool, version: number): Promise<boolean> {
+async function isMigrationApplied(pool: PgPool, version: number): Promise<boolean> {
   try {
     const result = await pool.query(
       "SELECT 1 FROM schema_migrations WHERE version = $1",
@@ -313,7 +313,7 @@ export async function isMigrationApplied(pool: PgPool, version: number): Promise
 /**
  * Record a migration as applied
  */
-export async function recordMigration(pool: PgPool, migration: Migration): Promise<void> {
+async function recordMigration(pool: PgPool, migration: Migration): Promise<void> {
   await pool.query(
     "INSERT INTO schema_migrations (version, name, applied_at) VALUES ($1, $2, NOW())",
     [migration.version, migration.name]
@@ -323,7 +323,7 @@ export async function recordMigration(pool: PgPool, migration: Migration): Promi
 /**
  * Remove a migration record (for rollbacks)
  */
-export async function removeMigrationRecord(pool: PgPool, version: number): Promise<void> {
+async function removeMigrationRecord(pool: PgPool, version: number): Promise<void> {
   await pool.query(
     "DELETE FROM schema_migrations WHERE version = $1",
     [version]

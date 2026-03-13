@@ -12,7 +12,7 @@ import { log as rootLog } from '../logger.js';
 
 const log = rootLog.child({ module: 'security' });
 
-export type SecurityConfig = {
+type SecurityConfig = {
   // Content Security Policy
   csp?: string | false;
   // HTTP Strict Transport Security
@@ -79,7 +79,7 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
 /**
  * Apply security headers to response
  */
-export function applySecurityHeaders(
+function applySecurityHeaders(
   res: ServerResponse,
   config: SecurityConfig = DEFAULT_SECURITY_CONFIG
 ): void {
@@ -133,7 +133,7 @@ export function applySecurityHeaders(
 /**
  * CORS middleware
  */
-export function handleCors(
+function handleCors(
   req: IncomingMessage,
   res: ServerResponse,
   config: SecurityConfig['cors'] = DEFAULT_SECURITY_CONFIG.cors
@@ -182,7 +182,7 @@ export function handleCors(
 /**
  * Production startup validation
  */
-export type StartupValidationResult = {
+type StartupValidationResult = {
   ok: boolean;
   errors: string[];
   warnings: string[];
@@ -327,7 +327,7 @@ export function runStartupValidation(env: NodeJS.ProcessEnv): void {
 /**
  * Request ID middleware for tracing
  */
-export function addRequestId(
+function addRequestId(
   req: IncomingMessage & { requestId?: string },
   res: ServerResponse
 ): string {
@@ -345,7 +345,7 @@ export function addRequestId(
 /**
  * Request size limiter
  */
-export function createRequestSizeLimiter(maxBytes: number = 1024 * 1024) {
+function createRequestSizeLimiter(maxBytes: number = 1024 * 1024) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const contentLength = req.headers['content-length'];
     
@@ -369,7 +369,7 @@ export function createRequestSizeLimiter(maxBytes: number = 1024 * 1024) {
 /**
  * IP allowlist middleware for admin endpoints
  */
-export function createIpAllowlistMiddleware(allowedIps: string[]) {
+function createIpAllowlistMiddleware(allowedIps: string[]) {
   const allowed = new Set(allowedIps.map(ip => ip.trim()).filter(Boolean));
   
   return (req: IncomingMessage, res: ServerResponse): boolean => {

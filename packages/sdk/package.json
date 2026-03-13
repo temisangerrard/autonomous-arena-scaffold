@@ -12,5 +12,9 @@
   },
   "dependencies": {
     "@arena/shared": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "vitest": "^4.1.0"
   }
 }

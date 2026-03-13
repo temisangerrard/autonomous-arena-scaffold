@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { MarketActivationRecord, MarketRecord } from '../Database.js';
 import { MarketService } from './MarketService.js';
 
+type BtcUsdResult = { price: number; updatedAt: number; roundId: string } | null;
+type TestableMarketService = { latestBtcUsd: () => Promise<BtcUsdResult> };
+
 function buildServiceState(input?: {
   markets?: MarketRecord[];
   activations?: MarketActivationRecord[];
@@ -101,7 +104,7 @@ describe('MarketService active market guarantee', () => {
   it('returns empty when no chainlink btc rail can be built', async () => {
     const state = buildServiceState({ markets: [] });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => null;
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
 
@@ -130,7 +133,7 @@ describe('MarketService active market guarantee', () => {
       ]
     });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => null;
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
 
@@ -184,7 +187,7 @@ describe('MarketService active market guarantee', () => {
       ]
     });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => null;
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
 
@@ -245,7 +248,7 @@ describe('MarketService active market guarantee', () => {
       ]
     });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => null;
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => null;
 
     await service.listActiveMarketsForPlayer();
 
@@ -256,7 +259,7 @@ describe('MarketService active market guarantee', () => {
     const now = Date.now();
     const state = buildServiceState({ markets: [] });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => ({
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: now,
       roundId: '12345'
@@ -275,7 +278,7 @@ describe('MarketService active market guarantee', () => {
       markets: []
     });
     const service = new MarketService(serviceState.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => null;
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => null;
 
     const markets = await service.listActiveMarketsForPlayer();
 
@@ -506,7 +509,7 @@ describe('MarketService Chainlink markets', () => {
       ]
     });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => ({
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: now,
       roundId: '12345'
@@ -523,7 +526,7 @@ describe('MarketService Chainlink markets', () => {
   it('creates active BTC chainlink markets for 5m and 24h durations', async () => {
     const state = buildServiceState({ markets: [] });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => ({
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: Date.now(),
       roundId: '12345'
@@ -543,7 +546,7 @@ describe('MarketService Chainlink markets', () => {
   it('does not set lock price for next-round markets before open', async () => {
     const state = buildServiceState({ markets: [] });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => ({
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => ({
       price: 100_000.12,
       updatedAt: Date.now(),
       roundId: '12345'
@@ -593,19 +596,19 @@ describe('MarketService Chainlink markets', () => {
       ]
     });
     const service = new MarketService(state.db as never, {} as never, () => 'house_wallet');
-    (service as any).latestBtcUsd = async () => ({
+    (service as unknown as TestableMarketService).latestBtcUsd = async () => ({
       price: 95_000,
       updatedAt: now,
       roundId: '12346'
     });
 
     await service.refreshMarketOutcomes();
-    const updated = await (state.db as any).getMarketById('cl_btc_5m_1');
+    const updated = await state.db.getMarketById('cl_btc_5m_1');
 
     expect(updated).not.toBeNull();
-    expect(updated.status).toBe('resolved');
-    expect(updated.outcome).toBe('yes');
-    expect(Number(updated.yesPrice)).toBeGreaterThan(Number(updated.noPrice));
+    expect(updated!.status).toBe('resolved');
+    expect(updated!.outcome).toBe('yes');
+    expect(Number(updated!.yesPrice)).toBeGreaterThan(Number(updated!.noPrice));
   });
 });
 

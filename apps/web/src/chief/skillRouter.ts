@@ -9,7 +9,7 @@ export type SkillTraceEntry = {
   whyFallback?: string;
 };
 
-export type SkillRouteResult = {
+type SkillRouteResult = {
   selectedSkills: string[];
   trace: SkillTraceEntry[];
 };

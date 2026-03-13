@@ -5,7 +5,7 @@ import type { RawData } from 'ws';
 import type { GameMove, GameType } from '@arena/shared';
 
 // Client message types
-export type InputMessage = {
+type InputMessage = {
   type: 'input';
   moveX: number;
   moveZ: number;
@@ -59,32 +59,32 @@ export type StationInteractMessage = {
     }
 );
 
-export type ChallengeSendMessage = {
+type ChallengeSendMessage = {
   type: 'challenge_send';
   targetId: string;
   gameType: GameType;
   wager: number;
 };
 
-export type ChallengeResponseMessage = {
+type ChallengeResponseMessage = {
   type: 'challenge_response';
   challengeId: string;
   accept: boolean;
 };
 
-export type ChallengeCounterMessage = {
+type ChallengeCounterMessage = {
   type: 'challenge_counter';
   challengeId: string;
   wager: number;
 };
 
-export type ChallengeMoveMessage = {
+type ChallengeMoveMessage = {
   type: 'challenge_move';
   challengeId: string;
   move: GameMove;
 };
 
-export type ClientMessage =
+type ClientMessage =
   | InputMessage
   | StationInteractMessage
   | ChallengeSendMessage
@@ -95,7 +95,7 @@ export type ClientMessage =
 /**
  * Convert raw WebSocket data to string
  */
-export function rawToString(raw: RawData): string {
+function rawToString(raw: RawData): string {
   if (typeof raw === 'string') {
     return raw;
   }

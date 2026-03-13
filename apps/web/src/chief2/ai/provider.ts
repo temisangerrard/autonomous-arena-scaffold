@@ -1,4 +1,4 @@
-export type Chief2AiProvider = {
+type Chief2AiProvider = {
   complete: (input: {
     system: string;
     prompt: string;

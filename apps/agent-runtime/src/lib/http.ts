@@ -72,9 +72,9 @@ export function sendJson(res: ServerResponse, payload: unknown, statusCode = 200
 /**
  * Simple router interface for HTTP handlers
  */
-export type HttpHandler = (req: IncomingMessage, res: ServerResponse, params?: Record<string, string>) => Promise<void> | void;
+type HttpHandler = (req: IncomingMessage, res: ServerResponse, params?: Record<string, string>) => Promise<void> | void;
 
-export interface Route {
+interface Route {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS';
   path: string;
   handler: HttpHandler;

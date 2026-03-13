@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 
 type LogFn = (obj: Record<string, unknown> | string, msg?: string) => void;
 
-export type Logger = {
+type Logger = {
   info: LogFn;
   warn: LogFn;
   error: LogFn;
@@ -18,7 +18,7 @@ function createLogger(name: string): Logger {
     const pinoModule = require('pino') as Record<string, unknown>;
     const pino = (typeof pinoModule === 'function' ? pinoModule : pinoModule.default) as (opts: Record<string, unknown>) => Logger;
 
-    const isDev = (process.env.NODE_ENV ?? 'development') !== 'production';
+    const isDev = (process.env.NODE_ENV ?? 'development') === 'development';
 
     const transport = isDev
       ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l' } }

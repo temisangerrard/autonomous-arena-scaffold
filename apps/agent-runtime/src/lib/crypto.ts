@@ -58,10 +58,12 @@ export function hashString(input: string): number {
 }
 
 /**
- * SHA-256 hash of input string
+ * Generate a pseudo transaction hash for runtime escrow operations
  */
-export function sha256(input: string): string {
-  return createHash('sha256').update(input).digest('hex');
+export function pseudoTxHash(kind: 'lock' | 'resolve' | 'refund', challengeId: string): string {
+  const salt = randomBytes(8).toString('hex');
+  const hash = createHash('sha256').update(`${kind}:${challengeId}:${Date.now()}:${salt}`).digest('hex');
+  return `0x${hash}`;
 }
 
 /**
@@ -102,22 +104,4 @@ export function redactSecrets(input: string): string {
     .replace(/(authorization\s*:\s*bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
 }
 
-/**
- * Generate a pseudo transaction hash for runtime escrow operations
- */
-export function pseudoTxHash(kind: 'lock' | 'resolve' | 'refund', challengeId: string): string {
-  const salt = randomBytes(8).toString('hex');
-  const hash = createHash('sha256').update(`${kind}:${challengeId}:${Date.now()}:${salt}`).digest('hex');
-  return `0x${hash}`;
-}
 
-/**
- * Create internal service token from a private key
- */
-export function createInternalTokenFromKey(privateKey: string): string {
-  const trimmed = privateKey.trim();
-  if (!trimmed) {
-    return '';
-  }
-  return `sa_${createHash('sha256').update(trimmed).digest('hex')}`;
-}

@@ -1,3 +1,4 @@
+/* global global */
 import { describe, expect, it } from 'vitest';
 import { createStationSystem } from '../public/js/play/stations.js';
 

@@ -3,7 +3,6 @@
  * All environment variables are loaded here for consistent access
  */
 
-import { createHash } from 'node:crypto';
 import { loadEnvFromFile } from './lib/env.js';
 import { resolveEscrowApprovalPolicy } from '@arena/shared';
 

@@ -17,7 +17,7 @@ export type ValidatedIdentity = {
 /**
  * Extract a cookie value from a cookie header
  */
-export function extractCookie(cookieHeader: string | undefined, name: string): string | null {
+function extractCookie(cookieHeader: string | undefined, name: string): string | null {
   if (!cookieHeader) return null;
   for (const part of cookieHeader.split(';')) {
     const idx = part.indexOf('=');

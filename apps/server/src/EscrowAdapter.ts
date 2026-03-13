@@ -12,7 +12,7 @@ type ResolveParams = {
   winnerWalletId: string | null;
 };
 
-export type EscrowResult = {
+type EscrowResult = {
   ok: boolean;
   reason?: string;
   txHash?: string;
@@ -23,7 +23,7 @@ export type EscrowResult = {
 
 export type PoolBetStatus = 'none' | 'open' | 'settled' | 'refunded';
 
-export type PoolBetInspection = {
+type PoolBetInspection = {
   ok: boolean;
   reason?: string;
   exists: boolean;
@@ -42,7 +42,7 @@ type EscrowOnchainReasonCode =
   | 'ROUND_NOT_SETTLED'
   | 'ONCHAIN_EXECUTION_ERROR';
 
-export type EscrowPreflightReasonCode =
+type EscrowPreflightReasonCode =
   | 'PLAYER_ALLOWANCE_LOW'
   | 'PLAYER_BALANCE_LOW'
   | 'PLAYER_GAS_LOW'
@@ -56,7 +56,7 @@ export type EscrowPreflightReasonCode =
   | 'RPC_UNAVAILABLE'
   | 'UNKNOWN_PRECHECK_FAILURE';
 
-export type EscrowPreflightWalletStatus = {
+type EscrowPreflightWalletStatus = {
   walletId: string;
   ok: boolean;
   reason?: string;
@@ -65,7 +65,7 @@ export type EscrowPreflightWalletStatus = {
   nativeBalanceEth?: string;
 };
 
-export type EscrowPreflightResult = {
+type EscrowPreflightResult = {
   ok: boolean;
   reason?: string;
   reasonCode?: EscrowPreflightReasonCode;

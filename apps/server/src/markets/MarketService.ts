@@ -7,7 +7,7 @@ import { METRIC_NAMES, metrics } from '../metrics.js';
 
 const log = rootLog.child({ module: 'market-service' });
 
-export type MarketView = MarketRecord & {
+type MarketView = MarketRecord & {
   active: boolean;
   maxWager: number;
   houseSpreadBps: number;
@@ -30,7 +30,7 @@ export type MarketView = MarketRecord & {
   finalRoundId?: string | null;
 };
 
-export type QuoteResult = {
+type QuoteResult = {
   ok: boolean;
   reason?: string;
   reasonCode?: string;
@@ -49,13 +49,13 @@ export type QuoteResult = {
   positionStatus?: 'scheduled' | 'open';
 };
 
-export type SettlementIntegrityIssue =
+type SettlementIntegrityIssue =
   | 'orphan_market'
   | 'legacy_market'
   | 'missing_onchain_bet'
   | 'db_open_onchain_final';
 
-export type SettlementIntegrityRow = {
+type SettlementIntegrityRow = {
   positionId: string;
   escrowBetId: string;
   marketId: string;

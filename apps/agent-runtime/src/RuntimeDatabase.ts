@@ -15,12 +15,12 @@ export type SubjectLinkRecord = {
   continuitySource: 'postgres' | 'runtime-file' | 'memory';
 };
 
-export type OwnerBotState = {
+type OwnerBotState = {
   record: BotRecord;
   behavior: AgentBehaviorConfig;
 };
 
-export type RuntimeDbState = {
+type RuntimeDbState = {
   subjectLinks: SubjectLinkRecord[];
   profiles: Profile[];
   wallets: WalletRecord[];

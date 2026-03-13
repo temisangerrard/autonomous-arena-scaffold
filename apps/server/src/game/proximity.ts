@@ -5,7 +5,7 @@
 /**
  * Create a consistent pair key for two player IDs
  */
-export function makePairKey(a: string, b: string): string {
+function makePairKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
@@ -19,12 +19,12 @@ export function arePlayersNear(activeProximityPairs: Set<string>, a: string, b: 
 /**
  * Player position for proximity calculations
  */
-export type ProximityPlayer = { id: string; x: number; z: number };
+type ProximityPlayer = { id: string; x: number; z: number };
 
 /**
  * Proximity event data
  */
-export type ProximityEvent = {
+type ProximityEvent = {
   type: 'proximity';
   event: 'enter' | 'exit';
   otherId: string;

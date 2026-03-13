@@ -32,7 +32,7 @@ type PersistedWebState = {
   sessions: SessionRecord[];
 };
 
-export type SessionStore = {
+type SessionStore = {
   mode: 'memory' | 'redis';
   isReady: () => boolean;
   ping: () => Promise<boolean>;
