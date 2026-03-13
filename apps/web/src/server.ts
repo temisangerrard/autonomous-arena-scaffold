@@ -462,10 +462,17 @@ function chainExplorerTxBase(chainId: number | null | undefined): string | null 
   const id = Number(chainId);
   if (id === 137) return 'https://polygonscan.com/tx/';
   if (id === 8453) return 'https://basescan.org/tx/';
-  if (id === 84532) return 'https://sepolia.basescan.org/tx/';
-  if (id === 11155111) return 'https://sepolia.etherscan.io/tx/';
   if (id === 1) return 'https://etherscan.io/tx/';
   return null;
+}
+
+function candidatePlayerIds(profileId: string): string[] {
+  const normalized = String(profileId || '').trim();
+  if (!normalized) return [];
+  if (normalized.startsWith('u_')) {
+    return [normalized, normalized.slice(2)].filter(Boolean);
+  }
+  return [normalized, `u_${normalized}`];
 }
 
 const chiefService = createChiefService({
@@ -1987,10 +1994,18 @@ const server = createServer(async (req, res) => {
     }
     const limit = Math.max(1, Math.min(120, Number(requestUrl.searchParams.get('limit') ?? 30)));
     try {
-      const payload = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
-        `/escrow/events/recent?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
-      );
-      sendJson(res, { ok: true, recent: Array.isArray(payload?.recent) ? payload.recent : [] });
+      let recent: Array<Record<string, unknown>> = [];
+      for (const pid of candidatePlayerIds(auth.identity.profileId)) {
+        const payload = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+          `/escrow/events/recent?playerId=${encodeURIComponent(pid)}&limit=${limit}`
+        ).catch(() => ({ recent: [] }));
+        const next = Array.isArray(payload?.recent) ? payload.recent : [];
+        if (next.length > 0) {
+          recent = next;
+          break;
+        }
+      }
+      sendJson(res, { ok: true, recent });
     } catch {
       sendJson(res, { ok: false, reason: 'escrow_history_unavailable' }, 503);
     }
@@ -2054,9 +2069,15 @@ const server = createServer(async (req, res) => {
       recent: []
     };
     try {
-      let escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
-        `/escrow/events/recent?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
-      ).catch(() => ({ recent: [] }));
+      let escrow: { ok?: boolean; recent?: Array<Record<string, unknown>> } = { recent: [] };
+      for (const pid of candidatePlayerIds(auth.identity.profileId)) {
+        escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+          `/escrow/events/recent?playerId=${encodeURIComponent(pid)}&limit=${limit}`
+        ).catch(() => ({ recent: [] }));
+        if (Array.isArray(escrow?.recent) && escrow.recent.length > 0) {
+          break;
+        }
+      }
       if ((!Array.isArray(escrow?.recent) || escrow.recent.length === 0) && auth.identity.walletId) {
         escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
           `/escrow/events/recent?walletId=${encodeURIComponent(auth.identity.walletId)}&limit=${limit}`
@@ -2064,9 +2085,15 @@ const server = createServer(async (req, res) => {
       }
       const onchain = await runtimeGet<OnchainActivityPayload>(`/wallets/${encodeURIComponent(auth.identity.walletId)}/activity?limit=${limit}`)
         .catch(() => onchainFallback);
-      let marketPositions = await serverGet<MarketPositionActivityPayload>(
-        `/markets/player/positions?playerId=${encodeURIComponent(auth.identity.profileId)}&limit=${limit}`
-      ).catch(() => ({ ok: false, recent: [] }));
+      let marketPositions: MarketPositionActivityPayload = { ok: false, recent: [] };
+      for (const pid of candidatePlayerIds(auth.identity.profileId)) {
+        marketPositions = await serverGet<MarketPositionActivityPayload>(
+          `/markets/player/positions?playerId=${encodeURIComponent(pid)}&limit=${limit}`
+        ).catch(() => ({ ok: false, recent: [] }));
+        if (Array.isArray(marketPositions?.recent) && marketPositions.recent.length > 0) {
+          break;
+        }
+      }
       if ((!Array.isArray(marketPositions?.recent) || marketPositions.recent.length === 0) && auth.identity.walletId) {
         marketPositions = await serverGet<MarketPositionActivityPayload>(
           `/markets/player/positions?walletId=${encodeURIComponent(auth.identity.walletId)}&limit=${limit}`
@@ -2280,6 +2307,41 @@ const server = createServer(async (req, res) => {
       sendJson(res, payload);
     } catch {
       sendJson(res, { ok: false, reason: 'profile_update_failed' }, 400);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/onboarding' && req.method === 'GET') {
+    const auth = await requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    try {
+      const payload = await runtimeGet<{ ok: boolean; profileId: string; completed: boolean; completedAt: number | null }>(
+        `/profiles/${encodeURIComponent(auth.identity.profileId)}/onboarding`
+      );
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
+    }
+    return;
+  }
+
+  if (pathname === '/api/player/onboarding/complete' && req.method === 'POST') {
+    const auth = await requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return;
+    }
+    try {
+      const payload = await runtimePost<{ ok: boolean; profileId: string; completed: boolean; completedAt: number | null }>(
+        `/profiles/${encodeURIComponent(auth.identity.profileId)}/onboarding/complete`,
+        { completedAt: Date.now() }
+      );
+      sendJson(res, payload);
+    } catch {
+      sendJson(res, { ok: false, reason: 'runtime_unavailable' }, 503);
     }
     return;
   }
@@ -2514,6 +2576,18 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
+    if (subpath === '/markets/reconcile' && req.method === 'GET') {
+      const includeLegacy = String(requestUrl.searchParams.get('includeLegacy') || '').toLowerCase() === 'true';
+      const limit = Math.max(1, Math.min(400, Number(requestUrl.searchParams.get('limit') || 120)));
+      try {
+        const payload = await serverGet(`/admin/markets/reconcile?includeLegacy=${includeLegacy ? 'true' : 'false'}&limit=${limit}`);
+        sendJson(res, payload);
+      } catch (error) {
+        const upstream = upstreamErrorJson(error, 'server_unavailable', 400);
+        sendJson(res, upstream.body, upstream.status);
+      }
+      return;
+    }
     if (subpath === '/markets/quote' && req.method === 'POST') {
       const body = await readJsonBody<unknown>(req);
       try {
@@ -2529,7 +2603,8 @@ const server = createServer(async (req, res) => {
       (subpath === '/markets/refresh'
       || subpath === '/markets/activate'
       || subpath === '/markets/deactivate'
-      || subpath === '/markets/config')
+      || subpath === '/markets/config'
+      || subpath === '/markets/reconcile/repair')
       && req.method === 'POST'
     ) {
       const body = await readJsonBody<unknown>(req);

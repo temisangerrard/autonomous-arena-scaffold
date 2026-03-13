@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEnvFromFile } from './lib/env.js';
+import { initializeCdpClient } from './lib/cdpClient.js';
 import { formatCodebaseContext, getTroubleshootingGuide } from './codebaseContext.js';
 import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
 import {
@@ -16,6 +17,11 @@ import {
   redactSecrets
 } from './lib/crypto.js';
 import { sendJson, setCorsHeaders, SimpleRouter } from './lib/http.js';
+import {
+  resolveBuilderCodeContext,
+  sendContractCallWithBuilderCode,
+  sendNativeWithBuilderCode
+} from './lib/builderCode.js';
 import { classifyEscrowApprovalNetwork, type EscrowApprovalNetwork } from '@arena/shared';
 import type {
   BotRecord,
@@ -51,6 +57,7 @@ const port = Number(process.env.PORT ?? 4100);
 const wsBaseUrl = process.env.GAME_WS_URL ?? 'ws://localhost:4000/ws';
 const personalities: Personality[] = ['aggressive', 'conservative', 'social'];
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
+const builderCodeContext = resolveBuilderCodeContext(process.env);
 
 let wsBaseUrlValid = true;
 try {
@@ -140,10 +147,16 @@ const minWalletGasEth = process.env.MIN_WALLET_GAS_ETH ?? '0.0003';
 const walletGasTopupEth = process.env.WALLET_GAS_TOPUP_ETH ?? '0.001';
 const walletGasTopupMaxEth = process.env.WALLET_GAS_TOPUP_MAX_ETH ?? '0.02';
 const mainnetGasSponsorEnabled = String(process.env.MAINNET_GAS_SPONSOR_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+const coinbasePaymasterEnabled = String(process.env.COINBASE_PAYMASTER_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+const coinbasePaymasterAllowEscrow = String(process.env.COINBASE_PAYMASTER_ALLOW_ESCROW ?? 'true').trim().toLowerCase() !== 'false';
+const walletProviderDefault = String(process.env.WALLET_PROVIDER_DEFAULT ?? 'internal').trim().toLowerCase() === 'coinbase_embedded'
+  ? 'coinbase_embedded'
+  : 'internal';
 const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
 const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
   ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
   : process.env.NODE_ENV !== 'production';
+const cdpClientState = await initializeCdpClient(process.env);
 
 function startupDiagnostics() {
   console.log('[agent-runtime] startup diagnostics', {
@@ -152,8 +165,15 @@ function startupDiagnostics() {
     wsAuthConfigured: Boolean(wsAuthSecret),
     internalTokenConfigured: Boolean(internalToken),
     openRouterConfigured: Boolean(runtimeSecrets.openRouterApiKey),
+    cdpApiKeyIdConfigured: Boolean(process.env.CDP_API_KEY_ID),
+    cdpApiKeySecretConfigured: Boolean(process.env.CDP_API_KEY_SECRET),
+    cdpProjectIdConfigured: Boolean(process.env.CDP_PROJECT_ID),
+    cdpClientAvailable: cdpClientState.available,
+    walletProviderDefault,
     onchainRpcConfigured: Boolean(onchainRpcUrl),
-    onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress)
+    onchainEscrowConfigured: Boolean(onchainEscrowAddress && onchainTokenAddress),
+    builderCode: builderCodeContext.code,
+    builderCodeEnabled: builderCodeContext.enabled
   });
 }
 
@@ -257,6 +277,7 @@ const escrowLocks = new Map<string, EscrowLockRecord>();
 const escrowSettlements: EscrowSettlementRecord[] = [];
 const backgroundBotIds = new Set<string>();
 const subjectLinks = new Map<string, SubjectLinkRecord>();
+const profileOnboardingCompletedAt = new Map<string, number>();
 const runtimeDb = new RuntimeDatabase();
 
 type HouseLedgerEntry = {
@@ -341,6 +362,10 @@ type PersistedRuntimeState = {
     linkedAt?: number;
     updatedAt?: number;
     continuitySource?: 'postgres' | 'runtime-file' | 'memory';
+  }>;
+  profileOnboardingCompletedAt?: Array<{
+    profileId: string;
+    completedAt: number;
   }>;
   profiles: Profile[];
   wallets: WalletRecord[];
@@ -854,15 +879,44 @@ function publicProfiles() {
   }));
 }
 
+function getProfileOnboardingState(profileId: string): { completed: boolean; completedAt: number | null } {
+  const normalized = String(profileId || '').trim();
+  if (!normalized) {
+    return { completed: false, completedAt: null };
+  }
+  const completedAt = profileOnboardingCompletedAt.get(normalized);
+  if (!Number.isFinite(completedAt) || !completedAt || completedAt <= 0) {
+    return { completed: false, completedAt: null };
+  }
+  return { completed: true, completedAt };
+}
+
+function markProfileOnboardingCompleted(profileId: string, completedAt = Date.now()): { completed: boolean; completedAt: number | null } {
+  const normalized = String(profileId || '').trim();
+  if (!normalized) {
+    return { completed: false, completedAt: null };
+  }
+  const nextCompletedAt = Math.max(1, Number(completedAt) || Date.now());
+  profileOnboardingCompletedAt.set(normalized, nextCompletedAt);
+  schedulePersistState();
+  return { completed: true, completedAt: nextCompletedAt };
+}
+
 function walletSummary(wallet: WalletRecord | null) {
   if (!wallet) {
     return null;
   }
+  const walletProvider = wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
 
   return {
     id: wallet.id,
     ownerProfileId: wallet.ownerProfileId,
     address: wallet.address,
+    walletProvider,
+    externalWalletAddress: wallet.externalWalletAddress ?? null,
+    externalWalletRef: wallet.externalWalletRef ?? null,
+    externalWalletLinkedAt: wallet.externalWalletLinkedAt ?? null,
+    canExportKey: walletProvider === 'internal',
     balance: wallet.balance,
     dailyTxCount: wallet.dailyTxCount,
     txDayStamp: wallet.txDayStamp,
@@ -1213,7 +1267,6 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
   'function transfer(address to, uint256 amount) returns (bool)',
-  'function mint(address to, uint256 amount)',
   'function symbol() view returns (string)'
 ];
 
@@ -1222,7 +1275,6 @@ type Erc20Api = Contract & {
   allowance: (owner: string, spender: string) => Promise<bigint>;
   approve: (spender: string, amount: bigint) => Promise<{ wait: () => Promise<unknown> }>;
   transfer: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
-  mint: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
   symbol: () => Promise<string>;
 };
 
@@ -1252,9 +1304,13 @@ async function ensureWalletGas(address: string): Promise<string | null> {
     return null;
   }
   const topup = parseEther(walletGasTopupEth);
-  const topupTx = await funder.sendTransaction({ to: address, value: topup });
+  const topupTx = await sendNativeWithBuilderCode(
+    funder,
+    { to: address, value: topup },
+    builderCodeContext.suffixHex
+  );
   await topupTx.wait();
-  return topupTx.hash;
+  return topupTx.hash ?? null;
 }
 
 async function onchainWalletSummary(wallet: WalletRecord): Promise<{
@@ -1347,6 +1403,10 @@ function signerForWallet(wallet: WalletRecord): Wallet | null {
   if (!onchainProvider) {
     return null;
   }
+  const walletProvider = wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
+  if (walletProvider !== 'internal' || !wallet.encryptedPrivateKey) {
+    return null;
+  }
   const key = decryptSecret(wallet.encryptedPrivateKey);
   if (!key) {
     return null;
@@ -1360,7 +1420,6 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   walletId: string;
   address?: string;
   approved?: boolean;
-  minted?: boolean;
   allowance?: string;
   balance?: string;
   nativeBalanceEth?: string;
@@ -1372,15 +1431,95 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
   if (!onchainProvider || !onchainTokenAddress || !onchainEscrowAddress) {
     return { ok: false, reason: 'onchain_config_missing', walletId };
   }
+  const walletProvider = wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
+  const owner = wallet.externalWalletAddress || wallet.address;
+  const token = new Contract(
+    onchainTokenAddress,
+    ERC20_ABI,
+    walletProvider === 'coinbase_embedded' ? onchainProvider : signerForWallet(wallet)
+  ) as Erc20Api;
+  const required = parseUnits(String(amount), onchainTokenDecimals);
+  const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
+  const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
+  if (walletProvider === 'coinbase_embedded') {
+    if (!cdpClientState.available) {
+      return {
+        ok: false,
+        reason: `paymaster_unavailable:${cdpClientState.reason || 'cdp_client_unavailable'}`,
+        walletId,
+        address: owner,
+        allowance: '0',
+        balance: '0',
+        nativeBalanceEth: '0'
+      };
+    }
+    const paymasterAllowed = coinbasePaymasterEnabled && coinbasePaymasterAllowEscrow && Boolean(onchainEscrowAddress);
+    if (!paymasterAllowed) {
+      const reason = !coinbasePaymasterEnabled
+        ? 'paymaster_unavailable:coinbase_paymaster_disabled'
+        : 'paymaster_policy_denied:escrow_not_allowlisted';
+      return {
+        ok: false,
+        reason,
+        walletId,
+        address: owner,
+        allowance: '0',
+        balance: '0',
+        nativeBalanceEth: '0'
+      };
+    }
+    try {
+      const [currentNative, balance, allowance] = await Promise.all([
+        onchainProvider.getBalance(owner),
+        token.balanceOf(owner) as Promise<bigint>,
+        token.allowance(owner, onchainEscrowAddress) as Promise<bigint>
+      ]);
+      if (allowance < required) {
+        return {
+          ok: false,
+          reason: 'allowance_too_low',
+          walletId,
+          address: owner,
+          allowance: formatUnits(allowance, onchainTokenDecimals),
+          balance: formatUnits(balance, onchainTokenDecimals),
+          nativeBalanceEth: formatEther(currentNative)
+        };
+      }
+      if (balance < required) {
+        return {
+          ok: false,
+          reason: 'insufficient_token_balance',
+          walletId,
+          address: owner,
+          allowance: formatUnits(allowance, onchainTokenDecimals),
+          balance: formatUnits(balance, onchainTokenDecimals),
+          nativeBalanceEth: formatEther(currentNative)
+        };
+      }
+      return {
+        ok: true,
+        walletId,
+        address: owner,
+        approved: false,
+        allowance: formatUnits(allowance, onchainTokenDecimals),
+        balance: formatUnits(balance, onchainTokenDecimals),
+        nativeBalanceEth: formatEther(currentNative)
+      };
+    } catch (error) {
+      const text = String((error as Error)?.message || 'coinbase_preflight_failed').replace(/\s+/g, ' ').trim().slice(0, 140);
+      return {
+        ok: false,
+        reason: `wallet_prepare_failed:${text}`,
+        walletId,
+        address: owner
+      };
+    }
+  }
   const signer = signerForWallet(wallet);
   if (!signer) {
     return { ok: false, reason: 'wallet_signer_unavailable', walletId };
   }
-  const owner = signer.address;
-  const token = new Contract(onchainTokenAddress, ERC20_ABI, signer) as Erc20Api;
-  const required = parseUnits(String(amount), onchainTokenDecimals);
-  const chainId = await onchainProvider.getNetwork().then((net) => Number(net.chainId)).catch(() => null);
-  const gasPolicy = currentGasSponsorshipPolicy(Number.isFinite(Number(chainId)) ? Number(chainId) : null);
+  const signerOwner = signer.address;
   let currentNative = 0n;
   let balance = 0n;
   let allowance = 0n;
@@ -1422,7 +1561,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     const nativeValue = extra.native ?? currentNative;
     console.warn('[runtime] escrow_preflight_failed', {
       walletId,
-      address: owner,
+      address: signerOwner,
       chainId,
       reason,
       retryCount: retryCountFor(reason)
@@ -1431,7 +1570,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
       ok: false,
       reason,
       walletId,
-      address: owner,
+      address: signerOwner,
       allowance: formatUnits(allowanceValue, onchainTokenDecimals),
       balance: formatUnits(balanceValue, onchainTokenDecimals),
       nativeBalanceEth: formatEther(nativeValue)
@@ -1440,7 +1579,7 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
 
   try {
     if (onchainProvider) {
-      currentNative = await onchainProvider.getBalance(owner);
+      currentNative = await onchainProvider.getBalance(signerOwner);
     }
     if (onchainProvider) {
       const minNative = parseEther(minWalletGasEth);
@@ -1479,10 +1618,14 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
             if (topup <= 0n) {
               return;
             }
-            const topupTx = await gasFunder.sendTransaction({ to: owner, value: topup });
+            const topupTx = await sendNativeWithBuilderCode(
+              gasFunder,
+              { to: signerOwner, value: topup },
+              builderCodeContext.suffixHex
+            );
             await topupTx.wait();
           }, 'gas_topup_failed', 3);
-          currentNative = await onchainProvider.getBalance(owner);
+          currentNative = await onchainProvider.getBalance(signerOwner);
           if (currentNative < minNative) {
             return fail('gas_topup_insufficient_after_topup:retry=3', { allowance, balance, native: currentNative });
           }
@@ -1492,32 +1635,23 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
       }
     }
 
-    balance = await token.balanceOf(owner) as bigint;
-    let minted = false;
-    let mintFailureReason = '';
-    if (balance < required) {
-      try {
-        await attemptWithRetry(async () => {
-          const mintTx = await token.mint(owner, required - balance);
-          await mintTx.wait();
-        }, 'mint_failed', 2);
-        balance = await token.balanceOf(owner) as bigint;
-        minted = true;
-      } catch (error) {
-        // likely real USDC (no mint); keep explicit reason if still underfunded.
-        mintFailureReason = errorText(error, 'mint_failed');
-      }
-    }
+    balance = await token.balanceOf(signerOwner) as bigint;
 
-    allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
+    allowance = await token.allowance(signerOwner, onchainEscrowAddress) as bigint;
     let approved = false;
     if (allowance < required) {
       try {
         await attemptWithRetry(async () => {
-          const approveTx = await token.approve(onchainEscrowAddress, required);
+          const approveTx = await sendContractCallWithBuilderCode(
+            token,
+            signer,
+            'approve',
+            [onchainEscrowAddress, required],
+            builderCodeContext.suffixHex
+          );
           await approveTx.wait();
         }, 'approve_failed', 3);
-        allowance = await token.allowance(owner, onchainEscrowAddress) as bigint;
+        allowance = await token.allowance(signerOwner, onchainEscrowAddress) as bigint;
         approved = true;
       } catch (error) {
         return fail(`approve_failed:retry=3:${errorText(error, 'approve_failed')}`, { allowance, balance, native: currentNative });
@@ -1529,20 +1663,14 @@ async function prepareWalletForEscrowOnchain(walletId: string, amount: number): 
     }
 
     if (balance < required) {
-      return fail(
-        mintFailureReason
-          ? `mint_failed:${mintFailureReason}`
-          : 'insufficient_token_balance',
-        { allowance, balance, native: currentNative }
-      );
+      return fail('insufficient_token_balance', { allowance, balance, native: currentNative });
     }
 
     return {
       ok: true,
       walletId,
-      address: owner,
+      address: signerOwner,
       approved,
-      minted,
       allowance: formatUnits(allowance, onchainTokenDecimals),
       balance: formatUnits(balance, onchainTokenDecimals),
       nativeBalanceEth: formatEther(currentNative)
@@ -1563,6 +1691,10 @@ function createWallet(ownerProfileId: string, initialBalance = 0): WalletRecord 
     ownerProfileId,
     address: addressFromPrivateKey(privateKey),
     encryptedPrivateKey: encryptSecret(privateKey),
+    walletProvider: 'internal',
+    externalWalletAddress: null,
+    externalWalletRef: null,
+    externalWalletLinkedAt: null,
     balance: initialBalance,
     dailyTxCount: 0,
     txDayStamp: dayStamp(),
@@ -1576,6 +1708,9 @@ function createWallet(ownerProfileId: string, initialBalance = 0): WalletRecord 
 function reconcileWalletAddressesFromKeys(): void {
   let updated = 0;
   for (const wallet of wallets.values()) {
+    if ((wallet.walletProvider ?? 'internal') !== 'internal' || !wallet.encryptedPrivateKey) {
+      continue;
+    }
     const key = decryptSecret(wallet.encryptedPrivateKey);
     if (!key) {
       continue;
@@ -1766,11 +1901,97 @@ function canLockStake(wallet: WalletRecord, amount: number): WalletDenied | null
   return null;
 }
 
-function createProfileWithBot(params: {
+async function createCoinbaseWalletForProfile(params: {
+  profileId: string;
+  externalSubject: string;
+  email?: string;
+  displayName?: string;
+}): Promise<{ ok: true; wallet: WalletRecord } | { ok: false; reason: string }> {
+  if (!cdpClientState.available || !cdpClientState.client) {
+    return { ok: false, reason: `cdp_client_unavailable:${cdpClientState.reason || 'unknown'}` };
+  }
+
+  const cdp = cdpClientState.client as {
+    endUser?: {
+      createEndUser?: (options: {
+        userId?: string;
+        authenticationMethods: Array<Record<string, unknown>>;
+        evmAccount?: { createSmartAccount?: boolean; enableSpendPermissions?: boolean };
+      }) => Promise<{
+        userId?: string;
+        evmSmartAccountObjects?: Array<{ address?: string }>;
+        evmSmartAccounts?: string[];
+      }>;
+    };
+  };
+  if (!cdp.endUser?.createEndUser) {
+    return { ok: false, reason: 'cdp_end_user_api_unavailable' };
+  }
+
+  const authMethods = params.email
+    ? [{ type: 'email', email: params.email }]
+    : [{ type: 'jwt', kid: 'arena-runtime', sub: params.externalSubject || params.profileId }];
+  const cdpUserId = String(params.profileId || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100) || `profile-${Date.now()}`;
+  const endUser = await cdp.endUser.createEndUser({
+    userId: cdpUserId,
+    authenticationMethods: authMethods,
+    evmAccount: {
+      createSmartAccount: true,
+      enableSpendPermissions: false
+    }
+  });
+  const address = String(
+    endUser?.evmSmartAccountObjects?.[0]?.address
+      || endUser?.evmSmartAccounts?.[0]
+      || ''
+  ).trim();
+  if (!address) {
+    return { ok: false, reason: 'cdp_smart_wallet_address_missing' };
+  }
+
+  const wallet: WalletRecord = {
+    id: `wallet_${walletCounter++}`,
+    ownerProfileId: params.profileId,
+    address,
+    encryptedPrivateKey: null,
+    walletProvider: 'coinbase_embedded',
+    externalWalletAddress: address,
+    externalWalletRef: String(endUser?.userId || params.profileId),
+    externalWalletLinkedAt: Date.now(),
+    balance: userSeedBalance,
+    dailyTxCount: 0,
+    txDayStamp: dayStamp(),
+    createdAt: Date.now(),
+    lastTxAt: null
+  };
+  wallets.set(wallet.id, wallet);
+  return { ok: true, wallet };
+}
+
+async function createWalletForNewProfile(params: {
+  profileId: string;
+  externalSubject: string;
+  email?: string;
+  displayName?: string;
+}): Promise<{ ok: true; wallet: WalletRecord } | { ok: false; reason: string }> {
+  if (walletProviderDefault !== 'coinbase_embedded') {
+    return { ok: true, wallet: createWallet(params.profileId, userSeedBalance) };
+  }
+  return createCoinbaseWalletForProfile(params);
+}
+
+async function createProfileWithBot(params: {
   username: string;
   displayName?: string;
   personality?: Personality;
   targetPreference?: AgentBehaviorConfig['targetPreference'];
+  externalSubject?: string;
+  email?: string;
 }) {
   const username = params.username.trim();
   const normalized = username.toLowerCase();
@@ -1787,7 +2008,16 @@ function createProfileWithBot(params: {
   const botId = `agent_${profileId}`;
   const patrolSection = hashString(profileId) % PATROL_SECTION_COUNT;
 
-  const wallet = createWallet(profileId, userSeedBalance);
+  const walletResult = await createWalletForNewProfile({
+    profileId,
+    externalSubject: String(params.externalSubject || profileId),
+    email: params.email,
+    displayName: params.displayName
+  });
+  if (!walletResult.ok) {
+    return { ok: false as const, reason: walletResult.reason };
+  }
+  const wallet = walletResult.wallet;
 
   const profile: Profile = {
     id: profileId,
@@ -1836,7 +2066,7 @@ function createProfileWithBot(params: {
   };
 }
 
-function provisionProfileForSubject(params: {
+async function provisionProfileForSubject(params: {
   externalSubject: string;
   email?: string;
   displayName?: string;
@@ -1873,11 +2103,13 @@ function provisionProfileForSubject(params: {
   const seed = normalizeUsernameSeed(emailLocal || params.displayName || subject.slice(0, 12));
   const username = uniqueUsernameFromSeed(seed);
 
-  const created = createProfileWithBot({
+  const created = await createProfileWithBot({
     username,
     displayName: params.displayName,
     personality: params.personality,
-    targetPreference: params.targetPreference
+    targetPreference: params.targetPreference,
+    externalSubject: subject,
+    email: params.email
   });
 
   if (!created.ok) {
@@ -2059,6 +2291,10 @@ function buildPersistedState(): PersistedRuntimeState {
       updatedAt: entry.updatedAt,
       continuitySource: entry.continuitySource
     })),
+    profileOnboardingCompletedAt: [...profileOnboardingCompletedAt.entries()].map(([profileId, completedAt]) => ({
+      profileId,
+      completedAt
+    })),
     profiles: [...profiles.values()],
     wallets: [...wallets.values()],
     ownerBots,
@@ -2082,6 +2318,12 @@ async function persistRuntimeState(): Promise<void> {
         updatedAt: Number(entry.updatedAt || 0) || Date.now(),
         continuitySource: 'postgres'
       })),
+      profileOnboardingCompletedAt: (state.profileOnboardingCompletedAt || [])
+        .map((entry) => ({
+          profileId: String(entry.profileId || '').trim(),
+          completedAt: Number(entry.completedAt || 0)
+        }))
+        .filter((entry) => entry.profileId && entry.completedAt > 0),
       profiles: state.profiles,
       wallets: state.wallets,
       ownerBots: state.ownerBots,
@@ -2185,6 +2427,16 @@ function applyPersistedState(data: PersistedRuntimeState, defaultSource: Subject
     }
   }
 
+  profileOnboardingCompletedAt.clear();
+  for (const entry of data.profileOnboardingCompletedAt || []) {
+    const profileId = String(entry?.profileId || '').trim();
+    const completedAt = Number(entry?.completedAt || 0);
+    if (!profileId || !Number.isFinite(completedAt) || completedAt <= 0) {
+      continue;
+    }
+    profileOnboardingCompletedAt.set(profileId, completedAt);
+  }
+
   for (const entry of data.ownerBots || []) {
     if (!entry?.record?.id || !entry?.behavior) {
       continue;
@@ -2219,6 +2471,7 @@ if (dbState) {
     superAgentEthSkills: superAgentEthSkills.slice(0, 40),
     superAgentLlmUsage: { ...superAgentLlmUsage },
     subjectLinks: dbState.subjectLinks,
+    profileOnboardingCompletedAt: dbState.profileOnboardingCompletedAt,
     profiles: dbState.profiles,
     wallets: dbState.wallets,
     ownerBots: dbState.ownerBots,
@@ -2314,6 +2567,8 @@ registerRuntimeRoutes(router, {
     subjectLinks,
     walletSummary,
     publicProfiles,
+    getProfileOnboardingState,
+    markProfileOnboardingCompleted,
     createProfileWithBot,
     provisionProfileForSubject,
     getSubjectLinkBySubject,
@@ -2344,7 +2599,8 @@ registerRuntimeRoutes(router, {
     signerForWallet,
     decryptSecret,
     onchainWalletSummary,
-    prepareWalletForEscrowOnchain
+    prepareWalletForEscrowOnchain,
+    builderCodeSuffix: builderCodeContext.suffixHex
   },
   superAgent: {
     bots,

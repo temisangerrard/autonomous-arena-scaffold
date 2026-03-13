@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Contract, JsonRpcProvider, formatUnits } from 'ethers';
 import type { Database, MarketActivationRecord, MarketPositionRecord, MarketRecord } from '../Database.js';
-import type { EscrowAdapter } from '../EscrowAdapter.js';
+import type { EscrowAdapter, PoolBetStatus } from '../EscrowAdapter.js';
 import { log as rootLog } from '../logger.js';
 import { METRIC_NAMES, metrics } from '../metrics.js';
 
@@ -47,6 +47,31 @@ export type QuoteResult = {
   liquiditySameSide?: number;
   liquidityWarning?: string;
   positionStatus?: 'scheduled' | 'open';
+};
+
+export type SettlementIntegrityIssue =
+  | 'orphan_market'
+  | 'legacy_market'
+  | 'missing_onchain_bet'
+  | 'db_open_onchain_final';
+
+export type SettlementIntegrityRow = {
+  positionId: string;
+  escrowBetId: string;
+  marketId: string;
+  playerId: string;
+  walletId: string;
+  side: 'yes' | 'no';
+  stake: number;
+  createdAt: number;
+  dbStatus: string;
+  marketExists: boolean;
+  marketOracleSource: string | null;
+  onchainStatus: PoolBetStatus;
+  onchainStake: number | null;
+  onchainPayout: number | null;
+  issue: SettlementIntegrityIssue;
+  recommendedAction: 'void_refund' | 'db_close_legacy' | 'sync_onchain_final';
 };
 
 
@@ -766,6 +791,159 @@ export class MarketService {
   async listPlayerPositions(playerId: string): Promise<MarketPositionRecord[]> {
     await this.ensureAtLeastOneActiveMarket();
     return this.db.listPlayerMarketPositions(playerId, 120);
+  }
+
+  async listSettlementIntegrity(params?: {
+    includeLegacy?: boolean;
+    limit?: number;
+  }): Promise<SettlementIntegrityRow[]> {
+    const includeLegacy = params?.includeLegacy === true;
+    const limit = Math.max(1, Math.min(400, Number(params?.limit ?? 120)));
+    const [positions, markets] = await Promise.all([
+      this.db.listActiveMarketPositions(limit * 3),
+      this.db.listMarkets(2000)
+    ]);
+    const marketById = new Map(markets.map((entry) => [entry.id, entry]));
+    const rows: SettlementIntegrityRow[] = [];
+
+    for (const position of positions) {
+      const market = marketById.get(position.marketId) ?? null;
+      const marketExists = Boolean(market);
+      const marketOracleSource = market ? String(market.oracleSource || '') : null;
+      const isLegacyMarket = !marketExists
+        || position.marketId.startsWith('poly_')
+        || (marketOracleSource !== null && marketOracleSource !== 'chainlink_btc_usd');
+      if (!includeLegacy && isLegacyMarket) {
+        continue;
+      }
+      const onchain = await this.escrowAdapter.inspectPoolBet({ betId: position.escrowBetId });
+      const onchainStatus = onchain.status;
+
+      let issue: SettlementIntegrityIssue | null = null;
+      let recommendedAction: SettlementIntegrityRow['recommendedAction'] | null = null;
+
+      if (!marketExists) {
+        issue = 'orphan_market';
+        recommendedAction = 'void_refund';
+      } else if (isLegacyMarket) {
+        issue = 'legacy_market';
+        recommendedAction = onchain.exists ? 'sync_onchain_final' : 'db_close_legacy';
+      } else if (!onchain.exists) {
+        issue = 'missing_onchain_bet';
+        recommendedAction = 'db_close_legacy';
+      } else if (onchainStatus === 'settled' || onchainStatus === 'refunded') {
+        issue = 'db_open_onchain_final';
+        recommendedAction = 'sync_onchain_final';
+      }
+
+      if (!issue || !recommendedAction) continue;
+      rows.push({
+        positionId: position.id,
+        escrowBetId: position.escrowBetId,
+        marketId: position.marketId,
+        playerId: position.playerId,
+        walletId: position.walletId,
+        side: position.side,
+        stake: Number(position.stake || 0),
+        createdAt: position.createdAt,
+        dbStatus: position.status,
+        marketExists,
+        marketOracleSource,
+        onchainStatus,
+        onchainStake: onchain.stake ?? null,
+        onchainPayout: onchain.payout ?? null,
+        issue,
+        recommendedAction
+      });
+      if (rows.length >= limit) break;
+    }
+
+    return rows;
+  }
+
+  async repairSettlementPosition(params: {
+    positionId: string;
+    marketId?: string;
+    escrowBetId?: string;
+    action: 'void_refund' | 'db_close_legacy' | 'sync_onchain_final';
+  }): Promise<{
+    ok: boolean;
+    reason?: string;
+    positionId: string;
+    action: string;
+    txHash?: string | null;
+  }> {
+    const position = await this.db.getMarketPositionById(params.positionId);
+    if (!position) {
+      return { ok: false, reason: 'position_not_found', positionId: params.positionId, action: params.action };
+    }
+    const expectedMarketId = String(params.marketId || '').trim();
+    const expectedEscrowBetId = String(params.escrowBetId || '').trim();
+    if (expectedMarketId && expectedMarketId !== position.marketId) {
+      return { ok: false, reason: 'position_market_mismatch', positionId: position.id, action: params.action };
+    }
+    if (expectedEscrowBetId && expectedEscrowBetId !== position.escrowBetId) {
+      return { ok: false, reason: 'position_bet_mismatch', positionId: position.id, action: params.action };
+    }
+
+    if (params.action === 'void_refund') {
+      const refunded = await this.escrowAdapter.forceRefundPoolBet({
+        marketId: position.marketId,
+        betId: position.escrowBetId
+      });
+      if (!refunded.ok) {
+        return {
+          ok: false,
+          reason: refunded.reason || 'force_refund_failed',
+          positionId: position.id,
+          action: params.action,
+          txHash: refunded.txHash ?? null
+        };
+      }
+      await this.db.settleMarketPosition({
+        positionId: position.id,
+        status: 'voided',
+        payout: Number(position.stake || 0),
+        settlementReason: 'admin_orphan_refund'
+      });
+      return { ok: true, positionId: position.id, action: params.action, txHash: refunded.txHash ?? null };
+    }
+
+    if (params.action === 'db_close_legacy') {
+      await this.db.settleMarketPosition({
+        positionId: position.id,
+        status: 'voided',
+        payout: 0,
+        settlementReason: 'admin_legacy_db_close'
+      });
+      return { ok: true, positionId: position.id, action: params.action, txHash: null };
+    }
+
+    const onchain = await this.escrowAdapter.inspectPoolBet({ betId: position.escrowBetId });
+    if (!onchain.ok || !onchain.exists) {
+      return { ok: false, reason: 'onchain_bet_missing', positionId: position.id, action: params.action };
+    }
+    const payout = Number(onchain.payout ?? 0);
+    if (onchain.status === 'refunded') {
+      await this.db.settleMarketPosition({
+        positionId: position.id,
+        status: 'voided',
+        payout,
+        settlementReason: 'admin_sync_refunded'
+      });
+      return { ok: true, positionId: position.id, action: params.action, txHash: null };
+    }
+    if (onchain.status === 'settled') {
+      const status = payout <= 0 ? 'lost' : 'won';
+      await this.db.settleMarketPosition({
+        positionId: position.id,
+        status,
+        payout,
+        settlementReason: status === 'lost' ? 'admin_sync_lost' : 'admin_sync_won'
+      });
+      return { ok: true, positionId: position.id, action: params.action, txHash: null };
+    }
+    return { ok: false, reason: 'onchain_bet_not_final', positionId: position.id, action: params.action };
   }
 
   async settleResolvedMarkets(): Promise<{ checked: number; settled: number; failed: number }> {

@@ -299,6 +299,42 @@ async function handleAdminMarkets(
     return;
   }
 
+  if (pathname === '/admin/markets/reconcile' && req.method === 'GET') {
+    const includeLegacy = String(parsed.searchParams.get('includeLegacy') || '').toLowerCase() === 'true';
+    const limit = Math.max(1, Math.min(400, Number(parsed.searchParams.get('limit') || 120)));
+    const rows = await ctx.marketService.listSettlementIntegrity({ includeLegacy, limit });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: true, includeLegacy, rows, count: rows.length }));
+    return;
+  }
+
+  if (pathname === '/admin/markets/reconcile/repair' && req.method === 'POST') {
+    const body = await readJsonBody<{
+      positionId?: string;
+      marketId?: string;
+      escrowBetId?: string;
+      action?: 'void_refund' | 'db_close_legacy' | 'sync_onchain_final';
+    }>(req);
+    const positionId = String(body?.positionId || '').trim();
+    const action = body?.action;
+    if (!positionId || !action) {
+      res.statusCode = 400;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: false, reason: 'position_id_and_action_required' }));
+      return;
+    }
+    const payload = await ctx.marketService.repairSettlementPosition({
+      positionId,
+      marketId: String(body?.marketId || '').trim() || undefined,
+      escrowBetId: String(body?.escrowBetId || '').trim() || undefined,
+      action
+    });
+    res.statusCode = payload.ok ? 200 : 400;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(payload));
+    return;
+  }
+
   if ((pathname === '/admin/markets/activate' || pathname === '/admin/markets/deactivate') && req.method === 'POST') {
     const body = await readJsonBody<{
       marketId?: string;
@@ -440,14 +476,24 @@ export function createRouter(ctx: RouteContext) {
         return;
       }
       let recent: Array<Record<string, unknown>> = [];
+      const candidatePlayerIds = new Set<string>();
+      const pushPlayerIdCandidate = (raw: string) => {
+        const normalized = String(raw || '').trim();
+        if (!normalized) return;
+        candidatePlayerIds.add(normalized);
+        if (normalized.startsWith('u_')) {
+          candidatePlayerIds.add(normalized.slice(2));
+        } else {
+          candidatePlayerIds.add(`u_${normalized}`);
+        }
+      };
       if (playerId) {
-        recent = await ctx.database.getEscrowEventsForPlayer({ playerId, limit }) as unknown as Array<Record<string, unknown>>;
+        pushPlayerIdCandidate(playerId);
       } else if (walletId) {
-        const candidatePlayerIds = new Set<string>();
         const presence = await ctx.presenceStore.list().catch(() => []);
         for (const entry of presence) {
           if (String(entry?.walletId || '').trim() === walletId && String(entry?.playerId || '').trim()) {
-            candidatePlayerIds.add(String(entry.playerId).trim());
+            pushPlayerIdCandidate(String(entry.playerId));
           }
         }
         if (typeof (ctx.database as unknown as { listWalletMarketPositions?: unknown }).listWalletMarketPositions === 'function') {
@@ -456,23 +502,23 @@ export function createRouter(ctx: RouteContext) {
           }).listWalletMarketPositions(walletId, limit).catch(() => []);
           for (const position of positions) {
             const pid = String(position?.playerId || '').trim();
-            if (pid) candidatePlayerIds.add(pid);
+            if (pid) pushPlayerIdCandidate(pid);
           }
         }
-        const merged: Array<Record<string, unknown>> = [];
-        for (const pid of candidatePlayerIds) {
-          const events = await ctx.database.getEscrowEventsForPlayer({ playerId: pid, limit }) as unknown as Array<Record<string, unknown>>;
-          merged.push(...events);
-        }
-        const deduped = new Map<string, Record<string, unknown>>();
-        for (const event of merged) {
-          const key = `${String(event.challengeId || '')}:${String(event.phase || '')}:${Number(event.at || 0)}`;
-          if (!deduped.has(key)) deduped.set(key, event);
-        }
-        recent = [...deduped.values()]
-          .sort((a, b) => Number(b.at || 0) - Number(a.at || 0))
-          .slice(0, limit);
       }
+      const merged: Array<Record<string, unknown>> = [];
+      for (const pid of candidatePlayerIds) {
+        const events = await ctx.database.getEscrowEventsForPlayer({ playerId: pid, limit }) as unknown as Array<Record<string, unknown>>;
+        merged.push(...events);
+      }
+      const deduped = new Map<string, Record<string, unknown>>();
+      for (const event of merged) {
+        const key = `${String(event.challengeId || '')}:${String(event.phase || '')}:${Number(event.at || 0)}`;
+        if (!deduped.has(key)) deduped.set(key, event);
+      }
+      recent = [...deduped.values()]
+        .sort((a, b) => Number(b.at || 0) - Number(a.at || 0))
+        .slice(0, limit);
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ ok: true, recent }));
       return;
@@ -502,17 +548,31 @@ export function createRouter(ctx: RouteContext) {
       }
       try {
         const positionsPromise: Promise<MarketPositionRecord[]> = playerId
-          ? ctx.marketService.listPlayerPositions(playerId)
+          ? (async () => {
+              const candidateIds = playerId.startsWith('u_')
+                ? [playerId, playerId.slice(2)]
+                : [playerId, `u_${playerId}`];
+              const merged: MarketPositionRecord[] = [];
+              for (const pid of candidateIds) {
+                const next = await ctx.marketService!.listPlayerPositions(pid).catch(() => []);
+                merged.push(...next);
+              }
+              const deduped = new Map<string, MarketPositionRecord>();
+              for (const row of merged) {
+                const id = String(row?.id || '').trim();
+                if (id && !deduped.has(id)) {
+                  deduped.set(id, row);
+                }
+              }
+              return [...deduped.values()];
+            })()
           : Promise.resolve(
-            typeof (ctx.database as unknown as { listWalletMarketPositions?: unknown }).listWalletMarketPositions === 'function'
-              ? (ctx.database as unknown as { listWalletMarketPositions: (walletId: string, limit?: number) => Promise<MarketPositionRecord[]> })
-                .listWalletMarketPositions(walletId, limit)
-              : []
-          );
-        const [positions, admin] = await Promise.all([
-          positionsPromise,
-          ctx.marketService.getAdminState()
-        ]);
+              typeof (ctx.database as unknown as { listWalletMarketPositions?: unknown }).listWalletMarketPositions === 'function'
+                ? (ctx.database as unknown as { listWalletMarketPositions: (walletId: string, limit?: number) => Promise<MarketPositionRecord[]> })
+                  .listWalletMarketPositions(walletId, limit)
+                : []
+            );
+        const [positions, admin] = await Promise.all([positionsPromise, ctx.marketService.getAdminState()]);
         const marketById = new Map((admin.markets || []).map((market) => [market.id, market]));
         const recent = positions
           .sort((a, b) => {

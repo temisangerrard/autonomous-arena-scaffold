@@ -300,6 +300,7 @@ function renderContext() {
   const onchainMode = walletSummaryCtx?.onchain?.mode === 'onchain';
   const gasSponsored = Boolean(walletSummaryCtx?.onchain?.gasSponsored);
   const isBaseMainnet = chainId === 8453;
+  const canExportKey = Boolean(profile?.wallet?.canExportKey ?? walletSummaryCtx?.wallet?.canExportKey ?? true);
 
   if (meEmail) meEmail.textContent = user?.email || '-';
   if (meRole) meRole.textContent = user?.role || '-';
@@ -309,7 +310,7 @@ function renderContext() {
   if (walletBalance) walletBalance.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(4) : '—';
   if (walletBalanceNote) {
     if (!onchainMode) {
-      walletBalanceNote.textContent = 'mUSDC';
+      walletBalanceNote.textContent = 'USDC · Base mainnet';
     } else if (isBaseMainnet) {
       walletBalanceNote.textContent = `${tokenSymbol} · Base mainnet`;
     } else {
@@ -345,6 +346,11 @@ function renderContext() {
   if (heroGreeting) heroGreeting.textContent = `Welcome back, ${displayName.split(' ')[0]}`;
   if (sidebarHandle) sidebarHandle.textContent = `@${profile?.username || 'player'}`;
   if (sidebarWallet) sidebarWallet.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(2) : '—';
+  if (exportPrivateKey) {
+    exportPrivateKey.style.display = canExportKey ? '' : 'none';
+    exportPrivateKey.disabled = !canExportKey;
+    exportPrivateKey.title = canExportKey ? '' : 'Private key export is disabled for this wallet provider.';
+  }
 
   if (profileDisplayName) profileDisplayName.value = profile?.displayName || '';
   if (profileUsername) profileUsername.value = profile?.username || '';
@@ -374,19 +380,16 @@ function renderContext() {
   }
 
   if (onboardingList) {
-    const hasUser = Boolean(user?.email);
-    const hasProfile = Boolean(profile?.id);
     const hasFunds = hasOnchainBalance && Number(tokenBalance) > 0;
-    const hasBot = bots.length > 0;
-    const hasActiveBot = bots.some((entry) => entry.behavior?.mode !== 'passive' && entry.behavior?.challengeEnabled !== false);
-    const hasPlayLink = Boolean(inviteLink?.value);
+    const hasGas = onchainMode && Number(nativeBalance || 0) > 0;
+    const hasWalletAddress = Boolean((profile?.wallet?.address || walletSummaryCtx?.onchain?.address || '').trim());
+    const readyToPlay = hasFunds && hasGas;
     const rows = [
-      [hasUser, 'Signed in'],
-      [hasProfile, 'Player profile provisioned'],
-      [hasFunds, 'Wallet funded'],
-      [hasBot, 'Character bot provisioned'],
-      [hasActiveBot, 'Bot in active mode'],
-      [hasPlayLink, 'Play link ready to share']
+      [hasWalletAddress, 'Copy your wallet address (Wallet tab)'],
+      [hasFunds, 'USDC funded for wagers'],
+      [hasGas, 'ETH funded for Base gas fees'],
+      [readyToPlay, 'Enter Arena'],
+      [readyToPlay, 'Check stations and place your stake']
     ];
     onboardingList.innerHTML = rows
       .map(([ok, text]) => `<li>${ok ? '[x]' : '[ ]'} ${escapeHtml(text)}</li>`)
@@ -742,11 +745,17 @@ function openBotModal(botId) {
   if (botCooldown) botCooldown.value = String(bot.behavior.challengeCooldownMs || 2600);
   if (botBaseWager) botBaseWager.value = String(bot.behavior.baseWager || 1);
   if (botMaxWager) botMaxWager.value = String(bot.behavior.maxWager || 3);
-  // Reset advanced fields
+  // Populate advanced session guard fields
   const lossLimitEl = document.getElementById('bot-loss-limit');
   const winTargetEl = document.getElementById('bot-win-target');
-  if (lossLimitEl) lossLimitEl.value = '';
-  if (winTargetEl) winTargetEl.value = '';
+  if (lossLimitEl) {
+    const value = Number(bot.behavior.sessionLossLimit || 0);
+    lossLimitEl.value = value > 0 ? String(value) : '';
+  }
+  if (winTargetEl) {
+    const value = Number(bot.behavior.sessionWinTarget || 0);
+    winTargetEl.value = value > 0 ? String(value) : '';
+  }
   // Reset to step 1
   setWizardStep(1);
   botModal.classList.add('open');
@@ -877,6 +886,8 @@ botSave?.addEventListener('click', async () => {
     const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
     const baseWager = Math.max(1, Number(botBaseWager?.value || 1));
     const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
+    const sessionLossLimit = Math.max(0, Number(document.getElementById('bot-loss-limit')?.value || 0));
+    const sessionWinTarget = Math.max(0, Number(document.getElementById('bot-win-target')?.value || 0));
     setStatus(`Saving ${botId}...`);
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
@@ -887,7 +898,9 @@ botSave?.addEventListener('click', async () => {
         challengeCooldownMs: cooldown,
         mode: wizardMode,
         baseWager,
-        maxWager
+        maxWager,
+        sessionLossLimit,
+        sessionWinTarget
       })
     });
     await refreshContext();
@@ -1099,6 +1112,10 @@ copyWalletAddress?.addEventListener('click', async () => {
 });
 
 exportPrivateKey?.addEventListener('click', async () => {
+  if (exportPrivateKey?.disabled) {
+    setStatus('Private key export is disabled for this wallet provider.');
+    return;
+  }
   const approved = window.confirm('Export private key? Keep it offline and secure.');
   if (!approved) {
     return;

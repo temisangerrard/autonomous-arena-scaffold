@@ -570,6 +570,7 @@ function renderProfiles() {
   el.profilesBody.innerHTML = '';
 
   for (const profile of profiles) {
+    const canExportKey = Boolean(profile.wallet?.canExportKey ?? true);
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>
@@ -586,7 +587,7 @@ function renderProfiles() {
         <div class="btn-row">
           <button data-action="fund" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="10">+10</button>
           <button data-action="withdraw" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="5">-5</button>
-          <button data-action="export" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-profile-id="${escapeHtml(profile.id || '')}">Export key</button>
+          ${canExportKey ? `<button data-action="export" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-profile-id="${escapeHtml(profile.id || '')}">Export key</button>` : ''}
         </div>
       </td>
     `;
@@ -670,6 +671,7 @@ function renderTreasuryAssets() {
     }
   }
   for (const entry of rows) {
+    const canExportKey = Boolean(entry?.canExportKey ?? true);
     const tr = document.createElement('tr');
     const walletId = String(entry?.id || '');
     const owner = String(entry?.ownerProfileId || '-');
@@ -688,7 +690,7 @@ function renderTreasuryAssets() {
         <div class="btn-row">
           <button data-action="treasury-fund" data-wallet-id="${escapeHtml(walletId)}">+10</button>
           <button data-action="treasury-withdraw" data-wallet-id="${escapeHtml(walletId)}">-5</button>
-          <button data-action="treasury-export" data-wallet-id="${escapeHtml(walletId)}" data-profile-id="${escapeHtml(owner)}">Export</button>
+          ${canExportKey ? `<button data-action="treasury-export" data-wallet-id="${escapeHtml(walletId)}" data-profile-id="${escapeHtml(owner)}">Export</button>` : ''}
         </div>
       </td>
     `;

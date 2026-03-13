@@ -193,6 +193,7 @@
     }
     .badge.live { border-color: rgba(47, 143, 94, 0.5); color: var(--good); background: rgba(47, 143, 94, 0.08); }
     .badge.off  { border-color: rgba(180, 77, 60, 0.4);  color: var(--bad);  background: rgba(180, 77, 60, 0.07); }
+    .badge.warn { border-color: rgba(173, 122, 36, 0.45); color: var(--warn); background: rgba(173, 122, 36, 0.08); }
     .price-yes { color: var(--good); font-family: var(--mono); font-size: 12px; }
     .price-no  { color: var(--bad);  font-family: var(--mono); font-size: 12px; }
     .mono { font-family: var(--mono); font-size: 12px; }
@@ -291,6 +292,33 @@
             </tr>
           </thead>
           <tbody id="enabled-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Settlement integrity -->
+    <section class="panel" id="ops-settlement-integrity">
+      <div class="row">
+        <h2 class="panel-heading">Settlement Integrity</h2>
+        <button id="reconcile-refresh" class="btn" type="button">Refresh Integrity</button>
+        <label class="mono" style="display:inline-flex; gap:6px; align-items:center;">
+          <input id="reconcile-include-legacy" type="checkbox" />
+          Include legacy (hidden by default)
+        </label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Position</th>
+              <th>Issue</th>
+              <th>DB / Onchain</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="reconcile-body">
+            <tr><td colspan="4">No integrity scan yet.</td></tr>
+          </tbody>
         </table>
       </div>
     </section>

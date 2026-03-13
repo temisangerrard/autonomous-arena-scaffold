@@ -18,10 +18,9 @@ export function validTxHash(txHash) {
 export function txExplorerBase(chainId) {
   const id = Number(chainId);
   if (id === 1) return 'https://etherscan.io';
-  if (id === 11155111) return 'https://sepolia.etherscan.io';
   if (id === 8453) return 'https://basescan.org';
-  if (id === 84532) return 'https://sepolia.basescan.org';
-  return 'https://sepolia.etherscan.io';
+  // Base-only runtime: keep unknown/test ids on Base explorer for consistent UX.
+  return 'https://basescan.org';
 }
 
 export function txExplorerUrl(txHash, chainId = null) {

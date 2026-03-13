@@ -92,6 +92,31 @@ describe('EscrowAdapter preflight mapping', () => {
     expect(result.reasonCode).toBe('INTERNAL_TRANSPORT_ERROR');
   });
 
+  it('maps paymaster unavailable failures to INTERNAL_TRANSPORT_ERROR', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        ok: false,
+        reason: 'paymaster_unavailable:coinbase',
+        results: [
+          { walletId: 'wallet_player', ok: false, reason: 'paymaster_unavailable:coinbase', allowance: '100', balance: '100', nativeBalanceEth: '0' }
+        ]
+      })
+    })) as unknown as typeof fetch);
+
+    const adapter = new EscrowAdapter('http://runtime.local', { tokenDecimals: 6 });
+    const result = await adapter.preflightStake({
+      challengerWalletId: 'wallet_player',
+      opponentWalletId: 'wallet_house',
+      amount: 1
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reasonCode).toBe('INTERNAL_TRANSPORT_ERROR');
+    expect(result.reasonText).toContain('Retry');
+  });
+
   it('maps runtime 429 throttling to INTERNAL_TRANSPORT_ERROR', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: false,

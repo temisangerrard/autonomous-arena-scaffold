@@ -740,6 +740,45 @@ export class Database {
     }
   }
 
+  async getMarketPositionById(positionId: string): Promise<MarketPositionRecord | null> {
+    if (!this.pool) return null;
+    try {
+      const result = await this.pool.query(
+        `SELECT id, market_id, player_id, wallet_id, side, stake, price, shares, status, escrow_bet_id,
+                estimated_payout_at_open, min_payout_at_open, payout, settlement_reason,
+                clob_order_id, created_at, settled_at
+         FROM market_positions
+         WHERE id = $1
+         LIMIT 1`,
+        [positionId]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        id: String(row.id),
+        marketId: String(row.market_id),
+        playerId: String(row.player_id),
+        walletId: String(row.wallet_id),
+        side: String(row.side) === 'no' ? 'no' : 'yes',
+        stake: Number(row.stake ?? 0),
+        price: Number(row.price ?? 0.5),
+        shares: Number(row.shares ?? 0),
+        status: String(row.status) as MarketPositionRecord['status'],
+        escrowBetId: String(row.escrow_bet_id || ''),
+        estimatedPayoutAtOpen: row.estimated_payout_at_open != null ? Number(row.estimated_payout_at_open) : null,
+        minPayoutAtOpen: row.min_payout_at_open != null ? Number(row.min_payout_at_open) : null,
+        payout: row.payout != null ? Number(row.payout) : null,
+        settlementReason: row.settlement_reason != null ? String(row.settlement_reason) : null,
+        clobOrderId: row.clob_order_id != null ? String(row.clob_order_id) : null,
+        createdAt: row.created_at ? new Date(String(row.created_at)).getTime() : Date.now(),
+        settledAt: row.settled_at ? new Date(String(row.settled_at)).getTime() : null
+      };
+    } catch (err) {
+      log.error({ err, positionId }, 'failed to get market position by id');
+      return null;
+    }
+  }
+
   async listOpenMarketPositions(limit = 500): Promise<MarketPositionRecord[]> {
     if (!this.pool) return [];
     try {

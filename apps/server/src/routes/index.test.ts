@@ -183,4 +183,52 @@ describe('internal route authorization', () => {
       expect(payload.recent[0]?.challengerId).toBe('u_profile_3');
     });
   });
+
+  it('resolves escrow events when caller passes profile id without u_ prefix', async () => {
+    const internalToken = 'test_internal_token';
+    const ctx = makeRouteContext(internalToken);
+    const calls: string[] = [];
+    (ctx.database as unknown as {
+      getEscrowEventsForPlayer: (params: { playerId: string; limit: number }) => Promise<Array<Record<string, unknown>>>;
+    }).getEscrowEventsForPlayer = async ({ playerId }) => {
+      calls.push(playerId);
+      if (playerId !== 'u_profile_3') {
+        return [];
+      }
+      return [
+        {
+          challengeId: 'c_test_2',
+          phase: 'resolve',
+          ok: true,
+          reason: null,
+          txHash: '0xdef',
+          fee: null,
+          payout: 2,
+          at: Date.now(),
+          challengerId: 'u_profile_3',
+          opponentId: 'system_house',
+          winnerId: 'u_profile_3',
+          gameType: 'rps',
+          wager: 1,
+          activitySource: 'house_station'
+        }
+      ];
+    };
+
+    await withServer(ctx, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/escrow/events/recent?playerId=profile_3&limit=10`, {
+        headers: {
+          'x-internal-token': internalToken
+        }
+      });
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.ok).toBe(true);
+      expect(Array.isArray(payload.recent)).toBe(true);
+      expect(payload.recent.length).toBe(1);
+      expect(payload.recent[0]?.challengerId).toBe('u_profile_3');
+      expect(calls).toContain('profile_3');
+      expect(calls).toContain('u_profile_3');
+    });
+  });
 });

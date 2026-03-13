@@ -1,10 +1,12 @@
 import { Contract, Interface, formatEther, formatUnits, getAddress, id, isAddress, parseUnits, zeroPadValue, type ContractRunner } from 'ethers';
 import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
 import type { EscrowLockRecord, WalletDenied, WalletRecord } from '@arena/shared';
+import {
+  sendContractCallWithBuilderCode
+} from '../lib/builderCode.js';
 
 type Erc20Api = Contract & {
   transfer: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
-  mint: (to: string, amount: bigint) => Promise<{ hash?: string; wait: () => Promise<unknown> }>;
 };
 
 type PoolTreasuryApi = Contract & {
@@ -53,12 +55,14 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     walletId: string;
     address?: string;
     approved?: boolean;
-    minted?: boolean;
     allowance?: string;
     balance?: string;
     nativeBalanceEth?: string;
   }>;
+  builderCodeSuffix: string;
 }) {
+  const walletProviderFor = (wallet: WalletRecord): 'internal' | 'coinbase_embedded' =>
+    wallet.walletProvider === 'coinbase_embedded' ? 'coinbase_embedded' : 'internal';
   const transferTopic = id('Transfer(address,address,uint256)');
   const transferInterface = new Interface([
     'event Transfer(address indexed from, address indexed to, uint256 value)'
@@ -66,8 +70,7 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
   const erc20TxInterface = new Interface([
     'function transfer(address to, uint256 amount)',
     'function approve(address spender, uint256 amount)',
-    'function transferFrom(address from, address to, uint256 amount)',
-    'function mint(address to, uint256 amount)'
+    'function transferFrom(address from, address to, uint256 amount)'
   ]);
   const escrowTxInterface = new Interface([
     'function createBet(bytes32 betId, address challenger, address opponent, uint256 amount)',
@@ -101,6 +104,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           id: wallet.id,
           ownerProfileId: wallet.ownerProfileId,
           address: wallet.address,
+          walletProvider: walletProviderFor(wallet),
+          canExportKey: walletProviderFor(wallet) === 'internal',
           runtimeBalance: wallet.balance,
           onchain: null
         }))
@@ -135,6 +140,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           id: wallet.id,
           ownerProfileId: wallet.ownerProfileId,
           address: wallet.address,
+          walletProvider: walletProviderFor(wallet),
+          canExportKey: walletProviderFor(wallet) === 'internal',
           runtimeBalance: wallet.balance,
           onchain: null
         }))
@@ -158,6 +165,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
           id: wallet.id,
           ownerProfileId: wallet.ownerProfileId,
           address: wallet.address,
+          walletProvider: walletProviderFor(wallet),
+          canExportKey: walletProviderFor(wallet) === 'internal',
           runtimeBalance: wallet.balance,
           onchain: await deps.onchainWalletSummary(wallet).catch(() => null)
         }))
@@ -216,7 +225,13 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     try {
       const normalizedRecipient = getAddress(recipientRaw);
       const value = parseUnits(String(amount), deps.onchainTokenDecimals);
-      const tx = await pool.withdrawTreasury(normalizedRecipient, value);
+      const tx = await sendContractCallWithBuilderCode(
+        pool,
+        adminSigner,
+        'withdrawTreasury',
+        [normalizedRecipient, value],
+        deps.builderCodeSuffix
+      );
       await tx.wait();
       const treasuryAfter = await pool.houseTreasury().catch(() => null);
       sendJson(res, {
@@ -312,36 +327,6 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       return;
     }
 
-    if (deps.onchainProvider && deps.onchainTokenAddress) {
-      const funder = deps.gasFunderSigner();
-      if (!funder) {
-        sendJson(res, { ok: false, reason: 'gas_funder_unavailable' }, 400);
-        return;
-      }
-      const token = new Contract(deps.onchainTokenAddress, deps.ERC20_ABI, funder) as Erc20Api;
-      const value = parseUnits(String(amount), deps.onchainTokenDecimals);
-      try {
-        await deps.ensureWalletGas(wallet.address);
-        const mintTx = await token.mint(wallet.address, value);
-        await mintTx.wait();
-        const summary = await deps.onchainWalletSummary(wallet);
-        wallet.dailyTxCount += 1;
-        wallet.lastTxAt = Date.now();
-        sendJson(res, {
-          ok: true,
-          mode: 'onchain',
-          txHash: mintTx.hash ?? null,
-          wallet: deps.walletSummary(wallet),
-          onchain: summary
-        });
-        deps.schedulePersistState();
-        return;
-      } catch (error) {
-        sendJson(res, { ok: false, reason: String((error as Error).message || 'onchain_fund_failed').slice(0, 160) }, 400);
-        return;
-      }
-    }
-
     wallet.balance += amount;
     wallet.dailyTxCount += 1;
     wallet.lastTxAt = Date.now();
@@ -391,7 +376,13 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       const value = parseUnits(String(amount), deps.onchainTokenDecimals);
       try {
         await deps.ensureWalletGas(wallet.address);
-        const tx = await token.transfer(destination, value);
+        const tx = await sendContractCallWithBuilderCode(
+          token,
+          signer,
+          'transfer',
+          [destination, value],
+          deps.builderCodeSuffix
+        );
         await tx.wait();
         const summary = await deps.onchainWalletSummary(wallet);
         wallet.dailyTxCount += 1;
@@ -470,7 +461,13 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
       const value = parseUnits(String(amount), deps.onchainTokenDecimals);
       try {
         await deps.ensureWalletGas(source.address);
-        const tx = await token.transfer(target.address, value);
+        const tx = await sendContractCallWithBuilderCode(
+          token,
+          signer,
+          'transfer',
+          [target.address, value],
+          deps.builderCodeSuffix
+        );
         await tx.wait();
         const [sourceOnchain, targetOnchain] = await Promise.all([
           deps.onchainWalletSummary(source),
@@ -576,7 +573,8 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
 
     const url = new URL(req.url ?? `/wallets/${walletId}/activity`, 'http://localhost');
     const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') ?? 20)));
-    const lookbackBlocks = Math.max(500, Math.min(500_000, Number(process.env.WALLET_ACTIVITY_LOOKBACK_BLOCKS ?? 50_000)));
+    // Base public RPC rejects eth_getLogs ranges above 50k blocks.
+    const lookbackBlocks = Math.max(500, Math.min(50_000, Number(process.env.WALLET_ACTIVITY_LOOKBACK_BLOCKS ?? 50_000)));
     const provider = deps.onchainProvider as {
       getNetwork?: () => Promise<{ chainId?: unknown }>;
       getBlockNumber?: () => Promise<number>;
@@ -780,6 +778,14 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     const body = await readJsonBody<{ profileId?: string }>(req);
     if (!body?.profileId || body.profileId !== wallet.ownerProfileId) {
       sendJson(res, { ok: false, reason: 'owner_mismatch' }, 403);
+      return;
+    }
+    if (walletProviderFor(wallet) !== 'internal') {
+      sendJson(res, { ok: false, reason: 'export_not_allowed_for_provider' }, 403);
+      return;
+    }
+    if (!wallet.encryptedPrivateKey) {
+      sendJson(res, { ok: false, reason: 'wallet_key_unavailable' }, 404);
       return;
     }
 

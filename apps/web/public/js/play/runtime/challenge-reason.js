@@ -20,11 +20,11 @@ export function challengeReasonLabelForMode(reason, autoApproval) {
     case 'allowance_too_low':
     case 'player_allowance_low':
       return autoApproval
-        ? 'Super-agent escrow prep failed on testnet. Retry the challenge in a moment.'
+        ? 'Super-agent escrow prep failed. Retry the challenge in a moment.'
         : 'Escrow approval needed. Tap Approve Escrow, confirm in wallet, then send the challenge again.';
     case 'approve_failed':
       return autoApproval
-        ? 'Super-agent approval step failed on testnet. Retry shortly.'
+        ? 'Super-agent approval step failed. Retry shortly.'
         : 'Wallet approval was not completed. Tap Approve Escrow and confirm in wallet.';
     case 'wallet_prepare_failed':
       return 'Could not prepare escrow approval. Retry in a moment.';

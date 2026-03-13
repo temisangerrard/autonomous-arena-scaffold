@@ -1335,9 +1335,10 @@
 
           <!-- New-player call-to-action — full width -->
           <article class="panel" style="margin-bottom:14px;background:linear-gradient(135deg,rgba(198,152,49,0.08),rgba(253,248,237,0.97));border-color:rgba(198,152,49,0.45);">
-            <h2 style="margin-bottom:6px;">Your first game</h2>
-            <p class="muted" style="margin:0 0 14px;">Walk up to any dealer in the Arena, press <strong>E</strong>, set a wager, and pick your side. The escrow pays double instantly when you win.</p>
+            <h2 style="margin-bottom:6px;">How to play the Arena</h2>
+            <p class="muted" style="margin:0 0 14px;">Start here in dashboard: copy your wallet address in the Wallet tab, then fund it with <strong>USDC (wagers)</strong> and <strong>ETH (gas)</strong> on Base mainnet. Gas sponsorship is not enabled yet. After funding, enter the arena, check stations, pick your game (RPS, Heads or Tails, Dice), set your stake, and play.</p>
             <ul id="onboarding-list" class="welcome-checks" style="margin:0 0 14px;"></ul>
+            <p class="muted" style="margin:0 0 14px;"><strong>Autoplay is currently off.</strong> Bot-led in-game actions are being brought back with configurable strategy.</p>
             <div class="actions" style="gap:8px;">
               <a class="btn-gold" href="/play?world=mega" style="flex:1;text-align:center;font-size:15px;min-height:42px;">&#9654; Enter Arena now</a>
               <a class="btn-ghost" href="/viewer?world=mega">World Map</a>
@@ -1346,7 +1347,7 @@
 
           <article class="panel" style="margin-bottom:14px;">
             <h2>Your player bot</h2>
-            <p class="muted" style="margin:0 0 12px;font-style:italic;">Your bot keeps playing while you're offline. Tune its personality and wager limits in Settings.</p>
+            <p class="muted" style="margin:0 0 12px;font-style:italic;">Autoplay is currently off. To tune your bot setup, click the bot card here in Home, or ask Chief of Staff to apply changes for you.</p>
             <div id="bot-list" class="bot-grid"></div>
           </article>
 
@@ -1369,7 +1370,7 @@
                   <div>
                     <div class="balance-label">Available Balance</div>
                     <p class="balance-value"><span id="wallet-balance">0.0000</span></p>
-                    <div class="balance-stat__meta" id="wallet-balance-note">mUSDC</div>
+                    <div class="balance-stat__meta" id="wallet-balance-note">USDC · Base mainnet</div>
                     <div class="balance-underline"></div>
                   </div>
                 </div>
@@ -1398,7 +1399,7 @@
               <section class="wallet-pane" data-wallet-pane="fund">
                 <div class="wallet-actions">
                   <div class="wallet-action-group">
-                    <label class="label" for="wallet-fund-amount">Add Funds (mUSDC)</label>
+                    <label class="label" for="wallet-fund-amount">Add Funds (USDC)</label>
                     <div class="input-row-3">
                       <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10" placeholder="Amount">
                       <button id="wallet-fund" class="btn-gold" type="button">Fund</button>
@@ -1410,7 +1411,7 @@
               <section class="wallet-pane" data-wallet-pane="withdraw">
                 <div class="wallet-actions">
                   <div class="wallet-action-group">
-                    <label class="label" for="wallet-withdraw-amount">Withdraw (mUSDC)</label>
+                    <label class="label" for="wallet-withdraw-amount">Withdraw (USDC)</label>
                     <div class="input-row-3">
                       <input id="wallet-withdraw-amount" class="field" type="number" min="1" step="1" value="5" placeholder="Amount">
                       <button id="wallet-withdraw" class="btn-ghost" type="button">Withdraw</button>
@@ -1432,7 +1433,7 @@
                     <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="Paste wallet ID">
                   </div>
                   <div>
-                    <label class="label" for="wallet-transfer-amount">Amount (mUSDC)</label>
+                    <label class="label" for="wallet-transfer-amount">Amount (USDC)</label>
                     <div class="input-row-3">
                       <input id="wallet-transfer-amount" class="field" type="number" min="1" step="1" value="2">
                       <button id="wallet-transfer" class="btn-gold" type="button">Send</button>
