@@ -88,6 +88,35 @@ let walletSummaryCtx = null;
 let activityEntries = [];
 let activityFilter = 'all';
 const WALLET_SUMMARY_BACKOFF_KEY = 'dashboard_wallet_summary';
+/** @type {Map<string, {status: string, reason: string, gasSponsored: boolean}>} */
+const botReadinessCache = new Map();
+
+// Autoplay wizard refs
+const botAutoplayEnabled = document.getElementById('bot-autoplay-enabled');
+const botAutoplayFields = document.getElementById('bot-autoplay-fields');
+const botAutoplayWagerMode = document.getElementById('bot-autoplay-wager-mode');
+const botAutoplayPctRow = document.getElementById('bot-autoplay-pct-row');
+const botAutoplayWalletPct = document.getElementById('bot-autoplay-wallet-pct');
+const botAutoplayMartingaleRow = document.getElementById('bot-autoplay-martingale-row');
+const botAutoplayMartingaleMult = document.getElementById('bot-autoplay-martingale-mult');
+const botAutoplayCooldown = document.getElementById('bot-autoplay-cooldown');
+
+function readinessLabel(status) {
+  return { ready: 'Ready', needs_approval: 'Needs Approval', needs_gas: 'Needs Gas', insufficient_usdc: 'Low Funds', unsupported_provider: 'Unsupported Wallet' }[status] || 'Unknown';
+}
+
+function readinessClass(status) {
+  if (status === 'ready') return 'ready';
+  if (status === 'needs_approval' || status === 'needs_gas') return 'warning';
+  if (status === 'insufficient_usdc') return 'error';
+  return 'muted';
+}
+
+function updateAutoplayFieldVisibility() {
+  const mode = botAutoplayWagerMode?.value || 'fixed';
+  if (botAutoplayPctRow) botAutoplayPctRow.hidden = mode !== 'percent_wallet';
+  if (botAutoplayMartingaleRow) botAutoplayMartingaleRow.hidden = mode !== 'martingale';
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -264,6 +293,10 @@ function renderBotCards() {
       const badgeText = statusTextForBot(bot);
       const botWalletId = String(bot.walletId || playerCtx?.profile?.wallet?.id || playerCtx?.profile?.walletId || '-');
       const botWalletAddress = String(bot.walletAddress || playerCtx?.profile?.wallet?.address || '-');
+      const readiness = botReadinessCache.get(bot.id);
+      const readinessBadge = readiness
+        ? `<span class="readiness-badge readiness-badge--${readinessClass(readiness.status)}">${readinessLabel(readiness.status)}</span>`
+        : '';
 
       return `<article class="bot-card" data-bot-id="${escapeHtml(bot.id)}" data-action="edit-bot">
         <div class="bot-card__head">
@@ -272,7 +305,10 @@ function renderBotCards() {
             <h3 class="bot-name">${escapeHtml(bot.meta?.displayName || bot.id)}</h3>
             <p class="bot-sub">${escapeHtml(bot.id)} · S${section ?? '-'} · wallet ${escapeHtml(botWalletId)}</p>
           </div>
-          <span class="badge ${badgeClass}">${badgeText}</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+            <span class="badge ${badgeClass}">${badgeText}</span>
+            ${readinessBadge}
+          </div>
         </div>
         <div class="pill-row">
           <span class="pill">${escapeHtml(personality)}</span>
@@ -659,6 +695,19 @@ async function refreshContext() {
   activityEntries = nextActivityEntries;
   renderEscrowHistory(activityEntries, escrowError);
   renderContext();
+  // Fetch wallet readiness for each bot in parallel (non-blocking)
+  const bots = Array.isArray(ctx?.bots) ? ctx.bots : [];
+  if (bots.length > 0) {
+    Promise.allSettled(
+      bots.map((bot) =>
+        api(`/api/player/bots/${encodeURIComponent(bot.id)}/wallet`)
+          .then((r) => {
+            if (r?.readiness) botReadinessCache.set(bot.id, r.readiness);
+          })
+          .catch(() => {})
+      )
+    ).then(() => renderBotCards());
+  }
 }
 
 // ── Wizard state ──────────────────────────────────────────────────────────
@@ -702,6 +751,18 @@ function buildReview() {
   ];
   if (lossLimit > 0) rows.push(['Loss Limit', String(lossLimit)]);
   if (winTarget > 0) rows.push(['Win Target', String(winTarget)]);
+  if (botAutoplayEnabled?.checked) {
+    const wagerMode = botAutoplayWagerMode?.value || 'fixed';
+    rows.push(['Autoplay', 'On']);
+    rows.push(['Wager Mode', wagerMode]);
+    if (wagerMode === 'percent_wallet') rows.push(['Wallet %', `${botAutoplayWalletPct?.value || 5}%`]);
+    if (wagerMode === 'martingale') rows.push(['Multiplier', String(botAutoplayMartingaleMult?.value || 2) + 'x']);
+    const games = ['rps', 'coinflip', 'dice_duel'].filter((g) => {
+      const el = document.getElementById(`bot-game-${g}`);
+      return el ? el.checked : true;
+    });
+    rows.push(['Games', games.join(', ')]);
+  }
   botReviewList.innerHTML = rows.map(([dt, dd]) =>
     `<dt>${dt}</dt><dd>${dd}</dd>`
   ).join('');
@@ -756,6 +817,21 @@ function openBotModal(botId) {
     const value = Number(bot.behavior.sessionWinTarget || 0);
     winTargetEl.value = value > 0 ? String(value) : '';
   }
+  // Populate autoplay fields
+  const autoplay = bot.behavior?.autoplay;
+  if (botAutoplayEnabled) botAutoplayEnabled.checked = Boolean(autoplay?.enabled);
+  if (botAutoplayFields) botAutoplayFields.hidden = !autoplay?.enabled;
+  if (botAutoplayWagerMode) botAutoplayWagerMode.value = autoplay?.wagerMode || 'fixed';
+  if (botAutoplayWalletPct) botAutoplayWalletPct.value = String(autoplay?.walletPct || 5);
+  if (botAutoplayMartingaleMult) botAutoplayMartingaleMult.value = String(autoplay?.martingaleMult || 2);
+  if (botAutoplayCooldown) botAutoplayCooldown.value = String(autoplay?.cooldownMs || 3000);
+  // Game allowlist checkboxes
+  const allowedGames = Array.isArray(autoplay?.games) ? autoplay.games : ['rps', 'coinflip', 'dice_duel'];
+  for (const game of ['rps', 'coinflip', 'dice_duel']) {
+    const el = document.getElementById(`bot-game-${game}`);
+    if (el) el.checked = allowedGames.includes(game);
+  }
+  updateAutoplayFieldVisibility();
   // Reset to step 1
   setWizardStep(1);
   botModal.classList.add('open');
@@ -888,6 +964,19 @@ botSave?.addEventListener('click', async () => {
     const maxWager = Math.max(baseWager, Number(botMaxWager?.value || baseWager));
     const sessionLossLimit = Math.max(0, Number(document.getElementById('bot-loss-limit')?.value || 0));
     const sessionWinTarget = Math.max(0, Number(document.getElementById('bot-win-target')?.value || 0));
+    // Autoplay strategy
+    const autoplayEnabled = botAutoplayEnabled?.checked || false;
+    const autoplay = autoplayEnabled ? {
+      enabled: true,
+      wagerMode: botAutoplayWagerMode?.value || 'fixed',
+      walletPct: Math.max(1, Math.min(100, Number(botAutoplayWalletPct?.value || 5))),
+      martingaleMult: Math.max(1.1, Number(botAutoplayMartingaleMult?.value || 2)),
+      cooldownMs: Math.max(1000, Number(botAutoplayCooldown?.value || 3000)),
+      games: ['rps', 'coinflip', 'dice_duel'].filter((g) => {
+        const el = document.getElementById(`bot-game-${g}`);
+        return el ? el.checked : true;
+      })
+    } : null;
     setStatus(`Saving ${botId}...`);
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
@@ -900,7 +989,8 @@ botSave?.addEventListener('click', async () => {
         baseWager,
         maxWager,
         sessionLossLimit,
-        sessionWinTarget
+        sessionWinTarget,
+        autoplay
       })
     });
     await refreshContext();
@@ -910,6 +1000,14 @@ botSave?.addEventListener('click', async () => {
     setStatus(`Bot save failed: ${String(error.message || error)}`);
   }
 });
+
+// Autoplay toggle
+botAutoplayEnabled?.addEventListener('change', () => {
+  if (botAutoplayFields) botAutoplayFields.hidden = !botAutoplayEnabled.checked;
+});
+
+// Wager mode conditional fields
+botAutoplayWagerMode?.addEventListener('change', updateAutoplayFieldVisibility);
 
 // Wizard navigation
 botWizardNext?.addEventListener('click', () => {

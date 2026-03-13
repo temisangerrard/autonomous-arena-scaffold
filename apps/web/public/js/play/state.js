@@ -71,6 +71,8 @@ export function createInitialState() {
         stationId: '',
         gameType: '',
         state: 'idle',
+        quickPlayEnabled: false,
+        quickPlayStationId: '',
         wager: 1,
         commitHash: '',
         method: '',

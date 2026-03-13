@@ -2642,7 +2642,12 @@ registerRuntimeRoutes(router, {
     wallets,
     walletSummary,
     reconcileBots,
-    schedulePersistState
+    schedulePersistState,
+    coinbasePaymasterEnabled,
+    coinbaseEscrowApprovalCapUsdc,
+    chainId: null,
+    chainHint: onchainRpcUrl || null,
+    mainnetGasSponsorEnabled
   },
   profiles: {
     isInternalAuthorized,

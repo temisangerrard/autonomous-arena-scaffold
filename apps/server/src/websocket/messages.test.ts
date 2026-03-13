@@ -9,7 +9,8 @@ describe('parseClientMessage station_interact', () => {
           type: 'station_interact',
           stationId: 'station_dealer_coinflip',
           action: 'coinflip_house_start',
-          wager: 5
+          wager: 5,
+          quickPlay: true
         })
       )
     );
@@ -17,7 +18,8 @@ describe('parseClientMessage station_interact', () => {
       type: 'station_interact',
       stationId: 'station_dealer_coinflip',
       action: 'coinflip_house_start',
-      wager: 5
+      wager: 5,
+      quickPlay: true
     });
   });
 

@@ -3,14 +3,6 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.base.json ./
 COPY eslint.config.mjs ./
-# train_station_mega_world.glb is gitignored (too large for git).
-# The server redirects /assets/world/* to a CDN fallback when the file
-# is absent locally, so the image builds and runs without it.
-#
-# Fly-only world hosting path:
-# If this file is present in the local build context, include it in the image
-# so /assets/world/mega.glb resolves without external storage.
-COPY train_station_mega_world.glb ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 RUN npm install

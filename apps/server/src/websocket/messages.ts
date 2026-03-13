@@ -14,6 +14,8 @@ type InputMessage = {
 export type StationInteractMessage = {
   type: 'station_interact';
   stationId: string;
+  /** When true, proximity check is skipped — used by the quick-play panel */
+  quickPlay?: boolean;
 } & (
   | {
       action: 'coinflip_house_start';
@@ -117,6 +119,7 @@ function rawToString(raw: RawData): string {
 export function parseClientMessage(raw: RawData): ClientMessage | null {
   try {
     const payload = JSON.parse(rawToString(raw)) as Record<string, unknown>;
+    const quickPlay = payload.quickPlay === true;
 
     if (
       payload.type === 'input' &&
@@ -138,14 +141,16 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
         return {
           type: 'station_interact',
           stationId: payload.stationId,
-          action: 'interact_open'
+          action: 'interact_open',
+          ...(quickPlay ? { quickPlay: true } : {})
         };
       }
       if (payload.action === 'prediction_markets_open') {
         return {
           type: 'station_interact',
           stationId: payload.stationId,
-          action: 'prediction_markets_open'
+          action: 'prediction_markets_open',
+          ...(quickPlay ? { quickPlay: true } : {})
         };
       }
       if (payload.action === 'interact_use') {
@@ -153,6 +158,7 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           type: 'station_interact',
           stationId: payload.stationId,
           action: 'interact_use',
+          ...(quickPlay ? { quickPlay: true } : {}),
           interactionTag: typeof payload.interactionTag === 'string' ? payload.interactionTag : undefined
         };
       }
@@ -164,6 +170,7 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           type: 'station_interact',
           stationId: payload.stationId,
           action: payload.action,
+          ...(quickPlay ? { quickPlay: true } : {}),
           marketId: payload.marketId,
           stake: typeof payload.stake === 'number' ? payload.stake : 1
         };
@@ -177,6 +184,7 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           type: 'station_interact',
           stationId: payload.stationId,
           action: payload.action,
+          ...(quickPlay ? { quickPlay: true } : {}),
           wager: typeof payload.wager === 'number' ? payload.wager : 1
         };
       }
@@ -190,6 +198,7 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           type: 'station_interact',
           stationId: payload.stationId,
           action: 'coinflip_house_pick',
+          ...(quickPlay ? { quickPlay: true } : {}),
           pick: payload.pick,
           playerSeed: payload.playerSeed
         };
@@ -204,6 +213,7 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           type: 'station_interact',
           stationId: payload.stationId,
           action: 'rps_house_pick',
+          ...(quickPlay ? { quickPlay: true } : {}),
           pick: payload.pick,
           playerSeed: payload.playerSeed
         };
@@ -223,6 +233,7 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
           type: 'station_interact',
           stationId: payload.stationId,
           action: 'dice_duel_pick',
+          ...(quickPlay ? { quickPlay: true } : {}),
           pick: payload.pick,
           playerSeed: payload.playerSeed
         };

@@ -21,12 +21,24 @@ export function createStationInteractionsController(params) {
       showToast('Station unavailable.');
       return false;
     }
+    const autoQuickPlay = station && typeof station === 'object'
+      ? station.source === 'host'
+        || station.source === 'baked'
+        || (
+          state?.ui?.dealer?.quickPlayEnabled === true
+          && String(state?.ui?.dealer?.quickPlayStationId || '') === resolvedStationId
+        )
+      : (
+        state?.ui?.dealer?.quickPlayEnabled === true
+        && String(state?.ui?.dealer?.quickPlayStationId || '') === resolvedStationId
+      );
     socket.send(
       JSON.stringify({
         type: 'station_interact',
         stationId: resolvedStationId,
         action,
-        ...extra
+        ...extra,
+        ...(extra.quickPlay === true || autoQuickPlay ? { quickPlay: true } : {})
       })
     );
     return true;

@@ -29,5 +29,29 @@ describe('targeting source priority', () => {
     const nextTarget = targeting.getUiTargetId();
     expect(nextTarget).toBe('station_host');
   });
-});
 
+  it('preserves an explicitly selected station target while the interaction card is open', () => {
+    const state = {
+      nearbyIds: new Set(),
+      nearbyStationIds: new Set(['station_host']),
+      nearbyDistances: new Map([
+        ['station_host', 2.5]
+      ]),
+      stations: new Map([
+        ['station_host', { id: 'station_host', source: 'host' }],
+        ['station_remote_coinflip', { id: 'station_remote_coinflip', source: 'server' }]
+      ]),
+      ui: { targetId: 'station_remote_coinflip', interactOpen: true, interactionMode: 'station' },
+      players: new Map(),
+      playerId: 'player_1'
+    };
+
+    const targeting = createTargetingController({
+      state,
+      isStation: (id) => String(id || '').startsWith('station_')
+    });
+
+    const nextTarget = targeting.getUiTargetId();
+    expect(nextTarget).toBe('station_remote_coinflip');
+  });
+});

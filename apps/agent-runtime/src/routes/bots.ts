@@ -1,6 +1,39 @@
 import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
-import type { BotRecord } from '@arena/shared';
+import type { BotRecord, AutoplayStrategyConfig, GameType } from '@arena/shared';
 import type { AgentBot, AgentBehaviorConfig } from '../AgentBot.js';
+import { computeWalletReadiness } from '../walletReadiness.js';
+
+const VALID_GAME_TYPES: GameType[] = ['rps', 'coinflip', 'dice_duel'];
+
+function parseAutoplayConfig(raw: unknown): AutoplayStrategyConfig | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const ap = raw as Record<string, unknown>;
+
+  const enabled = typeof ap.enabled === 'boolean' ? ap.enabled : true;
+  const allowedGames: GameType[] = Array.isArray(ap.allowedGames)
+    ? (ap.allowedGames as unknown[]).filter((g): g is GameType => VALID_GAME_TYPES.includes(g as GameType))
+    : [...VALID_GAME_TYPES];
+  if (allowedGames.length === 0) allowedGames.push('rps');
+
+  const wagerMode = ap.wagerMode === 'percent_wallet' || ap.wagerMode === 'martingale' ? ap.wagerMode : 'fixed';
+  const baseWager = Math.max(1, Math.min(50, Math.floor(Number(ap.baseWager ?? 1))));
+  const maxWager = Math.max(baseWager, Math.min(100, Math.floor(Number(ap.maxWager ?? baseWager))));
+  const walletPercent = typeof ap.walletPercent === 'number'
+    ? Math.max(1, Math.min(100, ap.walletPercent))
+    : undefined;
+  const martingaleMultiplier = typeof ap.martingaleMultiplier === 'number'
+    ? Math.max(1.1, Math.min(10, ap.martingaleMultiplier))
+    : undefined;
+  const sessionLossLimit = typeof ap.sessionLossLimit === 'number'
+    ? Math.max(0, Math.min(1000000, ap.sessionLossLimit))
+    : undefined;
+  const sessionWinTarget = typeof ap.sessionWinTarget === 'number'
+    ? Math.max(0, Math.min(1000000, ap.sessionWinTarget))
+    : undefined;
+  const cooldownMs = Math.max(0, Math.min(600000, Math.floor(Number(ap.cooldownMs ?? 2000))));
+
+  return { enabled, allowedGames, wagerMode, baseWager, maxWager, walletPercent, martingaleMultiplier, sessionLossLimit, sessionWinTarget, cooldownMs };
+}
 
 export function registerBotRoutes(router: SimpleRouter, deps: {
   bots: Map<string, AgentBot>;
@@ -11,6 +44,11 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
   walletSummary: (wallet: import('@arena/shared').WalletRecord | null) => unknown;
   reconcileBots: (count: number) => void;
   schedulePersistState: () => void;
+  coinbasePaymasterEnabled?: boolean;
+  coinbaseEscrowApprovalCapUsdc?: number;
+  chainId?: number | null;
+  chainHint?: string | null;
+  mainnetGasSponsorEnabled?: boolean;
 }) {
   router.post('/agents/reconcile', async (req, res) => {
     const body = await readJsonBody<{ count?: number }>(req);
@@ -32,7 +70,7 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
       return;
     }
 
-    const body = await readJsonBody<Partial<AgentBehaviorConfig> & { displayName?: string; managedBySuperAgent?: boolean; autoplayEnabled?: boolean }>(req);
+    const body = await readJsonBody<Partial<AgentBehaviorConfig> & { displayName?: string; managedBySuperAgent?: boolean; autoplayEnabled?: boolean; autoplay?: unknown; resetAutoplaySession?: boolean }>(req);
     if (!body) {
       sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
       return;
@@ -74,7 +112,18 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
       }
     }
 
+    // Parse and attach autoplay strategy config if provided
+    if ('autoplay' in body) {
+      const parsedAutoplay = body.autoplay !== null ? parseAutoplayConfig(body.autoplay) : null;
+      patch.autoplay = parsedAutoplay ?? undefined;
+    }
+
     bot.updateBehavior(patch);
+
+    // Reset autoplay session if explicitly requested
+    if (body.resetAutoplaySession === true) {
+      bot.resetAutoplaySession();
+    }
 
     const record = deps.botRegistry.get(id);
     if (record) {
@@ -110,6 +159,18 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
       return;
     }
     const wallet = deps.wallets.get(record.walletId) ?? null;
-    sendJson(res, { ok: true, botId, wallet: deps.walletSummary(wallet) });
+    const bot = deps.bots.get(botId);
+    const behavior = bot?.getStatus().behavior;
+    const minWager = behavior?.autoplay?.baseWager ?? behavior?.baseWager ?? 1;
+    const readiness = computeWalletReadiness({
+      wallet,
+      minWager,
+      coinbasePaymasterEnabled: deps.coinbasePaymasterEnabled,
+      coinbaseEscrowApprovalCapUsdc: deps.coinbaseEscrowApprovalCapUsdc,
+      chainId: deps.chainId,
+      chainHint: deps.chainHint,
+      mainnetGasSponsorEnabled: deps.mainnetGasSponsorEnabled
+    });
+    sendJson(res, { ok: true, botId, wallet: deps.walletSummary(wallet), readiness });
   });
 }

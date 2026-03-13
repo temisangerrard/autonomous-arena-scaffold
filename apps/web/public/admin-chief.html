@@ -181,6 +181,33 @@
             <button type="button" class="mode-btn" data-treasury-mode="risk">Risk &amp; Recovery</button>
           </div>
           <section class="treasury-panel is-active" data-treasury-panel="wallet">
+            <div class="panel-card" style="margin-bottom:14px;">
+              <h4>House Funds</h4>
+              <div class="form-row">
+                <div>
+                  <label class="form-label">Visible House Funds</label>
+                  <input id="house-funds-total" type="text" readonly value="-">
+                </div>
+                <div>
+                  <label class="form-label">Historical Treasury Outflows</label>
+                  <input id="house-funds-outflows" type="text" readonly value="-">
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <label class="form-label">Notes</label>
+                  <input id="house-funds-note" type="text" readonly value="-">
+                </div>
+              </div>
+              <div class="table-wrap" style="margin-top:12px;">
+                <table>
+                  <thead>
+                    <tr><th>Source</th><th>Balance</th><th>Location</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="house-funds-body"></tbody>
+                </table>
+              </div>
+            </div>
             <div class="split">
               <div class="panel-card">
                 <h4>House Policy</h4>

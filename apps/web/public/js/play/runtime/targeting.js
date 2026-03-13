@@ -67,7 +67,14 @@ export function createTargetingController(params) {
   function getUiTargetId() {
     if (state.ui?.interactOpen && state.ui?.interactionMode === 'station') {
       const preferred = state.ui?.targetId || '';
-      if (preferred && isStation(preferred) && state.nearbyStationIds.has(preferred)) {
+      if (
+        preferred
+        && isStation(preferred)
+        && (
+          state.nearbyStationIds.has(preferred)
+          || (state.stations instanceof Map && state.stations.has(preferred))
+        )
+      ) {
         return preferred;
       }
       const stationId = closestNearbyStationId();
