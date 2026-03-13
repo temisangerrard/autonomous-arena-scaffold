@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-04T10:18:26.919Z",
+  "generatedAt": "2026-03-13T09:43:39.332Z",
   "policyPath": "config/modularity-budgets.json",
   "summary": {
-    "errors": 0,
+    "errors": 1,
     "warnings": 0,
     "checks": 22
   },
@@ -15,7 +15,7 @@
       "maxGrowthPct": 20,
       "warnAtPct": 95,
       "thresholdLines": 333,
-      "currentLines": 281,
+      "currentLines": 261,
       "status": "ok",
       "recommendations": []
     },
@@ -51,11 +51,9 @@
       "maxGrowthPct": 15,
       "warnAtPct": 95,
       "thresholdLines": 443,
-      "currentLines": 386,
+      "currentLines": 2,
       "status": "ok",
-      "recommendations": [
-        "Large function candidate: onKeyDown (142 lines @ apps/web/public/js/play/input.js:35). Split into helper module(s)."
-      ]
+      "recommendations": []
     },
     {
       "type": "budget",
@@ -85,7 +83,7 @@
       "message": "Inline style attributes are not allowed in play shell.",
       "severity": "error",
       "remediation": "Replace inline style attributes with semantic utility classes in css modules.",
-      "status": "ok"
+      "status": "error"
     },
     {
       "type": "boundary",
