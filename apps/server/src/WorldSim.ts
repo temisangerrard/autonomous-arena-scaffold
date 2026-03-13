@@ -1,9 +1,9 @@
-export type InputState = {
+type InputState = {
   moveX: number;
   moveZ: number;
 };
 
-export type PlayerSnapshot = {
+type PlayerSnapshot = {
   id: string;
   x: number;
   y: number;
@@ -12,7 +12,7 @@ export type PlayerSnapshot = {
   speed: number;
 };
 
-export type WorldSnapshot = {
+type WorldSnapshot = {
   tick: number;
   players: PlayerSnapshot[];
 };

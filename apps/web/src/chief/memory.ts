@@ -2,7 +2,7 @@ import type { ChiefIntent, ChiefMode } from '../chief.js';
 
 type MemoryOutcome = 'executed' | 'planned' | 'fallback' | 'blocked';
 
-export type ChiefMemoryTurn = {
+type ChiefMemoryTurn = {
   at: number;
   mode: ChiefMode;
   intent: ChiefIntent;

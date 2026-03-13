@@ -1,18 +1,18 @@
 import { CdpClient } from '@coinbase/cdp-sdk';
 
-export type CdpClientConfig = {
+type CdpClientConfig = {
   apiKeyId: string;
   apiKeySecret: string;
   projectId: string;
 };
 
-export type CdpClientConfigured = {
+type CdpClientConfigured = {
   apiKeyId: boolean;
   apiKeySecret: boolean;
   projectId: boolean;
 };
 
-export type CdpClientState = {
+type CdpClientState = {
   available: boolean;
   reason?: 'cdp_env_missing' | 'cdp_client_init_failed';
   configured: CdpClientConfigured;

@@ -28,7 +28,7 @@ export type RouteContext = {
  * Set CORS headers on response
  * SECURITY: Uses explicit allowed origins list, never '*' with credentials
  */
-export function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
+function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
   const allowedOrigins = getAllowedCorsOrigins();
   const origin = req.headers.origin;
 
@@ -86,7 +86,7 @@ function isInternalAuthorized(req: IncomingMessage, token: string): boolean {
 /**
  * Handle health check endpoint
  */
-export function handleHealth(req: IncomingMessage, res: ServerResponse): void {
+function handleHealth(req: IncomingMessage, res: ServerResponse): void {
   void req;
   const payload = createHealthStatus();
   res.setHeader('content-type', 'application/json');
@@ -96,7 +96,7 @@ export function handleHealth(req: IncomingMessage, res: ServerResponse): void {
 /**
  * Handle presence endpoint
  */
-export async function handlePresence(
+async function handlePresence(
   req: IncomingMessage,
   res: ServerResponse,
   ctx: RouteContext
@@ -128,7 +128,7 @@ export async function handlePresence(
 /**
  * Handle challenges recent endpoint
  */
-export async function handleChallengesRecent(
+async function handleChallengesRecent(
   req: IncomingMessage,
   res: ServerResponse,
   ctx: RouteContext
@@ -152,7 +152,7 @@ export async function handleChallengesRecent(
 /**
  * Handle favicon endpoint
  */
-export function handleFavicon(req: IncomingMessage, res: ServerResponse): void {
+function handleFavicon(req: IncomingMessage, res: ServerResponse): void {
   void req;
   res.statusCode = 204;
   res.end();
@@ -161,13 +161,13 @@ export function handleFavicon(req: IncomingMessage, res: ServerResponse): void {
 /**
  * Handle 404 Not Found
  */
-export function handleNotFound(req: IncomingMessage, res: ServerResponse): void {
+function handleNotFound(req: IncomingMessage, res: ServerResponse): void {
   void req;
   res.statusCode = 404;
   res.end('Not Found');
 }
 
-export async function handleAdminTeleport(
+async function handleAdminTeleport(
   req: IncomingMessage,
   res: ServerResponse,
   ctx: RouteContext

@@ -10,7 +10,7 @@ type ChiefDbGatewayConfig = {
   runtimeDatabaseUrl?: string;
 };
 
-export type EconomySummary = {
+type EconomySummary = {
   lookbackHours: number;
   challengeCount: number;
   resolvedCount: number;
@@ -21,7 +21,7 @@ export type EconomySummary = {
   estimatedPayout: number;
 };
 
-export type RuntimeIntegrity = {
+type RuntimeIntegrity = {
   runtimeConnected: boolean;
   profileCount: number;
   walletCount: number;

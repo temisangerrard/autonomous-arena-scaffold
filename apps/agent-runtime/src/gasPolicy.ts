@@ -1,6 +1,6 @@
 import { classifyEscrowApprovalNetwork, type EscrowApprovalNetwork } from '@arena/shared';
 
-export type GasSponsorshipPolicy = {
+type GasSponsorshipPolicy = {
   network: EscrowApprovalNetwork;
   sponsorshipEnabled: boolean;
   userMustFundGas: boolean;

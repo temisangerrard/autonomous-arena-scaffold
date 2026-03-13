@@ -48,7 +48,7 @@ export type MarketPositionRecord = {
   settledAt: number | null;
 };
 
-export type MarketInteractionEventRecord = {
+type MarketInteractionEventRecord = {
   id: string;
   playerId: string;
   stationId: string;

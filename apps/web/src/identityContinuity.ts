@@ -1,4 +1,4 @@
-export type ContinuityLink = {
+type ContinuityLink = {
   profileId: string;
   walletId: string;
   linkedAt: number;
@@ -6,7 +6,7 @@ export type ContinuityLink = {
   continuitySource: string;
 };
 
-export type EmailIdentityCandidate = {
+type EmailIdentityCandidate = {
   sub: string;
   profileId: string | null;
   walletId: string | null;

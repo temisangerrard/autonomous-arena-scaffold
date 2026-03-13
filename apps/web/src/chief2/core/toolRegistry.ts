@@ -12,7 +12,7 @@ export type Chief2Plan = {
   execute: () => Promise<Chief2PlanResult>;
 };
 
-export type Chief2PlanSelection = {
+type Chief2PlanSelection = {
   intent: Chief2Intent;
   objective: string;
   plans: Chief2Plan[];

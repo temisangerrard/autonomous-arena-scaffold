@@ -16,30 +16,6 @@ function appendSetCookie(res: ServerResponse, cookieValue: string): void {
   res.setHeader('set-cookie', [String(existing), cookieValue]);
 }
 
-export function parseCookies(req: IncomingMessage): Record<string, string> {
-  const header = req.headers.cookie ?? '';
-  const out: Record<string, string> = {};
-  for (const part of header.split(';')) {
-    const idx = part.indexOf('=');
-    if (idx <= 0) {
-      continue;
-    }
-    const key = part.slice(0, idx).trim();
-    const value = part.slice(idx + 1).trim();
-    if (key) {
-      out[key] = decodeURIComponent(value);
-    }
-  }
-  return out;
-}
-
-export function setSessionCookie(res: ServerResponse, cookieName: string, sessionId: string, ttlMs: number): void {
-  appendSetCookie(
-    res,
-    `${cookieName}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(ttlMs / 1000)}`
-  );
-}
-
 export function setSessionCookieWithOptions(
   res: ServerResponse,
   cookieName: string,
@@ -56,49 +32,6 @@ export function setSessionCookieWithOptions(
 
 export function clearSessionCookie(res: ServerResponse, cookieName: string): void {
   appendSetCookie(res, `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
-}
-
-export function setCookie(
-  res: ServerResponse,
-  cookieName: string,
-  value: string,
-  options?: {
-    ttlSec?: number;
-    httpOnly?: boolean;
-    sameSite?: 'Lax' | 'Strict' | 'None';
-    secure?: boolean;
-    path?: string;
-  }
-): void {
-  const parts = [`${cookieName}=${encodeURIComponent(value)}`];
-  parts.push(`Path=${options?.path ?? '/'}`);
-  if (options?.httpOnly !== false) {
-    parts.push('HttpOnly');
-  }
-  if (options?.sameSite) {
-    parts.push(`SameSite=${options.sameSite}`);
-  }
-  if (options?.secure) {
-    parts.push('Secure');
-  }
-  if (typeof options?.ttlSec === 'number') {
-    parts.push(`Max-Age=${Math.max(0, Math.floor(options.ttlSec))}`);
-  }
-  appendSetCookie(res, parts.join('; '));
-}
-
-export function clearCookie(
-  res: ServerResponse,
-  cookieName: string,
-  options?: { httpOnly?: boolean; sameSite?: 'Lax' | 'Strict' | 'None'; secure?: boolean; path?: string }
-): void {
-  setCookie(res, cookieName, '', {
-    ttlSec: 0,
-    httpOnly: options?.httpOnly,
-    sameSite: options?.sameSite,
-    secure: options?.secure,
-    path: options?.path
-  });
 }
 
 export function sendJson(res: ServerResponse, payload: unknown, statusCode = 200): void {

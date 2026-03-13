@@ -17,7 +17,7 @@ import type { SnapshotStation, StationActionId } from '@arena/shared';
 //   packages/shared/src/arena/stationLayout.ts   (UI map)
 //   apps/web/public/js/play/runtime/world-npc-hosts.js  (NPC spawns, must stay within station.radius)
 
-export const STATION_POSITIONS = {
+const STATION_POSITIONS = {
   info:       { x: -35, z: 18  },
   cashier:    { x:  38, z: 18  },
   coinflip:   { x: -22, z: -22 },

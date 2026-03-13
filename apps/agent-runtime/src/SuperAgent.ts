@@ -29,7 +29,7 @@ export type SuperAgentConfig = {
   walletPolicy: WalletPolicy;
 };
 
-export type WorkerDirective = {
+type WorkerDirective = {
   botId: string;
   patch: Partial<AgentBehaviorConfig>;
 };

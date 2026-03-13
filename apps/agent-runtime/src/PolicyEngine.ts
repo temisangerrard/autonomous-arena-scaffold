@@ -15,7 +15,7 @@ export type PolicyContext = {
   patrolRadius?: number;
 };
 
-export type PolicyMemory = {
+type PolicyMemory = {
   seed: number;
   roamTargetIndex?: number;
   roamTargetX?: number;
@@ -23,7 +23,7 @@ export type PolicyMemory = {
   roamTargetUntilMs?: number;
 };
 
-export type PolicyDecision = {
+type PolicyDecision = {
   moveX: number;
   moveZ: number;
   focusId: string | null;

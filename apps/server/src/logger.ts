@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 
 type LogFn = (obj: Record<string, unknown> | string, msg?: string) => void;
 
-export type Logger = {
+type Logger = {
   info: LogFn;
   warn: LogFn;
   error: LogFn;

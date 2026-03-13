@@ -4,14 +4,14 @@ import type { ChiefDbGateway } from './dbGateway.js';
 
 export type RunbookSafetyClass = 'read_only' | 'mutating' | 'financial';
 
-export type RunbookPlan = {
+type RunbookPlan = {
   tool: string;
   sensitive: boolean;
   summary: string;
   execute: () => Promise<{ summary: string; stateSnapshot?: Record<string, unknown> }>;
 };
 
-export type RunbookSelection = {
+type RunbookSelection = {
   matched: boolean;
   runbook?: string;
   selectedSkills: string[];

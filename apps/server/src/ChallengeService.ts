@@ -11,18 +11,7 @@ import type {
 } from '@arena/shared';
 import { createHash } from 'node:crypto';
 
-// Re-export types for backward compatibility
-export type {
-  ChallengeStatus,
-  GameType,
-  RpsMove,
-  CoinflipMove,
-  DiceDuelMove,
-  GameMove,
-  Challenge,
-  ChallengeEvent,
-  ChallengeLog
-};
+export type { ChallengeEvent };
 
 export class ChallengeService {
   private readonly challenges = new Map<string, Challenge>();

@@ -4,7 +4,7 @@
  * to help diagnose issues and assist operators.
  */
 
-export const CODEBASE_CONTEXT = {
+const CODEBASE_CONTEXT = {
   name: 'Autonomous Agent Betting Arena',
   version: '1.0.0',
   

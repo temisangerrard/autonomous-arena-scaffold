@@ -18,7 +18,7 @@ export type ChiefIntent =
   | 'game_fix'
   | 'unknown';
 
-export type ChiefActionResult = {
+type ChiefActionResult = {
   tool: string;
   status: 'planned' | 'executed' | 'blocked';
   summary: string;
@@ -33,7 +33,7 @@ export type ChiefChatRequest = {
   confirmToken?: string;
 };
 
-export type ChiefChatResponse = {
+type ChiefChatResponse = {
   ok: boolean;
   mode: ChiefMode;
   reply: string;
@@ -62,7 +62,7 @@ export type ChiefChatResponse = {
   };
 };
 
-export type ChiefMetrics = {
+type ChiefMetrics = {
   totalRequests: number;
   nonEmptyReplyCount: number;
   toolExecutions: number;
