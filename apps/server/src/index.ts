@@ -178,18 +178,6 @@ function stationErrorFromEscrowFailure(input: {
 
 const lastPlayerPos = new Map<string, { x: number; z: number }>();
 
-// HTTP server using extracted router
-const server = createServer(createRouter({
-  serverInstanceId,
-  presenceStore,
-  distributedChallengeStore,
-  challengeService,
-  database,
-  marketService,
-  internalToken: internalServiceToken,
-  publishAdminCommand: (targetServerId, command) => distributedBus.publishAdminCommand(targetServerId, command),
-  teleportLocal: (playerId, x, z) => worldSim.teleportPlayer(playerId, x, z)
-}));
 
 const wss = new WebSocketServer({ noServer: true });
 const sockets = new Map<string, WebSocket>();
@@ -692,6 +680,20 @@ const stationById = stationRouter.stationById;
 // Note: validateSession is imported from websocket/auth.ts
 
 const webAuthUrl = config.webAuthUrl;
+
+// HTTP server using extracted router — created after stationRouter so STATIONS is available
+const server = createServer(createRouter({
+  serverInstanceId,
+  presenceStore,
+  distributedChallengeStore,
+  challengeService,
+  database,
+  marketService,
+  internalToken: internalServiceToken,
+  publishAdminCommand: (targetServerId, command) => distributedBus.publishAdminCommand(targetServerId, command),
+  teleportLocal: (playerId, x, z) => worldSim.teleportPlayer(playerId, x, z),
+  getStations: () => STATIONS
+}));
 
 server.on('upgrade', (request, socket, head) => {
   if (!request.url?.startsWith('/ws')) {

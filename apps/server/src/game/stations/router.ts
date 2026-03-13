@@ -450,27 +450,30 @@ export function createStationRouter(ctx: StationRouterContext) {
       return true;
     }
 
-    const pos = ctx.lastPlayerPos.get(playerId);
-    if (!pos) {
-      ctx.sendTo(playerId, {
-        type: 'station_ui',
-        stationId,
-        view: { ok: false, state: 'dealer_error', reason: 'position_unknown' }
-      });
-      return true;
-    }
+    // quickPlay bypasses proximity — used by the quick-play panel
+    if (!payload.quickPlay) {
+      const pos = ctx.lastPlayerPos.get(playerId);
+      if (!pos) {
+        ctx.sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'position_unknown' }
+        });
+        return true;
+      }
 
-    const dist = Math.hypot(pos.x - station.x, pos.z - station.z);
-    const proximityThreshold = Number.isFinite(Number(station.radius))
-      ? Math.max(2, Number(station.radius))
-      : ctx.stationProximityThreshold;
-    if (dist > proximityThreshold) {
-      ctx.sendTo(playerId, {
-        type: 'station_ui',
-        stationId,
-        view: { ok: false, state: 'dealer_error', reason: 'not_near_station' }
-      });
-      return true;
+      const dist = Math.hypot(pos.x - station.x, pos.z - station.z);
+      const proximityThreshold = Number.isFinite(Number(station.radius))
+        ? Math.max(2, Number(station.radius))
+        : ctx.stationProximityThreshold;
+      if (dist > proximityThreshold) {
+        ctx.sendTo(playerId, {
+          type: 'station_ui',
+          stationId,
+          view: { ok: false, state: 'dealer_error', reason: 'not_near_station' }
+        });
+        return true;
+      }
     }
 
     if (station.kind === 'world_interactable') {

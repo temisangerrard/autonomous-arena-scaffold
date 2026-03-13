@@ -115,6 +115,73 @@ export interface SuperAgentLlmUsage {
 }
 
 /**
+ * Autoplay wager strategy modes
+ */
+export type WagerStrategyMode = 'fixed' | 'percent_wallet' | 'martingale';
+
+/**
+ * Autoplay pause reason codes
+ */
+export type AutoplayPauseReason =
+  | 'stop_loss_hit'
+  | 'take_profit_hit'
+  | 'cooling_down'
+  | 'blocked_no_eligible_game'
+  | 'blocked_approval_required'
+  | 'blocked_insufficient_funds'
+  | 'owner_online'
+  | null;
+
+/**
+ * Autoplay strategy configuration (distinct from static bot behavior)
+ */
+export interface AutoplayStrategyConfig {
+  enabled: boolean;
+  allowedGames: GameType[];
+  wagerMode: WagerStrategyMode;
+  baseWager: number;
+  maxWager: number;
+  /** % of wallet balance to wager (1-100), used when wagerMode is percent_wallet */
+  walletPercent?: number;
+  /** Martingale multiplier on loss (e.g. 2 = double), capped at maxWager */
+  martingaleMultiplier?: number;
+  sessionLossLimit?: number;
+  sessionWinTarget?: number;
+  cooldownMs: number;
+}
+
+/**
+ * Autoplay runtime session state (ephemeral, not static config)
+ */
+export interface AutoplaySessionState {
+  sessionNetPnl: number;
+  currentWager: number;
+  consecutiveLosses: number;
+  pauseReason: AutoplayPauseReason;
+  pausedAt: number | null;
+  lastGameAt: number | null;
+}
+
+/**
+ * Wallet readiness state for autoplay and manual play
+ */
+export type WalletReadinessStatus =
+  | 'ready'
+  | 'needs_approval'
+  | 'needs_gas'
+  | 'insufficient_usdc'
+  | 'unsupported_provider';
+
+export interface WalletReadiness {
+  status: WalletReadinessStatus;
+  reason: string;
+  /** Minimum USDC needed to play at current wager config */
+  minUsdc?: number;
+  /** Whether gas is sponsored */
+  gasSponsored: boolean;
+}
+
+/**
  * Challenge game types
  */
 export type GameType = 'rps' | 'coinflip' | 'dice_duel';
@@ -138,11 +205,11 @@ export type GameMove = RpsMove | CoinflipMove | DiceDuelMove;
 /**
  * Challenge status (server-authoritative states)
  */
-export type ChallengeStatus = 
-  | 'pending' 
+export type ChallengeStatus =
+  | 'pending'
   | 'active'
-  | 'resolved' 
-  | 'declined' 
+  | 'resolved'
+  | 'declined'
   | 'expired';
 
 /**
@@ -389,11 +456,11 @@ export interface InputState {
 /**
  * WebSocket client message types
  */
-export type ClientMessageType = 
-  | 'join' 
-  | 'input' 
-  | 'challenge_send' 
-  | 'challenge_response' 
+export type ClientMessageType =
+  | 'join'
+  | 'input'
+  | 'challenge_send'
+  | 'challenge_response'
   | 'challenge_counter'
   | 'station_interact'
   | 'move_submit'
@@ -407,10 +474,10 @@ export interface ClientMessage {
 /**
  * Server message types
  */
-export type ServerMessageType = 
-  | 'welcome' 
-  | 'snapshot' 
-  | 'challenge' 
+export type ServerMessageType =
+  | 'welcome'
+  | 'snapshot'
+  | 'challenge'
   | 'challenge_escrow'
   | 'station_ui'
   | 'error';

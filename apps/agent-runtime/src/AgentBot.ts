@@ -1,6 +1,6 @@
 import { WebSocket, type RawData } from 'ws';
 import { PolicyEngine, type AgentPlayerState, type Personality } from './PolicyEngine.js';
-import { signWsAuthToken } from '@arena/shared';
+import { signWsAuthToken, type AutoplayStrategyConfig, type AutoplaySessionState, type AutoplayPauseReason, type GameType } from '@arena/shared';
 
 type SnapshotPlayer = AgentPlayerState & { role?: 'human' | 'agent' };
 
@@ -8,12 +8,12 @@ type ChallengePayload = {
   id: string;
   challengerId: string;
   opponentId: string;
-  gameType: 'coinflip' | 'rps';
+  gameType: 'coinflip' | 'rps' | 'dice_duel';
   wager: number;
   status: 'pending' | 'active' | 'resolved' | 'declined' | 'expired';
   winnerId?: string;
-  challengerMove?: 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' | null;
-  opponentMove?: 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' | null;
+  challengerMove?: 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' | `d${number}` | null;
+  opponentMove?: 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' | `d${number}` | null;
   coinflipResult?: 'heads' | 'tails' | null;
 };
 
@@ -29,6 +29,8 @@ export type AgentBehaviorConfig = {
   maxWager: number;
   sessionLossLimit?: number;
   sessionWinTarget?: number;
+  /** Autoplay strategy config — if present, governs autonomous play behavior */
+  autoplay?: AutoplayStrategyConfig;
 };
 
 type AgentBotConfig = {
@@ -56,6 +58,8 @@ export type AgentBotStatus = {
     challengesLost: number;
     lastChallengeAt: number | null;
   };
+  /** Autoplay runtime session — present when autoplay strategy is configured */
+  autoplaySession: AutoplaySessionState | null;
 };
 
 export class AgentBot {
@@ -92,6 +96,19 @@ export class AgentBot {
     lastChallengeAt: null as number | null
   };
   private sessionNetPnl = 0;
+
+  /** Autoplay strategy session state — persisted separately from behavior config */
+  private autoplaySession: AutoplaySessionState = {
+    sessionNetPnl: 0,
+    currentWager: 0,
+    consecutiveLosses: 0,
+    pauseReason: null,
+    pausedAt: null,
+    lastGameAt: null
+  };
+
+  /** Wallet balance accessor — injected from runtime so wager calc can read % */
+  getWalletBalance: (() => number) | null = null;
 
   constructor(config: AgentBotConfig) {
     this.config = config;
@@ -157,8 +174,35 @@ export class AgentBot {
       nearbyCount: this.nearbyIds.size,
       lastWsErrorAt: this.lastWsErrorAt,
       lastWsClose: this.lastWsClose ? { ...this.lastWsClose } : null,
-      stats: { ...this.stats }
+      stats: { ...this.stats },
+      autoplaySession: this.config.behavior.autoplay ? { ...this.autoplaySession } : null
     };
+  }
+
+  getAutoplaySession(): AutoplaySessionState {
+    return { ...this.autoplaySession };
+  }
+
+  restoreAutoplaySession(session: Partial<AutoplaySessionState>): void {
+    this.autoplaySession = {
+      ...this.autoplaySession,
+      ...session
+    };
+    // Sync legacy sessionNetPnl
+    this.sessionNetPnl = this.autoplaySession.sessionNetPnl;
+  }
+
+  resetAutoplaySession(): void {
+    const ap = this.config.behavior.autoplay;
+    this.autoplaySession = {
+      sessionNetPnl: 0,
+      currentWager: ap ? ap.baseWager : (this.config.behavior.baseWager ?? 1),
+      consecutiveLosses: 0,
+      pauseReason: null,
+      pausedAt: null,
+      lastGameAt: null
+    };
+    this.sessionNetPnl = 0;
   }
 
   ensureActive(): void {
@@ -412,6 +456,46 @@ export class AgentBot {
     );
   }
 
+  private computeNextWager(): number {
+    const ap = this.config.behavior.autoplay;
+    const maxW = ap ? ap.maxWager : (this.config.behavior.maxWager ?? 1);
+    const baseW = ap ? ap.baseWager : (this.config.behavior.baseWager ?? 1);
+
+    if (!ap) {
+      // Legacy: fixed base wager
+      const personalityWager = this.config.behavior.personality === 'aggressive' ? 3 : 1;
+      const base = Math.max(1, Number(baseW || personalityWager));
+      const max = Math.max(base, Number(maxW || base));
+      return Math.max(1, Math.min(max, base));
+    }
+
+    switch (ap.wagerMode) {
+      case 'percent_wallet': {
+        const pct = Math.max(0.01, Math.min(100, ap.walletPercent ?? 5)) / 100;
+        const balance = this.getWalletBalance ? this.getWalletBalance() : baseW;
+        const computed = Math.floor(balance * pct);
+        return Math.max(1, Math.min(maxW, Math.max(computed, baseW)));
+      }
+      case 'martingale': {
+        const mult = Math.max(1.1, Math.min(10, ap.martingaleMultiplier ?? 2));
+        void mult; // used in updateAutoplayWagerAfterResult
+        const current = this.autoplaySession.currentWager || baseW;
+        return Math.max(1, Math.min(maxW, Math.round(current)));
+      }
+      case 'fixed':
+      default:
+        return Math.max(1, Math.min(maxW, baseW));
+    }
+  }
+
+  private pickAutoplayGame(): GameType {
+    const ap = this.config.behavior.autoplay;
+    const allowed: GameType[] = ap?.allowedGames?.length ? ap.allowedGames : ['rps', 'coinflip', 'dice_duel'];
+    // Rotate by time bucket for variety
+    const idx = (Math.floor(Date.now() / 30000) + this.memory.seed) % allowed.length;
+    return allowed[idx] ?? 'rps';
+  }
+
   private maybeSendChallenge(): void {
     if (this.config.behavior.mode === 'passive') {
       return;
@@ -427,8 +511,28 @@ export class AgentBot {
     if (now < this.challengeSuppressedUntil) {
       return;
     }
-    if (now - this.lastChallengeSentAt < this.config.behavior.challengeCooldownMs) {
+
+    // Respect autoplay cooldown if configured, else use behavior cooldown
+    const cooldownMs = this.config.behavior.autoplay?.cooldownMs ?? this.config.behavior.challengeCooldownMs;
+    if (now - this.lastChallengeSentAt < cooldownMs) {
       return;
+    }
+
+    // Check autoplay-specific pause state
+    if (this.config.behavior.autoplay) {
+      if (this.autoplaySession.pauseReason !== null) {
+        // Re-check cooling_down: clear it if enough time has passed
+        if (
+          this.autoplaySession.pauseReason === 'cooling_down' &&
+          this.autoplaySession.lastGameAt !== null &&
+          now - this.autoplaySession.lastGameAt >= (this.config.behavior.autoplay.cooldownMs ?? cooldownMs)
+        ) {
+          this.autoplaySession.pauseReason = null;
+          this.autoplaySession.pausedAt = null;
+        } else {
+          return;
+        }
+      }
     }
 
     const targetId = this.pickChallengeTarget();
@@ -445,14 +549,14 @@ export class AgentBot {
       return;
     }
 
+    const wager = this.computeNextWager();
+    const gameType: GameType = this.config.behavior.autoplay
+      ? this.pickAutoplayGame()
+      : (this.config.behavior.personality === 'conservative' ? 'coinflip' : 'rps');
+
     this.lastChallengeSentAt = now;
     this.stats.challengesSent += 1;
     this.stats.lastChallengeAt = now;
-    const gameType = this.config.behavior.personality === 'conservative' ? 'coinflip' : 'rps';
-    const personalityWager = this.config.behavior.personality === 'aggressive' ? 3 : 1;
-    const base = Math.max(1, Number(this.config.behavior.baseWager || personalityWager));
-    const max = Math.max(base, Number(this.config.behavior.maxWager || base));
-    const wager = Math.max(1, Math.min(max, base));
     this.ws.send(JSON.stringify({ type: 'challenge_send', targetId, gameType, wager }));
   }
 
@@ -547,15 +651,18 @@ export class AgentBot {
       this.submittedMoveByChallenge.delete(challenge.id);
       this.challengeSuppressedUntil = Date.now() + 1400;
       const wager = Math.max(0, Number(challenge.wager || 0));
-      if (challenge.winnerId === this.playerId) {
+      const iParticipated =
+        challenge.challengerId === this.playerId || challenge.opponentId === this.playerId;
+      const won = challenge.winnerId === this.playerId;
+      if (won) {
         this.stats.challengesWon += 1;
         this.sessionNetPnl += wager;
-      } else if (
-        challenge.challengerId === this.playerId ||
-        challenge.opponentId === this.playerId
-      ) {
+      } else if (iParticipated) {
         this.stats.challengesLost += 1;
         this.sessionNetPnl -= wager;
+      }
+      if (iParticipated) {
+        this.updateAutoplayWagerAfterResult(won, wager);
       }
       this.enforceSessionRiskStops();
     }
@@ -585,15 +692,53 @@ export class AgentBot {
   }
 
   private enforceSessionRiskStops(): void {
-    const lossLimit = Number(this.config.behavior.sessionLossLimit || 0);
-    const winTarget = Number(this.config.behavior.sessionWinTarget || 0);
+    const ap = this.config.behavior.autoplay;
+    const lossLimit = Number(ap?.sessionLossLimit ?? this.config.behavior.sessionLossLimit ?? 0);
+    const winTarget = Number(ap?.sessionWinTarget ?? this.config.behavior.sessionWinTarget ?? 0);
     const hitLossLimit = lossLimit > 0 && this.sessionNetPnl <= -lossLimit;
     const hitWinTarget = winTarget > 0 && this.sessionNetPnl >= winTarget;
     if (!hitLossLimit && !hitWinTarget) {
       return;
     }
+    const reason: AutoplayPauseReason = hitLossLimit ? 'stop_loss_hit' : 'take_profit_hit';
     this.config.behavior.challengeEnabled = false;
     this.config.behavior.mode = 'passive';
+    if (ap) {
+      this.autoplaySession.pauseReason = reason;
+      this.autoplaySession.pausedAt = Date.now();
+    }
+  }
+
+  private updateAutoplayWagerAfterResult(won: boolean, wager: number): void {
+    const ap = this.config.behavior.autoplay;
+    if (!ap) return;
+
+    void wager;
+    this.autoplaySession.lastGameAt = Date.now();
+
+    if (won) {
+      this.autoplaySession.consecutiveLosses = 0;
+      // Reset to base wager on win for martingale
+      if (ap.wagerMode === 'martingale') {
+        this.autoplaySession.currentWager = ap.baseWager;
+      }
+    } else {
+      this.autoplaySession.consecutiveLosses += 1;
+      // Progress martingale wager on loss
+      if (ap.wagerMode === 'martingale') {
+        const mult = Math.max(1.1, Math.min(10, ap.martingaleMultiplier ?? 2));
+        const next = Math.round(this.autoplaySession.currentWager * mult);
+        this.autoplaySession.currentWager = Math.min(ap.maxWager, Math.max(ap.baseWager, next));
+      }
+    }
+
+    this.autoplaySession.sessionNetPnl = this.sessionNetPnl;
+
+    // Apply cooldown pause after each game
+    if (ap.cooldownMs > 0) {
+      this.autoplaySession.pauseReason = 'cooling_down';
+      this.autoplaySession.pausedAt = Date.now();
+    }
   }
 
   private maybeSubmitGameMove(challenge: ChallengePayload): void {
@@ -618,11 +763,14 @@ export class AgentBot {
 
     const rpsMoves: Array<'rock' | 'paper' | 'scissors'> = ['rock', 'paper', 'scissors'];
     const coinMoves: Array<'heads' | 'tails'> = ['heads', 'tails'];
-    const idx = (Date.now() + this.memory.seed) % 3;
+    const diceMoves: Array<`d${number}`> = ['d1', 'd2', 'd3', 'd4', 'd5', 'd6'];
+    const idx = (Date.now() + this.memory.seed) % 6;
     const move =
       challenge.gameType === 'coinflip'
         ? (coinMoves[idx % coinMoves.length] ?? 'heads')
-        : (rpsMoves[idx % rpsMoves.length] ?? 'rock');
+        : challenge.gameType === 'dice_duel'
+          ? (diceMoves[idx % diceMoves.length] ?? 'd1')
+          : (rpsMoves[idx % rpsMoves.length] ?? 'rock');
     this.submittedMoveByChallenge.add(challenge.id);
 
     setTimeout(() => {
