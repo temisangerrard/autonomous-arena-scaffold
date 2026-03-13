@@ -22,6 +22,8 @@ export function challengeReasonLabelForMode(reason, autoApproval) {
       return autoApproval
         ? 'Super-agent escrow prep failed. Retry the challenge in a moment.'
         : 'Escrow approval needed. Tap Approve Escrow, confirm in wallet, then send the challenge again.';
+    case 'approval_cap_exceeded':
+      return 'This wager is above your configured escrow approval cap. Lower the wager or raise the cap first.';
     case 'approve_failed':
       return autoApproval
         ? 'Super-agent approval step failed. Retry shortly.'

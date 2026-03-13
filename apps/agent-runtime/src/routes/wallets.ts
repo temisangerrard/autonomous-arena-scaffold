@@ -58,6 +58,10 @@ export function registerWalletRoutes(router: SimpleRouter, deps: {
     allowance?: string;
     balance?: string;
     nativeBalanceEth?: string;
+    approvalCapUsdc?: number;
+    approvalTargetAmount?: string;
+    approvalTokenAddress?: string;
+    approvalSpenderAddress?: string;
   }>;
   builderCodeSuffix: string;
 }) {

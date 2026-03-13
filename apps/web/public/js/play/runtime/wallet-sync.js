@@ -56,7 +56,12 @@ export function createWalletSyncController(params) {
           tokenSymbol: summary?.onchain?.tokenSymbol ?? state.walletTokenSymbol ?? null,
           tokenDecimals: Number.isFinite(Number(summary?.onchain?.tokenDecimals)) ? Number(summary.onchain.tokenDecimals) : (state.walletTokenDecimals ?? null),
           mode: summary?.onchain?.mode ?? state.walletMode ?? null,
-          synced: Boolean(summary?.onchain?.synced)
+          synced: Boolean(summary?.onchain?.synced),
+          walletProvider: summary?.wallet?.walletProvider ?? state.walletProvider ?? null,
+          walletExternalAddress: summary?.wallet?.externalWalletAddress ?? state.walletExternalAddress ?? null,
+          escrowApprovalCapUsdc: summary?.wallet?.escrowApproval?.capUsdc ?? state.walletEscrowApprovalCapUsdc ?? null,
+          escrowApprovalTokenAddress: summary?.wallet?.escrowApproval?.tokenAddress ?? state.walletEscrowApprovalTokenAddress ?? null,
+          escrowApprovalSpenderAddress: summary?.wallet?.escrowApproval?.spenderAddress ?? state.walletEscrowApprovalSpenderAddress ?? null
         });
         clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
         syncEscrowApprovalPolicy();
@@ -86,7 +91,20 @@ export function createWalletSyncController(params) {
           walletMutedUntilMs = Math.max(walletMutedUntilMs, sharedBackoffUntil);
         }
         if (!keepLastOnFailure) {
-          dispatch({ type: 'WALLET_SUMMARY_SET', balance: null, chainId: state.walletChainId, tokenSymbol: state.walletTokenSymbol ?? null, tokenDecimals: state.walletTokenDecimals ?? null, mode: state.walletMode ?? null, synced: false });
+          dispatch({
+            type: 'WALLET_SUMMARY_SET',
+            balance: null,
+            chainId: state.walletChainId,
+            tokenSymbol: state.walletTokenSymbol ?? null,
+            tokenDecimals: state.walletTokenDecimals ?? null,
+            mode: state.walletMode ?? null,
+            synced: false,
+            walletProvider: state.walletProvider ?? null,
+            walletExternalAddress: state.walletExternalAddress ?? null,
+            escrowApprovalCapUsdc: state.walletEscrowApprovalCapUsdc ?? null,
+            escrowApprovalTokenAddress: state.walletEscrowApprovalTokenAddress ?? null,
+            escrowApprovalSpenderAddress: state.walletEscrowApprovalSpenderAddress ?? null
+          });
         }
         if (status !== 429 && status !== 502 && status !== 503 && status !== 504) {
           console.warn('wallet summary sync failed', error);

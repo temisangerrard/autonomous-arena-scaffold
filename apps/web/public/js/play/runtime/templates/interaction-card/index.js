@@ -253,14 +253,18 @@ export function renderInteractionCardTemplate(params) {
       const approvalModeAuto = approvalMode === 'auto';
       const approvalState = String(state.ui?.challenge?.approvalState || 'idle');
       const approvalMessage = String(state.ui?.challenge?.approvalMessage || '').trim();
+      const approvalCap = Number(state.walletEscrowApprovalCapUsdc || 0);
+      const approvalCapLabel = approvalCap > 0 ? `Approve ${formatUsdAmount(approvalCap)} Cap` : 'Approve Escrow';
       const approvalReady = approvalState === 'ready' && Number(state.ui?.challenge?.approvalWager || 0) >= selectedWager;
       const canSend = canSendBase && (selectedWager <= 0 || approvalModeAuto || approvalReady);
       const approvalHint = selectedWager > 0
         ? (approvalModeAuto
             ? 'Super Agent Approval Active (Testnet). Wagered challenges are prepared automatically.'
             : (approvalMessage || (approvalReady
-                ? `Escrow approval ready for ${formatUsdAmount(selectedWager)}.`
-                : `Approve escrow to place wager (${formatUsdAmount(selectedWager)}).`)))
+                ? `Escrow approval ready for wagers up to ${formatUsdAmount(Number(state.ui?.challenge?.approvalWager || selectedWager))}.`
+                : (approvalCap > 0
+                    ? `Approve a ${formatUsdAmount(approvalCap)} escrow cap to enable wagers and autoplay.`
+                    : `Approve escrow to place wager (${formatUsdAmount(selectedWager)}).`))))
         : 'Free wager selected. No escrow approval needed.';
       const incomingLabel = incoming
         ? `${labelFor(incoming.challengerId)} challenged you (${incoming.gameType.toUpperCase()}, ${formatWagerInline(incoming.wager)}).`
@@ -303,7 +307,7 @@ export function renderInteractionCardTemplate(params) {
             ? '<div class="station-ui__meta">Super Agent Approval Active (Testnet)</div>'
             : `<div class="station-ui__actions">
               <button id="player-challenge-approve" class="btn-ghost" type="button" ${(selectedWager > 0 && approvalState !== 'checking') ? '' : 'disabled'}>
-                ${approvalState === 'checking' ? 'Approving...' : 'Approve Escrow'}
+                ${approvalState === 'checking' ? 'Checking...' : approvalCapLabel}
               </button>
             </div>`}
           <div class="station-ui__actions">

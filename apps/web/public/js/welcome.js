@@ -70,12 +70,12 @@ function showAuthError(message) {
   }
 }
 
+function firebaseClientEnabled() {
+  return Boolean(config.firebaseWebApiKey && config.firebaseAuthDomain);
+}
+
 function firebaseGoogleEnabled() {
-  return Boolean(
-    config.firebaseGoogleAuthEnabled
-    && config.firebaseWebApiKey
-    && config.firebaseAuthDomain
-  );
+  return Boolean(config.firebaseGoogleAuthEnabled) && firebaseClientEnabled();
 }
 
 function legacyGoogleEnabled() {
@@ -87,18 +87,8 @@ async function getFirebaseGoogleClient() {
     return firebaseGoogleClientPromise;
   }
   firebaseGoogleClientPromise = (async () => {
-    const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
-    const authMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js');
-    const appName = 'arena-firebase-welcome';
-    const existing = appMod.getApps().find((item) => item.name === appName);
-    const app = existing ?? appMod.initializeApp({
-      apiKey: config.firebaseWebApiKey,
-      authDomain: config.firebaseAuthDomain,
-      projectId: config.firebaseProjectId || undefined
-    }, appName);
-    const auth = authMod.getAuth(app);
-    const provider = new authMod.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    const firebase = await import('./lib/firebase-browser-auth.js');
+    const { auth, provider, authMod } = await firebase.getFirebaseBrowserClient(config);
     return { auth, provider, signInWithPopup: authMod.signInWithPopup };
   })();
   return firebaseGoogleClientPromise;
@@ -126,6 +116,12 @@ async function logout() {
       headers: { 'content-type': 'application/json' },
       body: '{}'
     });
+  } catch {
+    // best-effort
+  }
+  try {
+    const firebase = await import('./lib/firebase-browser-auth.js');
+    await firebase.signOutFirebaseBrowserSession(config);
   } catch {
     // best-effort
   }
@@ -239,11 +235,21 @@ async function handleEmailAuth(mode) {
     return;
   }
   try {
-    const result = await requestJson('/api/auth/email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password, mode })
-    });
+    const result = firebaseClientEnabled()
+      ? await (async () => {
+          const firebase = await import('./lib/firebase-browser-auth.js');
+          const auth = await firebase.authenticateFirebaseEmail(config, { mode, email, password });
+          return requestJson('/api/auth/firebase', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ idToken: auth.idToken })
+          });
+        })()
+      : await requestJson('/api/auth/email', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email, password, mode })
+        });
     setStoredUser(result.user || null);
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
