@@ -1,4 +1,4 @@
-import { copyFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -24,6 +24,12 @@ export async function stageWorldAssetPublishDir({
   const worldDir = path.join(root, 'assets', 'world');
   await mkdir(worldDir, { recursive: true });
   await copyFile(sourcePath, path.join(worldDir, 'mega.glb'));
+  // CORS headers so browsers can fetch the GLB directly from this origin
+  // (used when worldAssetBaseUrl is set to the absolute canonical host).
+  await writeFile(
+    path.join(root, '_headers'),
+    '/assets/world/*\n  Access-Control-Allow-Origin: *\n  Cross-Origin-Resource-Policy: cross-origin\n'
+  );
   return root;
 }
 
