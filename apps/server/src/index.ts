@@ -12,7 +12,7 @@ import { PresenceStore } from './PresenceStore.js';
 import { WORLD_SECTION_SPAWNS, WorldSim } from './WorldSim.js';
 import { createRouter } from './routes/index.js';
 import { parseClientMessage } from './websocket/messages.js';
-import type { GameMove } from '@arena/shared';
+import type { GameMove, GameType } from '@arena/shared';
 import {
   validateSession,
   verifyWsAuth,
@@ -283,7 +283,7 @@ function isStaticNpcId(playerId: string): boolean {
   return typeof playerId === 'string' && playerId.startsWith('agent_bg_');
 }
 
-function autoNpcMove(challengeId: string, gameType: 'rps' | 'coinflip' | 'dice_duel'): GameMove {
+function autoNpcMove(challengeId: string, gameType: GameType): GameMove {
   const digest = sha256Hex(challengeId);
   const seed = Number.parseInt(digest.slice(0, 2), 16);
   if (gameType === 'coinflip') {

@@ -21,7 +21,9 @@ export function dealDeckFromSeeds(houseSeed: string, playerSeed: string): string
     const hashHex = sha256Hex(`${combined}|${i}`);
     const rand = parseInt(hashHex.slice(0, 8), 16);
     const j = rand % (i + 1);
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+    const tmp = deck[i] as string;
+    deck[i] = deck[j] as string;
+    deck[j] = tmp;
   }
   return deck;
 }

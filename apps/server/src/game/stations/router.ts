@@ -659,8 +659,8 @@ export function createStationRouter(ctx: StationRouterContext) {
       const playerSeed = String(payload.playerSeed || '').trim().slice(0, 96) || ctx.newSeedHex(12);
       const commitHash = sha256Hex(houseSeed);
       const deck = dealDeckFromSeeds(houseSeed, playerSeed);
-      const playerHand = [deck[0], deck[2]];
-      const dealerHand = [deck[1], deck[3]];
+      const playerHand: string[] = [deck[0]!, deck[2]!];
+      const dealerHand: string[] = [deck[1]!, deck[3]!];
 
       pendingBlackjackRounds.set(playerId, {
         playerId,
@@ -678,7 +678,7 @@ export function createStationRouter(ctx: StationRouterContext) {
       });
 
       const { value: playerHandValue, soft: isSoft } = handValue(playerHand);
-      const { value: dealerShowValue } = handValue([dealerHand[0]]);
+      const { value: dealerShowValue } = handValue([dealerHand[0] ?? '']);
 
       ctx.sendTo(playerId, {
         type: 'station_ui',
@@ -721,7 +721,7 @@ export function createStationRouter(ctx: StationRouterContext) {
       }
 
       if (payload.action === 'blackjack_hit') {
-        const newCard = pending.deck[pending.nextCardIdx++];
+        const newCard = pending.deck[pending.nextCardIdx++] ?? '';
         pending.playerHand.push(newCard);
 
         const { value: playerHandValue, soft: isSoft } = handValue(pending.playerHand);
@@ -729,11 +729,11 @@ export function createStationRouter(ctx: StationRouterContext) {
         if (playerHandValue > 21) {
           // Bust — dealer wins; play out dealer hand for display then settle
           while (dealerShouldHit(handValue(pending.dealerHand).value)) {
-            pending.dealerHand.push(pending.deck[pending.nextCardIdx++]);
+            pending.dealerHand.push(pending.deck[pending.nextCardIdx++] ?? '');
           }
           await settleBlackjack(playerId, station, pending);
         } else {
-          const { value: dealerShowValue } = handValue([pending.dealerHand[0]]);
+          const { value: dealerShowValue } = handValue([pending.dealerHand[0] ?? '']);
           ctx.sendTo(playerId, {
             type: 'station_ui',
             stationId: station.id,
@@ -757,7 +757,7 @@ export function createStationRouter(ctx: StationRouterContext) {
 
       if (payload.action === 'blackjack_stand') {
         while (dealerShouldHit(handValue(pending.dealerHand).value)) {
-          pending.dealerHand.push(pending.deck[pending.nextCardIdx++]);
+          pending.dealerHand.push(pending.deck[pending.nextCardIdx++] ?? '');
         }
         await settleBlackjack(playerId, station, pending);
         return;
