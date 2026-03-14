@@ -10,7 +10,6 @@ export function renderMobileControlsRuntime(params) {
     describeInteractionPhase,
     state,
     interactionCard,
-    mobileInteract,
     mobileSend,
     mobileAccept,
     mobileDecline,
@@ -59,7 +58,6 @@ export function renderMobileControlsRuntime(params) {
     stations: state.stations
   });
 
-  if (mobileInteract) mobileInteract.style.display = visibility.interact ? 'inline-flex' : 'none';
   if (mobileSend) mobileSend.style.display = visibility.send ? 'inline-flex' : 'none';
   if (mobileAccept) mobileAccept.style.display = visibility.accept ? 'inline-flex' : 'none';
   if (mobileDecline) mobileDecline.style.display = visibility.decline ? 'inline-flex' : 'none';

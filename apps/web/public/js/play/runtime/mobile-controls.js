@@ -13,20 +13,13 @@ export function computeMobileControlVisibility(params) {
   const interactionVisible = Boolean(params.interactionVisible);
   const { pluginRegistry, getUiTargetId, isStation } = params;
 
-  let interact = hasTarget && !interactionOpen;
+  // Station interactions are opened via the interaction-prompt tap target (center bottom).
+  // The INTERACT button has been removed; only player-challenge actions remain here.
   let send = context === 'near_player_idle';
   if (hasTarget && pluginRegistry && getUiTargetId && isStation) {
     const targetId = getUiTargetId();
     if (targetId && isStation(targetId)) {
       send = false;
-      const station = params.stations instanceof Map ? params.stations.get(targetId) : null;
-      if (station) {
-        const plugin = pluginRegistry.station(station.kind);
-        const actions = plugin?.getMobileActions?.() ?? [];
-        if (actions.length > 0) {
-          interact = !interactionOpen && actions.includes('interact');
-        }
-      }
     }
   }
 
@@ -38,7 +31,6 @@ export function computeMobileControlVisibility(params) {
   const diceVisible = !interactionOpen && context === 'active_dice_duel';
 
   return {
-    interact,
     send,
     accept: context === 'incoming_challenge',
     decline: context === 'incoming_challenge',
