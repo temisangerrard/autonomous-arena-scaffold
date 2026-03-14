@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -32,5 +32,22 @@ describe('publish world assets script', () => {
     const stagedAsset = path.join(publishDir, 'assets', 'world', 'mega.glb');
 
     expect(statSync(stagedAsset).size).toBe(statSync(sourcePath).size);
+  });
+
+  it('writes a _headers file that allows cross-origin access to world assets', async () => {
+    const module = await import(new URL('../../../scripts/publish-world-assets.mjs', import.meta.url).href);
+    const { stageWorldAssetPublishDir } = module;
+
+    const root = mkdtempSync(path.join(os.tmpdir(), 'world-asset-test-'));
+    const sourcePath = path.join(root, 'train_station_mega_world.glb');
+    const stagingDir = path.join(root, 'staging');
+    mkdirSync(stagingDir, { recursive: true });
+    writeFileSync(sourcePath, 'arena-world');
+
+    const publishDir = await stageWorldAssetPublishDir({ sourcePath, stagingDir });
+    const headers = readFileSync(path.join(publishDir, '_headers'), 'utf8');
+
+    expect(headers).toContain('/assets/world/*');
+    expect(headers).toContain('Access-Control-Allow-Origin: *');
   });
 });
