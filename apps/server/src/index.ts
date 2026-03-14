@@ -31,6 +31,7 @@ import { createStationRouter } from './game/stations/router.js';
 import { MarketService } from './markets/MarketService.js';
 import { SettlementWorker } from './markets/SettlementWorker.js';
 import { runStartupValidation } from './middleware/security.js';
+import { resolveBuilderCodeContext } from './lib/builderCode.js';
 
 type PlayerMeta = {
   role: PlayerRole;
@@ -55,6 +56,7 @@ const challengeService = new ChallengeService(
   challengeIdPrefix
 );
 const internalServiceToken = resolveInternalServiceToken();
+const builderCodeContext = resolveBuilderCodeContext(process.env);
 const escrowAdapter = new EscrowAdapter(
   config.agentRuntimeUrl,
   {
@@ -62,7 +64,8 @@ const escrowAdapter = new EscrowAdapter(
     resolverPrivateKey: config.escrowResolverPrivateKey,
     escrowContractAddress: config.escrowContractAddress,
     tokenDecimals: config.escrowTokenDecimals,
-    internalToken: internalServiceToken
+    internalToken: internalServiceToken,
+    builderCodeSuffix: builderCodeContext.suffixHex
   }
 );
 const marketService = new MarketService(

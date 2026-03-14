@@ -12,12 +12,17 @@
     "deploy:base": "hardhat run scripts/deploy.ts --network base",
     "deploy-pool:local": "hardhat run scripts/deploy-pool.ts --network localhost",
     "deploy-pool:sepolia": "hardhat run scripts/deploy-pool.ts --network sepolia",
-    "deploy-pool:base": "hardhat run scripts/deploy-pool.ts --network base"
+    "deploy-pool:base": "hardhat run scripts/deploy-pool.ts --network base",
+    "verify:base": "hardhat run scripts/verify.ts --network base",
+    "verify:sepolia": "hardhat run scripts/verify.ts --network sepolia"
   },
   "devDependencies": {
+    "@fastify/busboy": "^3.2.0",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^5.2.0",
+    "dotenv": "^16.6.1",
     "hardhat": "^2.24.1",
+    "yocto-queue": "^0.1.0",
     "typescript": "^5.7.3",
     "ts-node": "^10.9.2"
   }
