@@ -23,44 +23,23 @@ export function renderWorldMapPanel(params) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
-  // Draw 8 sections (4x2) with alternating tint.
-  for (let r = 0; r < 2; r += 1) {
-    for (let c = 0; c < 4; c += 1) {
-      const x = (c / 4) * width;
-      const y = (r / 2) * height;
-      const w = width / 4;
-      const h = height / 2;
-      ctx.fillStyle = (r + c) % 2 === 0 ? 'rgba(228, 206, 147, 0.14)' : 'rgba(255,255,255,0.2)';
-      ctx.fillRect(x, y, w, h);
-    }
-  }
+  // Subtle centre crosshair — helps orient the map.
+  ctx.strokeStyle = 'rgba(168, 130, 24, 0.22)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(width / 2, 0); ctx.lineTo(width / 2, height); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2); ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(168, 130, 24, 0.55)';
-  ctx.lineWidth = 1.1;
-  const cols = 4;
-  const rows = 2;
-  for (let c = 1; c < cols; c += 1) {
-    const x = (c / cols) * width;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.stroke();
-  }
-  for (let r = 1; r < rows; r += 1) {
-    const y = (r / rows) * height;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
-
-  ctx.font = '10px "IBM Plex Mono", monospace';
-  ctx.fillStyle = 'rgba(91, 72, 20, 0.9)';
-  for (let i = 0; i < 8; i += 1) {
-    const c = i % 4;
-    const r = Math.floor(i / 4);
-    ctx.fillText(`S${i + 1}`, c * (width / 4) + 4, r * (height / 2) + 12);
-  }
+  // Compass labels: N top-centre, S bottom-centre, W left, E right.
+  ctx.font = 'bold 9px "IBM Plex Mono", monospace';
+  ctx.fillStyle = 'rgba(91, 72, 20, 0.55)';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', width / 2, 10);
+  ctx.fillText('S', width / 2, height - 3);
+  ctx.textAlign = 'left';
+  ctx.fillText('W', 3, height / 2 - 2);
+  ctx.textAlign = 'right';
+  ctx.fillText('E', width - 3, height / 2 - 2);
+  ctx.textAlign = 'left';
 
   for (const player of state.players.values()) {
     const x = ((player.x + worldBound) / (worldBound * 2)) * width;
@@ -78,17 +57,29 @@ export function renderWorldMapPanel(params) {
     ctx.stroke();
   }
 
+  const STATION_LABELS = {
+    station_world_info_a: 'INFO',
+    station_cashier_bank: 'CASH',
+    station_dealer_coinflip_a: 'FLIP',
+    station_dealer_rps_a: 'RPS',
+    station_dealer_dice_a: 'DICE',
+    station_dealer_blackjack_a: 'BJ',
+    station_dealer_prediction_a: 'PRED'
+  };
+
   if (state.stations instanceof Map) {
     for (const station of state.stations.values()) {
       const x = ((station.x + worldBound) / (worldBound * 2)) * width;
       const y = ((station.z + worldBound) / (worldBound * 2)) * height;
-      ctx.beginPath();
       const size = 6;
+      ctx.beginPath();
       ctx.rect(x - size / 2, y - size / 2, size, size);
       ctx.fillStyle = station.kind === 'cashier_bank'
         ? 'rgba(47, 109, 255, 0.92)'
         : station.kind === 'dealer_prediction'
           ? 'rgba(95, 141, 255, 0.92)'
+        : station.kind === 'dealer_blackjack'
+          ? 'rgba(155, 89, 182, 0.92)'
         : station.kind === 'world_interactable'
           ? 'rgba(120, 196, 163, 0.92)'
           : 'rgba(243, 156, 18, 0.92)';
@@ -96,6 +87,17 @@ export function renderWorldMapPanel(params) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
       ctx.lineWidth = 1;
       ctx.stroke();
+
+      // Station label — offset right of the square, avoid canvas edges.
+      const label = STATION_LABELS[station.id] || station.displayName?.slice(0, 4).toUpperCase() || '';
+      if (label) {
+        ctx.font = '7px "IBM Plex Mono", monospace';
+        ctx.fillStyle = 'rgba(60, 42, 10, 0.85)';
+        ctx.textAlign = 'left';
+        const lx = Math.min(x + size / 2 + 2, width - 24);
+        const ly = y + 3;
+        ctx.fillText(label, lx, ly);
+      }
     }
   }
 

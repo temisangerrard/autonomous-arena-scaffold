@@ -14,13 +14,14 @@ describe('arena station layout', () => {
       'station_dealer_coinflip_a',
       'station_dealer_rps_a',
       'station_dealer_dice_a',
+      'station_dealer_blackjack_a',
       'station_dealer_prediction_a'
     ]);
   });
 
   it('clusters all venues as ring dealers within 55 units of the arena center', () => {
     const ringStations = ARENA_PUBLIC_STATION_LAYOUT.filter((station) => station.arenaZone === 'ring');
-    expect(ringStations).toHaveLength(5);
+    expect(ringStations).toHaveLength(6);
     for (const station of ringStations) {
       const distanceFromCenter = Math.hypot(station.x, station.z);
       // All ring stations sit within a 55-unit horseshoe around the central

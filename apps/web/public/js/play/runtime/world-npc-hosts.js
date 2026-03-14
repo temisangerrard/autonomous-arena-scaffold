@@ -81,9 +81,9 @@ function roleDetails(role) {
   if (role === 'info') {
     return {
       title: 'Super Agent',
-      inspect: '"Everything\'s close — you can see it all from here. Blackjack\'s far south-west, Coinflip south-west, RPS south-east, Dice straight south. Cashier\'s east of the train. Prediction board is north of everything."',
+      inspect: '"You spawn south and walk north into the arena. Dice is straight ahead as you enter. Blackjack is hard left (Vera), Coinflip just left of centre (Jade), RPS just right of centre (Axel). Cashier is north-east past the train (Rex). Prediction markets are far north (Kai)."',
       useLabel: 'Show me the layout',
-      use: '"Blackjack far south-west (Vera), Coinflip south-west, RPS south-east, Dice straight south. Cashier east of the train. Prediction markets north. Walk toward any of them and press E. Every game runs provably fair escrow on Base."'
+      use: '"Walk north from spawn: Dice dead ahead, Blackjack hard left, Coinflip left, RPS right. Past the train: Cashier to the right, Info guide to the left. Prediction markets far north. Every game runs provably fair escrow on Base."'
     };
   }
   return {
