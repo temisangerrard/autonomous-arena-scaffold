@@ -531,6 +531,12 @@
       color: #7a2010;
       font-weight: 700;
     }
+    .game-panel__status--success {
+      border-color: rgba(66, 150, 97, 0.48);
+      background: rgba(212, 244, 214, 0.78);
+      color: #184828;
+      font-weight: 700;
+    }
     @keyframes status-pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.6; }

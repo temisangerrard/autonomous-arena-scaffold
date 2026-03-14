@@ -60,9 +60,11 @@ export function renderDealerRevealStatus(statusEl, params) {
     resultLine = `You: ${p} vs House: ${h} · Round: ${round}`;
   } else {
     const toss = String(params.coinflipResult || '').toUpperCase() || 'UNKNOWN';
+    const pick = String(params.playerPick || '').toUpperCase();
     const COIN_ICONS = { HEADS: '🪙', TAILS: '🔄' };
     const icon = COIN_ICONS[toss] ? `${COIN_ICONS[toss]} ` : '';
-    resultLine = `${icon}${toss} · Round: ${round}`;
+    const pickLabel = pick ? ` (you picked ${pick})` : '';
+    resultLine = `${icon}${toss}${pickLabel} · Round: ${round}`;
   }
 
   statusEl.innerHTML = `${resultLine}${balanceLabel}${txLink}`;

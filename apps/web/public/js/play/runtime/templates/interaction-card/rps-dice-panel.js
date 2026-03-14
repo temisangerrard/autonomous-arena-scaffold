@@ -173,15 +173,17 @@ export function updateRpsDiceLive(params) {
   } else if (ds === 'reveal') {
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
-    clearPendingBtn(startBtn, '▶ Play');
+    clearPendingBtn(startBtn, '▶ Play Again');
+    if (startBtn) startBtn.innerHTML = '<span class="game-panel__play-icon">▶</span> Play Again';
     flashBtn(startBtn, 'is-success');
     for (const id of allPickIds) { const b = document.getElementById(id); if (b) clearPendingBtn(b); }
     setAllPicksBtnDisabled(false);
     if (pickActions) pickActions.style.display = 'none';
     if (stageEl) stageEl.style.display = 'flex';
     if (statusEl) {
-      statusEl.className = 'game-panel__status';
       const delta = Number(state.ui.dealer.payoutDelta || 0);
+      const tone = delta > 0 ? 'success' : delta < 0 ? 'error' : '';
+      statusEl.className = `game-panel__status${tone ? ` game-panel__status--${tone}` : ''}`;
       const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
       renderDealerRevealStatus(statusEl, {
         gameType: state.ui.dealer.gameType,

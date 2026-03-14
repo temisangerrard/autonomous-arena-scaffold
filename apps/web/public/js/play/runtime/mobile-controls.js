@@ -13,7 +13,7 @@ export function computeMobileControlVisibility(params) {
   const interactionVisible = Boolean(params.interactionVisible);
   const { pluginRegistry, getUiTargetId, isStation } = params;
 
-  let interact = hasTarget;
+  let interact = hasTarget && !interactionOpen;
   let send = context === 'near_player_idle';
   if (hasTarget && pluginRegistry && getUiTargetId && isStation) {
     const targetId = getUiTargetId();
@@ -24,7 +24,7 @@ export function computeMobileControlVisibility(params) {
         const plugin = pluginRegistry.station(station.kind);
         const actions = plugin?.getMobileActions?.() ?? [];
         if (actions.length > 0) {
-          interact = actions.includes('interact');
+          interact = !interactionOpen && actions.includes('interact');
         }
       }
     }
@@ -32,9 +32,10 @@ export function computeMobileControlVisibility(params) {
 
   // Dealer pick buttons live exclusively inside the interaction card.
   // Mobile move duplicates are only for player-vs-player active matches.
-  const rpsVisible = context === 'active_rps';
-  const coinflipVisible = context === 'active_coinflip';
-  const diceVisible = context === 'active_dice_duel';
+  // Hide all move buttons while the interaction card is open to avoid overlap.
+  const rpsVisible = !interactionOpen && context === 'active_rps';
+  const coinflipVisible = !interactionOpen && context === 'active_coinflip';
+  const diceVisible = !interactionOpen && context === 'active_dice_duel';
 
   return {
     interact,

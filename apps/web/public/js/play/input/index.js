@@ -223,7 +223,7 @@ export function createInputSystem({ state, dom, actions }) {
 
     dom.mobileInteract?.addEventListener('click', () => {
       if (!actions.getUiTargetId?.()) return;
-      actions.setInteractOpen?.(true);
+      actions.setInteractOpen?.(!state.ui.interactOpen);
     });
     dom.mobileSend?.addEventListener('click', () => actions.sendChallenge?.());
     dom.mobileAccept?.addEventListener('click', () => actions.respondToIncoming?.(true));
