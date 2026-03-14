@@ -6,7 +6,7 @@ export { THREE };
 
 let worldManifestPromise = null;
 const CANONICAL_WORLD_ALIAS = 'mega';
-const CANONICAL_WORLD_BASE_FALLBACK = '';
+const CANONICAL_WORLD_BASE_FALLBACK = 'https://arena-world-assets.netlify.app';
 const WORLD_FILENAME_FALLBACK = {
   train_world: 'train_station_mega_world.glb',
   'train-world': 'train_station_mega_world.glb',
