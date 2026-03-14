@@ -108,6 +108,8 @@ export function renderInteractionPromptLine(params) {
     return;
   }
   const incoming = challengeController.currentIncomingChallenge();
+  const isTouch = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+  const openVerb = isTouch ? 'tap' : 'press E';
   if (isStation(targetId)) {
     const station = state.stations instanceof Map ? state.stations.get(targetId) : null;
     // Dud baked station — no server proxy so interacting will fail. Hide the prompt entirely.
@@ -117,22 +119,23 @@ export function renderInteractionPromptLine(params) {
     }
     const local = station?.localInteraction;
     const gameHintByKind = {
-      dealer_coinflip: ' — press E to play Coin Flip',
-      dealer_rps: ' — press E to play Rock Paper Scissors',
-      dealer_dice_duel: ' — press E to play Dice Duel',
-      dealer_prediction: ' — press E to trade prediction markets',
-      cashier_bank: ' — press E to open cashier'
+      dealer_coinflip: ` — ${openVerb} to play Coin Flip`,
+      dealer_rps: ` — ${openVerb} to play Rock Paper Scissors`,
+      dealer_dice_duel: ` — ${openVerb} to play Dice Duel`,
+      dealer_blackjack: ` — ${openVerb} to play Blackjack`,
+      dealer_prediction: ` — ${openVerb} to trade prediction markets`,
+      cashier_bank: ` — ${openVerb} to open cashier`
     };
     const stationHint = gameHintByKind[String(station?.kind || '')] || '';
     if (local?.title) {
       // Named NPC host — show character name as the call-to-action
-      interactionPrompt.innerHTML = `<span class="prompt-name">${local.title}</span><span class="prompt-hint">${stationHint || ' — press E to talk'}</span>`;
+      interactionPrompt.innerHTML = `<span class="prompt-name">${local.title}</span><span class="prompt-hint">${stationHint || ` — ${openVerb} to talk`}</span>`;
     } else {
-      interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — press E to open</span>`;
+      interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${openVerb} to open</span>`;
     }
   } else {
     const hint = incoming ? ' · Y/N respond' : '';
-    interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — E interact · C challenge${hint}</span>`;
+    interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${isTouch ? 'tap' : 'E'} interact · C challenge${hint}</span>`;
   }
   interactionPrompt.classList.add('visible');
 }

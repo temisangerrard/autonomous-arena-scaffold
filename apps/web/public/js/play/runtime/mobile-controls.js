@@ -13,31 +13,24 @@ export function computeMobileControlVisibility(params) {
   const interactionVisible = Boolean(params.interactionVisible);
   const { pluginRegistry, getUiTargetId, isStation } = params;
 
-  let interact = hasTarget;
+  // Station interactions are opened via the interaction-prompt tap target (center bottom).
+  // The INTERACT button has been removed; only player-challenge actions remain here.
   let send = context === 'near_player_idle';
   if (hasTarget && pluginRegistry && getUiTargetId && isStation) {
     const targetId = getUiTargetId();
     if (targetId && isStation(targetId)) {
       send = false;
-      const station = params.stations instanceof Map ? params.stations.get(targetId) : null;
-      if (station) {
-        const plugin = pluginRegistry.station(station.kind);
-        const actions = plugin?.getMobileActions?.() ?? [];
-        if (actions.length > 0) {
-          interact = actions.includes('interact');
-        }
-      }
     }
   }
 
   // Dealer pick buttons live exclusively inside the interaction card.
   // Mobile move duplicates are only for player-vs-player active matches.
-  const rpsVisible = context === 'active_rps';
-  const coinflipVisible = context === 'active_coinflip';
-  const diceVisible = context === 'active_dice_duel';
+  // Hide all move buttons while the interaction card is open to avoid overlap.
+  const rpsVisible = !interactionOpen && context === 'active_rps';
+  const coinflipVisible = !interactionOpen && context === 'active_coinflip';
+  const diceVisible = !interactionOpen && context === 'active_dice_duel';
 
   return {
-    interact,
     send,
     accept: context === 'incoming_challenge',
     decline: context === 'incoming_challenge',

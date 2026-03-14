@@ -2,6 +2,7 @@ const GAME_START_ACTIONS = {
   rps: 'rps_house_start',
   coinflip: 'coinflip_house_start',
   dice_duel: 'dice_duel_start',
+  blackjack: 'blackjack_start',
   prediction: 'prediction_markets_open'
 };
 
@@ -9,6 +10,7 @@ const GAME_LABELS = {
   rps: 'Rock Paper Scissors',
   coinflip: 'Coinflip',
   dice_duel: 'Dice Duel',
+  blackjack: 'Blackjack',
   prediction: 'Prediction Markets'
 };
 

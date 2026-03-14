@@ -221,10 +221,6 @@ export function createInputSystem({ state, dom, actions }) {
     dom.mobileStick.addEventListener('pointercancel', end);
     window.addEventListener('blur', () => resetMobileStick());
 
-    dom.mobileInteract?.addEventListener('click', () => {
-      if (!actions.getUiTargetId?.()) return;
-      actions.setInteractOpen?.(true);
-    });
     dom.mobileSend?.addEventListener('click', () => actions.sendChallenge?.());
     dom.mobileAccept?.addEventListener('click', () => actions.respondToIncoming?.(true));
     dom.mobileDecline?.addEventListener('click', () => actions.respondToIncoming?.(false));

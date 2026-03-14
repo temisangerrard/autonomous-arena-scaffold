@@ -13,6 +13,7 @@ import {
 } from './helpers.js';
 import { mountCoinflipPanel, updateCoinflipLive } from './coinflip-panel.js';
 import { mountRpsDicePanel, updateRpsDiceLive } from './rps-dice-panel.js';
+import { mountBlackjackPanel, updateBlackjackLive } from './blackjack-panel.js';
 import { mountPredictionPanel, updatePredictionLive } from './prediction-panel.js';
 import { mountCashierPanel } from './cashier-panel.js';
 import { mountWorldPanel } from './world-panel.js';
@@ -123,7 +124,7 @@ export function renderInteractionCardTemplate(params) {
     const station = isStation(targetId) && state.stations instanceof Map ? state.stations.get(targetId) : null;
     const targetPlayer = state.players.get(targetId);
 
-    const dealerKinds = ['dealer_coinflip', 'dealer_rps', 'dealer_dice_duel', 'dealer_prediction'];
+    const dealerKinds = ['dealer_coinflip', 'dealer_rps', 'dealer_dice_duel', 'dealer_prediction', 'dealer_blackjack'];
     const showHelpToggle = Boolean(station && !dealerKinds.includes(station.kind));
     if (interactionHelpToggle) interactionHelpToggle.hidden = !showHelpToggle;
     if (interactionHelp) {
@@ -178,7 +179,9 @@ export function renderInteractionCardTemplate(params) {
         const resolvePredictionRouteStationForMount = (fromStation) =>
           resolvePredictionRouteStation(state, fromStation);
 
-        if (station.kind === 'dealer_coinflip') {
+        if (station.kind === 'dealer_blackjack') {
+          mountBlackjackPanel({ ...baseParams, station });
+        } else if (station.kind === 'dealer_coinflip') {
           mountCoinflipPanel({ ...baseParams, station });
         } else if (station.kind === 'dealer_rps' || station.kind === 'dealer_dice_duel') {
           mountRpsDicePanel({ ...baseParams, station });
@@ -199,7 +202,16 @@ export function renderInteractionCardTemplate(params) {
         }
       }
 
-      if (station.kind === 'dealer_coinflip') {
+      if (station.kind === 'dealer_blackjack') {
+        updateBlackjackLive({
+          ...baseParams,
+          station,
+          setPendingBtn,
+          clearPendingBtn,
+          flashBtn,
+          clearTimer
+        });
+      } else if (station.kind === 'dealer_coinflip') {
         updateCoinflipLive({
           ...baseParams,
           station,

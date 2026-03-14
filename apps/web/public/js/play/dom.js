@@ -37,7 +37,6 @@ export function getDom() {
     mobileControls: document.getElementById('mobile-controls'),
     mobileStick: document.getElementById('mobile-stick'),
     mobileStickKnob: document.getElementById('mobile-stick-knob'),
-    mobileInteract: document.getElementById('mobile-interact'),
     mobileSend: document.getElementById('mobile-send'),
     mobileAccept: document.getElementById('mobile-accept'),
     mobileDecline: document.getElementById('mobile-decline'),

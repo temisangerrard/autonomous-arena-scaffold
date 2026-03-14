@@ -19,6 +19,7 @@ export class ChallengeService {
   private readonly recentLogs: ChallengeLog[] = [];
   private challengeCounter = 1;
   private readonly coinflipResultOverride = new Map<string, CoinflipMove>();
+  private readonly blackjackWinnerOverride = new Map<string, string | null>();
   private readonly challengeIdPrefix: string;
 
   constructor(
@@ -104,6 +105,11 @@ export class ChallengeService {
 
   getChallenge(challengeId: string): Challenge | null {
     return this.challenges.get(challengeId) ?? null;
+  }
+
+  setBlackjackWinnerOverride(challengeId: string, winnerId: string | null): void {
+    if (!challengeId) return;
+    this.blackjackWinnerOverride.set(challengeId, winnerId);
   }
 
   setCoinflipResultOverride(challengeId: string, result: CoinflipMove): void {
@@ -211,6 +217,9 @@ export class ChallengeService {
     if (challenge.gameType === 'dice_duel') {
       return this.resolveDiceDuel(challenge);
     }
+    if (challenge.gameType === 'blackjack') {
+      return this.resolveBlackjackChallenge(challenge);
+    }
 
     return this.resolveCoinflip(challenge);
   }
@@ -297,6 +306,29 @@ export class ChallengeService {
             challenge.winnerId = null;
           }
 
+          this.clearPlayerLocks(challenge);
+          events.push(
+            this.withLog({
+              type: 'challenge',
+              event: 'resolved',
+              challengeId: challenge.id,
+              challenge,
+              to: [challenge.challengerId, challenge.opponentId],
+              reason: 'timeout_resolution'
+            })
+          );
+          continue;
+        }
+        if (challenge.gameType === 'blackjack') {
+          challenge.status = 'resolved';
+          challenge.resolvedAt = now;
+          const override = this.blackjackWinnerOverride.get(challenge.id);
+          if (typeof override !== 'undefined') {
+            challenge.winnerId = override;
+            this.blackjackWinnerOverride.delete(challenge.id);
+          } else {
+            challenge.winnerId = null;
+          }
           this.clearPlayerLocks(challenge);
           events.push(
             this.withLog({
@@ -403,6 +435,27 @@ export class ChallengeService {
 
   getRecent(limit = 50): ChallengeLog[] {
     return this.recentLogs.slice(Math.max(0, this.recentLogs.length - limit));
+  }
+
+  private resolveBlackjackChallenge(challenge: Challenge): ChallengeEvent {
+    challenge.status = 'resolved';
+    challenge.resolvedAt = this.now();
+    const override = this.blackjackWinnerOverride.get(challenge.id);
+    if (typeof override !== 'undefined') {
+      challenge.winnerId = override;
+      this.blackjackWinnerOverride.delete(challenge.id);
+    } else {
+      challenge.winnerId = null;
+    }
+    this.clearPlayerLocks(challenge);
+    return this.withLog({
+      type: 'challenge',
+      event: 'resolved',
+      challengeId: challenge.id,
+      challenge,
+      to: [challenge.challengerId, challenge.opponentId],
+      reason: challenge.winnerId ? 'blackjack_result' : 'blackjack_push'
+    });
   }
 
   private resolveCoinflip(challenge: Challenge): ChallengeEvent {

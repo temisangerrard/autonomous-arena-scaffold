@@ -53,6 +53,17 @@ export type StationInteractMessage = {
       stake: number;
     }
   | {
+      action: 'blackjack_start';
+      wager: number;
+      playerSeed?: string;
+    }
+  | {
+      action: 'blackjack_hit';
+    }
+  | {
+      action: 'blackjack_stand';
+    }
+  | {
       action: 'interact_open';
     }
   | {
@@ -137,6 +148,32 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
       payload.type === 'station_interact' &&
       typeof payload.stationId === 'string'
     ) {
+      if (payload.action === 'blackjack_start') {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'blackjack_start',
+          ...(quickPlay ? { quickPlay: true } : {}),
+          wager: typeof payload.wager === 'number' ? payload.wager : 1,
+          ...(typeof payload.playerSeed === 'string' ? { playerSeed: payload.playerSeed } : {})
+        };
+      }
+      if (payload.action === 'blackjack_hit') {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'blackjack_hit',
+          ...(quickPlay ? { quickPlay: true } : {})
+        };
+      }
+      if (payload.action === 'blackjack_stand') {
+        return {
+          type: 'station_interact',
+          stationId: payload.stationId,
+          action: 'blackjack_stand',
+          ...(quickPlay ? { quickPlay: true } : {})
+        };
+      }
       if (payload.action === 'interact_open') {
         return {
           type: 'station_interact',

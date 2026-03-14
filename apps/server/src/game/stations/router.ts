@@ -9,6 +9,14 @@ import { DICE_DUEL_DEALER_METHOD, pickHouseDiceGuess } from './handlers/dealerDi
 import { RPS_DEALER_METHOD, pickHouseRpsMove } from './handlers/dealerRps.js';
 import { unsupportedCashierActionView } from './handlers/cashier.js';
 import { handlePredictionStationAction } from './handlers/dealerPrediction.js';
+import {
+  BLACKJACK_DEALER_METHOD,
+  dealDeckFromSeeds,
+  handValue,
+  dealerShouldHit,
+  resolveBlackjack,
+  visibleDealerHand
+} from './handlers/dealerBlackjack.js';
 import type { MarketService } from '../../markets/MarketService.js';
 
 type PendingDealerRound = {
@@ -19,6 +27,21 @@ type PendingDealerRound = {
   houseSeed: string;
   commitHash: string;
   method: string;
+  createdAt: number;
+  preflightApproved: boolean;
+};
+
+type PendingBlackjackRound = {
+  playerId: string;
+  stationId: string;
+  wager: number;
+  houseSeed: string;
+  playerSeed: string;
+  commitHash: string;
+  deck: string[];
+  nextCardIdx: number;
+  playerHand: string[];
+  dealerHand: string[];
   createdAt: number;
   preflightApproved: boolean;
 };
@@ -53,6 +76,8 @@ type StationRouterContext = {
 
 type StationStartMessage = Extract<StationInteractMessage, { action: 'coinflip_house_start' | 'rps_house_start' | 'dice_duel_start' }>;
 type StationPickMessage = Extract<StationInteractMessage, { action: 'coinflip_house_pick' | 'rps_house_pick' | 'dice_duel_pick' }>;
+type BlackjackStartMessage = Extract<StationInteractMessage, { action: 'blackjack_start' }>;
+type BlackjackActionMessage = Extract<StationInteractMessage, { action: 'blackjack_hit' | 'blackjack_stand' }>;
 type PredictionMessage = Extract<
   StationInteractMessage,
   {
@@ -66,12 +91,14 @@ type PredictionMessage = Extract<
 function renderReadyState(gameType: GameType): StationUiView['state'] {
   if (gameType === 'rps') return 'dealer_ready_rps';
   if (gameType === 'dice_duel') return 'dealer_ready_dice';
+  if (gameType === 'blackjack') return 'dealer_ready_blackjack';
   return 'dealer_ready';
 }
 
 function renderRevealState(gameType: GameType): StationUiView['state'] {
   if (gameType === 'rps') return 'dealer_reveal_rps';
   if (gameType === 'dice_duel') return 'dealer_reveal_dice';
+  if (gameType === 'blackjack') return 'dealer_reveal_blackjack';
   return 'dealer_reveal';
 }
 
@@ -79,6 +106,7 @@ function stationGameType(stationKind: SnapshotStation['kind']): GameType | null 
   if (stationKind === 'dealer_coinflip') return 'coinflip';
   if (stationKind === 'dealer_rps') return 'rps';
   if (stationKind === 'dealer_dice_duel') return 'dice_duel';
+  if (stationKind === 'dealer_blackjack') return 'blackjack';
   return null;
 }
 
@@ -92,6 +120,14 @@ function isPickMessage(payload: StationInteractMessage): payload is StationPickM
   return payload.action === 'coinflip_house_pick'
     || payload.action === 'rps_house_pick'
     || payload.action === 'dice_duel_pick';
+}
+
+function isBlackjackStartMessage(payload: StationInteractMessage): payload is BlackjackStartMessage {
+  return payload.action === 'blackjack_start';
+}
+
+function isBlackjackActionMessage(payload: StationInteractMessage): payload is BlackjackActionMessage {
+  return payload.action === 'blackjack_hit' || payload.action === 'blackjack_stand';
 }
 
 function interactionDetailFor(tag: string): { title: string; detail: string; useLabel: string; afterUse: string } {
@@ -131,15 +167,22 @@ export function createStationRouter(ctx: StationRouterContext) {
   const stations = buildStations({ diceDuelEnabled: ctx.diceDuelEnabled });
   const stationById = new Map<string, SnapshotStation>(stations.map((station) => [station.id, station]));
   const pendingDealerRounds = new Map<string, PendingDealerRound>();
+  const pendingBlackjackRounds = new Map<string, PendingBlackjackRound>();
 
   function clearPlayer(playerId: string): void {
     pendingDealerRounds.delete(playerId);
+    pendingBlackjackRounds.delete(playerId);
   }
 
   function clearExpired(now = Date.now()): void {
     for (const [dealerPlayerId, round] of pendingDealerRounds) {
       if (now - round.createdAt > 60_000) {
         pendingDealerRounds.delete(dealerPlayerId);
+      }
+    }
+    for (const [bjPlayerId, round] of pendingBlackjackRounds) {
+      if (now - round.createdAt > 60_000) {
+        pendingBlackjackRounds.delete(bjPlayerId);
       }
     }
   }
@@ -438,6 +481,296 @@ export function createStationRouter(ctx: StationRouterContext) {
     ctx.housePoolRefundedChallenges.delete(created.challenge.id);
   }
 
+  async function settleBlackjack(playerId: string, station: SnapshotStation, pending: PendingBlackjackRound): Promise<void> {
+    const { payoutDelta: _localDelta, winnerId: localWinnerId } = resolveBlackjack(pending.playerHand, pending.dealerHand, pending.wager);
+
+    const created = ctx.challengeService.createChallenge(playerId, 'system_house', 'blackjack', pending.wager);
+    if (created.event !== 'created' || !created.challenge) {
+      pendingBlackjackRounds.delete(playerId);
+      ctx.sendTo(playerId, {
+        type: 'station_ui',
+        stationId: station.id,
+        view: { ok: false, state: 'dealer_error', reason: created.reason || 'challenge_create_failed' }
+      });
+      return;
+    }
+
+    created.challenge.provablyFair = {
+      commitHash: pending.commitHash,
+      playerSeed: pending.playerSeed,
+      revealSeed: pending.houseSeed,
+      method: BLACKJACK_DEALER_METHOD
+    };
+
+    created.to = [playerId];
+    const createdRegistered = await ctx.registerCreatedChallenge(created, playerId);
+    if (!createdRegistered.ok) {
+      pendingBlackjackRounds.delete(playerId);
+      ctx.sendTo(playerId, {
+        type: 'station_ui',
+        stationId: station.id,
+        view: {
+          ok: false,
+          state: 'dealer_error',
+          reason: createdRegistered.reason || 'challenge_lock_failed',
+          reasonCode: createdRegistered.reason === 'player_busy' ? 'PLAYER_BUSY' : 'CHALLENGE_LOCK_FAILED',
+          reasonText: createdRegistered.reason === 'player_busy'
+            ? 'You already have a pending/active round. Wait a moment and retry.'
+            : 'Challenge lock failed. Please retry.'
+        }
+      });
+      return;
+    }
+
+    ctx.sendToDistributed(playerId, {
+      type: 'provably_fair',
+      phase: 'reveal',
+      challengeId: created.challenge.id,
+      commitHash: pending.commitHash,
+      playerSeed: pending.playerSeed,
+      houseSeed: pending.houseSeed,
+      method: BLACKJACK_DEALER_METHOD
+    });
+
+    await ctx.dispatchChallengeEventWithEscrow(created);
+
+    const accepted = ctx.challengeService.respond(created.challenge.id, 'system_house', true);
+    accepted.to = [playerId];
+    await ctx.dispatchChallengeEventWithEscrow(accepted);
+
+    const locked = pending.wager <= 0 ? true : ctx.escrowLockedChallenges.has(created.challenge.id);
+    if (!locked) {
+      const escrowFailure = ctx.challengeEscrowFailureById.get(created.challenge.id);
+      pendingBlackjackRounds.delete(playerId);
+      ctx.challengeEscrowFailureById.delete(created.challenge.id);
+      ctx.sendTo(playerId, {
+        type: 'station_ui',
+        stationId: station.id,
+        view: {
+          ok: false,
+          state: 'dealer_error',
+          reason: escrowFailure?.reason || 'escrow_lock_failed',
+          reasonCode: escrowFailure?.reasonCode,
+          reasonText: escrowFailure?.reasonText,
+          preflight: escrowFailure?.preflight
+        }
+      });
+      return;
+    }
+
+    const winnerIdForChallenge = localWinnerId === 'player' ? playerId
+      : localWinnerId === 'house' ? 'system_house'
+      : null;
+    ctx.challengeService.setBlackjackWinnerOverride(created.challenge.id, winnerIdForChallenge);
+
+    const submitted1 = ctx.challengeService.submitMove(created.challenge.id, playerId, 'stand');
+    submitted1.to = [playerId];
+    await ctx.dispatchChallengeEventWithEscrow(submitted1);
+
+    const submitted2 = ctx.challengeService.submitMove(created.challenge.id, 'system_house', 'stand');
+    submitted2.to = [playerId];
+    await ctx.dispatchChallengeEventWithEscrow(submitted2);
+
+    const finalChallenge = submitted2.challenge ?? ctx.challengeService.getChallenge(created.challenge.id);
+    const finalWinnerId = finalChallenge?.winnerId ?? null;
+    const wasPoolRefund = ctx.housePoolRefundedChallenges.has(created.challenge.id);
+    const finalPayoutDelta =
+      wasPoolRefund ? 0 :
+      finalWinnerId === playerId ? pending.wager :
+      finalWinnerId && finalWinnerId !== playerId ? -pending.wager :
+      0;
+
+    const { value: playerHandValue, soft: isSoft } = handValue(pending.playerHand);
+    const { value: dealerHandValue } = handValue(pending.dealerHand);
+
+    ctx.sendTo(playerId, {
+      type: 'station_ui',
+      stationId: station.id,
+      view: {
+        ok: true,
+        state: 'dealer_reveal_blackjack',
+        stationId: station.id,
+        challengeId: created.challenge.id,
+        wager: pending.wager,
+        playerHand: pending.playerHand,
+        dealerHand: pending.dealerHand,
+        playerHandValue,
+        dealerHandValue,
+        isSoft,
+        winnerId: finalWinnerId,
+        payoutDelta: finalPayoutDelta,
+        commitHash: pending.commitHash,
+        method: BLACKJACK_DEALER_METHOD,
+        escrowTx: ctx.challengeEscrowTxById.get(created.challenge.id) ?? {}
+      }
+    });
+
+    pendingBlackjackRounds.delete(playerId);
+    ctx.challengeEscrowTxById.delete(created.challenge.id);
+    ctx.challengeEscrowFailureById.delete(created.challenge.id);
+    ctx.housePoolRefundedChallenges.delete(created.challenge.id);
+  }
+
+  async function handleBlackjackInteract(playerId: string, station: SnapshotStation, payload: StationInteractMessage): Promise<void> {
+    if (isBlackjackStartMessage(payload)) {
+      const wager = Math.max(0, Math.min(10_000, Number(payload.wager || 0)));
+      const playerWalletId = ctx.walletIdFor(playerId);
+      const currentHouseWalletId = ctx.getHouseWalletId();
+
+      if (wager > 0) {
+        if (!playerWalletId) {
+          ctx.sendTo(playerId, {
+            type: 'station_ui',
+            stationId: station.id,
+            view: {
+              ok: false,
+              state: 'dealer_error',
+              reason: 'wallet_required',
+              reasonCode: 'PLAYER_SIGNER_UNAVAILABLE',
+              reasonText: 'Player wallet not ready for onchain pool deposit.',
+              preflight: { playerOk: false, houseOk: true }
+            }
+          });
+          return;
+        }
+        const preflight = await ctx.escrowAdapter.preflightStake({
+          challengerWalletId: playerWalletId,
+          opponentWalletId: currentHouseWalletId ?? playerWalletId,
+          amount: wager
+        });
+        if (!preflight.ok) {
+          ctx.sendTo(playerId, {
+            type: 'station_ui',
+            stationId: station.id,
+            view: {
+              ok: false,
+              state: 'dealer_error',
+              reason: preflight.reason || 'wallet_prepare_failed',
+              reasonCode: preflight.reasonCode,
+              reasonText: preflight.reasonText,
+              preflight: preflight.preflight
+            }
+          });
+          return;
+        }
+      }
+
+      const houseSeed = ctx.newSeedHex(24);
+      const playerSeed = String(payload.playerSeed || '').trim().slice(0, 96) || ctx.newSeedHex(12);
+      const commitHash = sha256Hex(houseSeed);
+      const deck = dealDeckFromSeeds(houseSeed, playerSeed);
+      const playerHand: string[] = [deck[0]!, deck[2]!];
+      const dealerHand: string[] = [deck[1]!, deck[3]!];
+
+      pendingBlackjackRounds.set(playerId, {
+        playerId,
+        stationId: station.id,
+        wager,
+        houseSeed,
+        playerSeed,
+        commitHash,
+        deck,
+        nextCardIdx: 4,
+        playerHand,
+        dealerHand,
+        createdAt: Date.now(),
+        preflightApproved: true
+      });
+
+      const { value: playerHandValue, soft: isSoft } = handValue(playerHand);
+      const { value: dealerShowValue } = handValue([dealerHand[0] ?? '']);
+
+      ctx.sendTo(playerId, {
+        type: 'station_ui',
+        stationId: station.id,
+        view: {
+          ok: true,
+          state: 'dealer_ready_blackjack',
+          stationId: station.id,
+          wager,
+          commitHash,
+          method: BLACKJACK_DEALER_METHOD,
+          playerHand,
+          dealerHand: visibleDealerHand(dealerHand),
+          playerHandValue,
+          dealerShowValue,
+          isSoft
+        }
+      });
+      return;
+    }
+
+    if (isBlackjackActionMessage(payload)) {
+      const pending = pendingBlackjackRounds.get(playerId);
+      if (!pending || pending.stationId !== station.id) {
+        ctx.sendTo(playerId, {
+          type: 'station_ui',
+          stationId: station.id,
+          view: { ok: false, state: 'dealer_error', reason: 'dealer_round_not_started' }
+        });
+        return;
+      }
+      if (Date.now() - pending.createdAt > 60_000) {
+        pendingBlackjackRounds.delete(playerId);
+        ctx.sendTo(playerId, {
+          type: 'station_ui',
+          stationId: station.id,
+          view: { ok: false, state: 'dealer_error', reason: 'dealer_round_expired' }
+        });
+        return;
+      }
+
+      if (payload.action === 'blackjack_hit') {
+        const newCard = pending.deck[pending.nextCardIdx++] ?? '';
+        pending.playerHand.push(newCard);
+
+        const { value: playerHandValue, soft: isSoft } = handValue(pending.playerHand);
+
+        if (playerHandValue > 21) {
+          // Bust — dealer wins; play out dealer hand for display then settle
+          while (dealerShouldHit(handValue(pending.dealerHand).value)) {
+            pending.dealerHand.push(pending.deck[pending.nextCardIdx++] ?? '');
+          }
+          await settleBlackjack(playerId, station, pending);
+        } else {
+          const { value: dealerShowValue } = handValue([pending.dealerHand[0] ?? '']);
+          ctx.sendTo(playerId, {
+            type: 'station_ui',
+            stationId: station.id,
+            view: {
+              ok: true,
+              state: 'dealer_ready_blackjack',
+              stationId: station.id,
+              wager: pending.wager,
+              commitHash: pending.commitHash,
+              method: BLACKJACK_DEALER_METHOD,
+              playerHand: [...pending.playerHand],
+              dealerHand: visibleDealerHand(pending.dealerHand),
+              playerHandValue,
+              dealerShowValue,
+              isSoft
+            }
+          });
+        }
+        return;
+      }
+
+      if (payload.action === 'blackjack_stand') {
+        while (dealerShouldHit(handValue(pending.dealerHand).value)) {
+          pending.dealerHand.push(pending.deck[pending.nextCardIdx++] ?? '');
+        }
+        await settleBlackjack(playerId, station, pending);
+        return;
+      }
+    }
+
+    ctx.sendTo(playerId, {
+      type: 'station_ui',
+      stationId: station.id,
+      view: { ok: false, state: 'dealer_error', reason: 'invalid_station_action' }
+    });
+  }
+
   async function handleStationInteract(playerId: string, payload: StationInteractMessage): Promise<boolean> {
     const stationId = payload.stationId.trim();
     const station = stationById.get(stationId);
@@ -527,6 +860,11 @@ export function createStationRouter(ctx: StationRouterContext) {
       return true;
     }
 
+    if (station.kind === 'dealer_blackjack') {
+      await handleBlackjackInteract(playerId, station, payload);
+      return true;
+    }
+
     if (station.kind === 'dealer_prediction') {
       const predictionActionSet = new Set([
         'prediction_markets_open',
@@ -565,12 +903,14 @@ export function createStationRouter(ctx: StationRouterContext) {
     const startActionByGame: Record<GameType, string> = {
       coinflip: 'coinflip_house_start',
       rps: 'rps_house_start',
-      dice_duel: 'dice_duel_start'
+      dice_duel: 'dice_duel_start',
+      blackjack: 'blackjack_start' // handled by dealer_blackjack branch above
     };
     const pickActionByGame: Record<GameType, string> = {
       coinflip: 'coinflip_house_pick',
       rps: 'rps_house_pick',
-      dice_duel: 'dice_duel_pick'
+      dice_duel: 'dice_duel_pick',
+      blackjack: 'blackjack_stand' // handled by dealer_blackjack branch above
     };
 
     if (isStartMessage(payload)) {

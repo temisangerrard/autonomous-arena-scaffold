@@ -7,7 +7,7 @@ import { AVATAR_GROUND_OFFSET, createProceduralAvatar } from '../avatars.js';
 // Layout (all within 55 units of centre, clustered around the train):
 //              [PREDICTION (0, 50)]
 //  [INFO (-35,18)]  [TRAIN]  [CASHIER (38,18)]
-//      [COINFLIP (-22,-22)]  [RPS (22,-22)]
+// [BLACKJACK (-40,-22)] [COINFLIP (-22,-22)]  [RPS (22,-22)]
 //                 [DICE (0,-36)]
 const WORLD_SECTION_SPAWNS = [
   { x: -35, z: 18 }, // guide (local interactable) -> station_world_info_a
@@ -15,7 +15,8 @@ const WORLD_SECTION_SPAWNS = [
   { x: -22, z: -22 }, // coinflip_a -> station_dealer_coinflip_a
   { x: 22, z: -22 }, // rps_a -> station_dealer_rps_a
   { x: 0, z: -36 }, // dice -> station_dealer_dice_a
-  { x: 0, z: 50 } // prediction -> station_dealer_prediction_a
+  { x: 0, z: 50 }, // prediction -> station_dealer_prediction_a
+  { x: -40, z: -22 } // blackjack -> station_dealer_blackjack_a
 ];
 
 export const HOST_STATION_PROXY_MAP = {
@@ -24,7 +25,8 @@ export const HOST_STATION_PROXY_MAP = {
   station_npc_host_3: 'station_dealer_coinflip_a',
   station_npc_host_4: 'station_dealer_rps_a',
   station_npc_host_5: 'station_dealer_dice_a',
-  station_npc_host_6: 'station_dealer_prediction_a'
+  station_npc_host_6: 'station_dealer_prediction_a',
+  station_npc_host_7: 'station_dealer_blackjack_a'
 };
 
 function roleDetails(role) {
@@ -68,12 +70,20 @@ function roleDetails(role) {
       use: '"Refresh the market list, pick a question you have a view on, request a quote, then buy YES or NO. Resolved markets settle automatically and winnings land in your wallet."'
     };
   }
+  if (role === 'blackjack') {
+    return {
+      title: 'Vera',
+      inspect: '"Twenty-one. You beat the dealer, not the other players. I deal from a provably fair deck — seeds committed on-chain before the first card hits the table. Hit when you need it, stand when you don\'t."',
+      useLabel: 'Deal me in',
+      use: '"Set your wager and press Deal. I\'ll give you two cards. Hit for more, stand to lock your hand. Dealer plays last — seventeen or higher, I stop. Closest to twenty-one without going over takes it."'
+    };
+  }
   if (role === 'info') {
     return {
       title: 'Super Agent',
-      inspect: '"Everything\'s close — you can see it all from here. South-west is Coinflip, south-east is RPS, straight south is the Dice table. Cashier\'s east of the train. Prediction board is north of everything."',
+      inspect: '"You spawn south and walk north into the arena. Dice is straight ahead as you enter. Blackjack is hard left (Vera), Coinflip just left of centre (Jade), RPS just right of centre (Axel). Cashier is north-east past the train (Rex). Prediction markets are far north (Kai)."',
       useLabel: 'Show me the layout',
-      use: '"Coinflip south-west, RPS south-east, Dice straight south. Cashier east of the train. Prediction markets north. Walk toward any of them and press E. Every game runs provably fair escrow on Base."'
+      use: '"Walk north from spawn: Dice dead ahead, Blackjack hard left, Coinflip left, RPS right. Past the train: Cashier to the right, Info guide to the left. Prediction markets far north. Every game runs provably fair escrow on Base."'
     };
   }
   return {
@@ -145,6 +155,16 @@ function hostSpec(index) {
       actions: ['prediction_markets_open', 'prediction_market_buy_yes', 'prediction_market_buy_no'],
       yaw: 0.28,
       radius: 7
+    },
+    {
+      hostId: 'npc_host_blackjack',
+      role: 'blackjack',
+      displayName: 'Vera',
+      kind: 'dealer_blackjack',
+      interactionTag: 'blackjack_host',
+      actions: ['blackjack_start', 'blackjack_hit', 'blackjack_stand'],
+      yaw: 0.3,    // faces slightly east (toward centre)
+      radius: 8
     }
   ];
   return base[index] || null;

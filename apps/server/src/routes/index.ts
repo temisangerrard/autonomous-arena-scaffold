@@ -166,6 +166,7 @@ const PLAYABLE_KIND_TO_GAME: Record<string, string> = {
   dealer_rps: 'rps',
   dealer_coinflip: 'coinflip',
   dealer_dice_duel: 'dice_duel',
+  dealer_blackjack: 'blackjack',
   dealer_prediction: 'prediction',
 };
 

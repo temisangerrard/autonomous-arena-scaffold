@@ -184,7 +184,7 @@ export interface WalletReadiness {
 /**
  * Challenge game types
  */
-export type GameType = 'rps' | 'coinflip' | 'dice_duel';
+export type GameType = 'rps' | 'coinflip' | 'dice_duel' | 'blackjack';
 
 /**
  * RPS move options
@@ -198,9 +198,14 @@ export type CoinflipMove = 'heads' | 'tails';
 export type DiceDuelMove = 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6';
 
 /**
+ * Blackjack move options
+ */
+export type BlackjackMove = 'hit' | 'stand' | 'double';
+
+/**
  * Game move union type
  */
-export type GameMove = RpsMove | CoinflipMove | DiceDuelMove;
+export type GameMove = RpsMove | CoinflipMove | DiceDuelMove | BlackjackMove;
 
 /**
  * Challenge status (server-authoritative states)
@@ -299,6 +304,9 @@ export type StationActionId =
   | 'rps_house_pick'
   | 'dice_duel_start'
   | 'dice_duel_pick'
+  | 'blackjack_start'
+  | 'blackjack_hit'
+  | 'blackjack_stand'
   | 'prediction_markets_open'
   | 'prediction_market_buy_yes'
   | 'prediction_market_buy_no'
@@ -311,7 +319,7 @@ export type StationActionId =
 
 export interface SnapshotStation {
   id: string;
-  kind: 'dealer_coinflip' | 'dealer_rps' | 'dealer_dice_duel' | 'dealer_prediction' | 'cashier_bank' | 'world_interactable';
+  kind: 'dealer_coinflip' | 'dealer_rps' | 'dealer_dice_duel' | 'dealer_blackjack' | 'dealer_prediction' | 'cashier_bank' | 'world_interactable';
   displayName: string;
   x: number;
   z: number;
@@ -332,10 +340,12 @@ export type StationUiViewState =
   | 'dealer_ready'
   | 'dealer_ready_rps'
   | 'dealer_ready_dice'
+  | 'dealer_ready_blackjack'
   | 'dealer_dealing'
   | 'dealer_reveal'
   | 'dealer_reveal_rps'
   | 'dealer_reveal_dice'
+  | 'dealer_reveal_blackjack'
   | 'prediction_list'
   | 'prediction_order_pending'
   | 'prediction_order_filled'
@@ -440,6 +450,13 @@ export interface StationUiView {
     resolve?: string;
     refund?: string;
   };
+  // Blackjack-specific fields
+  playerHand?: string[];
+  dealerHand?: string[];
+  playerHandValue?: number;
+  dealerHandValue?: number;
+  dealerShowValue?: number;
+  isSoft?: boolean;
 }
 
 /**

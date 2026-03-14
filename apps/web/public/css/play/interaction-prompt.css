@@ -16,8 +16,16 @@
       backdrop-filter: blur(10px);
       animation: float-prompt 2.4s ease-in-out infinite;
       white-space: nowrap;
+      cursor: pointer;
     }
     .interaction-prompt.visible { display: flex; align-items: center; gap: 0; }
+    @media (pointer: coarse) {
+      .interaction-prompt {
+        padding: 14px 28px;
+        font-size: 15px;
+        bottom: 100px;
+      }
+    }
     @keyframes float-prompt {
       0%, 100% { transform: translateX(-50%) translateY(0); }
       50% { transform: translateX(-50%) translateY(-3px); }

@@ -531,9 +531,86 @@
       color: #7a2010;
       font-weight: 700;
     }
+    .game-panel__status--success {
+      border-color: rgba(66, 150, 97, 0.48);
+      background: rgba(212, 244, 214, 0.78);
+      color: #184828;
+      font-weight: 700;
+    }
     @keyframes status-pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.6; }
+    }
+
+    /* ============================================
+       BLACKJACK STATION
+       ============================================ */
+    .bj-hands {
+      display: grid;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .bj-hand-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .bj-hand-label {
+      font: 700 10px/1 'Courier New', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6a5835;
+    }
+    .bj-hand-value {
+      font-weight: 400;
+      font-size: 10px;
+      color: #3b2b12;
+      margin-left: 4px;
+    }
+    .bj-hand-value--bust {
+      color: #c0392b;
+      font-weight: 700;
+    }
+    .bj-cards {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .bj-card {
+      width: 34px;
+      height: 48px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      background: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 13px/1 'Georgia', serif;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      color: #222;
+      flex-shrink: 0;
+    }
+    .bj-card--red {
+      color: #c0392b;
+    }
+    .bj-card--hole {
+      background: #2c2112;
+      color: transparent;
+      border-color: #1a1208;
+    }
+    .bj-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 4px 0;
+    }
+    @media (pointer: coarse) {
+      .bj-card {
+        width: 38px;
+        height: 54px;
+        font-size: 14px;
+      }
     }
 
     /* ============================================

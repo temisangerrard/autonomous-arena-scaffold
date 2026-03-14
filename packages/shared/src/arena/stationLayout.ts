@@ -1,5 +1,5 @@
 export type ArenaZone = 'entry' | 'ring';
-export type ArenaUiRole = 'guide' | 'cashier' | 'coinflip' | 'rps' | 'dice' | 'market';
+export type ArenaUiRole = 'guide' | 'cashier' | 'coinflip' | 'rps' | 'dice' | 'blackjack' | 'market';
 
 export type ArenaStationLayout = {
   id: string;
@@ -13,10 +13,13 @@ export type ArenaStationLayout = {
 // Coordinates mirror STATION_POSITIONS in apps/server/src/game/stations/catalog.ts.
 // All stations sit within a 55-unit radius of the world centre:
 //
-//              [PREDICTION  (0, 50)]
-//  [INFO (-35,18)]  [TRAIN]  [CASHIER (38,18)]
-//      [COINFLIP (-22,-22)]  [RPS (22,-22)]
-//                 [DICE (0,-36)]
+//                  [PREDICTION  (0, 50)]
+//
+//  [INFO (-35,18)]   [TRAIN]   [CASHIER (38,18)]
+//
+//  [BJ (-40,-22)]  [COINFLIP (-22,-22)]  [RPS (22,-22)]
+//                     [DICE (0,-36)]
+//                          ↑ players spawn south ~z-55
 export const ARENA_PUBLIC_STATION_LAYOUT: ArenaStationLayout[] = [
   {
     id: 'station_world_info_a',
@@ -56,6 +59,14 @@ export const ARENA_PUBLIC_STATION_LAYOUT: ArenaStationLayout[] = [
     z: -36,
     arenaZone: 'ring',
     uiRole: 'dice',
+    primaryVenue: true
+  },
+  {
+    id: 'station_dealer_blackjack_a',
+    x: -40,
+    z: -22,
+    arenaZone: 'ring',
+    uiRole: 'blackjack',
     primaryVenue: true
   },
   {

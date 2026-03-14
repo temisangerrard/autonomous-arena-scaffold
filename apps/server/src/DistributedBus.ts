@@ -31,7 +31,7 @@ type ChallengeCommand =
       type: 'challenge_move';
       challengeId: string;
       actorId: string;
-      move: 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6';
+      move: 'rock' | 'paper' | 'scissors' | 'heads' | 'tails' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6' | 'hit' | 'stand' | 'double';
     };
 
 type AdminCommand =

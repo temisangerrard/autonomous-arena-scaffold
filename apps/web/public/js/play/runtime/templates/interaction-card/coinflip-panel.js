@@ -156,7 +156,8 @@ export function updateCoinflipLive(params) {
   } else if (ds === 'reveal') {
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
-    clearPendingBtn(startBtn, '▶ Play');
+    clearPendingBtn(startBtn, '▶ Play Again');
+    if (startBtn) startBtn.innerHTML = '<span class="game-panel__play-icon">▶</span> Play Again';
     flashBtn(startBtn, 'is-success');
     clearPendingBtn(headsBtn, 'Heads');
     clearPendingBtn(tailsBtn, 'Tails');
@@ -165,6 +166,8 @@ export function updateCoinflipLive(params) {
     if (statusEl) {
       statusEl.className = 'game-panel__status';
       const delta = Number(state.ui.dealer.payoutDelta || 0);
+      const tone = delta > 0 ? 'success' : delta < 0 ? 'error' : '';
+      statusEl.className = `game-panel__status${tone ? ` game-panel__status--${tone}` : ''}`;
       const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
       renderDealerRevealStatus(statusEl, {
         gameType: state.ui.dealer.gameType,

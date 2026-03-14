@@ -309,6 +309,25 @@ export async function connectSocketRuntime(deps) {
       showToast(resolvedReasonText, 'warning');
       return;
     }
+    if (stateName === 'dealer_ready_blackjack') {
+      state.quickstart.challengeSent = true;
+      state.ui.dealer.stationId = localStationId || payload.stationId;
+      state.ui.dealer.state = 'ready';
+      state.ui.dealer.gameType = 'blackjack';
+      state.ui.dealer.reason = '';
+      state.ui.dealer.reasonCode = '';
+      state.ui.dealer.reasonText = '';
+      state.ui.dealer.preflight = { playerOk: true, houseOk: true };
+      state.ui.dealer.wager = Number(view.wager ?? state.ui.dealer.wager ?? 1);
+      state.ui.dealer.commitHash = String(view.commitHash || '');
+      state.ui.dealer.method = String(view.method || '');
+      state.ui.dealer.playerHand = Array.isArray(view.playerHand) ? view.playerHand : [];
+      state.ui.dealer.dealerHand = Array.isArray(view.dealerHand) ? view.dealerHand : [];
+      state.ui.dealer.playerHandValue = Number(view.playerHandValue || 0);
+      state.ui.dealer.dealerShowValue = Number(view.dealerShowValue || 0);
+      state.ui.dealer.isSoft = Boolean(view.isSoft);
+      return;
+    }
     if (stateName === 'dealer_ready' || stateName === 'dealer_ready_rps' || stateName === 'dealer_ready_dice' || stateName === 'dealer_ready_dice_duel') {
       state.quickstart.challengeSent = true;
       state.ui.dealer.stationId = localStationId || payload.stationId;
@@ -326,6 +345,30 @@ export async function connectSocketRuntime(deps) {
     if (stateName === 'dealer_dealing') {
       state.quickstart.matchActive = true;
       state.ui.dealer.state = 'dealing';
+      return;
+    }
+    if (stateName === 'dealer_reveal_blackjack') {
+      state.quickstart.matchResolved = true;
+      state.ui.dealer.state = 'reveal';
+      state.ui.dealer.gameType = 'blackjack';
+      state.ui.dealer.reason = '';
+      state.ui.dealer.reasonCode = '';
+      state.ui.dealer.reasonText = '';
+      state.ui.dealer.challengeId = String(view.challengeId || '');
+      state.ui.dealer.payoutDelta = Number(view.payoutDelta || 0);
+      state.ui.dealer.escrowTx = view.escrowTx || null;
+      state.ui.dealer.playerHand = Array.isArray(view.playerHand) ? view.playerHand : [];
+      state.ui.dealer.dealerHand = Array.isArray(view.dealerHand) ? view.dealerHand : [];
+      state.ui.dealer.playerHandValue = Number(view.playerHandValue || 0);
+      state.ui.dealer.dealerHandValue = Number(view.dealerHandValue || 0);
+      state.ui.dealer.isSoft = Boolean(view.isSoft);
+      const winnerId = String(view.winnerId || '');
+      const won = winnerId && winnerId === state.playerId;
+      const tone = won ? 'win' : (winnerId ? 'loss' : 'neutral');
+      const title = won ? 'YOU WIN' : (winnerId ? 'YOU LOSE' : 'DRAW');
+      const delta = state.ui.dealer.payoutDelta;
+      showResultSplash(`${title}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, tone);
+      void refreshWalletBalanceAndShowDelta(state.walletBalance, null);
       return;
     }
     if (stateName === 'dealer_reveal' || stateName === 'dealer_reveal_rps' || stateName === 'dealer_reveal_dice' || stateName === 'dealer_reveal_dice_duel') {
