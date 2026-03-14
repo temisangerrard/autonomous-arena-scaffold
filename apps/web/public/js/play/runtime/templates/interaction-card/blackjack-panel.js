@@ -30,7 +30,7 @@ function renderHand(cards) {
 }
 
 export function mountBlackjackPanel(params) {
-  const { state, stationUi, station, sendStationInteract, showToast } = params;
+  const { state, stationUi, station, sendStationInteract, makePlayerSeed, showToast } = params;
 
   state.ui.dealer.gameType = 'blackjack';
   const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)));
@@ -103,7 +103,7 @@ export function mountBlackjackPanel(params) {
 
   function sendDeal() {
     const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
-    if (!sendStationInteract(station, 'blackjack_start', { wager })) return;
+    if (!sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })) return;
     state.ui.dealer.state = 'preflight';
     state.ui.dealer.wager = wager;
     if (wagerEl) wagerEl.disabled = true;
