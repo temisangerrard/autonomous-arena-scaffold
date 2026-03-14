@@ -1,7 +1,9 @@
-const CACHE_NAME = 'arena-world-cache-v1';
+const CACHE_NAME = 'arena-world-cache-v2';
 const META_URL = 'https://world-cache.local/__meta__';
 const MAX_WORLDS = 1;
 const CANONICAL_WORLD_KEY = 'train_station_mega_world.glb';
+// CDN hostname that hosts world GLB assets in production.
+const KNOWN_ASSET_HOSTS = ['arena-world-assets.netlify.app'];
 
 function normalizeWorldKey(name) {
   const raw = String(name || '').toLowerCase();
@@ -17,6 +19,9 @@ function isWorldRequest(url, selfOrigin) {
     return false;
   }
   if (url.origin === selfOrigin && url.pathname.startsWith('/assets/world/')) {
+    return true;
+  }
+  if (KNOWN_ASSET_HOSTS.includes(url.hostname) && url.pathname.startsWith('/assets/world/')) {
     return true;
   }
   return false;

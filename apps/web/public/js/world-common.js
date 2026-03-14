@@ -84,6 +84,11 @@ async function resolveWorldUrl(alias) {
   return `${rawUrl}${separator}v=${encodeURIComponent(version)}`;
 }
 
+// Prime the manifest singleton immediately at module load so it's in-flight while
+// the arena config and other init work runs — removes one sequential round-trip
+// before the GLB download can start.
+void loadWorldManifest();
+
 export function pickWorldAlias() {
   const alias = new URL(window.location.href).searchParams.get('world');
   return normalizeWorldAlias(alias || CANONICAL_WORLD_ALIAS);
