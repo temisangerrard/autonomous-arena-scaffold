@@ -23,6 +23,7 @@ const STATION_POSITIONS = {
   coinflip:   { x: -22, z: -22 },
   rps:        { x:  22, z: -22 },
   dice:       { x:   0, z: -36 },
+  blackjack:  { x: -40, z: -22 },
   prediction: { x:   0, z:  50 },
 } as const;
 
@@ -69,6 +70,16 @@ export function buildStations(options: { diceDuelEnabled: boolean }): SnapshotSt
       yaw: -0.3,
       radius: 8,
       actions: ['rps_house_start', 'rps_house_pick'] satisfies StationActionId[]
+    },
+    {
+      id: 'station_dealer_blackjack_a',
+      kind: 'dealer_blackjack',
+      displayName: 'Blackjack',
+      x: STATION_POSITIONS.blackjack.x,
+      z: STATION_POSITIONS.blackjack.z,
+      yaw: 0.3,
+      radius: 8,
+      actions: ['blackjack_start', 'blackjack_hit', 'blackjack_stand'] satisfies StationActionId[]
     },
     {
       id: 'station_dealer_prediction_a',

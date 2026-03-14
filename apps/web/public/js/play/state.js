@@ -86,7 +86,13 @@ export function createInitialState() {
         reason: '',
         reasonCode: '',
         reasonText: '',
-        preflight: null
+        preflight: null,
+        playerHand: [],
+        dealerHand: [],
+        playerHandValue: 0,
+        dealerHandValue: 0,
+        dealerShowValue: 0,
+        isSoft: false
       },
       world: {
         stationId: '',

@@ -122,6 +122,7 @@ export function renderInteractionPromptLine(params) {
       dealer_coinflip: ` — ${openVerb} to play Coin Flip`,
       dealer_rps: ` — ${openVerb} to play Rock Paper Scissors`,
       dealer_dice_duel: ` — ${openVerb} to play Dice Duel`,
+      dealer_blackjack: ` — ${openVerb} to play Blackjack`,
       dealer_prediction: ` — ${openVerb} to trade prediction markets`,
       cashier_bank: ` — ${openVerb} to open cashier`
     };

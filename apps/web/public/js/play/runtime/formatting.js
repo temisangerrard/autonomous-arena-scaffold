@@ -48,7 +48,14 @@ export function renderDealerRevealStatus(statusEl, params) {
     : '';
 
   let resultLine = '';
-  if (gameType === 'rps' && playerPick && opponentPick) {
+  if (gameType === 'blackjack') {
+    const pv = Number(params.playerHandValue || 0);
+    const dv = Number(params.dealerHandValue || 0);
+    const playerBust = pv > 21;
+    const dealerBust = dv > 21;
+    const outcome = playerBust ? 'BUST' : dealerBust ? 'Dealer BUST' : `You: ${pv} vs Dealer: ${dv}`;
+    resultLine = `${outcome} · Round: ${round}`;
+  } else if (gameType === 'rps' && playerPick && opponentPick) {
     const RPS_ICONS = { rock: '🪨', paper: '📄', scissors: '✂️' };
     const p = RPS_ICONS[playerPick] || playerPick;
     const h = RPS_ICONS[opponentPick] || opponentPick;
