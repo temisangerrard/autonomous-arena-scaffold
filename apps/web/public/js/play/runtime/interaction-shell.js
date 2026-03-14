@@ -108,7 +108,7 @@ export function renderInteractionPromptLine(params) {
     return;
   }
   const incoming = challengeController.currentIncomingChallenge();
-  const isTouch = Boolean(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+  const isTouch = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
   const openVerb = isTouch ? 'tap' : 'press E';
   if (isStation(targetId)) {
     const station = state.stations instanceof Map ? state.stations.get(targetId) : null;

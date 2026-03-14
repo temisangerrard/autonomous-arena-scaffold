@@ -39,7 +39,7 @@ function readProxyMap(source) {
 }
 
 describe('world npc host prediction spawn', () => {
-  it('has exactly six named hosts (guide + dealers) covering all game types', () => {
+  it('has exactly seven named hosts (guide + dealers) covering all game types', () => {
     const source = readWorldNpcHostsSource();
     const hostIds = [...source.matchAll(/hostId: '([^']+)'/g)].map((match) => match[1]);
     expect(hostIds).toEqual([
@@ -48,7 +48,8 @@ describe('world npc host prediction spawn', () => {
       'npc_host_coinflip_a',
       'npc_host_rps_a',
       'npc_host_dice',
-      'npc_host_prediction'
+      'npc_host_prediction',
+      'npc_host_blackjack'
     ]);
   });
 
