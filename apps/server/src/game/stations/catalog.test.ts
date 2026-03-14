@@ -11,6 +11,7 @@ describe('buildStations', () => {
       'station_cashier_bank',
       'station_dealer_coinflip_a',
       'station_dealer_rps_a',
+      'station_dealer_blackjack_a',
       'station_dealer_prediction_a',
       'station_dealer_dice_a'
     ]);
