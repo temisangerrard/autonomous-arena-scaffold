@@ -1,7 +1,13 @@
 import { readJsonBody, sendJson, type SimpleRouter } from '../lib/http.js';
-import type { BotRecord, AutoplayStrategyConfig, GameType } from '@arena/shared';
+import type { BotRecord, AutoplayStrategyConfig, GameType, StrategyTemplateId } from '@arena/shared';
 import type { AgentBot, AgentBehaviorConfig } from '../AgentBot.js';
 import { computeWalletReadiness } from '../walletReadiness.js';
+import {
+  compileNaturalLanguagePolicy,
+  instantiateTemplate,
+  policyToBehaviorPatch,
+  STRATEGY_TEMPLATES,
+} from '../strategyCompiler.js';
 
 const VALID_GAME_TYPES: GameType[] = ['rps', 'coinflip', 'dice_duel'];
 
@@ -149,6 +155,67 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
 
     sendJson(res, { ok: true, bot: bot.getStatus(), meta: record });
     deps.schedulePersistState();
+  });
+
+  /**
+   * POST /agents/:botId/strategy
+   *
+   * Set the bot's strategy policy from:
+   *   { naturalLanguage: string }              — compile from English
+   *   { template: StrategyTemplateId }         — use a named template
+   *   { policy: BotStrategyPolicy }            — supply a pre-compiled policy
+   *
+   * Responds with the compiled policy and the resulting behavior config.
+   */
+  router.post('/agents/:botId/strategy', async (req, res, params) => {
+    const id = String(params?.botId ?? '').trim();
+    if (!id) {
+      sendJson(res, { ok: false, reason: 'bot_not_found' }, 404);
+      return;
+    }
+    const bot = deps.bots.get(id);
+    if (!bot) {
+      sendJson(res, { ok: false, reason: 'bot_not_found' }, 404);
+      return;
+    }
+
+    const body = await readJsonBody<{
+      naturalLanguage?: string;
+      template?: string;
+      policy?: unknown;
+    }>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
+      return;
+    }
+
+    let policy;
+    if (typeof body.naturalLanguage === 'string' && body.naturalLanguage.trim().length > 0) {
+      policy = compileNaturalLanguagePolicy(body.naturalLanguage.trim());
+    } else if (typeof body.template === 'string' && body.template in STRATEGY_TEMPLATES) {
+      policy = instantiateTemplate(body.template as StrategyTemplateId);
+    } else if (body.policy && typeof body.policy === 'object') {
+      // Accept a pre-compiled policy — stamp a fresh id and compiledAt
+      policy = {
+        ...body.policy as ReturnType<typeof compileNaturalLanguagePolicy>,
+        id: (body.policy as { id?: string }).id ?? crypto.randomUUID(),
+        compiledAt: Date.now(),
+      };
+    } else {
+      sendJson(res, {
+        ok: false,
+        reason: 'provide naturalLanguage, template, or policy',
+        availableTemplates: Object.keys(STRATEGY_TEMPLATES),
+      }, 400);
+      return;
+    }
+
+    const behaviorPatch = policyToBehaviorPatch(policy);
+    bot.updateBehavior(behaviorPatch);
+    bot.resetAutoplaySession();
+
+    deps.schedulePersistState();
+    sendJson(res, { ok: true, policy, bot: bot.getStatus() });
   });
 
   router.get('/bots/:botId/wallet', (_req, res, params) => {

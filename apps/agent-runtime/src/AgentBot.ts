@@ -1,6 +1,6 @@
 import { WebSocket, type RawData } from 'ws';
 import { PolicyEngine, type AgentPlayerState, type Personality } from './PolicyEngine.js';
-import { signWsAuthToken, type AutoplayStrategyConfig, type AutoplaySessionState, type AutoplayPauseReason, type GameType } from '@arena/shared';
+import { signWsAuthToken, type AutoplayStrategyConfig, type AutoplaySessionState, type AutoplayPauseReason, type GameType, type BotStrategyPolicy } from '@arena/shared';
 
 type SnapshotPlayer = AgentPlayerState & { role?: 'human' | 'agent' };
 
@@ -31,6 +31,12 @@ export type AgentBehaviorConfig = {
   sessionWinTarget?: number;
   /** Autoplay strategy config — if present, governs autonomous play behavior */
   autoplay?: AutoplayStrategyConfig;
+  /**
+   * Compiled strategy policy — enforces autonomy profile and spend limits.
+   * Derived from natural language or a strategy template via strategyCompiler.
+   * Takes precedence over legacy sessionLossLimit / sessionWinTarget when present.
+   */
+  strategyPolicy?: BotStrategyPolicy;
 };
 
 type AgentBotConfig = {
@@ -693,14 +699,26 @@ export class AgentBot {
 
   private enforceSessionRiskStops(): void {
     const ap = this.config.behavior.autoplay;
-    const lossLimit = Number(ap?.sessionLossLimit ?? this.config.behavior.sessionLossLimit ?? 0);
-    const winTarget = Number(ap?.sessionWinTarget ?? this.config.behavior.sessionWinTarget ?? 0);
+    const policy = this.config.behavior.strategyPolicy;
+
+    // Strategy policy budget takes precedence over legacy limits when present
+    const lossLimit = policy
+      ? policy.sessionBudgetUsdc
+      : Number(ap?.sessionLossLimit ?? this.config.behavior.sessionLossLimit ?? 0);
+    const winTarget = policy
+      ? 0  // policies express budgets, not win targets
+      : Number(ap?.sessionWinTarget ?? this.config.behavior.sessionWinTarget ?? 0);
+
     const hitLossLimit = lossLimit > 0 && this.sessionNetPnl <= -lossLimit;
     const hitWinTarget = winTarget > 0 && this.sessionNetPnl >= winTarget;
-    if (!hitLossLimit && !hitWinTarget) {
+
+    // Check policy expiry
+    const policyExpired = policy?.expiresAt != null && Date.now() > policy.expiresAt;
+
+    if (!hitLossLimit && !hitWinTarget && !policyExpired) {
       return;
     }
-    const reason: AutoplayPauseReason = hitLossLimit ? 'stop_loss_hit' : 'take_profit_hit';
+    const reason: AutoplayPauseReason = policyExpired ? 'stop_loss_hit' : hitLossLimit ? 'stop_loss_hit' : 'take_profit_hit';
     this.config.behavior.challengeEnabled = false;
     this.config.behavior.mode = 'passive';
     if (ap) {
