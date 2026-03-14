@@ -1550,3 +1550,62 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Added deterministic runtime wallet rebind swap plus admin web relink endpoint.
 - Verified: `npm run -w @arena/agent-runtime test -- src/profileWalletBinding.test.ts`, `npm run -w @arena/web test -- src/adminWalletRelink.test.ts src/identityContinuity.test.ts src/sessionStore.test.ts`, builds for agent-runtime and web.
 - Live deploy from this shell blocked by Fly Depot auth and local Docker absence.
+
+## 2026-03-13 quick-play recovery point
+- Repaired the full quick-play path and recorded this as a rollback-safe checkpoint.
+- Current rollback chain:
+  - `5c9a1a6` `fix: hand off quick play to interaction cards`
+  - `4d36015` `fix: allow remote dealer launches`
+  - `df0fb44` `fix: unblock fly web deploy`
+  - `17acce4` `fix: restore quick play station routing`
+  - base feature commit: `fa42ed6` `feat: autoplay strategy wizard, wallet readiness badge, and quick-play panel (#21)`
+- Quick-play behavior at this point:
+  - quick-play lists the live world dealer games from the game server
+  - quick-play no longer acts as a separate wager/play card UI
+  - selecting a quick-play game now hands off into the existing interaction card flow
+  - remote dealer launches remain playable from anywhere; player movement to the central station is not required
+  - baked/host-launched dealer flows now preserve remote-launch mode instead of falling back to proximity-gated station interactions
+- Wiring fixes included:
+  - `/Users/temisan/Downloads/blender implementation/apps/server/src/websocket/messages.ts`
+    - `quickPlay` survives WebSocket parsing instead of being dropped
+  - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/station-interactions.js`
+    - host/baked/quick-play dealer actions send as remote launches
+  - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/game-moves.js`
+    - dealer pick hotkeys preserve remote-launch mode after quick-play handoff
+  - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/quick-play.js`
+    - quick-play now launches the existing interaction card rather than duplicating dealer controls
+  - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/interaction-shell.js`
+  - `/Users/temisan/Downloads/blender implementation/apps/web/public/js/play/runtime/targeting.js`
+    - remote station targets opened by quick-play remain selected while the interaction card is open
+  - `/Users/temisan/Downloads/blender implementation/Dockerfile.web`
+  - `/Users/temisan/Downloads/blender implementation/.github/workflows/deploy-backend.yml`
+    - Fly web deploy no longer depends on the missing root GLB and now triggers on `apps/web/public/**` changes
+- Added/updated coverage:
+  - `/Users/temisan/Downloads/blender implementation/apps/server/src/websocket/messages.test.ts`
+  - `/Users/temisan/Downloads/blender implementation/apps/web/src/stationInteractions.test.js`
+  - `/Users/temisan/Downloads/blender implementation/apps/web/src/gameMoves.test.js`
+  - `/Users/temisan/Downloads/blender implementation/apps/web/src/quickPlayLaunch.test.js`
+  - `/Users/temisan/Downloads/blender implementation/apps/web/src/targeting.test.js`
+  - `/Users/temisan/Downloads/blender implementation/apps/web/src/netlifyRedirects.test.js`
+  - `/Users/temisan/Downloads/blender implementation/apps/web/src/dockerfileWeb.test.js`
+- Validation completed during this checkpoint:
+  - `npm run -w @arena/server test -- src/websocket/messages.test.ts` ✅
+  - `npm run -w @arena/web test -- src/stationInteractions.test.js src/gameMoves.test.js src/quickPlayLaunch.test.js src/targeting.test.js src/interactionShell.test.js` ✅
+  - `npm run -w @arena/web build` ✅
+  - `npm run -w @arena/server build` ✅
+- Live deploy state at this checkpoint:
+  - `arena-server-broken-haze-6531` updated to release `v79`
+  - `arena-web` updated to release `v73`
+  - `https://arena-web.fly.dev/api/game/stations/playable` returns the live station list again
+
+## 2026-03-13 permanent world asset host
+
+- Canonical production world asset host is now `https://arena-world-assets.netlify.app`
+- Production `arena-web` is configured with `PUBLIC_WORLD_ASSET_BASE_URL=https://arena-world-assets.netlify.app`
+- Repo defaults now point at the same canonical host so missing env does not hard-break world loads
+- Main Netlify frontend runtime config and `/assets/world/*` rewrite now target the canonical asset host directly
+- Dedicated publish path added:
+  - `/Users/temisan/Downloads/blender implementation/scripts/publish-world-assets.mjs`
+  - `npm run world:publish`
+- Operational docs added:
+  - `/Users/temisan/Downloads/blender implementation/docs/world-assets.md`

@@ -45,7 +45,7 @@ const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
-const defaultWorldAssetBaseUrl = '';
+const defaultWorldAssetBaseUrl = 'https://arena-world-assets.netlify.app';
 const allowedAuthOrigins = new Set(
   (process.env.ALLOWED_AUTH_ORIGINS?.trim()
     ? process.env.ALLOWED_AUTH_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)
@@ -1213,6 +1213,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/config') {
+    const effectiveWorldAssetBaseUrl = publicWorldAssetBaseUrl || defaultWorldAssetBaseUrl;
     sendJson(res, {
       authEnabled: emailAuthEnabled || firebaseGoogleAuthEnabled || googleAuthEnabled,
       emailAuthEnabled,
@@ -1227,7 +1228,7 @@ const server = createServer(async (req, res) => {
       localAuthEnabled,
       // Used by the static frontend to connect to backend infra.
       gameWsUrl: publicGameWsUrl,
-      worldAssetBaseUrl: publicWorldAssetBaseUrl,
+      worldAssetBaseUrl: effectiveWorldAssetBaseUrl,
       escrowApprovalPolicy: {
         chainId: escrowApprovalChainId,
         chainHint: escrowApprovalChainHint,
