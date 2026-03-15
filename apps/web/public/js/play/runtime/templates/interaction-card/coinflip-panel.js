@@ -125,20 +125,20 @@ export function updateCoinflipLive(params) {
   if (ds !== 'preflight') clearTimer('dealer:preflight');
 
   if (ds === 'ready' && dealerStationMatches(station)) {
-    if (startBtn) startBtn.disabled = false;
+    if (startBtn) { startBtn.disabled = false; delete startBtn.dataset.panelState; }
     if (headsBtn) headsBtn.disabled = false;
     if (tailsBtn) tailsBtn.disabled = false;
     if (stageEl) stageEl.style.display = 'none';
     if (pickActions) pickActions.style.display = 'flex';
     setLiveStatus('Choose your side — Heads or Tails!', 'prompt');
   } else if (ds === 'preflight') {
-    if (startBtn) startBtn.disabled = true;
+    if (startBtn) { startBtn.disabled = true; delete startBtn.dataset.panelState; }
     if (headsBtn) headsBtn.disabled = true;
     if (tailsBtn) tailsBtn.disabled = true;
     if (pickActions) pickActions.style.display = 'none';
     setLiveStatus('Locking in…', 'loading');
   } else if (ds === 'dealing') {
-    if (startBtn) startBtn.disabled = true;
+    if (startBtn) { startBtn.disabled = true; delete startBtn.dataset.panelState; }
     if (headsBtn) headsBtn.disabled = true;
     if (tailsBtn) tailsBtn.disabled = true;
     if (stageEl) stageEl.style.display = 'none';
@@ -147,6 +147,7 @@ export function updateCoinflipLive(params) {
   } else if (ds === 'error') {
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
+    if (startBtn) delete startBtn.dataset.panelState;
     clearPendingBtn(startBtn, '▶ Play');
     flashBtn(startBtn, 'is-failed');
     clearPendingBtn(headsBtn, 'Heads');
@@ -156,29 +157,35 @@ export function updateCoinflipLive(params) {
   } else if (ds === 'reveal') {
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
-    clearPendingBtn(startBtn, '▶ Play Again');
-    if (startBtn) startBtn.innerHTML = '<span class="game-panel__play-icon">▶</span> Play Again';
-    flashBtn(startBtn, 'is-success');
+    if (startBtn && startBtn.dataset.panelState !== 'reveal') {
+      clearPendingBtn(startBtn, '▶ Play Again');
+      startBtn.innerHTML = '<span class="game-panel__play-icon">▶</span> Play Again';
+      flashBtn(startBtn, 'is-success');
+      startBtn.dataset.panelState = 'reveal';
+    }
     clearPendingBtn(headsBtn, 'Heads');
     clearPendingBtn(tailsBtn, 'Tails');
     if (pickActions) pickActions.style.display = 'none';
     if (stageEl) stageEl.style.display = 'flex';
     if (statusEl) {
-      statusEl.className = 'game-panel__status';
       const delta = Number(state.ui.dealer.payoutDelta || 0);
       const tone = delta > 0 ? 'success' : delta < 0 ? 'error' : '';
-      statusEl.className = `game-panel__status${tone ? ` game-panel__status--${tone}` : ''}`;
       const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
-      renderDealerRevealStatus(statusEl, {
-        gameType: state.ui.dealer.gameType,
-        playerPick: state.ui.dealer.playerPick,
-        opponentPick: state.ui.dealer.opponentPick,
-        coinflipResult: state.ui.dealer.coinflipResult,
-        delta,
-        txHash: tx,
-        walletBalance: state.walletBalance,
-        chainId: state.walletChainId
-      });
+      const revealKey = `${state.ui.dealer.playerPick}|${state.ui.dealer.coinflipResult}|${delta}|${tx}`;
+      if (statusEl.dataset.revealKey !== revealKey) {
+        statusEl.dataset.revealKey = revealKey;
+        statusEl.className = `game-panel__status${tone ? ` game-panel__status--${tone}` : ''}`;
+        renderDealerRevealStatus(statusEl, {
+          gameType: state.ui.dealer.gameType,
+          playerPick: state.ui.dealer.playerPick,
+          opponentPick: state.ui.dealer.opponentPick,
+          coinflipResult: state.ui.dealer.coinflipResult,
+          delta,
+          txHash: tx,
+          walletBalance: state.walletBalance,
+          chainId: state.walletChainId
+        });
+      }
     }
   }
 }

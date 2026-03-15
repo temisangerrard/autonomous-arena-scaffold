@@ -190,6 +190,7 @@ export function updateBlackjackLive(params) {
   if (ds === 'ready' && dealerStationMatches(station)) {
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
+    if (dealBtn) delete dealBtn.dataset.panelState;
     clearPendingBtn(dealBtn, '▶ Deal');
     if (hitBtn) { hitBtn.disabled = false; clearPendingBtn(hitBtn, 'HIT'); }
     if (standBtn) { standBtn.disabled = false; clearPendingBtn(standBtn, 'STAND'); }
@@ -201,12 +202,14 @@ export function updateBlackjackLive(params) {
     const pv = Number(state.ui.dealer.playerHandValue || 0);
     setStatus(`Your total: ${pv}${state.ui.dealer.isSoft ? ' (soft)' : ''} — HIT or STAND?`, 'prompt');
   } else if (ds === 'preflight' || ds === 'dealing') {
+    if (dealBtn) delete dealBtn.dataset.panelState;
     if (hitBtn) hitBtn.disabled = true;
     if (standBtn) standBtn.disabled = true;
     setStatus('Waiting…', 'loading');
   } else if (ds === 'error') {
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
+    if (dealBtn) delete dealBtn.dataset.panelState;
     clearPendingBtn(dealBtn, '▶ Deal');
     flashBtn(dealBtn, 'is-failed');
     clearPendingBtn(hitBtn, 'HIT');
@@ -226,25 +229,32 @@ export function updateBlackjackLive(params) {
     if (actionsEl) actionsEl.style.display = 'none';
     if (stageEl) stageEl.style.display = 'flex';
     if (handsEl) handsEl.style.display = 'grid';
-    clearPendingBtn(dealBtn, '▶ Play Again');
-    if (dealBtn) dealBtn.innerHTML = '<span class="game-panel__play-icon">▶</span> Play Again';
+    if (dealBtn && dealBtn.dataset.panelState !== 'reveal') {
+      clearPendingBtn(dealBtn, '▶ Play Again');
+      dealBtn.innerHTML = '<span class="game-panel__play-icon">▶</span> Play Again';
+      flashBtn(dealBtn, 'is-success');
+      dealBtn.dataset.panelState = 'reveal';
+    }
     if (wagerEl) wagerEl.disabled = false;
-    flashBtn(dealBtn, 'is-success');
     updateHandDisplay();
     if (statusEl) {
       const delta = Number(state.ui.dealer.payoutDelta || 0);
       const tone = delta > 0 ? 'success' : delta < 0 ? 'error' : '';
-      statusEl.className = `game-panel__status${tone ? ` game-panel__status--${tone}` : ''}`;
       const tx = state.ui.dealer.escrowTx?.resolve || state.ui.dealer.escrowTx?.refund || state.ui.dealer.escrowTx?.lock || '';
-      renderDealerRevealStatus(statusEl, {
-        gameType: 'blackjack',
-        playerHandValue: state.ui.dealer.playerHandValue,
-        dealerHandValue: state.ui.dealer.dealerHandValue,
-        delta,
-        txHash: tx,
-        walletBalance: state.walletBalance,
-        chainId: state.walletChainId
-      });
+      const revealKey = `${state.ui.dealer.playerHandValue}|${state.ui.dealer.dealerHandValue}|${delta}|${tx}`;
+      if (statusEl.dataset.revealKey !== revealKey) {
+        statusEl.dataset.revealKey = revealKey;
+        statusEl.className = `game-panel__status${tone ? ` game-panel__status--${tone}` : ''}`;
+        renderDealerRevealStatus(statusEl, {
+          gameType: 'blackjack',
+          playerHandValue: state.ui.dealer.playerHandValue,
+          dealerHandValue: state.ui.dealer.dealerHandValue,
+          delta,
+          txHash: tx,
+          walletBalance: state.walletBalance,
+          chainId: state.walletChainId
+        });
+      }
     }
   }
 }
