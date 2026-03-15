@@ -24,6 +24,7 @@ export function showResultSplash(text, tone = 'neutral') {
     textAlign: 'center',
     whiteSpace: 'pre-line',
     boxShadow: '0 16px 40px rgba(0,0,0,0.36)',
+    pointerEvents: 'none',
     opacity: '0',
     transition: 'opacity 180ms ease, transform 180ms ease'
   });
