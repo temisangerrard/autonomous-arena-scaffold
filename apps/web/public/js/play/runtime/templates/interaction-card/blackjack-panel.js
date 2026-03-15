@@ -186,6 +186,7 @@ export function updateBlackjackLive(params) {
 
   const ds = state.ui.dealer.state;
   if (ds !== 'preflight') clearTimer('dealer:preflight');
+  if (ds !== 'reveal' && statusEl) delete statusEl.dataset.revealKey;
 
   if (ds === 'ready' && dealerStationMatches(station)) {
     clearTimer('dealer:preflight');
