@@ -117,6 +117,13 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Start Round')).toBe(true);
   });
 
+  it('excludes house challenges from the interaction card force-close guard', () => {
+    const source = readSource('index.js');
+    // Must detect house challenges before deciding to force-close the interaction card
+    expect(source.includes("active.challengerId === 'system_house' || active.opponentId === 'system_house'")).toBe(true);
+    expect(source.includes('!isHouseChallenge && state.ui.interactionMode !== \'station\'')).toBe(true);
+  });
+
   it('renders escrow activity with explicit game outcomes and suppresses redundant lock rows', () => {
     const source = readFileSync(resolve(__dirname, '../public/js/dashboard.js'), 'utf8');
     expect(source.includes('const terminalEscrowChallenges = new Set(')).toBe(true);
