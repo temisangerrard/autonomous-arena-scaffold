@@ -138,7 +138,13 @@ function normalizeAutoplay(bot) {
 }
 
 function summarizeActivity(entry) {
-  const kind = String(entry?.kind || '');
+  const kind = String(entry?.kind || entry?.activityType || '');
+  if (kind === 'match') {
+    return {
+      title: String(entry?.title || 'Match'),
+      detail: String(entry?.detail || 'Arena match')
+    };
+  }
   if (kind === 'escrow') {
     const outcome = String(entry?.outcome || entry?.phase || 'update').replaceAll('_', ' ');
     const wager = Number(entry?.wager ?? 0);
@@ -161,6 +167,23 @@ function summarizeActivity(entry) {
     title: direction.charAt(0).toUpperCase() + direction.slice(1),
     detail: amount
   };
+}
+
+function describeControlMode(bot) {
+  const mode = String(bot?.controlMode || '').trim().toLowerCase();
+  if (mode === 'human_active') return 'Human controlling';
+  if (mode === 'bot_active') return 'Bot roaming';
+  if (mode === 'idle_offline') return 'Bot paused';
+  if (bot?.behavior?.autoplay?.enabled) return 'Autoplay armed';
+  return 'Offline';
+}
+
+function describeActorClass(bot) {
+  const actorClass = String(bot?.actorClass || '').trim().toLowerCase();
+  if (actorClass === 'owner') return 'Player Bot';
+  if (actorClass === 'background') return 'House Bot';
+  if (actorClass === 'house') return 'House Dealer';
+  return 'Arena Actor';
 }
 
 export function deriveWalletSummaryView({ summary, player, readiness, funding }) {
@@ -229,6 +252,8 @@ export function seedDrawerDataFromRuntime({ state, dom } = {}) {
 function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, activityPreview }) {
   const walletView = deriveWalletSummaryView({ summary: walletSummary, player, readiness, funding });
   const autoplay = normalizeAutoplay(bot);
+  const controlModeLabel = describeControlMode(bot);
+  const actorClassLabel = describeActorClass(bot);
   const activityItems = limitDrawerActivity(activityPreview).map((entry) => {
     const summaryBits = summarizeActivity(entry);
     return `
@@ -253,6 +278,9 @@ function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, ac
       <div class="player-drawer__meta-row">
         <span class="player-drawer__meta">${escapeHtml(walletView.handle || providerMeta)}</span>
         <span class="player-drawer__badge player-drawer__badge--${escapeHtml(walletView.readinessTone)}">${escapeHtml(walletView.readinessLabel)}</span>
+      </div>
+      <div class="player-drawer__meta-row">
+        <span class="player-drawer__meta">${escapeHtml(actorClassLabel)} · ${escapeHtml(controlModeLabel)}</span>
       </div>
       <div class="player-drawer__balance">${escapeHtml(walletView.balanceLabel)}</div>
       <div class="player-drawer__wallet-row">

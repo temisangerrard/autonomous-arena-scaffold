@@ -37,6 +37,7 @@ type AgentBotConfig = {
   id: string;
   wsBaseUrl: string;
   displayName: string;
+  clientId?: string | null;
   walletId?: string | null;
   behavior: AgentBehaviorConfig;
 };
@@ -231,6 +232,9 @@ export class AgentBot {
     wsUrl.searchParams.set('role', 'agent');
     wsUrl.searchParams.set('agentId', this.config.id);
     wsUrl.searchParams.set('name', this.config.displayName);
+    if (this.config.clientId) {
+      wsUrl.searchParams.set('clientId', this.config.clientId);
+    }
     if (typeof this.config.behavior.patrolSection === 'number') {
       wsUrl.searchParams.set('spawnSection', String(this.config.behavior.patrolSection));
     }
@@ -242,6 +246,7 @@ export class AgentBot {
       wsUrl.searchParams.set('wsAuth', signWsAuthToken(wsAuthSecret, {
         role: 'agent',
         agentId: this.config.id,
+        clientId: this.config.clientId || undefined,
         walletId: this.config.walletId ?? null,
         exp: Date.now() + 1000 * 60 * 5
       }));

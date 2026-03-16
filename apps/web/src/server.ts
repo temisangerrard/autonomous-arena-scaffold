@@ -217,6 +217,11 @@ type RuntimeStatusPayload = {
       duty?: string;
       managedBySuperAgent?: boolean;
       patrolSection?: number | null;
+      actorId?: string;
+      botClass?: 'owner' | 'background' | 'house';
+      controlState?: 'human_active' | 'bot_active' | 'idle_offline';
+      visibilityHint?: string;
+      ownerOnline?: boolean;
     };
   }>;
   wallets?: Array<{

@@ -87,6 +87,24 @@ describe('player drawer helpers', () => {
     expect(deriveWalletReadinessLabel({ status: 'all_checks_passed' })).toBe('Ready');
   });
 
+  it('renders match-ledger style activity summaries for escrow matches', () => {
+    const entries = limitDrawerActivity([
+      {
+        id: 'match_1',
+        kind: 'match',
+        title: 'Coinflip vs Wolverine',
+        detail: 'Player Bot · Wager US$2.00 · Won',
+        at: Date.now()
+      }
+    ]);
+
+    expect(entries[0]).toMatchObject({
+      id: 'match_1',
+      kind: 'match',
+      title: 'Coinflip vs Wolverine'
+    });
+  });
+
   it('derives wallet address from profile or onchain summary instead of missing wallet fields', () => {
     const view = deriveWalletSummaryView({
       player: {

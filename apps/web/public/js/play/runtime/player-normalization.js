@@ -32,7 +32,9 @@ export function normalizeSnapshotPlayer(player, existing, worldBound) {
     yaw,
     speed,
     role: player?.role ?? prev.role ?? 'human',
-    displayName: player?.displayName ?? prev.displayName ?? player?.id ?? 'Player'
+    displayName: player?.displayName ?? prev.displayName ?? player?.id ?? 'Player',
+    actorClass: player?.actorClass ?? prev.actorClass ?? 'human',
+    ownerProfileId: player?.ownerProfileId ?? prev.ownerProfileId ?? null
   };
 }
 

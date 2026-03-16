@@ -21,6 +21,7 @@ import {
   type PlayerRole,
   type ValidatedIdentity
 } from './websocket/auth.js';
+import { decideConnectionCollision, resolvePreferredPlayerId } from './websocket/handoff.js';
 import {
   arePlayersNear,
   emitProximityEvents,
@@ -37,6 +38,8 @@ type PlayerMeta = {
   role: PlayerRole;
   displayName: string;
   walletId: string | null;
+  actorClass?: 'human' | 'owner_bot' | 'background_bot';
+  ownerProfileId?: string | null;
 };
 
 runStartupValidation(process.env);
@@ -215,6 +218,8 @@ const presenceByPlayerId = new Map<string, {
   role: PlayerRole;
   displayName: string;
   walletId: string | null;
+  actorClass?: 'human' | 'owner_bot' | 'background_bot';
+  ownerProfileId?: string | null;
   x: number;
   y: number;
   z: number;
@@ -226,6 +231,8 @@ let cachedPresence: Array<{
   role: PlayerRole;
   displayName: string;
   walletId: string | null;
+  actorClass?: 'human' | 'owner_bot' | 'background_bot';
+  ownerProfileId?: string | null;
   x: number;
   y: number;
   z: number;
@@ -792,7 +799,7 @@ wss.on('connection', (ws, request) => {
         return;
       }
     } else {
-      const validated = validateAgentAuthClaims(claims, requestedAgentId, walletId ?? undefined);
+      const validated = validateAgentAuthClaims(claims, requestedAgentId, normalizedClientId, walletId ?? undefined);
       if (!validated.ok) {
         log.warn({ reason: validated.reason, requestedAgentId }, 'agent websocket claims mismatch');
         try {
@@ -805,14 +812,27 @@ wss.on('connection', (ws, request) => {
     }
   }
 
-  const preferredId =
-    role === 'agent'
-      ? requestedAgentId
-      : normalizedClientId
-        ? `u_${normalizedClientId}`
-        : undefined;
+  const preferredId = resolvePreferredPlayerId({
+    role,
+    normalizedClientId,
+    requestedAgentId
+  });
 
   if (preferredId && sockets.has(preferredId)) {
+    const existingMeta = metaByPlayer.get(preferredId);
+    const collision = decideConnectionCollision({
+      incomingRole: role,
+      existingRole: existingMeta?.role ?? 'human',
+      preferredId
+    });
+    if (collision === 'reject_incoming') {
+      try {
+        ws.close(4409, 'owner_human_active');
+      } catch {
+        // ignore
+      }
+      return;
+    }
     const existing = sockets.get(preferredId);
     try {
       existing?.close(4000, 'replaced_by_reconnect');
@@ -843,7 +863,9 @@ wss.on('connection', (ws, request) => {
   metaByPlayer.set(playerId, {
     role,
     displayName: finalDisplayName,
-    walletId
+    walletId,
+    actorClass: role === 'human' ? 'human' : (normalizedClientId ? 'owner_bot' : 'background_bot'),
+    ownerProfileId: normalizedClientId || null
   });
 
   // Allow runtime agents (NPCs/owner bots) to request deterministic section spawns.
@@ -1464,7 +1486,9 @@ setInterval(() => {
       speed: entry.speed,
       role: entry.role,
       displayName: entry.displayName,
-      walletId: entry.walletId
+      walletId: entry.walletId,
+      actorClass: entry.actorClass ?? 'human',
+      ownerProfileId: entry.ownerProfileId ?? null
     }));
 
   const mergedPlayers = [
@@ -1472,7 +1496,9 @@ setInterval(() => {
       ...player,
       role: metaByPlayer.get(player.id)?.role ?? 'human',
       displayName: displayNameFor(player.id),
-      walletId: walletIdFor(player.id)
+      walletId: walletIdFor(player.id),
+      actorClass: metaByPlayer.get(player.id)?.actorClass ?? 'human',
+      ownerProfileId: metaByPlayer.get(player.id)?.ownerProfileId ?? null
     })),
     ...remotePlayers
   ];
@@ -1506,6 +1532,8 @@ setInterval(() => {
         role: meta.role,
         displayName: meta.displayName,
         walletId: meta.walletId,
+        actorClass: meta.actorClass ?? 'human',
+        ownerProfileId: meta.ownerProfileId ?? null,
         x: player.x,
         y: player.y,
         z: player.z,

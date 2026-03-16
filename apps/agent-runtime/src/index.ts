@@ -42,6 +42,7 @@ import {
   type AgentBotStatus
 } from './AgentBot.js';
 import { createHealthStatus } from './health.js';
+import { deriveOwnerControlState, shouldOwnerBotReconnect } from './ownerControl.js';
 import {
   buildWorkerDirectives,
   createDefaultSuperAgentConfig,
@@ -616,11 +617,12 @@ function uniqueUsernameFromSeed(seed: string): string {
   return `player_${Math.floor(Math.random() * 9000 + 1000)}`;
 }
 
-function createBot(id: string, displayName: string, behavior: AgentBehaviorConfig, walletId: string | null): AgentBot {
+function createBot(id: string, displayName: string, behavior: AgentBehaviorConfig, walletId: string | null, clientId: string | null): AgentBot {
   const bot = new AgentBot({
     id,
     wsBaseUrl,
     displayName,
+    clientId,
     walletId,
     behavior
   });
@@ -645,7 +647,7 @@ function registerBot(id: string, behavior: AgentBehaviorConfig, record: BotRecor
   }
 
   usedDisplayNames.add(record.displayName);
-  bots.set(id, createBot(id, record.displayName, behavior, record.walletId));
+  bots.set(id, createBot(id, record.displayName, behavior, record.walletId, record.ownerProfileId || null));
   botRegistry.set(id, record);
 }
 
@@ -689,7 +691,6 @@ function reconcileOwnerBotsViaSuperAgent(): void {
         walletId
       }
     );
-    bots.get(primaryBotId)?.ensureActive();
   }
 }
 
@@ -720,6 +721,7 @@ function applySuperAgentDelegation(): void {
         challengeEnabled: false,
         targetPreference: 'human_only'
       });
+      bots.get(directive.botId)?.stop();
       continue;
     }
     if (!record.managedBySuperAgent) {
@@ -731,6 +733,20 @@ function applySuperAgentDelegation(): void {
       ...directive.patch,
       challengeEnabled: directive.patch.challengeEnabled ?? dutyBaseline.challengeEnabled
     });
+    if (record.duty === 'owner') {
+      if (record.ownerProfileId && ownerPresence.has(record.ownerProfileId)) {
+        bots.get(directive.botId)?.stop();
+      } else if (shouldOwnerBotReconnect({
+        ownerOnline: false,
+        autoplayEnabled: Boolean(record.autoplayEnabled)
+      })) {
+        bots.get(directive.botId)?.ensureActive();
+      } else {
+        bots.get(directive.botId)?.stop();
+      }
+      continue;
+    }
+    bots.get(directive.botId)?.ensureActive();
   }
 
   // superAgentConfig is still used for delegation/policy, but the super agent does not spawn in-world.
@@ -829,9 +845,25 @@ function rememberSuperAgent(type: SuperAgentMemoryEntry['type'], message: string
 function botStatuses(): Array<AgentBotStatus & { meta?: BotRecord }> {
   return [...bots.values()].map((bot) => {
     const status = bot.getStatus();
+    const meta = botRegistry.get(status.id);
+    const ownerOnline = Boolean(meta?.ownerProfileId && ownerPresence.has(meta.ownerProfileId));
     return {
       ...status,
-      meta: botRegistry.get(status.id)
+      meta: meta ? {
+        ...meta,
+        actorId: meta.ownerProfileId ? `u_${meta.ownerProfileId}` : status.id,
+        botClass: meta.ownerProfileId ? 'owner' : 'background',
+        controlState: meta.ownerProfileId
+          ? deriveOwnerControlState({
+              ownerOnline,
+              autoplayEnabled: Boolean(meta.autoplayEnabled),
+              challengeEnabled: Boolean(status.behavior.challengeEnabled),
+              connected: Boolean(status.connected)
+            })
+          : 'bot_active',
+        visibilityHint: meta.ownerProfileId ? 'player_bot' : 'house_bot',
+        ownerOnline
+      } : undefined
     };
   });
 }
@@ -1844,6 +1876,7 @@ function applyOwnerPresence(profileId: string): void {
       });
     }
     bot.updateBehavior({ mode: 'passive', challengeEnabled: false });
+    bot.stop();
   }
 }
 
@@ -1858,6 +1891,13 @@ function restoreOwnerPresence(profileId: string): void {
       continue;
     }
     bot.updateBehavior({ mode: saved.mode, challengeEnabled: saved.challengeEnabled });
+    const meta = botRegistry.get(botId);
+    if (meta?.ownerProfileId === profileId && shouldOwnerBotReconnect({
+      ownerOnline: false,
+      autoplayEnabled: Boolean(meta.autoplayEnabled)
+    })) {
+      bot.ensureActive();
+    }
   }
   ownerPresence.delete(profileId);
 }

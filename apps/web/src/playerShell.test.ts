@@ -29,19 +29,41 @@ describe('buildPlayerShell', () => {
         depositAddress: '0xabc'
       },
       bot: {
-        id: 'bot_1'
+        id: 'bot_1',
+        controlMode: 'bot_active',
+        actorClass: 'owner'
       },
       readiness: {
         status: 'ready'
       },
-      activity: Array.from({ length: 8 }, (_, index) => ({ id: `entry_${index}`, at: index + 1 })),
+      activity: [
+        {
+          id: 'match_1',
+          kind: 'escrow',
+          at: 10,
+          challengeId: 'challenge_1',
+          gameType: 'coinflip',
+          wager: 2,
+          opponentLabel: 'Wolverine',
+          opponentClass: 'player_bot',
+          outcome: 'resolved',
+          winnerId: 'u_profile_1',
+          txUrl: 'https://example.test/tx/1'
+        },
+        ...Array.from({ length: 7 }, (_, index) => ({ id: `entry_${index}`, at: index + 1 }))
+      ],
       loadedAt: 123
     });
 
     expect(shell.player.displayName).toBe('Temisan Agbajoh');
     expect(shell.player.walletAddress).toBe('0xabc');
+    expect(shell.bot?.controlMode).toBe('bot_active');
+    expect(shell.bot?.actorClass).toBe('owner');
     expect(shell.activityPreview).toHaveLength(PLAYER_SHELL_ACTIVITY_PREVIEW_LIMIT);
-    expect(shell.activityPreview[0]?.id).toBe('entry_7');
+    expect(shell.activityPreview[0]?.id).toBe('match_1');
+    expect(shell.activityPreview[0]?.activityType).toBe('match');
+    expect(shell.activityPreview[0]?.title).toContain('Coinflip');
+    expect(shell.activityPreview[0]?.detail).toContain('Wolverine');
     expect(shell.loadedAt).toBe(123);
   });
 });
