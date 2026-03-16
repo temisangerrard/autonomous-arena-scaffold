@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-export const canonicalWorldAssetBaseUrl = 'https://arena-world-assets.netlify.app';
+export const canonicalWorldAssetBaseUrl = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 export const defaultWorldAssetSourcePath = path.resolve(process.cwd(), 'train_station_mega_world.glb');
 export const defaultWorldBundlesByAlias = {
   mega: {

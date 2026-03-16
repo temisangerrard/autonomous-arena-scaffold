@@ -10,7 +10,7 @@ const LEGACY_WORLD_KEYS = new Set([
   'world.glb',
   'train_station_mega_world.glb'
 ]);
-const KNOWN_ASSET_HOSTS = ['arena-world-assets.netlify.app'];
+const KNOWN_ASSET_HOSTS = ['pub-302820e514cd451baaf272a33bd70765.r2.dev'];
 
 export function normalizeWorldKey(name) {
   const raw = String(name || '').toLowerCase();

@@ -11,7 +11,7 @@ describe('netlify redirects', () => {
     const redirects = readFileSync(redirectsPath, 'utf8');
     const quickPlayLine = '/api/game/stations/playable https://arena-server-broken-haze-6531.fly.dev/stations/playable 200';
     const genericApiLine = '/api/*        https://arena-web.fly.dev/api/:splat       200';
-    const worldAssetLine = '/assets/world/* https://arena-world-assets.netlify.app/assets/world/:splat 200';
+    const worldAssetLine = '/assets/world/* https://pub-302820e514cd451baaf272a33bd70765.r2.dev/assets/world/:splat 200';
 
     expect(redirects).toContain(quickPlayLine);
     expect(redirects).toContain(worldAssetLine);

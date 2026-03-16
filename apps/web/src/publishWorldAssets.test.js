@@ -7,7 +7,7 @@ describe('publish world assets script', () => {
   it('uses the canonical Netlify asset host', async () => {
     const module = await import(new URL('../../../scripts/publish-world-assets.mjs', import.meta.url).href);
 
-    expect(module.canonicalWorldAssetBaseUrl).toBe('https://arena-world-assets.netlify.app');
+    expect(module.canonicalWorldAssetBaseUrl).toBe('https://pub-302820e514cd451baaf272a33bd70765.r2.dev');
   });
 
   it('requires an explicit Netlify world asset site target', async () => {

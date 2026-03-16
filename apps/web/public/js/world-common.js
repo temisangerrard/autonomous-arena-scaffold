@@ -12,7 +12,7 @@ export { THREE };
 export { classifyRendererProfile, getWorldBundlePlan, normalizeWorldManifest };
 
 let worldManifestPromise = null;
-const CANONICAL_WORLD_BASE_FALLBACK = '';
+const CANONICAL_WORLD_BASE_FALLBACK = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 const CANONICAL_WORLD_ALIAS = 'mega';
 
 async function loadWorldManifest() {
