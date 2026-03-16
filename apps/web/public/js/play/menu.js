@@ -29,6 +29,16 @@ export function initMenu(dom, { queryParams, openPlayerDrawer }) {
 
   menuLogout?.addEventListener('click', async () => {
     try {
+      await fetch('/api/player/presence', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ state: 'offline' })
+      });
+    } catch {
+      // best effort
+    }
+    try {
       await fetch('/api/logout', {
         method: 'POST',
         credentials: 'include',

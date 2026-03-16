@@ -1834,6 +1834,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/logout' && req.method === 'POST') {
+    const identity = await getIdentityFromReq(req).catch(() => null);
+    if (identity?.profileId) {
+      await runtimePost(`/owners/${identity.profileId}/presence`, {
+        state: 'offline'
+      }).catch(() => undefined);
+    }
     const sid = cookieSessionId(req);
     if (sid) {
       const session = await sessionStore.getSession(sid);
@@ -2618,10 +2624,12 @@ const server = createServer(async (req, res) => {
     const body = await readJsonBody<{ state?: 'online' | 'offline' }>(req);
     const state = body?.state === 'offline' ? 'offline' : 'online';
     try {
-      const payload = await runtimePost(`/owners/${identity.profileId}/presence`, {
-        state,
-        ttlMs: 90_000
-      });
+      const payload = await runtimePost(
+        `/owners/${identity.profileId}/presence`,
+        state === 'offline'
+          ? { state: 'offline' }
+          : { state: 'online', ttlMs: 90_000 }
+      );
       sendJson(res, { ok: true, state, runtime: payload });
     } catch {
       // Presence should not hard-fail gameplay when runtime heartbeat is degraded.
