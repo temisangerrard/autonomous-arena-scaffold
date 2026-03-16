@@ -91,6 +91,7 @@
       color: #5a3f16;
       font: 700 18px/1 'IBM Plex Sans', sans-serif;
       transition: all 0.2s ease;
+      touch-action: manipulation;
     }
     .interaction-card__close:hover {
       background: rgba(255, 200, 200, 0.5);
@@ -421,6 +422,7 @@
       cursor: pointer;
       transition: all 0.18s ease;
       box-shadow: 0 4px 14px rgba(200, 148, 14, 0.35);
+      touch-action: manipulation;
     }
     .game-panel__play-btn:hover:not(:disabled) {
       transform: translateY(-2px);
