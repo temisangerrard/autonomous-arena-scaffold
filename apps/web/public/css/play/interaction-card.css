@@ -27,7 +27,8 @@
       pointer-events: none;
     }
     .interaction-card.open {
-      display: block;
+      display: flex;
+      flex-direction: column;
       animation: slide-up 0.25s ease-out;
       z-index: 95;
     }
@@ -110,6 +111,8 @@
       padding: 12px 16px 16px;
       display: grid;
       gap: 12px;
+      overflow-y: auto;
+      min-height: 0;
     }
 
     .interaction-help {
@@ -808,13 +811,18 @@
     @media (pointer: coarse), (max-width: 720px) {
       .interaction-card {
         width: calc(100vw - 12px);
-        bottom: 76px;
-        max-height: calc(100vh - 88px);
+        bottom: 12px;
+        max-height: calc(100vh - 24px);
         border-radius: 14px;
       }
 
       .interaction-card__head {
         padding: 12px 12px 8px;
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: rgba(253, 248, 237, 0.98);
+        border-bottom: 1px solid rgba(198, 152, 49, 0.18);
       }
 
       .interaction-card__body {
