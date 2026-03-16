@@ -914,11 +914,15 @@ function openBotModal(botId) {
   if (botAutoplayEnabled) botAutoplayEnabled.checked = Boolean(autoplay?.enabled);
   if (botAutoplayFields) botAutoplayFields.hidden = !autoplay?.enabled;
   if (botAutoplayWagerMode) botAutoplayWagerMode.value = autoplay?.wagerMode || 'fixed';
-  if (botAutoplayWalletPct) botAutoplayWalletPct.value = String(autoplay?.walletPct || 5);
-  if (botAutoplayMartingaleMult) botAutoplayMartingaleMult.value = String(autoplay?.martingaleMult || 2);
+  if (botAutoplayWalletPct) botAutoplayWalletPct.value = String(autoplay?.walletPercent ?? autoplay?.walletPct ?? 5);
+  if (botAutoplayMartingaleMult) botAutoplayMartingaleMult.value = String(autoplay?.martingaleMultiplier ?? autoplay?.martingaleMult ?? 2);
   if (botAutoplayCooldown) botAutoplayCooldown.value = String(autoplay?.cooldownMs || 3000);
   // Game allowlist checkboxes
-  const allowedGames = Array.isArray(autoplay?.games) ? autoplay.games : ['rps', 'coinflip', 'dice_duel'];
+  const allowedGames = Array.isArray(autoplay?.allowedGames)
+    ? autoplay.allowedGames
+    : Array.isArray(autoplay?.games)
+      ? autoplay.games
+      : ['rps', 'coinflip', 'dice_duel'];
   for (const game of ['rps', 'coinflip', 'dice_duel']) {
     const el = document.getElementById(`bot-game-${game}`);
     if (el) el.checked = allowedGames.includes(game);
@@ -1064,10 +1068,10 @@ botSave?.addEventListener('click', async () => {
     const autoplay = autoplayEnabled ? {
       enabled: true,
       wagerMode: botAutoplayWagerMode?.value || 'fixed',
-      walletPct: Math.max(1, Math.min(100, Number(botAutoplayWalletPct?.value || 5))),
-      martingaleMult: Math.max(1.1, Number(botAutoplayMartingaleMult?.value || 2)),
+      walletPercent: Math.max(1, Math.min(100, Number(botAutoplayWalletPct?.value || 5))),
+      martingaleMultiplier: Math.max(1.1, Number(botAutoplayMartingaleMult?.value || 2)),
       cooldownMs: Math.max(1000, Number(botAutoplayCooldown?.value || 3000)),
-      games: ['rps', 'coinflip', 'dice_duel'].filter((g) => {
+      allowedGames: ['rps', 'coinflip', 'dice_duel'].filter((g) => {
         const el = document.getElementById(`bot-game-${g}`);
         return el ? el.checked : true;
       })

@@ -1,5 +1,25 @@
 export type OwnerControlState = 'human_active' | 'bot_active' | 'idle_offline';
 
+export function ownerAutoplayBehaviorPatch(params: {
+  autoplayEnabled: boolean;
+  targetPreference?: 'any' | 'human_only' | 'human_first';
+}) {
+  if (!params.autoplayEnabled) {
+    return {
+      mode: 'passive' as const,
+      challengeEnabled: false,
+      targetPreference: 'human_only' as const
+    };
+  }
+  return {
+    mode: 'active' as const,
+    challengeEnabled: true,
+    targetPreference: params.targetPreference === 'any' || params.targetPreference === 'human_only' || params.targetPreference === 'human_first'
+      ? params.targetPreference
+      : 'human_first'
+  };
+}
+
 export function deriveOwnerControlState(params: {
   ownerOnline: boolean;
   autoplayEnabled: boolean;

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { deriveOwnerControlState, shouldOwnerBotReconnect } from './ownerControl.js';
+import {
+  deriveOwnerControlState,
+  ownerAutoplayBehaviorPatch,
+  shouldOwnerBotReconnect
+} from './ownerControl.js';
 
 describe('deriveOwnerControlState', () => {
   it('marks owner bots as human-controlled while the owner is online', () => {
@@ -49,5 +53,29 @@ describe('shouldOwnerBotReconnect', () => {
       autoplayEnabled: false,
       readinessStatus: 'ready'
     })).toBe(false);
+  });
+});
+
+describe('ownerAutoplayBehaviorPatch', () => {
+  it('forces owner bots back to active challenge mode when autoplay is enabled offline', () => {
+    expect(ownerAutoplayBehaviorPatch({
+      autoplayEnabled: true,
+      targetPreference: 'human_first'
+    })).toMatchObject({
+      mode: 'active',
+      challengeEnabled: true,
+      targetPreference: 'human_first'
+    });
+  });
+
+  it('parks owner bots when autoplay is disabled', () => {
+    expect(ownerAutoplayBehaviorPatch({
+      autoplayEnabled: false,
+      targetPreference: 'any'
+    })).toMatchObject({
+      mode: 'passive',
+      challengeEnabled: false,
+      targetPreference: 'human_only'
+    });
   });
 });

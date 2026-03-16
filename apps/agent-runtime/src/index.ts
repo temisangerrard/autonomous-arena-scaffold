@@ -42,7 +42,11 @@ import {
   type AgentBotStatus
 } from './AgentBot.js';
 import { createHealthStatus } from './health.js';
-import { deriveOwnerControlState, shouldOwnerBotReconnect } from './ownerControl.js';
+import {
+  deriveOwnerControlState,
+  ownerAutoplayBehaviorPatch,
+  shouldOwnerBotReconnect
+} from './ownerControl.js';
 import {
   buildWorkerDirectives,
   createDefaultSuperAgentConfig,
@@ -714,38 +718,42 @@ function applySuperAgentDelegation(): void {
       // Keep section NPCs static; do not override via delegation.
       continue;
     }
-    if (record.duty === 'owner' && !record.autoplayEnabled) {
-      bots.get(directive.botId)?.updateBehavior({
-        ...makeBehaviorForDuty('owner', 0, record.patrolSection),
-        mode: 'passive',
-        challengeEnabled: false,
-        targetPreference: 'human_only'
+    const dutyBaseline = makeBehaviorForDuty(record.duty, 0, record.patrolSection);
+    if (record.duty === 'owner') {
+      const bot = bots.get(directive.botId);
+      const currentTargetPreference = bot?.getStatus().behavior.targetPreference;
+      bot?.updateBehavior({
+        ...dutyBaseline,
+        ...directive.patch,
+        ...ownerAutoplayBehaviorPatch({
+          autoplayEnabled: Boolean(record.autoplayEnabled),
+          targetPreference: currentTargetPreference || directive.patch.targetPreference || dutyBaseline.targetPreference
+        })
       });
-      bots.get(directive.botId)?.stop();
+      if (!record.autoplayEnabled) {
+        bot?.stop();
+        continue;
+      }
+      if (record.ownerProfileId && ownerPresence.has(record.ownerProfileId)) {
+        bot?.stop();
+      } else if (shouldOwnerBotReconnect({
+        ownerOnline: false,
+        autoplayEnabled: Boolean(record.autoplayEnabled)
+      })) {
+        bot?.ensureActive();
+      } else {
+        bot?.stop();
+      }
       continue;
     }
     if (!record.managedBySuperAgent) {
       continue;
     }
-    const dutyBaseline = makeBehaviorForDuty(record.duty, 0, record.patrolSection);
     bots.get(directive.botId)?.updateBehavior({
       ...dutyBaseline,
       ...directive.patch,
       challengeEnabled: directive.patch.challengeEnabled ?? dutyBaseline.challengeEnabled
     });
-    if (record.duty === 'owner') {
-      if (record.ownerProfileId && ownerPresence.has(record.ownerProfileId)) {
-        bots.get(directive.botId)?.stop();
-      } else if (shouldOwnerBotReconnect({
-        ownerOnline: false,
-        autoplayEnabled: Boolean(record.autoplayEnabled)
-      })) {
-        bots.get(directive.botId)?.ensureActive();
-      } else {
-        bots.get(directive.botId)?.stop();
-      }
-      continue;
-    }
     bots.get(directive.botId)?.ensureActive();
   }
 

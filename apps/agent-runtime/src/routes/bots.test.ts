@@ -91,7 +91,14 @@ describe('registerBotRoutes', () => {
 
     expect(payload.ok).toBe(true);
     expect(record.autoplayEnabled).toBe(true);
-    expect(updateBehavior).toHaveBeenCalled();
+    expect(updateBehavior).toHaveBeenCalledWith(expect.objectContaining({
+      autoplay: expect.objectContaining({
+        enabled: true,
+        allowedGames: ['rps', 'coinflip'],
+        wagerMode: 'fixed',
+        cooldownMs: 3000
+      })
+    }));
     expect(applySuperAgentDelegation).toHaveBeenCalledTimes(1);
     expect(schedulePersistState).toHaveBeenCalledTimes(1);
   });
