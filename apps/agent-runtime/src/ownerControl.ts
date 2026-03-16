@@ -1,4 +1,65 @@
 export type OwnerControlState = 'human_active' | 'bot_active' | 'idle_offline';
+export type OwnerPresenceSource = 'ws_session' | 'legacy_browser';
+
+export type OwnerPresenceLease = {
+  leaseId: string | null;
+  until: number;
+  playerId: string | null;
+  serverId: string | null;
+  source: OwnerPresenceSource;
+};
+
+function normalizeLeaseId(value: string | null | undefined): string | null {
+  const normalized = String(value || '').trim();
+  return normalized || null;
+}
+
+export function shouldAcceptOwnerPresenceOnline(params: {
+  current?: OwnerPresenceLease | null;
+  leaseId?: string | null;
+}): boolean {
+  const incomingLeaseId = normalizeLeaseId(params.leaseId);
+  if (incomingLeaseId) {
+    return true;
+  }
+  return !params.current?.leaseId;
+}
+
+export function createOwnerPresenceLease(params: {
+  leaseId?: string | null;
+  ttlMs: number;
+  playerId?: string | null;
+  serverId?: string | null;
+  source?: OwnerPresenceSource | null;
+}, now = Date.now()): OwnerPresenceLease {
+  const boundedTtl = Math.max(10_000, Math.min(5 * 60_000, Number(params.ttlMs || 90_000)));
+  const leaseId = normalizeLeaseId(params.leaseId);
+  const source: OwnerPresenceSource = params.source === 'legacy_browser' || !leaseId
+    ? 'legacy_browser'
+    : 'ws_session';
+  return {
+    leaseId,
+    until: now + boundedTtl,
+    playerId: String(params.playerId || '').trim() || null,
+    serverId: String(params.serverId || '').trim() || null,
+    source
+  };
+}
+
+export function shouldReleaseOwnerPresence(params: {
+  current?: OwnerPresenceLease | null;
+  leaseId?: string | null;
+}): boolean {
+  const current = params.current;
+  if (!current) {
+    return false;
+  }
+  const incomingLeaseId = normalizeLeaseId(params.leaseId);
+  if (current.leaseId) {
+    return Boolean(incomingLeaseId && incomingLeaseId === current.leaseId);
+  }
+  return current.source !== 'ws_session';
+}
 
 export function ownerAutoplayBehaviorPatch(params: {
   autoplayEnabled: boolean;

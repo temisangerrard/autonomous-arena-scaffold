@@ -2627,8 +2627,8 @@ const server = createServer(async (req, res) => {
       const payload = await runtimePost(
         `/owners/${identity.profileId}/presence`,
         state === 'offline'
-          ? { state: 'offline' }
-          : { state: 'online', ttlMs: 90_000 }
+          ? { state: 'offline', source: 'legacy_browser' }
+          : { state: 'online', ttlMs: 90_000, source: 'legacy_browser' }
       );
       sendJson(res, { ok: true, state, runtime: payload });
     } catch {

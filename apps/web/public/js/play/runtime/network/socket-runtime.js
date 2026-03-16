@@ -72,13 +72,6 @@ export async function connectSocketRuntime(deps) {
     dispatch({ type: 'WS_CONNECTION_SET', connected: true });
     connectionState.connectFailureCount = 0;
     addFeedEvent('system', 'Connected to game server.');
-    void presence.setPresence('online');
-    if (connectionState.presenceTimer) {
-      window.clearInterval(connectionState.presenceTimer);
-    }
-    connectionState.presenceTimer = window.setInterval(() => {
-      void presence.setPresence('online');
-    }, 25_000);
     startWalletSyncScheduler();
   });
 
@@ -93,10 +86,6 @@ export async function connectSocketRuntime(deps) {
     }
     if (code === 4401 || code === 4403 || reason.startsWith('ws_auth_')) {
       showToast('Session auth expired or mismatched. Please sign in again.', 'warning');
-    }
-    if (connectionState.presenceTimer) {
-      window.clearInterval(connectionState.presenceTimer);
-      connectionState.presenceTimer = null;
     }
     stopWalletSyncScheduler();
     scheduleConnectRetry('Connection lost.');

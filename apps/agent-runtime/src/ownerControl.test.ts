@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createOwnerPresenceLease,
   deriveOwnerControlState,
   ownerAutoplayBehaviorPatch,
-  shouldOwnerBotReconnect
+  shouldAcceptOwnerPresenceOnline,
+  shouldOwnerBotReconnect,
+  shouldReleaseOwnerPresence
 } from './ownerControl.js';
 
 describe('deriveOwnerControlState', () => {
@@ -77,5 +80,57 @@ describe('ownerAutoplayBehaviorPatch', () => {
       challengeEnabled: false,
       targetPreference: 'human_only'
     });
+  });
+});
+
+describe('owner presence leases', () => {
+  it('prefers websocket leases over legacy browser heartbeats', () => {
+    const current = createOwnerPresenceLease({
+      leaseId: 'lease_a',
+      ttlMs: 45_000,
+      playerId: 'u_profile_1',
+      serverId: 'srv_1'
+    }, 1_000);
+
+    expect(shouldAcceptOwnerPresenceOnline({
+      current,
+      leaseId: null
+    })).toBe(false);
+
+    expect(shouldAcceptOwnerPresenceOnline({
+      current,
+      leaseId: 'lease_b'
+    })).toBe(true);
+  });
+
+  it('requires the active lease id before clearing websocket-owned presence', () => {
+    const current = createOwnerPresenceLease({
+      leaseId: 'lease_b',
+      ttlMs: 45_000,
+      playerId: 'u_profile_1',
+      serverId: 'srv_1'
+    }, 1_000);
+
+    expect(shouldReleaseOwnerPresence({
+      current,
+      leaseId: 'lease_a'
+    })).toBe(false);
+
+    expect(shouldReleaseOwnerPresence({
+      current,
+      leaseId: 'lease_b'
+    })).toBe(true);
+  });
+
+  it('allows lease-less release for legacy presence records', () => {
+    const current = createOwnerPresenceLease({
+      ttlMs: 45_000,
+      source: 'legacy_browser'
+    }, 1_000);
+
+    expect(shouldReleaseOwnerPresence({
+      current,
+      leaseId: null
+    })).toBe(true);
   });
 });

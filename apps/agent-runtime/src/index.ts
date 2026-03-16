@@ -43,9 +43,13 @@ import {
 } from './AgentBot.js';
 import { createHealthStatus } from './health.js';
 import {
+  createOwnerPresenceLease,
   deriveOwnerControlState,
   ownerAutoplayBehaviorPatch,
-  shouldOwnerBotReconnect
+  shouldAcceptOwnerPresenceOnline,
+  shouldOwnerBotReconnect,
+  shouldReleaseOwnerPresence,
+  type OwnerPresenceSource
 } from './ownerControl.js';
 import {
   buildWorkerDirectives,
@@ -315,7 +319,11 @@ const sponsorGasDiagnostics: {
 };
 
 type OwnerPresenceRecord = {
+  leaseId: string | null;
   until: number;
+  playerId: string | null;
+  serverId: string | null;
+  source: OwnerPresenceSource;
   savedByBotId: Map<string, { mode: AgentBehaviorConfig['mode']; challengeEnabled: boolean }>;
 };
 
@@ -979,6 +987,14 @@ function runtimeStatus() {
   const statuses = botStatuses();
   const diagnostics = buildBotConnectionDiagnostics(statuses);
   const house = houseBankWallet();
+  const ownerPresenceSnapshot = [...ownerPresence.entries()].map(([profileId, record]) => ({
+    profileId,
+    leaseId: record.leaseId,
+    playerId: record.playerId,
+    serverId: record.serverId,
+    source: record.source,
+    until: record.until
+  }));
 
   return {
     configuredBotCount: statuses.length,
@@ -1008,6 +1024,7 @@ function runtimeStatus() {
       }
     },
     bots: statuses,
+    ownerPresence: ownerPresenceSnapshot,
     profiles: publicProfiles(),
     wallets: [...wallets.values()].map((wallet) => walletSummary(wallet)),
     house: {
@@ -1910,20 +1927,71 @@ function restoreOwnerPresence(profileId: string): void {
   ownerPresence.delete(profileId);
 }
 
-function setOwnerOnline(profileId: string, ttlMs: number): void {
-  const boundedTtl = Math.max(10_000, Math.min(5 * 60_000, Number(ttlMs || 90_000)));
-  const until = Date.now() + boundedTtl;
+function setOwnerOnline(profileId: string, params: {
+  leaseId?: string | null;
+  ttlMs?: number;
+  playerId?: string | null;
+  serverId?: string | null;
+  source?: OwnerPresenceSource | null;
+}): void {
   const existing = ownerPresence.get(profileId);
+  if (!shouldAcceptOwnerPresenceOnline({
+    current: existing
+      ? {
+          leaseId: existing.leaseId,
+          until: existing.until,
+          playerId: existing.playerId,
+          serverId: existing.serverId,
+          source: existing.source
+        }
+      : null,
+    leaseId: params.leaseId
+  })) {
+    return;
+  }
+  const lease = createOwnerPresenceLease({
+    leaseId: params.leaseId,
+    ttlMs: Number(params.ttlMs ?? 90_000),
+    playerId: params.playerId,
+    serverId: params.serverId,
+    source: params.source ?? null
+  });
   if (existing) {
-    existing.until = until;
+    existing.leaseId = lease.leaseId;
+    existing.until = lease.until;
+    existing.playerId = lease.playerId;
+    existing.serverId = lease.serverId;
+    existing.source = lease.source;
     applyOwnerPresence(profileId);
     return;
   }
-  ownerPresence.set(profileId, { until, savedByBotId: new Map() });
+  ownerPresence.set(profileId, {
+    leaseId: lease.leaseId,
+    until: lease.until,
+    playerId: lease.playerId,
+    serverId: lease.serverId,
+    source: lease.source,
+    savedByBotId: new Map()
+  });
   applyOwnerPresence(profileId);
 }
 
-function setOwnerOffline(profileId: string): void {
+function setOwnerOffline(profileId: string, params?: { leaseId?: string | null }): void {
+  const current = ownerPresence.get(profileId);
+  if (!shouldReleaseOwnerPresence({
+    current: current
+      ? {
+          leaseId: current.leaseId,
+          until: current.until,
+          playerId: current.playerId,
+          serverId: current.serverId,
+          source: current.source
+        }
+      : null,
+    leaseId: params?.leaseId
+  })) {
+    return;
+  }
   restoreOwnerPresence(profileId);
 }
 

@@ -22,6 +22,7 @@ import {
   type ValidatedIdentity
 } from './websocket/auth.js';
 import { decideConnectionCollision, resolvePreferredPlayerId } from './websocket/handoff.js';
+import { createOwnerPresenceLease, postOwnerPresence } from './websocket/ownerPresence.js';
 import {
   arePlayersNear,
   emitProximityEvents,
@@ -127,6 +128,28 @@ async function refreshHouseWalletId(): Promise<void> {
 }
 void refreshHouseWalletId();
 setInterval(() => void refreshHouseWalletId(), 60_000);
+
+async function syncOwnerPresenceLease(
+  lease: ReturnType<typeof createOwnerPresenceLease>,
+  state: 'online' | 'offline'
+): Promise<void> {
+  try {
+    await postOwnerPresence({
+      runtimeUrl: config.agentRuntimeUrl,
+      internalToken: internalServiceToken,
+      lease,
+      state
+    });
+  } catch (error) {
+    log.warn({
+      err: error,
+      profileId: lease.profileId,
+      playerId: lease.playerId,
+      leaseId: lease.leaseId,
+      state
+    }, 'owner presence sync failed');
+  }
+}
 
 /**
  * Validate and sanitize display name
@@ -853,6 +876,14 @@ wss.on('connection', (ws, request) => {
   }
 
   sockets.set(playerId, ws);
+  const ownerPresenceLease = role === 'human' && normalizedClientId
+    ? createOwnerPresenceLease({
+        profileId: normalizedClientId,
+        playerId,
+        serverId: serverInstanceId
+      })
+    : null;
+  let ownerPresenceTimer: NodeJS.Timeout | null = null;
 
   // Validate and sanitize display name
   const validatedName = validateDisplayName(preferredName);
@@ -867,6 +898,14 @@ wss.on('connection', (ws, request) => {
     actorClass: role === 'human' ? 'human' : (normalizedClientId ? 'owner_bot' : 'background_bot'),
     ownerProfileId: normalizedClientId || null
   });
+
+  if (ownerPresenceLease) {
+    void syncOwnerPresenceLease(ownerPresenceLease, 'online');
+    ownerPresenceTimer = setInterval(() => {
+      void syncOwnerPresenceLease(ownerPresenceLease, 'online');
+    }, Math.max(10_000, Math.floor(ownerPresenceLease.ttlMs * 0.55)));
+    ownerPresenceTimer.unref?.();
+  }
 
   // Allow runtime agents (NPCs/owner bots) to request deterministic section spawns.
   const spawnSectionRaw = parsed.searchParams.get('spawnSection');
@@ -1432,6 +1471,13 @@ wss.on('connection', (ws, request) => {
   });
 
   ws.on('close', () => {
+    if (ownerPresenceTimer) {
+      clearInterval(ownerPresenceTimer);
+      ownerPresenceTimer = null;
+    }
+    if (ownerPresenceLease) {
+      void syncOwnerPresenceLease(ownerPresenceLease, 'offline');
+    }
     if (sockets.get(playerId) !== ws) {
       return;
     }
