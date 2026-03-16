@@ -4,6 +4,7 @@ import {
   playerShellFromBootstrap,
   shouldRefreshPlayerShell
 } from '../../shared/player-shell.js';
+import { saveStoredPlayerShell } from '../../shared/player-shell-storage.js';
 const DEFAULT_EMBEDDED_FUNDING_HREF = 'https://www.coinbase.com/buy';
 const DEFAULT_EXTERNAL_FUNDING_HREF = 'https://www.moonpay.com/buy/usdc';
 const FALLBACK_AUTOPLAY_GAMES = ['rps', 'coinflip', 'dice_duel', 'blackjack'];
@@ -372,6 +373,7 @@ export function createPlayerDrawerController({
       state.playerShellData = data;
       state.playerShellLoadedAt = Number(data.loadedAt || Date.now());
     }
+    saveStoredPlayerShell(windowRef?.localStorage, data);
   }
 
   async function loadData() {

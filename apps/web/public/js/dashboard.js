@@ -8,6 +8,7 @@ import {
   playerShellFromBootstrap,
   shouldRefreshPlayerShell
 } from './shared/player-shell.js';
+import { loadStoredPlayerShell, saveStoredPlayerShell } from './shared/player-shell-storage.js';
 import {
   deriveDashboardBotState,
   formatDashboardBotSubtitle,
@@ -248,6 +249,23 @@ function getRequestStorage() {
   }
 }
 
+function hydrateDashboardFromStoredShell() {
+  const storage = getRequestStorage();
+  const storedShell = loadStoredPlayerShell(storage);
+  if (!storedShell) return false;
+  playerShellCtx = mergePlayerShell(playerShellCtx || {}, storedShell);
+  playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+  playerCtx = {
+    ...(playerCtx || {}),
+    bots: playerShellCtx.bot ? [playerShellCtx.bot] : (playerCtx?.bots || [])
+  };
+  walletSummaryCtx = playerShellCtx.walletSummary || walletSummaryCtx;
+  if (Array.isArray(playerShellCtx.activityPreview) && playerShellCtx.activityPreview.length > 0) {
+    activityEntries = playerShellCtx.activityPreview;
+  }
+  return true;
+}
+
 function parseAmount(el, fallback = 1) {
   const value = Number(el?.value || fallback);
   return Number.isFinite(value) ? Math.max(0, value) : fallback;
@@ -272,6 +290,7 @@ function applyPlayerShellSnapshot(bootstrap) {
   const nextShell = playerShellFromBootstrap(bootstrap, playerShellCtx || {});
   playerShellCtx = nextShell;
   playerShellLoadedAt = Number(nextShell.loadedAt || Date.now());
+  saveStoredPlayerShell(getRequestStorage(), nextShell);
   bootstrapCtx = bootstrap;
   playerCtx = {
     ...(playerCtx || {}),
@@ -734,6 +753,7 @@ async function refreshContext() {
       loadedAt: Date.now()
     });
     playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+    saveStoredPlayerShell(getRequestStorage(), playerShellCtx);
     renderEscrowHistory(activityEntries, escrowError);
     renderContext();
 
@@ -751,6 +771,7 @@ async function refreshContext() {
                     loadedAt: Date.now()
                   });
                   playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+                  saveStoredPlayerShell(getRequestStorage(), playerShellCtx);
                 }
               }
             })
@@ -1333,6 +1354,10 @@ for (const button of activityFilterButtons) {
 (async function init() {
   try {
     setWalletTab('overview');
+    if (hydrateDashboardFromStoredShell()) {
+      renderEscrowHistory(activityEntries);
+      renderContext();
+    }
     await refreshContext();
     setStatus('');
   } catch (error) {

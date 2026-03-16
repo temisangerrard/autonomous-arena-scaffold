@@ -66,6 +66,7 @@ import { createRuntimeUpdate } from './runtime-update.js';
 import { createLabelFor, isStationId } from './selectors.js';
 import { startRuntimeLifecycle } from './startup-lifecycle.js';
 import { playerShellFromBootstrap } from '../../shared/player-shell.js';
+import { saveStoredPlayerShell } from '../../shared/player-shell-storage.js';
 import { bindInteractionUi } from './interaction-bindings.js';
 import { createArenaConfigRuntime } from './network/arena-config.js';
 import { createQuickPlayPanel, launchQuickPlayStation } from './quick-play.js';
@@ -269,6 +270,7 @@ async function warmPlayerShellFromBootstrap() {
     const playerShell = playerShellFromBootstrap(bootstrap, state.playerShellData || {});
     state.playerShellData = playerShell;
     state.playerShellLoadedAt = Number(playerShell.loadedAt || Date.now());
+    saveStoredPlayerShell(window.localStorage, playerShell);
     const summary = playerShell.walletSummary;
     if (summary && typeof summary === 'object') {
       const bal = Number(summary?.onchain?.tokenBalance);

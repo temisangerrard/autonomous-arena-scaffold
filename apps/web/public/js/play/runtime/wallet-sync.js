@@ -4,6 +4,7 @@ import {
   clearRequestBackoff
 } from '../../shared/request-backoff.js';
 import { mergePlayerShell } from '../../shared/player-shell.js';
+import { saveStoredPlayerShell } from '../../shared/player-shell-storage.js';
 
 const WALLET_SUMMARY_BACKOFF_KEY = 'play_wallet_summary';
 
@@ -80,6 +81,7 @@ export function createWalletSyncController(params) {
             loadedAt: Date.now()
           });
           state.playerShellLoadedAt = Number(state.playerShellData.loadedAt || Date.now());
+          saveStoredPlayerShell(window.localStorage, state.playerShellData);
         }
         clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
         syncEscrowApprovalPolicy();
