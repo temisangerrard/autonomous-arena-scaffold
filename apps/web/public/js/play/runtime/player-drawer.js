@@ -7,6 +7,12 @@ import {
 const DEFAULT_EMBEDDED_FUNDING_HREF = 'https://www.coinbase.com/buy';
 const DEFAULT_EXTERNAL_FUNDING_HREF = 'https://www.moonpay.com/buy/usdc';
 const FALLBACK_AUTOPLAY_GAMES = ['rps', 'coinflip', 'dice_duel', 'blackjack'];
+const GAME_LABELS = {
+  rps: 'RPS',
+  coinflip: 'Coin Flip',
+  dice_duel: 'Dice Duel',
+  blackjack: 'Blackjack'
+};
 const READINESS_LABELS = {
   ready: 'Ready',
   all_checks_passed: 'Ready',
@@ -235,14 +241,14 @@ function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, ac
   const gameToggles = FALLBACK_AUTOPLAY_GAMES.map((game) => `
     <label class="player-drawer__choice">
       <input type="checkbox" data-field="autoplay-game" value="${escapeHtml(game)}"${autoplay.games.includes(game) ? ' checked' : ''}>
-      <span>${escapeHtml(game.replaceAll('_', ' '))}</span>
+      <span>${escapeHtml(GAME_LABELS[game] || game.replaceAll('_', ' '))}</span>
     </label>
   `).join('');
   const providerMeta = walletView.providerLabel ? `${walletView.providerLabel} wallet` : 'Wallet';
 
   return `
     <section class="player-drawer__section player-drawer__section--hero">
-      <div class="player-drawer__eyebrow">Player</div>
+      <div class="player-drawer__eyebrow">Your Arena</div>
       <div class="player-drawer__headline">${escapeHtml(walletView.displayName)}</div>
       <div class="player-drawer__meta-row">
         <span class="player-drawer__meta">${escapeHtml(walletView.handle || providerMeta)}</span>
@@ -262,10 +268,10 @@ function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, ac
     </section>
     <section class="player-drawer__section">
       <div class="player-drawer__section-title">Top up</div>
-      <div class="player-drawer__hint">Fastest route: buy or bridge USDC straight into your arena wallet.</div>
+      <div class="player-drawer__hint">Buy or bridge USDC directly into your arena wallet to start playing.</div>
       <div class="player-drawer__actions">
         <button type="button" class="player-drawer__button player-drawer__button--primary" data-action="fund-primary">Top Up</button>
-        <button type="button" class="player-drawer__button" data-action="copy-deposit">Fund from external wallet</button>
+        <button type="button" class="player-drawer__button" data-action="copy-deposit">Copy deposit address</button>
       </div>
       <div class="player-drawer__address">${escapeHtml(walletView.depositAddress || 'Deposit address still syncing')}</div>
     </section>
@@ -276,30 +282,30 @@ function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, ac
         <span>Enable autoplay</span>
       </label>
       <div class="player-drawer__field">
-        <span>Allowed games</span>
+        <span>Games</span>
         <div class="player-drawer__choices">${gameToggles}</div>
       </div>
       <label class="player-drawer__field">
-        <span>Wager mode</span>
+        <span>Betting style</span>
         <select data-field="autoplay-wager-mode">
-          <option value="fixed"${autoplay.wagerMode === 'fixed' ? ' selected' : ''}>Fixed</option>
+          <option value="fixed"${autoplay.wagerMode === 'fixed' ? ' selected' : ''}>Fixed amount</option>
           <option value="percent_wallet"${autoplay.wagerMode === 'percent_wallet' ? ' selected' : ''}>Wallet %</option>
           <option value="martingale"${autoplay.wagerMode === 'martingale' ? ' selected' : ''}>Martingale</option>
         </select>
       </label>
       <div class="player-drawer__field-row">
         <label class="player-drawer__field">
-          <span>Wallet %</span>
+          <span>Stake %</span>
           <input type="number" min="1" max="100" value="${escapeHtml(autoplay.walletPct)}" data-field="autoplay-wallet-pct">
         </label>
         <label class="player-drawer__field">
-          <span>Cooldown ms</span>
+          <span>Cooldown (ms)</span>
           <input type="number" min="1000" step="100" value="${escapeHtml(autoplay.cooldownMs)}" data-field="autoplay-cooldown-ms">
         </label>
       </div>
       <div class="player-drawer__field-row">
         <label class="player-drawer__field">
-          <span>Martingale x</span>
+          <span>Multiplier</span>
           <input type="number" min="1.1" step="0.1" value="${escapeHtml(autoplay.martingaleMult)}" data-field="autoplay-martingale-mult">
         </label>
       </div>

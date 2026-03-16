@@ -51,8 +51,15 @@
   font-weight: 600;
 }
 
+.player-drawer__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(217, 180, 107, 0.85);
+}
+
 .player-drawer__subtitle,
-.player-drawer__eyebrow,
 .player-drawer__meta,
 .player-drawer__hint,
 .player-drawer__activity-detail {
@@ -77,7 +84,14 @@
   height: 2.25rem;
   border-radius: 999px;
   font-size: 1.4rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
 }
+.player-drawer__close:hover { background: rgba(255, 255, 255, 0.09); }
 
 .player-drawer__body {
   overflow: auto;
@@ -108,8 +122,9 @@
 
 .player-drawer__balance {
   font-family: "Cormorant Garamond", serif;
-  font-size: 2rem;
+  font-size: 2.2rem;
   line-height: 1;
+  color: #f6e3b9;
 }
 
 .player-drawer__meta-row,
@@ -163,8 +178,9 @@
 }
 
 .player-drawer__section-title {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .player-drawer__actions,
@@ -186,7 +202,12 @@
 .player-drawer__button {
   padding: 0.7rem 0.95rem;
   font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.12s;
+  font-size: 0.9rem;
 }
+.player-drawer__button:hover:not(:disabled) { opacity: 0.85; }
+.player-drawer__button:disabled { opacity: 0.38; cursor: not-allowed; }
 
 .player-drawer__button--primary {
   background: linear-gradient(135deg, #d9b46b, #a77a24);
@@ -208,6 +229,7 @@
 
 .player-drawer__choice {
   position: relative;
+  cursor: pointer;
 }
 
 .player-drawer__choice input {
@@ -282,7 +304,12 @@
 .player-drawer__link {
   color: #f6d792;
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: opacity 0.15s;
 }
+.player-drawer__link:hover { opacity: 0.78; text-decoration: underline; }
 
 @media (min-width: 960px) {
   .player-drawer {
