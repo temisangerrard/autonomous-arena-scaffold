@@ -833,7 +833,7 @@
       .interaction-card {
         width: calc(100vw - 12px);
         bottom: 12px;
-        max-height: calc(100svh - 24px);
+        max-height: calc(100vh - 24px);
         border-radius: 14px;
       }
 

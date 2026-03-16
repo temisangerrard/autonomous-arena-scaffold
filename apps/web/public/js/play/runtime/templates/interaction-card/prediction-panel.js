@@ -125,7 +125,7 @@ export function mountPredictionPanel(params) {
         <button id="prediction-btc-yes" class="prediction-side prediction-side--yes" type="button">BTC Up</button>
         <button id="prediction-btc-no" class="prediction-side prediction-side--no" type="button">BTC Down</button>
       </div>
-      <div class="prediction-panel__disclaimer">If your side wins without opposite liquidity, your stake is refunded.</div>
+      <div class="prediction-panel__disclaimer">If your side wins without opposite liquidity, your stake is refunded. Next-round commitments lock immediately.</div>
       <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Fetching markets…'}</div>
     </div>
   `;
