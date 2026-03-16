@@ -9,6 +9,43 @@ export function setInteractOpenState(params) {
     closestNearbyPlayerId
   } = params;
 
+  function resetDealerState() {
+    state.ui.dealer.stationId = '';
+    state.ui.dealer.gameType = '';
+    state.ui.dealer.state = 'idle';
+    state.ui.dealer.quickPlayEnabled = false;
+    state.ui.dealer.quickPlayStationId = '';
+    state.ui.dealer.commitHash = '';
+    state.ui.dealer.method = '';
+    state.ui.dealer.challengeId = '';
+    state.ui.dealer.playerPick = '';
+    state.ui.dealer.opponentPick = '';
+    state.ui.dealer.coinflipResult = '';
+    state.ui.dealer.diceResult = 0;
+    state.ui.dealer.payoutDelta = 0;
+    state.ui.dealer.escrowTx = null;
+    state.ui.dealer.reason = '';
+    state.ui.dealer.reasonCode = '';
+    state.ui.dealer.reasonText = '';
+    state.ui.dealer.preflight = null;
+  }
+
+  function resetPredictionState() {
+    if (!state.ui.prediction || typeof state.ui.prediction !== 'object') {
+      state.ui.prediction = {};
+    }
+    state.ui.prediction.stationId = '';
+    state.ui.prediction.state = 'idle';
+    state.ui.prediction.markets = [];
+    state.ui.prediction.positions = [];
+    state.ui.prediction.selectedRail = 'btc_5m';
+    state.ui.prediction.selectedRound = 'current';
+    state.ui.prediction.selectedMarketId = '';
+    state.ui.prediction.positionStatus = '';
+    state.ui.prediction.lastReason = '';
+    state.ui.prediction.lastReasonText = '';
+  }
+
   const { nextOpen } = params;
   state.ui.interactOpen = Boolean(nextOpen);
   document.body.classList.toggle('interaction-focus', state.ui.interactOpen);
@@ -46,10 +83,6 @@ export function setInteractOpenState(params) {
     } catch {
       // ignore
     }
-    state.ui.dealer.state = 'idle';
-    state.ui.dealer.quickPlayEnabled = false;
-    state.ui.dealer.quickPlayStationId = '';
-    state.ui.dealer.escrowTx = null;
     state.ui.world.stationId = '';
     state.ui.world.detail = '';
     state.ui.world.actionLabel = 'Use';
@@ -60,11 +93,11 @@ export function setInteractOpenState(params) {
   } else {
     interactionCardState.interactionStationRenderKey = '';
     state.ui.interactionMode = 'none';
-    state.ui.dealer.state = 'idle';
-    state.ui.dealer.quickPlayEnabled = false;
-    state.ui.dealer.quickPlayStationId = '';
-    state.ui.dealer.escrowTx = null;
+    resetDealerState();
+    resetPredictionState();
     state.ui.world.stationId = '';
+    state.ui.world.interactionTag = '';
+    state.ui.world.title = '';
     state.ui.world.detail = '';
     state.ui.world.actionLabel = 'Use';
     if (interactionHelp) {
