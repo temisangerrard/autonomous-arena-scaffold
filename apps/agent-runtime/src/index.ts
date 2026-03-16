@@ -2683,6 +2683,7 @@ registerRuntimeRoutes(router, {
     walletSummary,
     reconcileBots,
     schedulePersistState,
+    applySuperAgentDelegation,
     coinbasePaymasterEnabled,
     coinbaseEscrowApprovalCapUsdc,
     chainId: null,

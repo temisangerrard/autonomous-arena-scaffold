@@ -44,6 +44,7 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
   walletSummary: (wallet: import('@arena/shared').WalletRecord | null) => unknown;
   reconcileBots: (count: number) => void;
   schedulePersistState: () => void;
+  applySuperAgentDelegation: () => void;
   coinbasePaymasterEnabled?: boolean;
   coinbaseEscrowApprovalCapUsdc?: number;
   chainId?: number | null;
@@ -145,8 +146,12 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
           });
         }
       }
+      if (typeof body.autoplayEnabled !== 'boolean' && body.autoplay && typeof body.autoplay === 'object') {
+        record.autoplayEnabled = Boolean((body.autoplay as { enabled?: unknown }).enabled);
+      }
     }
 
+    deps.applySuperAgentDelegation();
     sendJson(res, { ok: true, bot: bot.getStatus(), meta: record });
     deps.schedulePersistState();
   });

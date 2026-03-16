@@ -8,6 +8,11 @@ import {
   playerShellFromBootstrap,
   shouldRefreshPlayerShell
 } from './shared/player-shell.js';
+import {
+  deriveDashboardBotState,
+  formatDashboardBotSubtitle,
+  isAutoplayEnabled
+} from './dashboard-bot-state.js';
 
 const statusLine = document.getElementById('dashboard-status');
 const playLink = document.getElementById('dashboard-enter-play');
@@ -285,20 +290,11 @@ function applyPlayerShellSnapshot(bootstrap) {
 }
 
 function statusClassForBot(bot) {
-  if (!bot.connected) {
-    return 'disconnected';
-  }
-  if (bot.behavior?.mode === 'passive' || bot.behavior?.challengeEnabled === false) {
-    return 'idle';
-  }
-  return 'active';
+  return deriveDashboardBotState(bot).statusClass;
 }
 
 function statusTextForBot(bot) {
-  const cls = statusClassForBot(bot);
-  if (cls === 'active') return 'Active';
-  if (cls === 'idle') return 'Idle';
-  return 'Disconnected';
+  return deriveDashboardBotState(bot).statusText;
 }
 
 function renderBotCards() {
@@ -320,6 +316,7 @@ function renderBotCards() {
       const cooldown = Number(bot.behavior?.challengeCooldownMs || 2600);
       const badgeClass = statusClassForBot(bot);
       const badgeText = statusTextForBot(bot);
+      const autoplayPill = isAutoplayEnabled(bot) ? 'Autoplay on' : 'Autoplay off';
       const botWalletId = String(bot.walletId || playerCtx?.profile?.wallet?.id || playerCtx?.profile?.walletId || '-');
       const botWalletAddress = String(bot.walletAddress || playerCtx?.profile?.wallet?.address || '-');
       const readiness = botReadinessCache.get(bot.id);
@@ -343,6 +340,7 @@ function renderBotCards() {
           <span class="pill">${escapeHtml(personality)}</span>
           <span class="pill">${escapeHtml(target)}</span>
           <span class="pill">${cooldown}ms</span>
+          <span class="pill">${escapeHtml(autoplayPill)}</span>
         </div>
         <div class="wager-box">Wager Range: ${Number(bot.behavior?.baseWager || 1)} to ${Number(bot.behavior?.maxWager || 3)}<br><span class="mono">${escapeHtml(botWalletAddress)}</span></div>
       </article>`;
@@ -856,7 +854,7 @@ function openBotModal(botId) {
     botModalTitle.textContent = `Configure ${bot.meta?.displayName || bot.id}`;
   }
   if (botModalSub) {
-    botModalSub.textContent = `${bot.id} · patrol S${bot.meta?.patrolSection ?? '-'} · ${bot.connected ? 'connected' : 'disconnected'}`;
+    botModalSub.textContent = formatDashboardBotSubtitle(bot);
   }
   // Populate fields from bot state
   setWizardPersonality(bot.behavior.personality || 'social');
