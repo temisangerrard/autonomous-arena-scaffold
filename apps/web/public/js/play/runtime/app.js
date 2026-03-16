@@ -65,6 +65,7 @@ import { createRuntimeSpotlights } from './spotlights.js';
 import { createRuntimeUpdate } from './runtime-update.js';
 import { createLabelFor, isStationId } from './selectors.js';
 import { startRuntimeLifecycle } from './startup-lifecycle.js';
+import { playerShellFromBootstrap } from '../../shared/player-shell.js';
 import { bindInteractionUi } from './interaction-bindings.js';
 import { createArenaConfigRuntime } from './network/arena-config.js';
 import { createQuickPlayPanel, launchQuickPlayStation } from './quick-play.js';
@@ -262,6 +263,38 @@ if (!(state.nearbyStationIds instanceof Set)) {
   state.nearbyStationIds = new Set();
 }
 
+async function warmPlayerShellFromBootstrap() {
+  try {
+    const bootstrap = await apiJson(`/api/player/bootstrap?world=${encodeURIComponent(state.worldAlias || 'mega')}`);
+    const playerShell = playerShellFromBootstrap(bootstrap, state.playerShellData || {});
+    state.playerShellData = playerShell;
+    state.playerShellLoadedAt = Number(playerShell.loadedAt || Date.now());
+    const summary = playerShell.walletSummary;
+    if (summary && typeof summary === 'object') {
+      const bal = Number(summary?.onchain?.tokenBalance);
+      const chainId = Number(summary?.onchain?.chainId);
+      dispatch({
+        type: 'WALLET_SUMMARY_SET',
+        chainId: Number.isFinite(chainId) ? chainId : state.walletChainId,
+        balance: Number.isFinite(bal) ? bal : state.walletBalance,
+        tokenSymbol: summary?.onchain?.tokenSymbol ?? state.walletTokenSymbol ?? null,
+        tokenDecimals: Number.isFinite(Number(summary?.onchain?.tokenDecimals))
+          ? Number(summary.onchain.tokenDecimals)
+          : (state.walletTokenDecimals ?? null),
+        mode: summary?.onchain?.mode ?? state.walletMode ?? null,
+        synced: Boolean(summary?.onchain?.synced),
+        walletProvider: summary?.wallet?.walletProvider ?? state.walletProvider ?? null,
+        walletExternalAddress: summary?.wallet?.externalWalletAddress ?? state.walletExternalAddress ?? null,
+        escrowApprovalCapUsdc: summary?.wallet?.escrowApproval?.capUsdc ?? state.walletEscrowApprovalCapUsdc ?? null,
+        escrowApprovalTokenAddress: summary?.wallet?.escrowApproval?.tokenAddress ?? state.walletEscrowApprovalTokenAddress ?? null,
+        escrowApprovalSpenderAddress: summary?.wallet?.escrowApproval?.spenderAddress ?? state.walletEscrowApprovalSpenderAddress ?? null
+      });
+    }
+  } catch {
+    // Keep play startup resilient if bootstrap is briefly unavailable.
+  }
+}
+
 const stationRouting = createStationRouting({
   state,
   hostStationProxyMap: HOST_STATION_PROXY_MAP
@@ -324,6 +357,7 @@ const {
   startWalletSyncScheduler,
   stopWalletSyncScheduler
 } = walletSync;
+void warmPlayerShellFromBootstrap();
 const playerDrawerController = createPlayerDrawerController({
   apiJson,
   state,

@@ -3,6 +3,11 @@ import {
   setRequestBackoffFromError,
   clearRequestBackoff
 } from './shared/request-backoff.js';
+import {
+  mergePlayerShell,
+  playerShellFromBootstrap,
+  shouldRefreshPlayerShell
+} from './shared/player-shell.js';
 
 const statusLine = document.getElementById('dashboard-status');
 const playLink = document.getElementById('dashboard-enter-play');
@@ -87,6 +92,9 @@ let selectedBotId = '';
 let walletSummaryCtx = null;
 let activityEntries = [];
 let activityFilter = 'all';
+let playerShellCtx = null;
+let playerShellLoadedAt = 0;
+let playerShellRefreshInFlight = null;
 const WALLET_SUMMARY_BACKOFF_KEY = 'dashboard_wallet_summary';
 /** @type {Map<string, {status: string, reason: string, gasSponsored: boolean}>} */
 const botReadinessCache = new Map();
@@ -253,6 +261,27 @@ function bindPlayLink() {
 
 function getBotById(botId) {
   return (playerCtx?.bots || []).find((entry) => entry.id === botId) || null;
+}
+
+function applyPlayerShellSnapshot(bootstrap) {
+  const nextShell = playerShellFromBootstrap(bootstrap, playerShellCtx || {});
+  playerShellCtx = nextShell;
+  playerShellLoadedAt = Number(nextShell.loadedAt || Date.now());
+  bootstrapCtx = bootstrap;
+  playerCtx = {
+    ...(playerCtx || {}),
+    user: bootstrap?.user || playerCtx?.user || null,
+    profile: bootstrap?.profile || playerCtx?.profile || null,
+    bots: nextShell.bot ? [nextShell.bot] : (playerCtx?.bots || [])
+  };
+  walletSummaryCtx = nextShell.walletSummary || walletSummaryCtx;
+  if (Array.isArray(nextShell.activityPreview) && nextShell.activityPreview.length > 0) {
+    activityEntries = nextShell.activityPreview;
+  }
+  if (nextShell.bot?.id && nextShell.readiness) {
+    botReadinessCache.set(nextShell.bot.id, nextShell.readiness);
+  }
+  return nextShell;
 }
 
 function statusClassForBot(bot) {
@@ -659,54 +688,84 @@ function renderEscrowHistory(entries, errorMessage = '') {
 }
 
 async function refreshContext() {
-  const requestStorage = getRequestStorage();
-  const walletSummaryPromise = isRequestBackoffActive(requestStorage, WALLET_SUMMARY_BACKOFF_KEY)
-    ? Promise.resolve(null)
-    : api('/api/player/wallet/summary')
-      .then((payload) => {
-        clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
-        return payload;
-      })
-      .catch((error) => {
-        setRequestBackoffFromError(requestStorage, WALLET_SUMMARY_BACKOFF_KEY, error);
-        return null;
-      });
-  const [ctx, bootstrap, walletSummary] = await Promise.all([
-    api('/api/player/me'),
-    api('/api/player/bootstrap?world=mega'),
-    walletSummaryPromise
-  ]);
-  const canSeeDirectory = String(ctx?.user?.role || '') === 'admin';
-  const directory = canSeeDirectory
-    ? await api('/api/player/directory').catch(() => ({ players: [] }))
-    : { players: [] };
-  let nextActivityEntries = [];
-  let escrowError = '';
-  try {
-    const activity = await api('/api/player/activity?limit=30');
-    nextActivityEntries = Array.isArray(activity?.activity) ? activity.activity : [];
-  } catch (error) {
-    escrowError = String(error?.message || error);
+  if (playerShellRefreshInFlight) {
+    return playerShellRefreshInFlight;
   }
-  playerCtx = ctx;
-  bootstrapCtx = bootstrap;
-  playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
-  walletSummaryCtx = walletSummary;
-  activityEntries = nextActivityEntries;
-  renderEscrowHistory(activityEntries, escrowError);
-  renderContext();
-  // Fetch wallet readiness for each bot in parallel (non-blocking)
-  const bots = Array.isArray(ctx?.bots) ? ctx.bots : [];
-  if (bots.length > 0) {
-    Promise.allSettled(
-      bots.map((bot) =>
-        api(`/api/player/bots/${encodeURIComponent(bot.id)}/wallet`)
-          .then((r) => {
-            if (r?.readiness) botReadinessCache.set(bot.id, r.readiness);
-          })
-          .catch(() => {})
-      )
-    ).then(() => renderBotCards());
+  playerShellRefreshInFlight = (async () => {
+    const bootstrap = await api('/api/player/bootstrap?world=mega');
+    applyPlayerShellSnapshot(bootstrap);
+    renderEscrowHistory(activityEntries);
+    renderContext();
+
+    const requestStorage = getRequestStorage();
+    const shouldRefreshSummary = shouldRefreshPlayerShell(playerShellLoadedAt);
+    const walletSummaryPromise = !shouldRefreshSummary || isRequestBackoffActive(requestStorage, WALLET_SUMMARY_BACKOFF_KEY)
+      ? Promise.resolve(walletSummaryCtx)
+      : api('/api/player/wallet/summary')
+        .then((payload) => {
+          clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
+          return payload;
+        })
+        .catch((error) => {
+          setRequestBackoffFromError(requestStorage, WALLET_SUMMARY_BACKOFF_KEY, error);
+          return walletSummaryCtx;
+        });
+    const canSeeDirectory = String(bootstrap?.user?.role || '') === 'admin';
+    const [ctx, walletSummary, directory, activityPayload] = await Promise.all([
+      api('/api/player/me').catch(() => playerCtx),
+      walletSummaryPromise,
+      canSeeDirectory
+        ? api('/api/player/directory').catch(() => ({ players: [] }))
+        : Promise.resolve({ players: [] }),
+      api('/api/player/activity?limit=30').catch((error) => ({ __error: error, activity: activityEntries }))
+    ]);
+
+    let escrowError = '';
+    if (activityPayload?.__error) {
+      escrowError = String(activityPayload.__error?.message || activityPayload.__error);
+    }
+    const nextActivityEntries = Array.isArray(activityPayload?.activity) ? activityPayload.activity : [];
+
+    playerCtx = ctx || playerCtx;
+    playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
+    walletSummaryCtx = walletSummary || walletSummaryCtx;
+    activityEntries = nextActivityEntries.length > 0 ? nextActivityEntries : activityEntries;
+    playerShellCtx = mergePlayerShell(playerShellCtx, {
+      walletSummary: walletSummaryCtx,
+      activityPreview: activityEntries.slice(0, 5),
+      loadedAt: Date.now()
+    });
+    playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+    renderEscrowHistory(activityEntries, escrowError);
+    renderContext();
+
+    const bots = Array.isArray(playerCtx?.bots) ? playerCtx.bots : [];
+    if (bots.length > 0) {
+      Promise.allSettled(
+        bots.map((bot) =>
+          api(`/api/player/bots/${encodeURIComponent(bot.id)}/wallet`)
+            .then((r) => {
+              if (r?.readiness) {
+                botReadinessCache.set(bot.id, r.readiness);
+                if (playerShellCtx?.bot?.id === bot.id) {
+                  playerShellCtx = mergePlayerShell(playerShellCtx, {
+                    readiness: r.readiness,
+                    loadedAt: Date.now()
+                  });
+                  playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+                }
+              }
+            })
+            .catch(() => {})
+        )
+      ).then(() => renderBotCards());
+    }
+  })();
+
+  try {
+    await playerShellRefreshInFlight;
+  } finally {
+    playerShellRefreshInFlight = null;
   }
 }
 

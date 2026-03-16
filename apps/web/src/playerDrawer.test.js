@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAutoplayConfigPayload,
+  createPlayerDrawerController,
   deriveWalletReadinessLabel,
   deriveWalletSummaryView,
   limitDrawerActivity,
@@ -139,8 +140,119 @@ describe('player drawer helpers', () => {
     });
 
     expect(seeded.player.displayName).toBe('Temisan Agbajoh');
-    expect(seeded.summary.onchain.tokenBalance).toBe(12.5);
-    expect(seeded.summary.onchain.chainId).toBe(8453);
+    expect(seeded.walletSummary.onchain.tokenBalance).toBe(12.5);
+    expect(seeded.walletSummary.onchain.chainId).toBe(8453);
     expect(seeded.funding.depositAddress).toBe('0xfeedbeefcafe');
+  });
+
+  it('opens from warm player shell state without blocking api fetches', async () => {
+    const apiCalls = [];
+    const state = {
+      walletBalance: 12.5,
+      walletChainId: 8453,
+      walletTokenSymbol: 'USDC',
+      walletProvider: 'coinbase_embedded',
+      walletExternalAddress: '0xfeedbeefcafe',
+      playerShellData: {
+        player: { displayName: 'Temisan Agbajoh', walletAddress: '0xfeedbeefcafe' },
+        walletSummary: {
+          onchain: { tokenBalance: 12.5, chainId: 8453, tokenSymbol: 'USDC' },
+          wallet: { walletProvider: 'coinbase_embedded', externalWalletAddress: '0xfeedbeefcafe' }
+        },
+        funding: { depositAddress: '0xfeedbeefcafe', href: 'https://www.coinbase.com/buy' },
+        activityPreview: [{ id: 'activity_1', at: Date.now() }],
+        loadedAt: Date.now()
+      },
+      playerShellLoadedAt: Date.now()
+    };
+    const classList = { toggle() {} };
+    const drawer = { classList, setAttribute() {} };
+    const drawerBackdrop = { toggleAttribute() {}, classList, addEventListener() {} };
+    const drawerClose = { addEventListener() {} };
+    const drawerBody = { innerHTML: '', querySelector() { return null; } };
+    const controller = createPlayerDrawerController({
+      apiJson: async (url) => {
+        apiCalls.push(url);
+        return null;
+      },
+      state,
+      syncWalletSummary: async () => true,
+      showToast() {},
+      windowRef: { addEventListener() {}, navigator: { clipboard: { writeText: async () => {} } }, open() {} },
+      drawer,
+      drawerBackdrop,
+      drawerClose,
+      drawerBody,
+      dom: {
+        topbarName: { textContent: 'Temisan Agbajoh' }
+      }
+    });
+
+    controller.setOpen(true);
+    await Promise.resolve();
+
+    expect(apiCalls).toEqual([]);
+  });
+
+  it('refreshes stale player shell without refetching /api/player/me', async () => {
+    const apiCalls = [];
+    const now = Date.now();
+    const state = {
+      walletBalance: 12.5,
+      walletChainId: 8453,
+      walletTokenSymbol: 'USDC',
+      walletProvider: 'coinbase_embedded',
+      walletExternalAddress: '0xfeedbeefcafe',
+      playerShellData: {
+        player: { displayName: 'Temisan Agbajoh', walletAddress: '0xfeedbeefcafe' },
+        walletSummary: {
+          onchain: { tokenBalance: 12.5, chainId: 8453, tokenSymbol: 'USDC' },
+          wallet: { walletProvider: 'coinbase_embedded', externalWalletAddress: '0xfeedbeefcafe' }
+        },
+        funding: { depositAddress: '0xfeedbeefcafe', href: 'https://www.coinbase.com/buy' },
+        bot: { id: 'bot_1' },
+        activityPreview: [{ id: 'activity_1', at: now - 10_000 }],
+        loadedAt: now - 31_000
+      },
+      playerShellLoadedAt: now - 31_000
+    };
+    const classList = { toggle() {} };
+    const controller = createPlayerDrawerController({
+      apiJson: async (url) => {
+        apiCalls.push(url);
+        if (url === '/api/player/wallet/summary') {
+          return {
+            onchain: { tokenBalance: 15, chainId: 8453, tokenSymbol: 'USDC' },
+            wallet: { walletProvider: 'coinbase_embedded', externalWalletAddress: '0xfeedbeefcafe' }
+          };
+        }
+        if (url === '/api/player/activity?limit=5') {
+          return { activity: [{ id: 'activity_2', at: now }] };
+        }
+        if (url === '/api/player/bots/bot_1/wallet') {
+          return { readiness: { status: 'ready' } };
+        }
+        return null;
+      },
+      state,
+      syncWalletSummary: async () => true,
+      showToast() {},
+      windowRef: { addEventListener() {}, navigator: { clipboard: { writeText: async () => {} } }, open() {} },
+      drawer: { classList, setAttribute() {} },
+      drawerBackdrop: { toggleAttribute() {}, classList, addEventListener() {} },
+      drawerClose: { addEventListener() {} },
+      drawerBody: { innerHTML: '', querySelector() { return null; } },
+      dom: {
+        topbarName: { textContent: 'Temisan Agbajoh' }
+      }
+    });
+
+    controller.setOpen(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(apiCalls).toContain('/api/player/wallet/summary');
+    expect(apiCalls).toContain('/api/player/activity?limit=5');
+    expect(apiCalls).toContain('/api/player/bots/bot_1/wallet');
+    expect(apiCalls).not.toContain('/api/player/me');
   });
 });

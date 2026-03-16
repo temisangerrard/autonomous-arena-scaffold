@@ -1,3 +1,9 @@
+import {
+  limitPlayerShellActivity,
+  mergePlayerShell,
+  playerShellFromBootstrap,
+  shouldRefreshPlayerShell
+} from '../../shared/player-shell.js';
 const DEFAULT_EMBEDDED_FUNDING_HREF = 'https://www.coinbase.com/buy';
 const DEFAULT_EXTERNAL_FUNDING_HREF = 'https://www.moonpay.com/buy/usdc';
 const FALLBACK_AUTOPLAY_GAMES = ['rps', 'coinflip', 'dice_duel', 'blackjack'];
@@ -50,10 +56,7 @@ function formatRelativeTime(timestampMs) {
 }
 
 export function limitDrawerActivity(entries, limit = 5) {
-  if (!Array.isArray(entries)) return [];
-  return [...entries]
-    .sort((left, right) => Number(right?.at ?? 0) - Number(left?.at ?? 0))
-    .slice(0, Math.max(1, limit));
+  return limitPlayerShellActivity(entries, limit);
 }
 
 export function resolveFundingRoute({
@@ -188,7 +191,7 @@ export function deriveWalletSummaryView({ summary, player, readiness, funding })
 
 export function seedDrawerDataFromRuntime({ state, dom } = {}) {
   const displayName = String(dom?.topbarName?.textContent || 'Player').trim() || 'Player';
-  const summary = {
+  const walletSummary = {
     onchain: {
       tokenBalance: Number.isFinite(Number(state?.walletBalance)) ? Number(state.walletBalance) : null,
       chainId: Number.isFinite(Number(state?.walletChainId)) ? Number(state.walletChainId) : null,
@@ -205,21 +208,22 @@ export function seedDrawerDataFromRuntime({ state, dom } = {}) {
   });
   return {
     player: {
-      displayName,
-      profile: null
+        displayName,
+        profile: null
     },
-    summary,
+    walletSummary,
     bot: null,
     readiness: null,
-    activity: [],
-    funding
+    activityPreview: [],
+    funding,
+    loadedAt: Date.now()
   };
 }
 
-function createDrawerMarkup({ summary, player, bot, readiness, funding, activity }) {
-  const walletView = deriveWalletSummaryView({ summary, player, readiness, funding });
+function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, activityPreview }) {
+  const walletView = deriveWalletSummaryView({ summary: walletSummary, player, readiness, funding });
   const autoplay = normalizeAutoplay(bot);
-  const activityItems = limitDrawerActivity(activity).map((entry) => {
+  const activityItems = limitDrawerActivity(activityPreview).map((entry) => {
     const summaryBits = summarizeActivity(entry);
     return `
       <li class="player-drawer__activity-item">
@@ -326,33 +330,35 @@ export function createPlayerDrawerController({
   let open = false;
   let lastLoadedAt = 0;
   let refreshInFlight = null;
-  let data = seedDrawerDataFromRuntime({ state, dom });
+  let data = mergePlayerShell(seedDrawerDataFromRuntime({ state, dom }), state?.playerShellData || {});
+
+  function persistShell(nextData) {
+    data = mergePlayerShell(data, nextData || {});
+    if (state) {
+      state.playerShellData = data;
+      state.playerShellLoadedAt = Number(data.loadedAt || Date.now());
+    }
+  }
 
   async function loadData() {
-    const playerPayload = await apiJson('/api/player/me').catch(() => null);
-    const player = playerPayload ? {
-      ...(playerPayload.user || {}),
-      profile: playerPayload.profile || null
-    } : null;
-    const bots = Array.isArray(playerPayload?.bots) ? playerPayload.bots : [];
-    const bot = bots[0] || null;
+    const bot = data?.bot || state?.playerShellData?.bot || null;
     const [summary, activityPayload, readiness] = await Promise.all([
       apiJson('/api/player/wallet/summary').catch(() => null),
       apiJson('/api/player/activity?limit=5').catch(() => ({ activity: [] })),
       bot?.id ? apiJson(`/api/player/bots/${encodeURIComponent(bot.id)}/wallet`).catch(() => null) : Promise.resolve(null)
     ]);
-    data = {
-      player,
-      summary,
+    persistShell({
+      walletSummary: summary,
       bot,
       readiness: readiness?.readiness || readiness || null,
-      activity: Array.isArray(activityPayload?.activity) ? activityPayload.activity : [],
+      activityPreview: Array.isArray(activityPayload?.activity) ? activityPayload.activity : [],
       funding: resolveFundingRoute({
         walletProvider: summary?.wallet?.walletProvider ?? state?.walletProvider,
-        walletAddress: player?.profile?.wallet?.address ?? summary?.onchain?.address ?? summary?.wallet?.address,
+        walletAddress: data?.player?.profile?.wallet?.address ?? data?.player?.walletAddress ?? summary?.onchain?.address ?? summary?.wallet?.address,
         externalAddress: summary?.wallet?.externalWalletAddress ?? state?.walletExternalAddress
-      })
-    };
+      }),
+      loadedAt: Date.now()
+    });
   }
 
   function attachBodyHandlers() {
@@ -398,6 +404,13 @@ export function createPlayerDrawerController({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      persistShell({
+        bot: {
+          ...(data.bot || {}),
+          behavior: payload
+        },
+        loadedAt: Date.now()
+      });
       showToast?.('Autoplay updated', 'success');
       await syncWalletSummary?.({ keepLastOnFailure: true });
       await refresh();
@@ -415,6 +428,9 @@ export function createPlayerDrawerController({
       return refreshInFlight;
     }
     refreshInFlight = (async () => {
+      if (state) {
+        state.playerShellRefreshInFlight = refreshInFlight;
+      }
       try {
         await loadData();
         lastLoadedAt = Date.now();
@@ -423,6 +439,9 @@ export function createPlayerDrawerController({
         showToast?.(`Player panel unavailable: ${String(error?.message || error)}`, 'error');
       } finally {
         refreshInFlight = null;
+        if (state) {
+          state.playerShellRefreshInFlight = null;
+        }
       }
     })();
     try {
@@ -437,14 +456,12 @@ export function createPlayerDrawerController({
     drawerBackdrop?.toggleAttribute('hidden', !open);
     drawerBackdrop?.classList.toggle('visible', open);
     if (open) {
-      data = {
-        ...seedDrawerDataFromRuntime({ state, dom }),
-        activity: data.activity,
-        bot: data.bot,
-        readiness: data.readiness
-      };
+      persistShell(playerShellFromBootstrap(
+        { playerShell: state?.playerShellData },
+        seedDrawerDataFromRuntime({ state, dom })
+      ));
       render();
-      if (Date.now() - lastLoadedAt > 15_000) {
+      if (shouldRefreshPlayerShell(state?.playerShellLoadedAt || lastLoadedAt)) {
         void refresh();
       }
     }

@@ -40,6 +40,9 @@ export function createInitialState() {
     walletBalance: null,
     walletChainId: null,
     walletExternalAddress: null,
+    playerShellData: null,
+    playerShellLoadedAt: 0,
+    playerShellRefreshInFlight: null,
     escrowApproval: {
       mode: 'manual',
       network: 'unknown',
