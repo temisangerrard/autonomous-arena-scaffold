@@ -1255,6 +1255,16 @@
 
     .wizard-footer .btn-ghost { margin-right: auto; }
 
+    .wizard-status {
+      margin-top: 12px;
+      min-height: 20px;
+      font: 500 13px/1.4 var(--dash-serif);
+      color: var(--dash-muted);
+    }
+
+    .wizard-status[data-tone="success"] { color: var(--dash-good); }
+    .wizard-status[data-tone="error"] { color: var(--dash-bad); }
+
     .mono {
       font-family: var(--dash-mono);
       font-size: 11px;
@@ -1785,6 +1795,7 @@
         <button id="bot-wizard-next" class="btn-dark" type="button">Next →</button>
         <button id="bot-save" class="btn-gold" type="button" style="display:none;">Save Bot</button>
       </div>
+      <div id="bot-modal-status" class="wizard-status" aria-live="polite"></div>
 
     </div>
   </div>

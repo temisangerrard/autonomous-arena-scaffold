@@ -398,7 +398,21 @@ export function createPlayerDrawerController({
   }
 
   async function loadData() {
-    const bot = data?.bot || state?.playerShellData?.bot || null;
+    let bot = data?.bot || state?.playerShellData?.bot || null;
+    if (!bot?.id) {
+      const bootstrap = await apiJson('/api/player/bootstrap').catch(() => null);
+      const bootstrapShell = playerShellFromBootstrap(bootstrap, {
+        playerShell: state?.playerShellData || data || {}
+      });
+      if (bootstrapShell?.bot?.id) {
+        persistShell({
+          player: bootstrapShell.player || undefined,
+          bot: bootstrapShell.bot,
+          loadedAt: Date.now()
+        });
+        bot = bootstrapShell.bot;
+      }
+    }
     const [summary, activityPayload, readiness] = await Promise.all([
       apiJson('/api/player/wallet/summary').catch(() => null),
       apiJson('/api/player/activity?limit=5').catch(() => ({ activity: [] })),

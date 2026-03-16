@@ -84,6 +84,7 @@ const botModal = document.getElementById('bot-modal');
 const botModalClose = document.getElementById('bot-modal-close');
 const botModalTitle = document.getElementById('bot-modal-title');
 const botModalSub = document.getElementById('bot-modal-sub');
+const botModalStatus = document.getElementById('bot-modal-status');
 
 const sidebarButtons = [...document.querySelectorAll('.sidebar-nav [data-view]')];
 const views = [...document.querySelectorAll('.dash-view')];
@@ -144,6 +145,18 @@ function escapeHtml(value) {
 function setStatus(text) {
   if (statusLine) {
     statusLine.textContent = text;
+  }
+}
+
+function setBotModalStatus(text, tone = '') {
+  if (!botModalStatus) {
+    return;
+  }
+  botModalStatus.textContent = String(text || '');
+  if (tone) {
+    botModalStatus.setAttribute('data-tone', tone);
+  } else {
+    botModalStatus.removeAttribute('data-tone');
   }
 }
 
@@ -870,6 +883,7 @@ function openBotModal(botId) {
   if (!bot || !botModal) {
     return;
   }
+  setBotModalStatus('');
   selectedBotId = botId;
   if (botModalTitle) {
     botModalTitle.textContent = `Configure ${bot.meta?.displayName || bot.id}`;
@@ -922,6 +936,7 @@ function closeBotModal() {
   }
   botModal.classList.remove('open');
   botModal.setAttribute('aria-hidden', 'true');
+  setBotModalStatus('');
 }
 
 profileSave?.addEventListener('click', async () => {
@@ -1031,9 +1046,11 @@ walletTransfer?.addEventListener('click', async () => {
 });
 
 botSave?.addEventListener('click', async () => {
+  const previousLabel = botSave?.textContent || 'Save Bot';
   try {
     const botId = selectedBotId || playerCtx?.bots?.[0]?.id;
     if (!botId) {
+      setBotModalStatus('No bot selected.', 'error');
       setStatus('No bot selected.');
       return;
     }
@@ -1055,7 +1072,12 @@ botSave?.addEventListener('click', async () => {
         return el ? el.checked : true;
       })
     } : null;
+    setBotModalStatus(`Saving ${botId}...`);
     setStatus(`Saving ${botId}...`);
+    if (botSave) {
+      botSave.disabled = true;
+      botSave.textContent = 'Saving...';
+    }
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -1072,10 +1094,26 @@ botSave?.addEventListener('click', async () => {
       })
     });
     await refreshContext();
-    closeBotModal();
+    setBotModalStatus('Bot saved.', 'success');
+    if (botSave) {
+      botSave.textContent = 'Saved';
+    }
     setStatus(`Saved ${botId}.`);
+    window.setTimeout(() => {
+      if (botModal?.getAttribute('aria-hidden') === 'false') {
+        closeBotModal();
+      }
+    }, 700);
   } catch (error) {
+    setBotModalStatus(`Bot save failed: ${String(error.message || error)}`, 'error');
     setStatus(`Bot save failed: ${String(error.message || error)}`);
+  } finally {
+    window.setTimeout(() => {
+      if (botSave) {
+        botSave.disabled = false;
+        botSave.textContent = previousLabel;
+      }
+    }, 700);
   }
 });
 
