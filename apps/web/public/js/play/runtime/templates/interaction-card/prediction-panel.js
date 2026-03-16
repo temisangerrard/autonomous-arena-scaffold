@@ -103,23 +103,20 @@ export function mountPredictionPanel(params) {
   stationUi.dataset.predictionMode = kioskMode ? 'kiosk' : 'dealer';
   stationUi.innerHTML = `
     <div class="prediction-panel">
-      <div class="prediction-header">
-        <span class="prediction-header__source">Arena Oracle</span>
-        <span class="prediction-header__label">${kioskMode ? 'BTC board' : 'BTC rails'}</span>
+      <div class="prediction-panel__tabs-row">
+        <div class="prediction-tabs" role="tablist" aria-label="BTC market duration">
+          <button id="prediction-tab-5m" class="prediction-tab" type="button" role="tab" aria-selected="true">5m</button>
+          <button id="prediction-tab-24h" class="prediction-tab" type="button" role="tab" aria-selected="false">24h</button>
+        </div>
+        <div class="prediction-tabs prediction-tabs--round" role="tablist" aria-label="BTC market round">
+          <button id="prediction-round-current" class="prediction-tab" type="button" role="tab" aria-selected="true">Now</button>
+          <button id="prediction-round-next" class="prediction-tab" type="button" role="tab" aria-selected="false">Next</button>
+        </div>
+        <span class="prediction-market-status prediction-market-status--inline" id="prediction-market-status" aria-live="polite"></span>
       </div>
-      <div class="station-ui__meta">Base Mainnet • USDC</div>
-      <div class="prediction-tabs" role="tablist" aria-label="BTC market duration">
-        <button id="prediction-tab-5m" class="prediction-tab" type="button" role="tab" aria-selected="true">BTC 5m</button>
-        <button id="prediction-tab-24h" class="prediction-tab" type="button" role="tab" aria-selected="false">BTC 24h</button>
-      </div>
-      <div class="prediction-tabs prediction-tabs--round" role="tablist" aria-label="BTC market round">
-        <button id="prediction-round-current" class="prediction-tab" type="button" role="tab" aria-selected="true">Current</button>
-        <button id="prediction-round-next" class="prediction-tab" type="button" role="tab" aria-selected="false">Next</button>
-      </div>
-      <div class="prediction-market-status" id="prediction-market-status" aria-live="polite"></div>
       <div class="prediction-market-preview" id="prediction-market-preview" aria-live="polite"></div>
-      <div class="station-ui__meta" id="prediction-market-timing"></div>
-      <div class="station-ui__meta" id="prediction-market-prices"></div>
+      <div class="prediction-panel__info" id="prediction-market-timing"></div>
+      <div class="prediction-panel__prices" id="prediction-market-prices"></div>
       <div class="station-ui__row">
         <label for="prediction-stake">Stake <span class="game-panel__currency">USDC</span></label>
         <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" class="game-panel__wager-input" />
@@ -128,7 +125,7 @@ export function mountPredictionPanel(params) {
         <button id="prediction-btc-yes" class="prediction-side prediction-side--yes" type="button">BTC Up</button>
         <button id="prediction-btc-no" class="prediction-side prediction-side--no" type="button">BTC Down</button>
       </div>
-      <div class="station-ui__meta">If your side wins without opposite liquidity, your stake is refunded. Next-round commitments lock immediately.</div>
+      <div class="prediction-panel__disclaimer">If your side wins without opposite liquidity, your stake is refunded. Next-round commitments lock immediately.</div>
       <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Fetching markets…'}</div>
     </div>
   `;

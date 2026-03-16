@@ -38,12 +38,16 @@
     }
 
     .interaction-card__head {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: rgba(253, 248, 237, 0.98);
+      backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 14px 16px 10px;
-      position: relative;
-      z-index: 1;
+      border-bottom: 1px solid rgba(198, 152, 49, 0.15);
     }
     .interaction-card__head-actions {
       display: inline-flex;
@@ -626,26 +630,43 @@
     /* ============================================
        PREDICTION STATION
        ============================================ */
-    .prediction-header {
+
+    /* Compact single-row tab controls */
+    .prediction-panel__tabs-row {
       display: flex;
-      align-items: baseline;
-      gap: 8px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid rgba(198, 152, 49, 0.18);
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
-    .prediction-header__source {
-      font: 800 13px/1 'JetBrains Mono', monospace;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: #5b3f8a;
+    /* Timing row (locks / settles) */
+    .prediction-panel__info {
+      font: 500 11px/1.35 'IBM Plex Mono', monospace;
+      color: rgba(68, 48, 14, 0.78);
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
-    .prediction-header__label {
-      font: 400 11px/1 'IBM Plex Mono', monospace;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #9a8a60;
+    /* Prices row (spot / lock / final) */
+    .prediction-panel__prices {
+      font: 500 11px/1.35 'IBM Plex Mono', monospace;
+      color: rgba(68, 48, 14, 0.65);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    /* Disclaimer line */
+    .prediction-panel__disclaimer {
+      font: 400 11px/1.4 'IBM Plex Sans', sans-serif;
+      color: rgba(60, 44, 18, 0.6);
+    }
+
+    /* Inline status badge beside tab row */
+    .prediction-market-status--inline {
+      font: 500 10px/1 'IBM Plex Mono', monospace;
+      color: rgba(68, 48, 14, 0.7);
+      margin-left: auto;
+      white-space: nowrap;
     }
 
     /* ── Prediction tab selectors (rail + round) ─────────────── */
@@ -817,7 +838,7 @@
       }
 
       .interaction-card__head {
-        padding: 12px 12px 8px;
+        padding: 10px 12px 8px;
         position: sticky;
         top: 0;
         z-index: 3;
@@ -826,7 +847,7 @@
       }
 
       .interaction-card__body {
-        padding: 10px 12px 12px;
+        padding: 8px 12px 12px;
       }
 
       .station-ui {
@@ -838,7 +859,25 @@
         gap: 6px;
       }
 
+      .prediction-panel {
+        gap: 8px;
+      }
+
+      .prediction-panel__tabs-row {
+        gap: 5px;
+      }
+
+      .prediction-tab {
+        height: 30px;
+        font-size: 10px;
+      }
+
+      .prediction-market-status--inline {
+        width: 100%;
+        margin-left: 0;
+      }
+
       .prediction-sides {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
       }
     }
