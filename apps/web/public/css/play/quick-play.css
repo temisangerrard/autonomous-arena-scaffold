@@ -1,5 +1,9 @@
 /* ── Quick Play Panel ─────────────────────────────────────────────────── */
 
+/* display:flex on .qp-panel would override the hidden attribute without this */
+.qp-panel[hidden],
+.qp-backdrop[hidden] { display: none !important; }
+
 .qp-btn {
   cursor: pointer;
   background: rgba(212, 168, 75, 0.14);
