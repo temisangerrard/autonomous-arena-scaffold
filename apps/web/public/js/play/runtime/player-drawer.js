@@ -91,9 +91,28 @@ export function resolveFundingRoute({
 
 export function buildAutoplayConfigPayload({ bot, autoplay }) {
   const behavior = bot?.behavior && typeof bot.behavior === 'object' ? bot.behavior : {};
+  const rawGames = Array.isArray(autoplay?.allowedGames)
+    ? autoplay.allowedGames
+    : Array.isArray(autoplay?.games)
+      ? autoplay.games
+      : ['rps', 'coinflip'];
   return {
     ...behavior,
-    autoplay: autoplay && autoplay.enabled ? autoplay : null
+    autoplay: autoplay && autoplay.enabled ? {
+      enabled: true,
+      allowedGames: rawGames.filter(Boolean),
+      wagerMode: String(autoplay.wagerMode || 'fixed'),
+      walletPercent: Math.max(1, Math.min(100, Number(autoplay.walletPercent ?? autoplay.walletPct ?? 5))),
+      martingaleMultiplier: Math.max(1.1, Number(autoplay.martingaleMultiplier ?? autoplay.martingaleMult ?? 2)),
+      baseWager: Math.max(1, Number(autoplay.baseWager ?? behavior.baseWager ?? 1)),
+      maxWager: Math.max(
+        Math.max(1, Number(autoplay.baseWager ?? behavior.baseWager ?? 1)),
+        Number(autoplay.maxWager ?? behavior.maxWager ?? 3)
+      ),
+      sessionLossLimit: Math.max(0, Number(autoplay.sessionLossLimit ?? behavior.sessionLossLimit ?? 0)),
+      sessionWinTarget: Math.max(0, Number(autoplay.sessionWinTarget ?? behavior.sessionWinTarget ?? 0)),
+      cooldownMs: Math.max(1000, Number(autoplay.cooldownMs || 3000))
+    } : null
   };
 }
 
@@ -127,13 +146,15 @@ function normalizeAutoplay(bot) {
   const enabled = Boolean(source?.enabled);
   const games = Array.isArray(source?.games) && source.games.length > 0
     ? source.games.map((item) => String(item))
+    : Array.isArray(source?.allowedGames) && source.allowedGames.length > 0
+      ? source.allowedGames.map((item) => String(item))
     : ['rps', 'coinflip', 'dice_duel'];
   return {
     enabled,
     games,
     wagerMode: String(source?.wagerMode || 'fixed'),
-    walletPct: Math.max(1, Math.min(100, Number(source?.walletPct || 5))),
-    martingaleMult: Math.max(1.1, Number(source?.martingaleMult || 2)),
+    walletPct: Math.max(1, Math.min(100, Number(source?.walletPct ?? source?.walletPercent ?? 5))),
+    martingaleMult: Math.max(1.1, Number(source?.martingaleMult ?? source?.martingaleMultiplier ?? 2)),
     cooldownMs: Math.max(1000, Number(source?.cooldownMs || 3000))
   };
 }
@@ -422,6 +443,7 @@ export function createPlayerDrawerController({
     });
     drawerBody.querySelector('[data-action="save-autoplay"]')?.addEventListener('click', async () => {
       if (!data.bot?.id) return;
+      const saveButton = drawerBody.querySelector('[data-action="save-autoplay"]');
       const autoplayEnabled = drawerBody.querySelector('[data-field="autoplay-enabled"]')?.checked || false;
       const selectedGames = [...drawerBody.querySelectorAll('[data-field="autoplay-game"]:checked')]
         .map((input) => input.value)
@@ -435,21 +457,35 @@ export function createPlayerDrawerController({
         cooldownMs: Math.max(1000, Number(drawerBody.querySelector('[data-field="autoplay-cooldown-ms"]')?.value || 3000))
       } : null;
       const payload = buildAutoplayConfigPayload({ bot: data.bot, autoplay });
-      await apiJson(`/api/player/bots/${encodeURIComponent(data.bot.id)}/config`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      persistShell({
-        bot: {
-          ...(data.bot || {}),
-          behavior: payload
-        },
-        loadedAt: Date.now()
-      });
-      showToast?.('Autoplay updated', 'success');
-      await syncWalletSummary?.({ keepLastOnFailure: true });
-      await refresh();
+      const previousLabel = saveButton?.textContent || 'Save autoplay';
+      if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+      }
+      try {
+        await apiJson(`/api/player/bots/${encodeURIComponent(data.bot.id)}/config`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        persistShell({
+          bot: {
+            ...(data.bot || {}),
+            behavior: payload
+          },
+          loadedAt: Date.now()
+        });
+        showToast?.('Autoplay saved', 'success');
+        await syncWalletSummary?.({ keepLastOnFailure: true });
+        await refresh();
+      } catch (error) {
+        showToast?.(`Autoplay save failed: ${String(error?.message || error)}`, 'error');
+      } finally {
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.textContent = previousLabel;
+        }
+      }
     });
   }
 

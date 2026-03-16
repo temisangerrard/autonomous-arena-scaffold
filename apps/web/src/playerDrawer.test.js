@@ -52,10 +52,14 @@ describe('player drawer helpers', () => {
       },
       autoplay: {
         enabled: true,
-        games: ['coinflip', 'blackjack'],
+        allowedGames: ['coinflip'],
         wagerMode: 'martingale',
-        walletPct: 5,
-        martingaleMult: 2,
+        walletPercent: 5,
+        martingaleMultiplier: 2,
+        baseWager: 1,
+        maxWager: 3,
+        sessionLossLimit: 5,
+        sessionWinTarget: 12,
         cooldownMs: 3000
       }
     });
@@ -71,10 +75,14 @@ describe('player drawer helpers', () => {
       sessionWinTarget: 12,
       autoplay: {
         enabled: true,
-        games: ['coinflip', 'blackjack'],
+        allowedGames: ['coinflip'],
         wagerMode: 'martingale',
-        walletPct: 5,
-        martingaleMult: 2,
+        walletPercent: 5,
+        martingaleMultiplier: 2,
+        baseWager: 1,
+        maxWager: 3,
+        sessionLossLimit: 5,
+        sessionWinTarget: 12,
         cooldownMs: 3000
       }
     });
