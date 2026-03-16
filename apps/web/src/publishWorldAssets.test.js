@@ -34,6 +34,38 @@ describe('publish world assets script', () => {
     expect(statSync(stagedAsset).size).toBe(statSync(sourcePath).size);
   });
 
+  it('stages shell bundle aliases for the streamed world manifest', async () => {
+    const module = await import(new URL('../../../scripts/publish-world-assets.mjs', import.meta.url).href);
+    const { stageWorldAssetPublishDir } = module;
+
+    const root = mkdtempSync(path.join(os.tmpdir(), 'world-asset-test-'));
+    const sourcePath = path.join(root, 'train_station_mega_world.glb');
+    const stagingDir = path.join(root, 'staging');
+    mkdirSync(stagingDir, { recursive: true });
+    writeFileSync(sourcePath, 'arena-world');
+
+    const publishDir = await stageWorldAssetPublishDir({ sourcePath, stagingDir });
+    const stagedShell = path.join(publishDir, 'assets', 'world', 'mega-shell.glb');
+
+    expect(statSync(stagedShell).size).toBe(statSync(sourcePath).size);
+  });
+
+  it('stages the deferred mega world bundle alias', async () => {
+    const module = await import(new URL('../../../scripts/publish-world-assets.mjs', import.meta.url).href);
+    const { stageWorldAssetPublishDir } = module;
+
+    const root = mkdtempSync(path.join(os.tmpdir(), 'world-asset-test-'));
+    const sourcePath = path.join(root, 'train_station_mega_world.glb');
+    const stagingDir = path.join(root, 'staging');
+    mkdirSync(stagingDir, { recursive: true });
+    writeFileSync(sourcePath, 'arena-world');
+
+    const publishDir = await stageWorldAssetPublishDir({ sourcePath, stagingDir });
+    const stagedWorld = path.join(publishDir, 'assets', 'world', 'mega-world.glb');
+
+    expect(statSync(stagedWorld).size).toBe(statSync(sourcePath).size);
+  });
+
   it('writes a _headers file that allows cross-origin access to world assets', async () => {
     const module = await import(new URL('../../../scripts/publish-world-assets.mjs', import.meta.url).href);
     const { stageWorldAssetPublishDir } = module;

@@ -12,6 +12,8 @@ describe('resolveWorldAssetPath', () => {
     expect(worldFilenameForAlias('train_world')).toBe('train_station_mega_world.glb');
     expect(worldFilenameForAlias('train-world')).toBe('train_station_mega_world.glb');
     expect(worldFilenameForAlias('mega.glb')).toBe('train_station_mega_world.glb');
+    expect(worldFilenameForAlias('mega-shell')).toBe('train_station_world.glb');
+    expect(worldFilenameForAlias('mega-world')).toBe('train_station_mega_world.glb');
     expect(worldFilenameForAlias('base')).toBe('train_station_mega_world.glb');
     expect(worldFilenameForAlias('plaza')).toBe('train_station_mega_world.glb');
     expect(worldFilenameForAlias('world')).toBe('train_station_mega_world.glb');

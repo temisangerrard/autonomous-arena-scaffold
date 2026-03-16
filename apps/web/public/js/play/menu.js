@@ -1,5 +1,5 @@
-export function initMenu(dom, { queryParams }) {
-  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuHowToPlay, menuLogout, onboardingOverlay } = dom;
+export function initMenu(dom, { queryParams, openPlayerDrawer }) {
+  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuLogout } = dom;
 
   function setMenuOpen(nextOpen) {
     if (!topbarMenuPop) return;
@@ -14,23 +14,17 @@ export function initMenu(dom, { queryParams }) {
   });
 
   menuDashboard?.addEventListener('click', () => {
+    setMenuOpen(false);
+    if (typeof openPlayerDrawer === 'function') {
+      openPlayerDrawer(true);
+      return;
+    }
     window.location.href = '/dashboard';
   });
 
   menuViewer?.addEventListener('click', () => {
     const world = queryParams.get('world') || 'mega';
     window.location.href = `/viewer?world=${encodeURIComponent(world)}`;
-  });
-
-  menuHowToPlay?.addEventListener('click', () => {
-    setMenuOpen(false);
-    if (typeof dom.openOnboarding === 'function') {
-      dom.openOnboarding(0);
-      return;
-    }
-    if (onboardingOverlay) {
-      onboardingOverlay.classList.add('visible');
-    }
   });
 
   menuLogout?.addEventListener('click', async () => {

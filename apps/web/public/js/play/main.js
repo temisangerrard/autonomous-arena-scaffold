@@ -12,7 +12,7 @@ async function registerWorldCacheSw() {
     return;
   }
   try {
-    const registration = await navigator.serviceWorker.register('/sw-world-cache.js');
+    const registration = await navigator.serviceWorker.register('/sw-world-cache.js', { type: 'module' });
     console.debug('[world-cache] sw_registered', registration.scope);
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       console.debug('[world-cache] sw_controller_changed');

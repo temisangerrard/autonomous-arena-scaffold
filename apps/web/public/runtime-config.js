@@ -10,5 +10,5 @@ window.ARENA_CONFIG = {
   "runtimeBase": "/runtime",
   "serverHealthPath": "/server/health",
   "gameWsPath": "/ws",
-  "buildHash": "5c9a1a69970f"
+  "buildHash": "mms8lpzl"
 };

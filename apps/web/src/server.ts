@@ -12,7 +12,7 @@ import { rewriteEmailIdentityBindings } from './adminWalletRelink.js';
 import { log } from './logger.js';
 import { resolveAuthSubjects } from './authSubjects.js';
 import { findMatchingContinuityLink, preferEmailIdentityOverContinuity } from './identityContinuity.js';
-import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
+import { availableWorldAliases, resolveWorldAssetPath, worldBundleForAssetAlias, worldBundlesByAlias, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
 import { clearSessionCookie, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setSessionCookieWithOptions } from './lib/http.js';
@@ -1207,7 +1207,8 @@ const server = createServer(async (req, res) => {
       compatibilityAliases: ['train_world', 'train-world', 'base', 'plaza', 'world'],
       aliases: availableWorldAliases(),
       filenameByAlias: worldFilenameByAlias(),
-      versionByAlias: worldVersionByAlias()
+      versionByAlias: worldVersionByAlias(),
+      bundlesByAlias: worldBundlesByAlias()
     });
     return;
   }
@@ -2965,6 +2966,7 @@ const server = createServer(async (req, res) => {
     }
     const worldPath = resolveWorldAssetPath(alias);
     if (!worldPath) {
+      const requestedBundle = worldBundleForAssetAlias(alias);
       const canonicalFilename = worldFilenameForAlias(alias) || worldFilenameForAlias('mega') || 'train_station_mega_world.glb';
       const normalizedBase = String(publicWorldAssetBaseUrl || defaultWorldAssetBaseUrl).replace(/\/+$/, '');
       if (!normalizedBase) {
@@ -2982,8 +2984,8 @@ const server = createServer(async (req, res) => {
       }
       const versionByAlias = worldVersionByAlias();
       const normalizedAlias = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
-      const version = String(versionByAlias[normalizedAlias] || versionByAlias.mega || '');
-      let fallbackUrl = `${normalizedBase}/assets/world/mega.glb`;
+      const version = String(requestedBundle?.version || versionByAlias[normalizedAlias] || versionByAlias.mega || '');
+      let fallbackUrl = `${normalizedBase}/assets/world/${encodeURIComponent(normalizedAlias)}.glb`;
       if (version) {
         fallbackUrl += `${fallbackUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}`;
       }

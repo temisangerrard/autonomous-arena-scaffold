@@ -26,6 +26,7 @@ import { deriveDealerGameType } from './dealer-game-type.js';
 import { computeMobileControlVisibility, isTouchLikeDevice } from './mobile-controls.js';
 import { renderMobileControlsRuntime } from './mobile-controls-renderer.js';
 import { createWalletSyncController } from './wallet-sync.js';
+import { createPlayerDrawerController } from './player-drawer.js';
 import { createEscrowApprovalController } from './escrow-approval.js';
 import { showResultSplash } from './result-splash.js';
 import { installRuntimeTestHooks } from './test-hooks.js';
@@ -152,6 +153,10 @@ const {
   worldLoading,
   worldLoadingBar,
   worldLoadingText,
+  playerDrawer,
+  playerDrawerBackdrop,
+  playerDrawerClose,
+  playerDrawerBody,
   mobileControls,
   mobileSend,
   mobileAccept,
@@ -279,8 +284,6 @@ const worldStations = createWorldStationsController({
   mergeStations: (...args) => mergeStations(...args)
 });
 
-initMenu(dom, { queryParams });
-
 const escrowPolicy = createEscrowPolicyController({
   windowRef: window,
   state
@@ -321,6 +324,21 @@ const {
   startWalletSyncScheduler,
   stopWalletSyncScheduler
 } = walletSync;
+const playerDrawerController = createPlayerDrawerController({
+  apiJson,
+  state,
+  syncWalletSummary,
+  showToast,
+  dom,
+  drawer: playerDrawer,
+  drawerBackdrop: playerDrawerBackdrop,
+  drawerClose: playerDrawerClose,
+  drawerBody: playerDrawerBody
+});
+initMenu(dom, {
+  queryParams,
+  openPlayerDrawer: (nextOpen) => playerDrawerController.setOpen(nextOpen)
+});
 
 let socket = null;
 const socketRef = { current: null };
