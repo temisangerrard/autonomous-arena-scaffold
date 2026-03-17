@@ -36,7 +36,8 @@ import {
   updateLocalAvatarRuntime,
   applyDisplaySeparationRuntime,
   renderMatchSpotlightRuntime,
-  renderTargetSpotlightRuntime
+  renderTargetSpotlightRuntime,
+  updateAmbientMotion
 } from './scene-dynamics.js';
 import {
   asFiniteNumber,
@@ -62,6 +63,9 @@ import { createFrameLoop } from './frame-loop.js';
 import { createStationInteractionsController } from './station-interactions.js';
 import { createApiJsonClient } from './api-client.js';
 import { createRuntimeSpotlights } from './spotlights.js';
+import { createWorldBillboards } from './world-billboards.js';
+import { createAudioController } from './audio.js';
+import { createWorldPoi } from './world-poi.js';
 import { createRuntimeUpdate } from './runtime-update.js';
 import { createLabelFor, isStationId } from './selectors.js';
 import { startRuntimeLifecycle } from './startup-lifecycle.js';
@@ -185,7 +189,10 @@ const renderer = makeRenderer(canvas);
 const scene = makeScene();
 const camera = makeCamera();
 installResizeHandler(camera, renderer);
-const { matchSpotlight, targetSpotlight } = createRuntimeSpotlights({ THREE, scene });
+const { matchSpotlight, targetSpotlight, triggerCelebrationBurst, updateBursts } = createRuntimeSpotlights({ THREE, scene });
+const worldBillboards = createWorldBillboards({ THREE, scene });
+const worldPoi = createWorldPoi({ THREE, scene });
+const audioController = createAudioController();
 
 const { localAvatarParts, remoteAvatars, syncRemoteAvatars, updateWorldScale } = createAvatarSystem({ THREE, scene });
 const { syncStations } = createStationSystem({ THREE, scene });
@@ -438,7 +445,17 @@ async function connectSocket() {
     refreshWalletBalanceAndShowDelta,
     handleChallenge,
     localAvatarParts,
-    challengeReasonLabel: (reason) => challengeReasonLabel(reason)
+    challengeReasonLabel: (reason) => challengeReasonLabel(reason),
+    onMatchResolved: ({ winnerId, wager }) => {
+      const winner = state.players.get(winnerId);
+      if (winner) {
+        const wx = winner.displayX ?? winner.x ?? 0;
+        const wz = winner.displayZ ?? winner.z ?? 0;
+        triggerCelebrationBurst(wx, wz, wager);
+        state.lastWinPosition = { x: wx, z: wz, at: Date.now() };
+      }
+      audioController.trigger('win');
+    }
   });
 }
 
@@ -479,6 +496,23 @@ const sendGameMove = (move) => sendGameMoveRuntime({
   showToast,
   pluginRegistry
 });
+
+// Initialize audio on first user gesture (browser autoplay policy requirement).
+{
+  let audioInitialized = false;
+  function initAudioOnce() {
+    if (audioInitialized) return;
+    audioInitialized = true;
+    audioController.init();
+    // Load ambient loop from public assets (file must be placed there by build/content pipeline).
+    audioController.loadAmbientLoop('/assets/audio/arena-ambient.ogg').catch(() => {});
+    audioController.loadSfx('win', '/assets/audio/sfx-win.ogg').catch(() => {});
+    audioController.loadSfx('resolve', '/assets/audio/sfx-resolve.ogg').catch(() => {});
+  }
+  ['keydown', 'pointerdown', 'touchstart'].forEach((ev) => {
+    window.addEventListener(ev, initAudioOnce, { once: true, passive: true });
+  });
+}
 
 const inputSystem = createInputSystem({
   state,
@@ -607,9 +641,19 @@ const update = createRuntimeUpdate({
   sanitizeRenderY
 });
 
+// Wrap the core update to layer in spectacle systems each frame.
+const coreUpdate = update;
+const spectacleUpdate = (nowMs) => {
+  coreUpdate(nowMs);
+  updateBursts(nowMs);
+  updateAmbientMotion(scene, nowMs);
+  worldBillboards.update(state, nowMs);
+  worldPoi.update(state);
+};
+
 const frameLoop = createFrameLoop({
   queryParams,
-  update,
+  update: spectacleUpdate,
   render: () => renderer.render(scene, camera)
 });
 

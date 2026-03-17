@@ -32,7 +32,8 @@ export async function connectSocketRuntime(deps) {
     refreshWalletBalanceAndShowDelta,
     handleChallenge,
     localAvatarParts,
-    challengeReasonLabel
+    challengeReasonLabel,
+    onMatchResolved
   } = deps;
 
   const session = await bootstrapSessionAuth({
@@ -128,6 +129,8 @@ export async function connectSocketRuntime(deps) {
           speed: normalized.speed,
           role: normalized.role,
           displayName: normalized.displayName,
+          actorClass: normalized.actorClass,
+          ownerProfileId: normalized.ownerProfileId,
           displayX: normalized.x,
           displayY: normalized.y,
           displayZ: normalized.z,
@@ -141,6 +144,8 @@ export async function connectSocketRuntime(deps) {
         existing.speed = normalized.speed;
         existing.role = normalized.role;
         existing.displayName = normalized.displayName;
+        existing.actorClass = normalized.actorClass;
+        existing.ownerProfileId = normalized.ownerProfileId;
       }
     }
 
@@ -357,6 +362,9 @@ export async function connectSocketRuntime(deps) {
       const title = won ? 'YOU WIN' : (winnerId ? 'YOU LOSE' : 'DRAW');
       const delta = state.ui.dealer.payoutDelta;
       showResultSplash(`${title}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, tone);
+      if (typeof onMatchResolved === 'function' && winnerId) {
+        onMatchResolved({ winnerId, wager: Number(view.wager ?? state.ui.dealer.wager ?? 0) });
+      }
       void refreshWalletBalanceAndShowDelta(state.walletBalance, null);
       return;
     }
@@ -381,6 +389,9 @@ export async function connectSocketRuntime(deps) {
       const tossLine = state.ui.dealer.coinflipResult ? `\nTOSS: ${state.ui.dealer.coinflipResult.toUpperCase()}` : '';
       const delta = state.ui.dealer.payoutDelta;
       showResultSplash(`${title}${tossLine}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, tone);
+      if (typeof onMatchResolved === 'function' && winnerId) {
+        onMatchResolved({ winnerId, wager: Number(view.wager ?? state.ui.dealer.wager ?? 0) });
+      }
       void refreshWalletBalanceAndShowDelta(state.walletBalance, null);
       return;
     }

@@ -18,7 +18,7 @@ export function createAvatarSystem({ THREE, scene, worldScale = AVATAR_WORLD_SCA
 
       let remote = remoteAvatars.get(player.id);
       if (!remote) {
-        remote = createProceduralAvatar(THREE, player.role, player.displayName, false);
+        remote = createProceduralAvatar(THREE, player.role, player.displayName, false, player.actorClass ?? 'human');
         remote.avatar.scale.setScalar(currentWorldScale);
         remote.avatar.position.y = 1.2;
         remoteAvatars.set(player.id, remote);
