@@ -4,7 +4,7 @@
 
 - **Metric**: Uncovered statements in `apps/agent-runtime/src/AgentBot.ts` (lower is better)
 - **Direction**: lower is better
-- **Goal**: 0 uncovered statements (or practical minimum — WS lifecycle requires a live server)
+- **Goal**: 0 uncovered statements
 - **Benchmark**: `bash autoresearch-agent-activities.sh`
 - **Context**: Autoplay is back on. `AgentBot.ts` is the core autonomous bot runtime —
   wager calculation, challenge targeting, session risk stops, move submission — none of it had
@@ -31,33 +31,34 @@
 
 ## Run Log
 
-| Run | Uncovered Stmts | Δ | Tests Added | Notes |
-|-----|----------------|---|-------------|-------|
-| 0   | 368 | — | 0 | Baseline: no AgentBot.test.ts |
-| 1   | 179 | −189 | 44 | Round 1: `computeNextWager` (3 modes), `pickAutoplayGame`, `enforceSessionRiskStops`, `updateAutoplayWagerAfterResult`, `resetAutoplaySession`, `restoreAutoplaySession`, `shouldAcceptChallenge` (aggressive/passive), `pickChallengeTarget`, `getStatus`, `updateBehavior`, `updateDisplayName`, `getId`/`isConnected` |
-| 2   | 179 | 0 | +11 (55) | Round 2: `maybeSubmitGameMove` (existing move, already submitted, not participant, schedule), `handleChallengeEvent` resolved (win/loss/non-participant). Same count — script bug (truncated ranges). Fixed script to use JSON coverage. |
-| 3   | 179 | 0 | +7 (62) | Round 3 additions: `handleChallengeEvent` declined/expired, guard (ws=null), invalid/busy events, created event (ws closes before response). Coverage at 51.4% but statement count unchanged — new tests covered previously-missed paths already counted in run 1. |
-| 4   | 99  | −80 | +23 (85) | Round 4: `stop()` (timer/ws cleanup), `ensureActive()` (3 guard paths), `updateDisplayName` reconnect path, `maybeSendChallenge` (5 early-exit paths + cooling_down clear). **51% → 73% statement coverage.** |
+| Run | Uncovered | Δ | Tests | Notes |
+|-----|-----------|---|-------|-------|
+| 0   | 368 | —    | 0   | Baseline: no AgentBot.test.ts |
+| 1   | 179 | −189 | 44  | Round 1: `computeNextWager` (3 modes), `pickAutoplayGame`, `enforceSessionRiskStops`, `updateAutoplayWagerAfterResult`, `resetAutoplaySession`, `restoreAutoplaySession`, `shouldAcceptChallenge` (aggressive/passive), `pickChallengeTarget`, `getStatus`, `updateBehavior`, `updateDisplayName`, `getId`/`isConnected` |
+| 2   | 179 | 0    | 55  | Round 2: `maybeSubmitGameMove` (existing move, already submitted, not participant, schedule), `handleChallengeEvent` resolved. Script bug (truncated line ranges) masked improvement — fixed to JSON coverage. |
+| 3   | 179 | 0    | 62  | Round 3: `handleChallengeEvent` declined/expired/guard/invalid/busy/created. New tests covered missed paths already counted in run 1 via the old script. |
+| 4   | 99  | −80  | 85  | Round 4: `stop()` (timer/ws cleanup), `ensureActive()` (3 guard paths), `updateDisplayName` reconnect path, `maybeSendChallenge` (5 early exits + cooling_down clear). 0% → 73%. |
+| 5   | 6   | −93  | 156 | Round 5: `vi.mock('ws')` pattern unlocked WS lifecycle — `connect()`, `open`/`message`/`close`/`error` handlers, `startDecisionLoop`, `onMessage` (welcome/snapshot/proximity/challenge/malformed), reconnect timer, `decideAndSendInput` (passive, stall detection, with others), `maybeSendChallenge` happy path, `sectionFor`, `isInSameOrAdjacentSection`. 73% → 98.4%. |
+| 6   | **0** | −6 | 158 | Round 6: `ensureActive(!running)` path (line 211), `decideAndSendInput` with mixed agent/human players (lines 407-416). **100% statement coverage.** |
 
-## Coverage Summary (after 4 rounds)
+## Final Coverage Summary
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Uncovered statements | 368 | 99 |
-| Statement coverage | 0% | ~73% |
-| Test count | 0 | 85 |
+| Uncovered statements | 368 | **0** |
+| Statement coverage | 0% | **100%** |
+| Test files | 0 | 2 (`AgentBot.test.ts`, `AgentBot.ws.test.ts`) |
+| Test count | 0 | **158** |
 
-## Remaining Uncovered (~99 statements)
+## Key Techniques Used
 
-All remaining uncovered statements are in the WebSocket lifecycle methods that require
-an actual WS server to exercise meaningfully:
-
-| Method | Lines | Why |
-|--------|-------|-----|
-| `connect()` | 223–455 | Creates real `new WebSocket(url)` — needs a server |
-| `runDecisionLoop()` | ~340–462 | Called only from the `open` WS event |
-| snapshot/proximity handlers | ~300–340 | Called from the `message` WS event |
-| Reconnect logic | ~285–296 | Triggered from WS `close` event |
-
-**These are the irreducible WS-dependent floor** unless a mock WS server is introduced
-(e.g., `ws` server in-process). That is a viable next iteration if deeper integration coverage is desired.
+| Technique | Used For |
+|-----------|----------|
+| Direct class instantiation | All tests — no integration harness needed |
+| `(bot as any).method()` for privates | Testing internal logic without exposing APIs |
+| Injecting internal state via `priv(bot).field = x` | Setting up scenarios (timers, ws, playerId, etc.) |
+| Plain object mock WS (`{ OPEN:1, readyState:1, send }`) | Testing methods that guard on `ws.readyState !== ws.OPEN` |
+| `vi.useFakeTimers()` + `vi.runAllTimers()` | Testing `setTimeout` callbacks (response delay, move dispatch) |
+| `vi.mock('ws', ...)` + EventEmitter-based `MockWebSocket` | Covering the WS connection lifecycle without a real server |
+| `vi.setSystemTime()` | Controlling probabilistic time-modulo gates |
+| `afterEach(() => vi.useRealTimers())` | Preventing fake-timer leakage between tests |
