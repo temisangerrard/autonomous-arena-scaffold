@@ -30,17 +30,19 @@ function makeBehavior(overrides: Partial<AgentBehaviorConfig> = {}): AgentBehavi
 }
 
 function makeBot(behaviorOverrides: Partial<AgentBehaviorConfig> = {}, id = 'bot_abc'): AgentBot {
-  return new AgentBot({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new (AgentBot as any)({
     id,
     wsBaseUrl: 'ws://localhost:4000/ws',
     displayName: 'TestBot',
     behavior: makeBehavior(behaviorOverrides)
-  } as Parameters<typeof AgentBot['prototype']['constructor']>[0]);
+  });
 }
 
-// Helper to call private methods
-function priv(bot: AgentBot): Record<string, (...args: unknown[]) => unknown> {
-  return bot as unknown as Record<string, (...args: unknown[]) => unknown>;
+// Helper to access private members in tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function priv(bot: AgentBot): any {
+  return bot;
 }
 
 // ─── computeNextWager ─────────────────────────────────────────────────────────

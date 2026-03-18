@@ -94,20 +94,22 @@ function makeBehavior(overrides: Partial<AgentBehaviorConfig> = {}): AgentBehavi
 }
 
 function makeBot(behaviorOverrides: Partial<AgentBehaviorConfig> = {}, id = 'bot_ws_test') {
-  return new AgentBot({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new (AgentBot as any)({
     id,
     wsBaseUrl: 'ws://localhost:4000/ws',
     displayName: 'WSBot',
     behavior: makeBehavior(behaviorOverrides)
-  } as Parameters<typeof AgentBot['prototype']['constructor']>[0]);
+  }) as InstanceType<typeof AgentBot>;
 }
 
-function priv(bot: InstanceType<typeof AgentBot>): Record<string, unknown> {
-  return bot as unknown as Record<string, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function priv(bot: InstanceType<typeof AgentBot>): any {
+  return bot;
 }
 
 function lastWs(): MockWebSocket {
-  return MockWebSocket.instances[MockWebSocket.instances.length - 1];
+  return MockWebSocket.instances[MockWebSocket.instances.length - 1]!;
 }
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
@@ -426,8 +428,8 @@ describe('decideAndSendInput', () => {
 
     const inputMsgs = ws.sent.filter(m => m.type === 'input') as Array<{ moveX: number; moveZ: number }>;
     expect(inputMsgs.length).toBeGreaterThan(0);
-    expect(inputMsgs[0].moveX).toBe(0);
-    expect(inputMsgs[0].moveZ).toBe(0);
+    expect(inputMsgs[0]!.moveX).toBe(0);
+    expect(inputMsgs[0]!.moveZ).toBe(0);
 
     bot.stop();
   });
@@ -516,7 +518,7 @@ describe('connect — URL params', () => {
       displayName: 'UrlBot',
       clientId: 'client_abc',
       behavior: makeBehavior()
-    } as Parameters<typeof AgentBot['prototype']['constructor']>[0]);
+    } as any);
     bot.start();
     expect(lastWs().url).toContain('clientId=client_abc');
     bot.stop();
@@ -529,7 +531,7 @@ describe('connect — URL params', () => {
       displayName: 'WalletBot',
       walletId: 'wallet_xyz',
       behavior: makeBehavior()
-    } as Parameters<typeof AgentBot['prototype']['constructor']>[0]);
+    } as any);
     bot.start();
     expect(lastWs().url).toContain('walletId=wallet_xyz');
     bot.stop();
@@ -674,7 +676,7 @@ describe('decideAndSendInput — stall detection', () => {
     const inputMsgs = ws.sent.filter(m => m.type === 'input') as Array<{ moveX: number; moveZ: number }>;
     expect(inputMsgs.length).toBeGreaterThan(0);
     // Burst should produce non-zero movement
-    const burst = inputMsgs[0];
+    const burst = inputMsgs[0]!;
     const hasBurst = Math.abs(burst.moveX) > 0 || Math.abs(burst.moveZ) > 0;
     expect(hasBurst).toBe(true);
 
