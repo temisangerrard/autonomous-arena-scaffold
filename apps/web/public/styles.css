@@ -1,57 +1,66 @@
 /* ============================================
-   AUTONOMOUS ARENA - RENAISSANCE DESIGN SYSTEM
-   Elegant, classical, warm and approachable
+   AUTONOMOUS ARENA - DESIGN SYSTEM
+   Bold, tactical, clean — blue primary, gold for money
    ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* ========== CSS CUSTOM PROPERTIES ========== */
 :root {
-    /* Colors - Warm Renaissance Palette */
-    --bg-primary: #faf8f5;
-    --bg-secondary: #f5f2ed;
-    --bg-tertiary: #ebe7e0;
+    /* Surfaces */
+    --bg-primary: #f9f9f7;
+    --bg-secondary: #f4f4f2;
+    --bg-tertiary: #eeeeec;
     --bg-card: #ffffff;
 
-    /* Gold Accents */
+    /* Gold — money, earnings, wins only */
     --gold-primary: #c9a227;
     --gold-dark: #a68523;
     --gold-light: #e8d48a;
     --gold-pale: #f7f0d8;
 
-    /* Text Colors */
-    --text-primary: #2c2416;
-    --text-secondary: #5a4d3a;
-    --text-muted: #8c7d68;
-    --text-light: #b3a690;
+    /* Blue — primary UI, actions, links */
+    --blue-primary: #005da7;
+    --blue-dark: #004883;
+    --blue-light: #2976c7;
+    --blue-pale: #d4e3ff;
+    --blue-container: #a4c9ff;
 
-    /* Accent Colors */
+    /* Text */
+    --text-primary: #1a1c1b;
+    --text-secondary: #414751;
+    --text-muted: #717783;
+    --text-light: #c1c7d3;
+
+    /* Semantic accents */
     --accent-success: #4a7c59;
-    --accent-error: #a64b4b;
+    --accent-error: #ba1a1a;
     --accent-warning: #b8860b;
-    --accent-info: #4a6b8a;
+    --accent-info: #2976c7;
 
-    /* Compatibility aliases for older page modules */
-    --accent-primary: var(--gold-primary);
-    --accent-secondary: var(--gold-dark);
+    /* Compatibility aliases — kept so existing pages don't break */
+    --accent-primary: var(--blue-primary);
+    --accent-secondary: var(--blue-dark);
     --glass-bg: rgba(255, 255, 255, 0.9);
-    --glass-border: var(--border-gold);
+    --glass-border: rgba(0, 93, 167, 0.2);
     --border-subtle: var(--border-light);
     --bg-glass: rgba(255, 255, 255, 0.92);
 
     /* Borders */
-    --border-light: #e8e4dc;
-    --border-medium: #d4cfc4;
-    --border-gold: rgba(201, 162, 39, 0.4);
+    --border-light: #e2e3e1;
+    --border-medium: #c1c7d3;
+    --border-gold: rgba(201, 162, 39, 0.35);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 3px rgba(44, 36, 22, 0.08);
-    --shadow-md: 0 4px 12px rgba(44, 36, 22, 0.1);
-    --shadow-lg: 0 8px 24px rgba(44, 36, 22, 0.12);
+    /* Shadows — softer, neutral */
+    --shadow-sm: 8px 8px 0px 0px rgba(26, 28, 27, 0.04);
+    --shadow-md: 0 4px 16px rgba(26, 28, 27, 0.08);
+    --shadow-lg: 0 8px 32px rgba(26, 28, 27, 0.1);
     --shadow-gold: 0 4px 16px rgba(201, 162, 39, 0.2);
 
-    /* Typography */
-    --font-display: 'Cormorant Garamond', 'Playfair Display', 'Georgia', serif;
-    --font-primary: 'Crimson Text', 'Times New Roman', serif;
-    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+    /* Typography — Plus Jakarta Sans throughout */
+    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-primary: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Courier New', monospace;
 
     /* Spacing */
     --space-xs: 4px;
@@ -65,14 +74,14 @@
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
-    --radius-xl: 16px;
+    --radius-xl: 999px;
 
-    /* Welcome + Dashboard evolution tokens */
-    --hero-overlay-strong: rgba(21, 17, 11, 0.58);
-    --hero-overlay-soft: rgba(21, 17, 11, 0.24);
-    --heading-contrast: #20180f;
-    --body-contrast: #4a3c2c;
-    --surface-emphasis: rgba(255, 252, 244, 0.96);
+    /* Welcome + Dashboard tokens — updated for new palette */
+    --hero-overlay-strong: rgba(26, 28, 27, 0.5);
+    --hero-overlay-soft: rgba(26, 28, 27, 0.12);
+    --heading-contrast: #1a1c1b;
+    --body-contrast: #414751;
+    --surface-emphasis: rgba(249, 249, 247, 0.98);
     --card-gap-tight: 10px;
     --card-gap-regular: 14px;
 }
@@ -205,16 +214,16 @@ h4 { font-size: 1.25rem; }
 }
 
 .btn--primary {
-    background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+    background: var(--blue-primary);
     color: white;
-    border-color: var(--gold-dark);
+    border-color: var(--blue-dark);
     box-shadow: var(--shadow-sm);
 }
 
 .btn--primary:hover {
-    background: linear-gradient(135deg, var(--gold-light), var(--gold-primary));
-    box-shadow: var(--shadow-gold);
-    transform: translateY(-1px);
+    background: var(--blue-dark);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
 }
 
 .btn--secondary {
@@ -224,8 +233,8 @@ h4 { font-size: 1.25rem; }
 }
 
 .btn--secondary:hover {
-    border-color: var(--gold-primary);
-    color: var(--gold-dark);
+    border-color: var(--blue-primary);
+    color: var(--blue-primary);
 }
 
 .btn--ghost {
@@ -236,7 +245,7 @@ h4 { font-size: 1.25rem; }
 
 .btn--ghost:hover {
     background: var(--bg-secondary);
-    color: var(--gold-dark);
+    color: var(--blue-primary);
 }
 
 .btn--success {
@@ -286,8 +295,8 @@ h4 { font-size: 1.25rem; }
 .form-input:focus,
 .form-select:focus {
     outline: none;
-    border-color: var(--gold-primary);
-    box-shadow: 0 0 0 3px var(--gold-pale);
+    border-color: var(--blue-primary);
+    box-shadow: 0 0 0 3px var(--blue-pale);
 }
 
 .form-input::placeholder {
@@ -1036,8 +1045,8 @@ h4 { font-size: 1.25rem; }
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(255, 251, 243, 0.93);
-    border: 1px solid rgba(182, 139, 36, 0.38);
+    background: rgba(249, 249, 247, 0.95);
+    border: 1px solid rgba(0, 93, 167, 0.2);
     border-radius: 999px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
     padding: 6px 10px;
@@ -1052,7 +1061,7 @@ h4 { font-size: 1.25rem; }
 
 .global-shell__links a {
     text-decoration: none;
-    color: #463616;
+    color: var(--text-secondary);
     font: 700 11px/1 "IBM Plex Mono", monospace;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1062,8 +1071,9 @@ h4 { font-size: 1.25rem; }
 }
 
 .global-shell__links a.active {
-    border-color: rgba(182, 139, 36, 0.45);
-    background: rgba(236, 220, 172, 0.45);
+    border-color: rgba(0, 93, 167, 0.3);
+    background: rgba(212, 227, 255, 0.5);
+    color: var(--blue-primary);
 }
 
 .global-shell__auth {
@@ -1083,10 +1093,10 @@ h4 { font-size: 1.25rem; }
     width: 132px;
     max-width: 132px;
     border-radius: 999px;
-    border: 1px solid rgba(182, 139, 36, 0.5);
+    border: 1px solid rgba(0, 93, 167, 0.3);
     background: rgba(255, 255, 255, 0.95);
-    color: #392b11;
-    font: 11px/1 "IBM Plex Sans", sans-serif;
+    color: var(--text-primary);
+    font: 11px/1 "Plus Jakarta Sans", sans-serif;
     padding: 6px 8px;
 }
 
@@ -1095,15 +1105,15 @@ h4 { font-size: 1.25rem; }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #5d4920;
-    font: 700 11px/1 "IBM Plex Sans", sans-serif;
+    color: var(--text-secondary);
+    font: 700 11px/1 "Plus Jakarta Sans", sans-serif;
 }
 
 .global-shell__auth button {
     border-radius: 999px;
-    border: 1px solid rgba(182, 139, 36, 0.5);
-    background: linear-gradient(120deg, #c9a542 0%, #e9d391 55%, #bc8e22 100%);
-    color: #2f230f;
+    border: 1px solid var(--blue-dark);
+    background: var(--blue-primary);
+    color: white;
     font: 700 10px/1 "IBM Plex Mono", monospace;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1112,8 +1122,8 @@ h4 { font-size: 1.25rem; }
 }
 
 .global-shell__hint {
-    color: #6d5a34;
-    font: 11px/1 "IBM Plex Sans", sans-serif;
+    color: var(--text-muted);
+    font: 11px/1 "Plus Jakarta Sans", sans-serif;
 }
 
 .toast--success .toast__icon { color: var(--accent-success); }

@@ -8,14 +8,40 @@ export function bindInteractionUi(params) {
     setInteractOpen
   } = params;
 
+  function bindTapAction(target, handler) {
+    if (!target) return;
+    let suppressClick = false;
+
+    const run = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      handler();
+    };
+
+    target.addEventListener('pointerup', (event) => {
+      if (event?.isPrimary === false) return;
+      suppressClick = true;
+      run(event);
+    });
+
+    target.addEventListener('click', (event) => {
+      const shouldSuppress = suppressClick;
+      suppressClick = false;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      if (shouldSuppress) return;
+      handler();
+    });
+  }
+
   interactionPrompt?.addEventListener('click', () => {
     if (!getUiTargetId()) {
       return;
     }
     setInteractOpen(true);
   });
-  interactionClose?.addEventListener('click', () => setInteractOpen(false));
-  interactionHelpToggle?.addEventListener('click', () => {
+  bindTapAction(interactionClose, () => setInteractOpen(false));
+  bindTapAction(interactionHelpToggle, () => {
     if (!interactionHelp) return;
     const nextOpen = interactionHelp.hidden;
     interactionHelp.hidden = !nextOpen;

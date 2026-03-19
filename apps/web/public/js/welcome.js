@@ -111,6 +111,15 @@ async function loadLegacyGoogleScriptIfNeeded() {
 
 async function logout() {
   try {
+    await requestJson('/api/player/presence', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 'offline' })
+    });
+  } catch {
+    // best-effort
+  }
+  try {
     await requestJson('/api/logout', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

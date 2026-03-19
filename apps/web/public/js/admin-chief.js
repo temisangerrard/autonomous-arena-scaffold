@@ -165,6 +165,65 @@ function formatLastSeen(ts) {
   return new Date(at).toLocaleString();
 }
 
+function currentProfiles() {
+  return Array.isArray(state.latestStatus?.profiles) ? state.latestStatus.profiles : [];
+}
+
+function currentBots() {
+  return Array.isArray(state.latestStatus?.bots) ? state.latestStatus.bots : [];
+}
+
+function currentUsers() {
+  return Array.isArray(state.latestUsers) ? state.latestUsers : [];
+}
+
+function findProfileById(profileId) {
+  const normalized = String(profileId || '').trim();
+  if (!normalized) return null;
+  return currentUsers().find((entry) => String(entry?.profileId || '').trim() === normalized)
+    || currentProfiles().find((entry) => String(entry?.id || '').trim() === normalized)
+    || null;
+}
+
+function findBotByActorId(actorId) {
+  const normalized = String(actorId || '').trim();
+  if (!normalized) return null;
+  return currentBots().find((entry) => String(entry?.id || '').trim() === normalized) || null;
+}
+
+function formatProfileName(profileId) {
+  const profile = findProfileById(profileId);
+  if (!profile) return String(profileId || '-');
+  return String(profile.displayName || profile.username || profile.id || profile.profileId || profileId);
+}
+
+function formatActorName(actorId) {
+  const normalized = String(actorId || '').trim();
+  if (!normalized) return '-';
+  if (normalized === 'system_house') return 'House Dealer';
+  if (normalized.startsWith('u_')) {
+    const profileId = normalized.slice(2);
+    return `${formatProfileName(profileId)} (Player)`;
+  }
+  const bot = findBotByActorId(normalized);
+  if (bot) {
+    const meta = bot.meta || {};
+    const botName = String(meta.displayName || bot.id || normalized);
+    const ownerProfileId = String(meta.ownerProfileId || '').trim();
+    if (ownerProfileId) {
+      return `${botName} (${formatProfileName(ownerProfileId)}'s bot)`;
+    }
+    if (String(meta.botClass || '').trim().toLowerCase() === 'house') {
+      return `${botName} (House Dealer)`;
+    }
+    return `${botName} (House Bot)`;
+  }
+  if (normalized.startsWith('agent_bg_')) {
+    return `${normalized} (House Bot)`;
+  }
+  return normalized;
+}
+
 function setStatus(text) {
   if (el.statusLine) el.statusLine.textContent = text;
 }
@@ -480,9 +539,11 @@ function renderGraph(executionGraph) {
 function formatChallengeLine(entry) {
   const at = Number(entry?.at || Date.now());
   const time = new Date(at).toLocaleTimeString();
-  const versus = entry?.challengerId && entry?.opponentId ? `${entry.challengerId} vs ${entry.opponentId}` : 'n/a';
+  const challenger = formatActorName(entry?.challengerId);
+  const opponent = formatActorName(entry?.opponentId);
+  const versus = entry?.challengerId && entry?.opponentId ? `${challenger} vs ${opponent}` : 'n/a';
   const gameType = entry?.gameType || '-';
-  const winner = entry?.winnerId ? ` winner=${entry.winnerId}` : '';
+  const winner = entry?.winnerId ? ` winner=${formatActorName(entry.winnerId)}` : '';
   const reason = entry?.reason ? ` reason=${entry.reason}` : '';
   return `${time} ${entry?.event || '-'} ${gameType} ${versus}${winner}${reason}`;
 }
@@ -798,7 +859,7 @@ function renderActivity() {
   const challengeEvents = (state.latestChallenges || []).slice(-30).map((entry) => ({
     at: new Date(entry.at).getTime(),
     type: 'challenge',
-    message: `${entry.event} ${entry.gameType || '-'} ${entry.challengerId || '-'} vs ${entry.opponentId || '-'}${entry.winnerId ? ` winner=${entry.winnerId}` : ''}`,
+    message: `${entry.event} ${entry.gameType || '-'} ${formatActorName(entry.challengerId)} vs ${formatActorName(entry.opponentId)}${entry.winnerId ? ` winner=${formatActorName(entry.winnerId)}` : ''}`,
     details: entry.reason ? `reason=${entry.reason}` : ''
   }));
 

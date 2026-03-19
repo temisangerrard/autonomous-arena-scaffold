@@ -1,17 +1,24 @@
 const CACHE_NAME = 'arena-world-cache-v2';
 const META_URL = 'https://world-cache.local/__meta__';
-const MAX_WORLDS = 1;
-const CANONICAL_WORLD_KEY = 'train_station_mega_world.glb';
-// CDN hostname that hosts world GLB assets in production.
+const MAX_WORLDS = 8;
+const LEGACY_WORLD_KEYS = new Set([
+  'mega.glb',
+  'train_world.glb',
+  'train-world.glb',
+  'base.glb',
+  'plaza.glb',
+  'world.glb',
+  'train_station_mega_world.glb'
+]);
 const KNOWN_ASSET_HOSTS = ['pub-302820e514cd451baaf272a33bd70765.r2.dev'];
 
-function normalizeWorldKey(name) {
+export function normalizeWorldKey(name) {
   const raw = String(name || '').toLowerCase();
-  if (!raw) return CANONICAL_WORLD_KEY;
-  if (raw === 'mega.glb' || raw === 'train_world.glb' || raw === 'train-world.glb' || raw === 'base.glb' || raw === 'plaza.glb' || raw === 'world.glb' || raw === CANONICAL_WORLD_KEY) {
-    return CANONICAL_WORLD_KEY;
+  if (!raw) return 'mega.glb';
+  if (LEGACY_WORLD_KEYS.has(raw)) {
+    return 'mega.glb';
   }
-  return CANONICAL_WORLD_KEY;
+  return raw;
 }
 
 function isWorldRequest(url, selfOrigin) {
@@ -27,16 +34,15 @@ function isWorldRequest(url, selfOrigin) {
   return false;
 }
 
-function worldKeyFromUrl(url) {
+export function worldKeyFromUrl(url) {
   const path = String(url.pathname || '');
   const name = path.split('/').pop() || '';
   return normalizeWorldKey(name);
 }
 
-function canonicalRequestFor(url, request) {
+export function canonicalRequestFor(url, request) {
   const normalized = new URL(url.toString());
   normalized.searchParams.delete('v');
-  normalized.pathname = `/assets/world/mega.glb`;
   return new Request(normalized.toString(), {
     method: 'GET',
     headers: request.headers,
@@ -114,68 +120,70 @@ async function enforceLimit(cache) {
   await writeMeta(cache, { lru });
 }
 
-self.addEventListener('install', (event) => {
-  console.debug('[world-cache] install');
-  event.waitUntil(self.skipWaiting());
-});
+if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') {
+  self.addEventListener('install', (event) => {
+    console.debug('[world-cache] install');
+    event.waitUntil(self.skipWaiting());
+  });
 
-self.addEventListener('activate', (event) => {
-  console.debug('[world-cache] activate');
-  event.waitUntil((async () => {
-    await self.clients.claim();
-    const cache = await caches.open(CACHE_NAME);
-    await enforceLimit(cache);
-  })());
-});
+  self.addEventListener('activate', (event) => {
+    console.debug('[world-cache] activate');
+    event.waitUntil((async () => {
+      await self.clients.claim();
+      const cache = await caches.open(CACHE_NAME);
+      await enforceLimit(cache);
+    })());
+  });
 
-self.addEventListener('fetch', (event) => {
-  const request = event.request;
-  if (!request || request.method !== 'GET') {
-    return;
-  }
-
-  const url = new URL(request.url);
-  if (!isWorldRequest(url, self.location.origin)) {
-    return;
-  }
-
-  event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    const key = worldKeyFromUrl(url);
-    const canonicalRequest = canonicalRequestFor(url, request);
-    const cached = await cache.match(canonicalRequest, { ignoreSearch: false });
-
-    if (cached) {
-      console.debug('[world-cache] hit', url.toString());
-      await touchKey(cache, key);
-      event.waitUntil((async () => {
-        try {
-          const network = await fetch(request);
-          if (network && (network.ok || network.type === 'opaque')) {
-            await cache.put(canonicalRequest, network.clone());
-            await touchKey(cache, key);
-            await enforceLimit(cache);
-            console.debug('[world-cache] update', url.toString());
-          }
-        } catch (error) {
-          console.warn('[world-cache] revalidate_error', String(error || 'unknown'));
-        }
-      })());
-      return cached;
+  self.addEventListener('fetch', (event) => {
+    const request = event.request;
+    if (!request || request.method !== 'GET') {
+      return;
     }
 
-    console.debug('[world-cache] miss', url.toString());
-    try {
-      const network = await fetch(request);
-      if (network && (network.ok || network.type === 'opaque')) {
-        await cache.put(canonicalRequest, network.clone());
+    const url = new URL(request.url);
+    if (!isWorldRequest(url, self.location.origin)) {
+      return;
+    }
+
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const key = worldKeyFromUrl(url);
+      const canonicalRequest = canonicalRequestFor(url, request);
+      const cached = await cache.match(canonicalRequest, { ignoreSearch: false });
+
+      if (cached) {
+        console.debug('[world-cache] hit', url.toString());
         await touchKey(cache, key);
-        await enforceLimit(cache);
+        event.waitUntil((async () => {
+          try {
+            const network = await fetch(request);
+            if (network && (network.ok || network.type === 'opaque')) {
+              await cache.put(canonicalRequest, network.clone());
+              await touchKey(cache, key);
+              await enforceLimit(cache);
+              console.debug('[world-cache] update', url.toString());
+            }
+          } catch (error) {
+            console.warn('[world-cache] revalidate_error', String(error || 'unknown'));
+          }
+        })());
+        return cached;
       }
-      return network;
-    } catch (error) {
-      console.error('[world-cache] error', String(error || 'unknown'));
-      throw error;
-    }
-  })());
-});
+
+      console.debug('[world-cache] miss', url.toString());
+      try {
+        const network = await fetch(request);
+        if (network && (network.ok || network.type === 'opaque')) {
+          await cache.put(canonicalRequest, network.clone());
+          await touchKey(cache, key);
+          await enforceLimit(cache);
+        }
+        return network;
+      } catch (error) {
+        console.error('[world-cache] error', String(error || 'unknown'));
+        throw error;
+      }
+    })());
+  });
+}

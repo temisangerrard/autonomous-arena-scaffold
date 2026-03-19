@@ -305,6 +305,15 @@ function renderLegacyGoogleButton(config) {
 
 async function handleLogout(config) {
   try {
+    await fetchJson('/api/player/presence', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 'offline' })
+    });
+  } catch {
+    // best effort
+  }
+  try {
     await fetchJson('/api/logout', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

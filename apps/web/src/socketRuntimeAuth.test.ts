@@ -120,4 +120,32 @@ describe('connectSocketRuntime auth gating', () => {
     });
     expect(deps.showToast).toHaveBeenCalledWith('Target is already in a match.', 'warning');
   });
+
+  test('does not use browser presence heartbeats once the websocket is connected', async () => {
+    const listeners = new Map<string, (event?: unknown) => void>();
+    class FakeSocket {
+      static OPEN = 1;
+      readyState = 1;
+      url = '';
+      constructor(url: string) { this.url = url; }
+      addEventListener(type: string, handler: (event?: unknown) => void) {
+        listeners.set(type, handler);
+      }
+      send() {}
+    }
+    globalThis.WebSocket = FakeSocket as unknown as typeof WebSocket;
+
+    const deps = makeDeps({
+      queryParams: new URLSearchParams('test=1'),
+      presence: { setPresence: vi.fn() }
+    });
+    await connectSocketRuntime(deps as never);
+
+    const openHandler = listeners.get('open');
+    expect(openHandler).toBeTypeOf('function');
+    openHandler?.();
+
+    expect(deps.presence.setPresence).not.toHaveBeenCalled();
+    expect(deps.connectionState.presenceTimer).toBeNull();
+  });
 });

@@ -3,6 +3,8 @@ import {
   setRequestBackoffFromError,
   clearRequestBackoff
 } from '../../shared/request-backoff.js';
+import { mergePlayerShell } from '../../shared/player-shell.js';
+import { saveStoredPlayerShell } from '../../shared/player-shell-storage.js';
 
 const WALLET_SUMMARY_BACKOFF_KEY = 'play_wallet_summary';
 
@@ -63,6 +65,24 @@ export function createWalletSyncController(params) {
           escrowApprovalTokenAddress: summary?.wallet?.escrowApproval?.tokenAddress ?? state.walletEscrowApprovalTokenAddress ?? null,
           escrowApprovalSpenderAddress: summary?.wallet?.escrowApproval?.spenderAddress ?? state.walletEscrowApprovalSpenderAddress ?? null
         });
+        if (state.playerShellData) {
+          state.playerShellData = mergePlayerShell(state.playerShellData, {
+            walletSummary: summary,
+            funding: {
+              ...(state.playerShellData?.funding || {}),
+              walletProvider: summary?.wallet?.walletProvider ?? state.walletProvider ?? null,
+              depositAddress: summary?.wallet?.externalWalletAddress
+                ?? state.playerShellData?.funding?.depositAddress
+                ?? summary?.onchain?.address
+                ?? '',
+              chainId: Number.isFinite(Number(summary?.onchain?.chainId)) ? Number(summary.onchain.chainId) : null,
+              tokenSymbol: summary?.onchain?.tokenSymbol ?? 'USDC'
+            },
+            loadedAt: Date.now()
+          });
+          state.playerShellLoadedAt = Number(state.playerShellData.loadedAt || Date.now());
+          saveStoredPlayerShell(window.localStorage, state.playerShellData);
+        }
         clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
         syncEscrowApprovalPolicy();
         walletLastSyncAt = Date.now();

@@ -7,32 +7,32 @@
   <title>Player Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600;1,700&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/css/claude-corners.css">
   <script src="/runtime-config.js"></script>
   <style>
     :root {
-      --dash-ink:     #1f1a12;
-      --dash-gold:    #c69831;
-      --dash-edge:    rgba(198, 152, 49, 0.3);
-      --dash-panel:   rgba(253, 248, 237, 0.96);
-      --dash-muted:   #7a6b57;
+      --dash-ink:     #1a1c1b;
+      --dash-gold:    #c9a227;
+      --dash-edge:    rgba(0, 93, 167, 0.2);
+      --dash-panel:   #ffffff;
+      --dash-muted:   #717783;
       --dash-good:    #2f8f5e;
-      --dash-bad:     #b44d3c;
-      --dash-mono:    'JetBrains Mono', monospace;
-      --dash-serif:   'Crimson Text', Georgia, serif;
-      --dash-display: 'Cormorant Garamond', 'Crimson Text', Georgia, serif;
-      --dash-card-edge:   rgba(198, 152, 49, 0.38);
-      --dash-panel-soft:  rgba(255, 252, 244, 0.97);
-      --dash-sidebar-bg:  #1a1510;
+      --dash-bad:     #ba1a1a;
+      --dash-mono:    'JetBrains Mono', 'IBM Plex Mono', monospace;
+      --dash-serif:   'Plus Jakarta Sans', system-ui, sans-serif;
+      --dash-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --dash-card-edge:   rgba(0, 93, 167, 0.15);
+      --dash-panel-soft:  #ffffff;
+      --dash-sidebar-bg:  #1a1c1b;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
 
     body {
       margin: 0;
-      background: radial-gradient(circle at 15% 8%, #fff8ea 0%, #f6f1e4 42%, #ede8d6 100%);
+      background: #f4f4f2;
       font-family: var(--dash-serif);
       color: var(--dash-ink);
       font-size: 15px;
@@ -81,8 +81,8 @@
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #ffc6a6 0%, #d4845a 100%);
-      border: 2px solid rgba(198, 152, 49, 0.4);
+      background: linear-gradient(135deg, #a4c9ff 0%, #2976c7 100%);
+      border: 2px solid rgba(0, 93, 167, 0.4);
       position: relative;
     }
 
@@ -99,15 +99,15 @@
     }
 
     .player-chip__name {
-      color: #f5eacc;
-      font: italic 600 15px/1.2 var(--dash-display);
+      color: #f1f1ef;
+      font: 700 15px/1.2 var(--dash-display);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .player-chip__handle {
-      color: #9b8e78;
+      color: #717783;
       font: 400 11px/1.2 var(--dash-mono);
       margin-top: 2px;
       white-space: nowrap;
@@ -118,8 +118,8 @@
     .sidebar-balance {
       margin: 0 0 14px;
       border-radius: 10px;
-      border: 1px solid rgba(198, 152, 49, 0.22);
-      background: rgba(198, 152, 49, 0.07);
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      background: rgba(201, 162, 39, 0.08);
       padding: 8px 10px;
     }
 
@@ -128,13 +128,13 @@
       font: 400 10px/1 var(--dash-mono);
       letter-spacing: 0.07em;
       text-transform: uppercase;
-      color: #9b8e78;
+      color: #717783;
       margin-bottom: 4px;
     }
 
     .sidebar-balance__value {
-      color: #e0b85a;
-      font: 500 14px/1 var(--dash-mono);
+      color: var(--dash-gold);
+      font: 600 14px/1 var(--dash-mono);
     }
 
     .sidebar-nav {
@@ -148,7 +148,7 @@
       border-radius: 8px;
       border: 1px solid transparent;
       background: transparent;
-      color: #9b8e78;
+      color: #717783;
       text-align: left;
       padding: 0 10px;
       font: 600 14px/1 var(--dash-serif);
@@ -161,15 +161,15 @@
     }
 
     .sidebar-nav button:hover {
-      color: #e8d9bc;
-      background: rgba(255, 255, 255, 0.04);
+      color: #f1f1ef;
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .sidebar-nav button.active {
-      border-left-color: var(--dash-gold);
-      background: rgba(198, 152, 49, 0.08);
-      border-color: rgba(198, 152, 49, 0.14);
-      color: #f5eacc;
+      border-left-color: #005da7;
+      background: rgba(0, 93, 167, 0.15);
+      border-color: rgba(0, 93, 167, 0.2);
+      color: #a4c9ff;
     }
 
     .nav-icon {
@@ -192,16 +192,16 @@
       justify-content: center;
       min-height: 40px;
       border-radius: 9px;
-      background: linear-gradient(125deg, rgba(198, 152, 49, 0.9), rgba(160, 110, 20, 0.9));
-      color: #1a1208;
-      font: 600 14px/1 var(--dash-serif);
-      border: 1px solid rgba(160, 121, 32, 0.7);
+      background: #005da7;
+      color: white;
+      font: 700 14px/1 var(--dash-serif);
+      border: 1px solid #004883;
       text-decoration: none;
       cursor: pointer;
-      transition: filter 0.15s;
+      transition: background 0.15s, transform 0.15s;
     }
 
-    .btn-enter:hover { filter: brightness(1.08); }
+    .btn-enter:hover { background: #004883; transform: translateY(-1px); }
 
     /* ── Content ─────────────────────────────── */
     .dashboard-content {
@@ -301,8 +301,8 @@
       width: 100%;
       box-sizing: border-box;
       border-radius: 8px;
-      border: 1px solid rgba(198, 152, 49, 0.32);
-      background: rgba(255, 252, 244, 0.95);
+      border: 1px solid #c1c7d3;
+      background: #ffffff;
       color: var(--dash-ink);
       padding: 9px 11px;
       font: 400 14px/1.3 var(--dash-serif);
@@ -311,8 +311,8 @@
 
     .field:focus, select.field:focus, textarea.field:focus {
       outline: none;
-      border-color: rgba(198, 152, 49, 0.6);
-      box-shadow: 0 0 0 2px rgba(198, 152, 49, 0.1);
+      border-color: #005da7;
+      box-shadow: 0 0 0 2px rgba(0, 93, 167, 0.1);
     }
 
     textarea.field { resize: vertical; }
@@ -353,12 +353,12 @@
 
     .btn-gold,
     .btn-coral {
-      background: linear-gradient(125deg, rgba(198, 152, 49, 0.95), rgba(160, 110, 20, 0.9));
-      color: #1a1208;
-      border-color: #a87920;
+      background: #005da7;
+      color: white;
+      border-color: #004883;
     }
     .btn-gold:hover,
-    .btn-coral:hover { filter: brightness(1.06); }
+    .btn-coral:hover { background: #004883; transform: translateY(-1px); }
 
     .btn-green {
       background: rgba(47, 143, 94, 0.88);
@@ -368,18 +368,18 @@
     .btn-green:hover { filter: brightness(1.06); }
 
     .btn-ghost {
-      border: 1px solid rgba(198, 152, 49, 0.48);
+      border: 1px solid rgba(0, 93, 167, 0.3);
       background: transparent;
-      color: #7a5c1a;
+      color: #005da7;
     }
-    .btn-ghost:hover { background: rgba(198, 152, 49, 0.07); }
+    .btn-ghost:hover { background: rgba(0, 93, 167, 0.06); }
 
     .btn-dark {
-      background: #2a2218;
-      color: #e8d9bc;
-      border-color: #3d3024;
+      background: #1a1c1b;
+      color: #f1f1ef;
+      border-color: #2f3130;
     }
-    .btn-dark:hover { background: #35291d; }
+    .btn-dark:hover { background: #2f3130; }
 
     .btn-danger-ghost {
       border: 1px solid rgba(180, 77, 60, 0.45);
@@ -408,8 +408,8 @@
     }
 
     .bot-card:hover {
-      border-color: rgba(198, 152, 49, 0.6);
-      box-shadow: 0 6px 20px rgba(41, 30, 9, 0.1);
+      border-color: rgba(0, 93, 167, 0.45);
+      box-shadow: 0 6px 20px rgba(26, 28, 27, 0.08);
     }
 
     .bot-card__head {
@@ -423,7 +423,7 @@
       width: 44px;
       height: 44px;
       border-radius: 50%;
-      border: 2px solid rgba(198, 152, 49, 0.28);
+      border: 2px solid rgba(0, 93, 167, 0.25);
     }
 
     .bot-avatar.personality-conservative { background: linear-gradient(135deg, #9ad4b4, #5dba8e); }
@@ -467,9 +467,9 @@
 
     .pill {
       border-radius: 999px;
-      border: 1px solid rgba(198, 152, 49, 0.3);
-      background: rgba(198, 152, 49, 0.06);
-      color: #7a5c1a;
+      border: 1px solid rgba(0, 93, 167, 0.25);
+      background: rgba(0, 93, 167, 0.06);
+      color: #005da7;
       padding: 3px 8px;
       font: 400 10px/1 var(--dash-mono);
       text-transform: uppercase;
@@ -478,9 +478,9 @@
 
     .wager-box {
       border-radius: 8px;
-      border: 1px solid rgba(198, 152, 49, 0.32);
-      background: rgba(198, 152, 49, 0.07);
-      color: #6f4e1d;
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      background: rgba(201, 162, 39, 0.07);
+      color: #a68523;
       padding: 7px 10px;
       font: 400 12px/1.3 var(--dash-mono);
     }
@@ -508,8 +508,8 @@
 
     /* ── Chief Panel ──────────────────────────── */
     .chief-panel {
-      background: #1e1a14;
-      border: 1px solid rgba(198, 152, 49, 0.28);
+      background: #1a1c1b;
+      border: 1px solid rgba(0, 93, 167, 0.25);
       border-radius: 12px;
       padding: 20px;
     }
@@ -524,8 +524,8 @@
 
     .chief-title {
       margin: 0 0 5px;
-      font: italic 700 20px/1 var(--dash-display);
-      color: #e8d4a0;
+      font: 800 20px/1 var(--dash-display);
+      color: #f1f1ef;
     }
 
     .chief-desc {
@@ -1255,6 +1255,16 @@
 
     .wizard-footer .btn-ghost { margin-right: auto; }
 
+    .wizard-status {
+      margin-top: 12px;
+      min-height: 20px;
+      font: 500 13px/1.4 var(--dash-serif);
+      color: var(--dash-muted);
+    }
+
+    .wizard-status[data-tone="success"] { color: var(--dash-good); }
+    .wizard-status[data-tone="error"] { color: var(--dash-bad); }
+
     .mono {
       font-family: var(--dash-mono);
       font-size: 11px;
@@ -1785,6 +1795,7 @@
         <button id="bot-wizard-next" class="btn-dark" type="button">Next →</button>
         <button id="bot-save" class="btn-gold" type="button" style="display:none;">Save Bot</button>
       </div>
+      <div id="bot-modal-status" class="wizard-status" aria-live="polite"></div>
 
     </div>
   </div>

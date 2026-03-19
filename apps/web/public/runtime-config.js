@@ -3,12 +3,12 @@ window.ARENA_CONFIG = {
   "webApiOrigin": "https://arena-web.fly.dev",
   "serverOrigin": "https://arena-server-broken-haze-6531.fly.dev",
   "runtimeOrigin": "https://arena-agent-runtime.fly.dev",
-  "worldAssetBaseUrl": "https://arena-world-assets.netlify.app",
+  "worldAssetBaseUrl": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
   "apiBase": "/api",
   "challengesBase": "/challenges",
   "presenceBase": "/presence",
   "runtimeBase": "/runtime",
   "serverHealthPath": "/server/health",
   "gameWsPath": "/ws",
-  "buildHash": "5c9a1a69970f"
+  "buildHash": "mmszxr0b"
 };

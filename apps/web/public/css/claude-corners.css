@@ -1,88 +1,90 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Crimson+Text:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap');
+/* ============================================
+   AUTONOMOUS ARENA — DESIGN SYSTEM LAYER
+   Applies the new visual language on top of
+   styles.css: Plus Jakarta Sans, blue primary,
+   gold for money, imperfect borders.
+   ============================================ */
 
-/* Claude design carry-over: warm parchment surfaces + floating islands */
-:root {
-  --claude-paper: rgba(253, 248, 237, 0.94);
-  --claude-paper-strong: rgba(255, 252, 245, 0.98);
-  --claude-gold: #c69831;
-  --claude-gold-soft: rgba(198, 152, 49, 0.32);
-  --claude-ink: #2c2010;
-  --claude-muted: #6e5a35;
-  --claude-shadow: 0 8px 26px rgba(20, 15, 5, 0.14);
-}
-
+/* ── Base ── */
 body {
-  background: radial-gradient(circle at 18% 10%, #fff9ee 0%, #f6efdf 44%, #efe4cc 100%) !important;
-  color: var(--claude-ink) !important;
-  font-family: 'Crimson Text', serif !important;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-primary);
+    -webkit-font-smoothing: antialiased;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
+h1, h2, h3, h4, h5, h6,
 .card__title,
 .hero__title,
 .hero-card h1,
 .admin-brand h1,
 .chief-rail h1 {
-  font-family: 'Cormorant Garamond', serif !important;
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.03em;
 }
 
-code,
-pre,
-.mono,
-.topbar-pill,
-.status,
-.sidebar-balance__value {
-  font-family: 'IBM Plex Mono', monospace !important;
+code, pre, .mono,
+.topbar-pill, .status,
+.sidebar-balance__value,
+kbd {
+    font-family: var(--font-mono);
 }
 
-.btn,
-button {
-  border-radius: 10px;
+/* ── Imperfect border radius — signature style ── */
+.imperfect {
+    border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
 }
 
+.imperfect-sm {
+    border-radius: 120px 10px 110px 10px / 10px 110px 10px 120px;
+}
+
+/* ── Cards ── */
 .card,
 .panel,
 .view,
 .command-card,
 .graph-card,
-.topbar,
 .world-info__card,
 .camera-info__card,
 .controls-hint__card {
-  background: var(--claude-paper) !important;
-  border: 1px solid var(--claude-gold-soft) !important;
-  box-shadow: var(--claude-shadow) !important;
-  color: var(--claude-ink) !important;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+    color: var(--text-primary);
 }
 
-.welcome-header,
+.card--gold {
+    border-color: var(--border-gold);
+    box-shadow: var(--shadow-gold);
+}
+
+/* ── Topbars & headers ── */
+.topbar,
 .viewer-topbar,
 .toolbar,
-.top,
-.topbar {
-  background: var(--claude-paper) !important;
-  border: 1px solid var(--claude-gold-soft) !important;
-  box-shadow: var(--claude-shadow) !important;
-  border-radius: 14px !important;
-  backdrop-filter: blur(10px);
+.welcome-header {
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-light);
+    box-shadow: none;
+    border-radius: 0;
+    backdrop-filter: none;
 }
 
+/* ── Sidebar ── */
 .dashboard-sidebar,
 .admin-sidebar,
 .chief-rail {
-  background: rgba(251, 244, 230, 0.96) !important;
-  border-right: 1px solid var(--claude-gold-soft) !important;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-light);
 }
 
+/* ── Player / name labels ── */
 .player-chip__name,
 .admin-brand h1,
 .chief-rail h1 {
-  color: var(--claude-ink) !important;
+    color: var(--text-primary);
 }
 
 .player-chip__handle,
@@ -90,48 +92,115 @@ button {
 .admin-kicker,
 .muted,
 .chief-rail .muted {
-  color: var(--claude-muted) !important;
+    color: var(--text-muted);
 }
 
+/* ── Navigation buttons ── */
 .sidebar-nav button,
 .tabs button,
 .rail-btn {
-  background: var(--claude-paper-strong) !important;
-  border: 1px solid var(--claude-gold-soft) !important;
-  color: var(--claude-muted) !important;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-primary);
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+}
+
+.sidebar-nav button:hover,
+.tabs button:hover,
+.rail-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--blue-primary);
+    transform: translateY(-1px);
 }
 
 .sidebar-nav button.active,
 .tabs button.active,
 .rail-btn.active {
-  background: rgba(253, 248, 225, 0.95) !important;
-  border-color: rgba(198, 152, 49, 0.6) !important;
-  color: var(--claude-ink) !important;
+    background: var(--blue-pale);
+    border-color: rgba(0, 93, 167, 0.25);
+    color: var(--blue-primary);
 }
 
+/* ── Primary action buttons ── */
 .btn-primary,
-.btn-gold,
-.toolbar button,
-.retry-button {
-  background: linear-gradient(135deg, #d4a84b 0%, #a87830 100%) !important;
-  border-color: rgba(168, 120, 48, 0.9) !important;
-  color: #fffdf7 !important;
+.btn-gold {
+    background: var(--blue-primary);
+    border-color: var(--blue-dark);
+    color: white;
 }
 
-input,
+.btn-primary:hover,
+.btn-gold:hover {
+    background: var(--blue-dark);
+    transform: translateY(-2px);
+}
+
+/* Toolbar buttons stay neutral — don't force blue on all toolbar actions */
+.toolbar button {
+    font-family: var(--font-primary);
+    font-weight: 600;
+}
+
+/* ── Forms ── */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
-  background: #fffdfa !important;
-  color: var(--claude-ink) !important;
-  border: 1px solid rgba(198, 152, 49, 0.28) !important;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+    font-family: var(--font-primary);
+    border-radius: var(--radius-md);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--blue-primary);
+    box-shadow: 0 0 0 3px var(--blue-pale);
+}
+
+/* ── Tables ── */
 table {
-  border: 1px solid var(--claude-gold-soft) !important;
-  background: var(--claude-paper) !important;
+    border: 1px solid var(--border-light);
+    background: var(--bg-card);
 }
 
 th {
-  background: rgba(198, 152, 49, 0.08) !important;
-  color: var(--claude-muted) !important;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-family: var(--font-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
+
+/* ── Text utilities ── */
+.text-gold { color: var(--gold-primary); }
+.text-blue { color: var(--blue-primary); }
+.text-muted { color: var(--text-muted); }
+
+/* ── Live / status dots ── */
+.live-dot,
+.live-indicator {
+    background: var(--gold-primary);
+    border-radius: 50%;
+}
+
+/* ── Error / retry ── */
+.retry-button {
+    background: var(--accent-error);
+    color: white;
+    border-color: var(--accent-error);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--blue-light); }

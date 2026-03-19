@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/css/claude-corners.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="/runtime-config.js"></script>
   <link rel="stylesheet" href="/css/play/play-shell.css">
 </head>
@@ -145,12 +145,23 @@
 
   <!-- Menu Dropdown -->
   <nav id="topbar-menu-pop" class="menu-pop" role="menu" aria-hidden="true">
-    <button id="menu-dashboard" type="button" role="menuitem" class="menu-item menu-item--dashboard">Dashboard</button>
+    <button id="menu-dashboard" type="button" role="menuitem" class="menu-item menu-item--dashboard">Player</button>
     <button id="menu-viewer" type="button" role="menuitem" class="menu-item menu-item--viewer">World Map</button>
-    <button id="menu-how-to-play" type="button" role="menuitem" class="menu-item menu-item--how-to-play">How to play</button>
     <div class="menu-pop__divider" role="separator" aria-hidden="true"></div>
     <button id="menu-logout" type="button" role="menuitem" class="menu-item menu-item--logout">Sign Out</button>
   </nav>
+
+  <div id="player-drawer-backdrop" class="player-drawer-backdrop" hidden></div>
+  <aside id="player-drawer" class="player-drawer" aria-hidden="true" aria-label="Player panel">
+    <div class="player-drawer__head">
+      <div class="player-drawer__title-wrap">
+        <div class="player-drawer__title">Player</div>
+        <div class="player-drawer__subtitle">Wallet, autoplay, and recent activity</div>
+      </div>
+      <button id="player-drawer-close" class="player-drawer__close" type="button" aria-label="Close player panel">×</button>
+    </div>
+    <div id="player-drawer-body" class="player-drawer__body"></div>
+  </aside>
 
   <!-- Interaction Prompt -->
   <div id="interaction-prompt" class="interaction-prompt" role="status" aria-live="polite"></div>

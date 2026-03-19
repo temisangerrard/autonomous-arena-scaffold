@@ -1,4 +1,5 @@
 import { JsonRpcProvider, Wallet, Contract, keccak256, toUtf8Bytes, parseUnits, formatUnits } from 'ethers';
+import { sendContractCallWithBuilderCode } from './lib/builderCode.js';
 
 type LockParams = {
   challengeId: string;
@@ -80,6 +81,7 @@ type OnchainEscrowConfig = {
   escrowContractAddress?: string;
   tokenDecimals: number;
   internalToken?: string;
+  builderCodeSuffix?: string;
 };
 
 type PoolContractApi = Contract & {
@@ -95,6 +97,11 @@ type PoolContractApi = Contract & {
     status: number;
     payout: bigint;
   }>;
+};
+
+type TxWithHash = {
+  hash?: string;
+  wait: () => Promise<{ hash?: string } | null>;
 };
 
 const POOL_ABI = [
@@ -117,6 +124,7 @@ export class EscrowAdapter {
   private readonly poolContract: PoolContractApi | null;
   private readonly tokenDecimals: number;
   private readonly internalToken: string;
+  private readonly builderCodeSuffix: string;
 
   // Tracks challengeId → challengerWalletId so resolve() can determine yesWon side
   private readonly betChallengerMap = new Map<string, string>();
@@ -130,6 +138,7 @@ export class EscrowAdapter {
   ) {
     this.tokenDecimals = Math.max(0, Math.min(18, Number(onchain?.tokenDecimals ?? 6)));
     this.internalToken = onchain?.internalToken ?? '';
+    this.builderCodeSuffix = String(onchain?.builderCodeSuffix || '').trim();
 
     if (
       onchain?.rpcUrl &&
@@ -223,7 +232,13 @@ export class EscrowAdapter {
       const betId32   = this.betIdFor(params.betId);
       const roundId32 = this.roundIdFor(params.marketId);
       const amount    = parseUnits(String(params.amount), this.tokenDecimals);
-      const tx        = await pool.deposit(betId32, roundId32, params.side, playerAddress, amount);
+      const tx        = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'deposit',
+        [betId32, roundId32, params.side, playerAddress, amount],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt   = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
@@ -236,7 +251,13 @@ export class EscrowAdapter {
     const pool = this.poolContract;
     if (!pool) return this.poolNotConfiguredError();
     try {
-      const tx      = await pool.settleRound(this.roundIdFor(params.marketId), params.yesWon);
+      const tx      = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'settleRound',
+        [this.roundIdFor(params.marketId), params.yesWon],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
@@ -249,7 +270,13 @@ export class EscrowAdapter {
     const pool = this.poolContract;
     if (!pool) return this.poolNotConfiguredError();
     try {
-      const tx      = await pool.cancelRound(this.roundIdFor(params.marketId));
+      const tx      = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'cancelRound',
+        [this.roundIdFor(params.marketId)],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
@@ -262,7 +289,13 @@ export class EscrowAdapter {
     const pool = this.poolContract;
     if (!pool) return this.poolNotConfiguredError();
     try {
-      const tx      = await pool.payoutBet(this.betIdFor(params.betId));
+      const tx      = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'payoutBet',
+        [this.betIdFor(params.betId)],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
@@ -307,8 +340,20 @@ export class EscrowAdapter {
     const betId = this.betIdFor(params.betId);
     try {
       // If the round is already finalised, payoutBet can still succeed for Open bets.
-      await pool.cancelRound(roundId).then((tx) => tx.wait()).catch(() => null);
-      const payoutTx = await pool.payoutBet(betId);
+      await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'cancelRound',
+        [roundId],
+        this.builderCodeSuffix
+      ).then((tx) => tx.wait()).catch(() => null);
+      const payoutTx = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'payoutBet',
+        [betId],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt = await payoutTx.wait();
       return { ok: true, txHash: receipt?.hash ?? payoutTx.hash };
     } catch (error) {
@@ -387,7 +432,13 @@ export class EscrowAdapter {
       const betId32 = this.betIdFor(params.challengeId);
       const amount  = parseUnits(String(params.amount), this.tokenDecimals);
       // House games: roundId == betId, player always on "yes" side (true)
-      const tx      = await pool.deposit(betId32, betId32, true, playerAddress, amount);
+      const tx      = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'deposit',
+        [betId32, betId32, true, playerAddress, amount],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt = await tx.wait();
       return { ok: true, txHash: receipt?.hash ?? tx.hash };
     } catch (error) {
@@ -414,9 +465,21 @@ export class EscrowAdapter {
 
     try {
       const betId32   = this.betIdFor(params.challengeId);
-      const settleTx  = await pool.settleRound(betId32, playerWon);
+      const settleTx  = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'settleRound',
+        [betId32, playerWon],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       await settleTx.wait();
-      const payoutTx  = await pool.payoutBet(betId32);
+      const payoutTx  = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'payoutBet',
+        [betId32],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt   = await payoutTx.wait();
       this.betChallengerMap.delete(params.challengeId);
       return { ok: true, txHash: receipt?.hash ?? payoutTx.hash };
@@ -430,9 +493,21 @@ export class EscrowAdapter {
     if (!pool) return this.poolNotConfiguredError();
     try {
       const betId32  = this.betIdFor(challengeId);
-      const cancelTx = await pool.cancelRound(betId32);
+      const cancelTx = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'cancelRound',
+        [betId32],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       await cancelTx.wait();
-      const payoutTx = await pool.payoutBet(betId32);
+      const payoutTx = await sendContractCallWithBuilderCode(
+        pool,
+        this.signer!,
+        'payoutBet',
+        [betId32],
+        this.builderCodeSuffix
+      ) as TxWithHash;
       const receipt  = await payoutTx.wait();
       this.betChallengerMap.delete(challengeId);
       return { ok: true, txHash: receipt?.hash ?? payoutTx.hash };

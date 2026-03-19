@@ -8,9 +8,15 @@ export function registerHouseRoutes(router: SimpleRouter, deps: {
   schedulePersistState: () => void;
   transferFromHouse: (toWalletId: string, amount: number, reason: string) => { ok: true; amount: number } | { ok: false; reason: string };
   refillHouse: (amount: number, reason: string) => { ok: true; amount: number } | { ok: false; reason: string };
-  setOwnerOnline: (profileId: string, ttlMs: number) => void;
-  setOwnerOffline: (profileId: string) => void;
-  ownerPresence: Map<string, { until: number }>;
+  setOwnerOnline: (profileId: string, params: {
+    leaseId?: string | null;
+    ttlMs?: number;
+    playerId?: string | null;
+    serverId?: string | null;
+    source?: 'ws_session' | 'legacy_browser' | null;
+  }) => void;
+  setOwnerOffline: (profileId: string, params?: { leaseId?: string | null }) => void;
+  ownerPresence: Map<string, { until: number; leaseId: string | null; playerId: string | null; serverId: string | null; source: 'ws_session' | 'legacy_browser' }>;
   getHouseConfig: () => { npcWalletFloor: number; npcWalletTopupAmount: number; superAgentWalletFloor: number };
   setHouseConfig: (patch: { npcWalletFloor?: number; npcWalletTopupAmount?: number; superAgentWalletFloor?: number }) => void;
 }) {
@@ -107,15 +113,39 @@ export function registerHouseRoutes(router: SimpleRouter, deps: {
       sendJson(res, { ok: false, reason: 'profile_required' }, 400);
       return;
     }
-    const body = await readJsonBody<{ state?: 'online' | 'offline'; ttlMs?: number }>(req);
+    const body = await readJsonBody<{
+      state?: 'online' | 'offline';
+      leaseId?: string;
+      ttlMs?: number;
+      playerId?: string;
+      serverId?: string;
+      source?: 'ws_session' | 'legacy_browser';
+    }>(req);
     const state = body?.state === 'offline' ? 'offline' : 'online';
     if (state === 'online') {
-      deps.setOwnerOnline(profileId, Number(body?.ttlMs ?? 90_000));
+      deps.setOwnerOnline(profileId, {
+        leaseId: body?.leaseId ?? null,
+        ttlMs: Number(body?.ttlMs ?? 90_000),
+        playerId: body?.playerId ?? null,
+        serverId: body?.serverId ?? null,
+        source: body?.source === 'legacy_browser' || !String(body?.leaseId ?? '').trim() ? 'legacy_browser' : 'ws_session'
+      });
       deps.schedulePersistState();
-      sendJson(res, { ok: true, state: 'online', until: deps.ownerPresence.get(profileId)?.until ?? null });
+      const current = deps.ownerPresence.get(profileId);
+      sendJson(res, {
+        ok: true,
+        state: 'online',
+        until: current?.until ?? null,
+        leaseId: current?.leaseId ?? null,
+        playerId: current?.playerId ?? null,
+        serverId: current?.serverId ?? null,
+        source: current?.source ?? null
+      });
       return;
     }
-    deps.setOwnerOffline(profileId);
+    deps.setOwnerOffline(profileId, {
+      leaseId: body?.leaseId ?? null
+    });
     deps.schedulePersistState();
     sendJson(res, { ok: true, state: 'offline' });
   });

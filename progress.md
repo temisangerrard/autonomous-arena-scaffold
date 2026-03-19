@@ -1,5 +1,37 @@
 Original prompt: yes there's a file called train world or so , thats the base world we will use so we can scaffold that in so we start seeing the game, dont forget various entry points required
 
+- 2026-03-15: Added first-pass in-arena player drawer inside `/play` in the world-streaming worktree.
+  - Replaced the topbar menu `Dashboard` action with `Player`; it now opens an in-arena drawer instead of navigating away.
+  - Removed `How to play` from the primary topbar menu slot.
+  - Added new player drawer runtime/controller:
+    - `/Users/temisan/Downloads/blender implementation/.worktrees/codex/world-streaming-mobile/apps/web/public/js/play/runtime/player-drawer.js`
+    - helper exports cover drawer activity limiting, funding route resolution, and autoplay payload construction.
+  - Added drawer DOM refs and shell markup:
+    - `/Users/temisan/Downloads/blender implementation/.worktrees/codex/world-streaming-mobile/apps/web/public/js/play/dom.js`
+    - `/Users/temisan/Downloads/blender implementation/.worktrees/codex/world-streaming-mobile/apps/web/public/play.html`
+  - Wired drawer into `/play` runtime without disturbing shell-first world loading:
+    - `/Users/temisan/Downloads/blender implementation/.worktrees/codex/world-streaming-mobile/apps/web/public/js/play/runtime/app.js`
+    - `/Users/temisan/Downloads/blender implementation/.worktrees/codex/world-streaming-mobile/apps/web/public/js/play/menu.js`
+  - Added mobile-first drawer styles:
+    - `/Users/temisan/Downloads/blender implementation/.worktrees/codex/world-streaming-mobile/apps/web/public/css/play/player-drawer.css`
+    - imported from `/Users/temisan/Downloads/blender implementation/.worktrees/codex/world-streaming-mobile/apps/web/public/css/play/play-shell.css`
+  - Drawer currently shows:
+    - wallet balance summary
+    - top-up CTA + external-wallet deposit-address copy path
+    - autoplay controls for the first owned bot
+    - last 5 activity items
+    - `Open Full Dashboard` link in new tab
+  - Funding route is intentionally first-pass only:
+    - Coinbase embedded wallets open a Coinbase funding URL
+    - all other wallets open a generic external USDC onramp URL
+    - deposit-address copy remains the reliable fallback
+  - Validation:
+    - `npm test -- --run src/playMenu.test.js src/playerDrawer.test.js` ✅
+    - `npm test -- --run src/worldLoader.test.js src/worldCommon.test.js src/worldCache.test.js src/interactionCardControls.test.js src/playMenu.test.js src/playerDrawer.test.js` ✅
+    - `npm run typecheck` in `apps/web` ✅
+  - Local browser smoke gap:
+    - local `/play` redirects to `/welcome` without an authenticated player session, so no end-to-end local drawer-open check was completed in a real browser in this pass.
+
 - 2026-02-22: Polymarket CLOB hedge path shipped — house can now mirror player prediction bets on Polygon.
   - NEW: `apps/server/src/markets/PolymarketClobClient.ts`
     - L1 EIP-712 auth against `ClobAuthDomain` → derives Polymarket API key once per process (cached).

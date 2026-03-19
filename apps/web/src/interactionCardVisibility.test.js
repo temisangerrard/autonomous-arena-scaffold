@@ -106,6 +106,16 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Final:')).toBe(true);
   });
 
+  it('keeps the mobile interaction-card close control reachable for tall prediction boards', () => {
+    const source = readFileSync(resolve(__dirname, '../public/css/play/interaction-card.css'), 'utf8');
+    expect(source.includes('.interaction-card.open')).toBe(true);
+    expect(source.includes('display: flex')).toBe(true);
+    expect(source.includes('flex-direction: column')).toBe(true);
+    expect(source.includes('position: sticky')).toBe(true);
+    expect(source.includes('top: 0')).toBe(true);
+    expect(source.includes('max-height: calc(100vh - 24px)')).toBe(true);
+  });
+
   it('normalizes coinflip, rps, and dice cards around the same structure', () => {
     const source = readSource('coinflip-panel.js', 'rps-dice-panel.js');
     expect(source.includes('Coinflip')).toBe(true);
@@ -120,6 +130,13 @@ describe('interaction npc panel visibility', () => {
   it('includes a player seed when starting a blackjack hand', () => {
     const source = readSource('blackjack-panel.js');
     expect(source.includes("sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })")).toBe(true);
+  });
+
+  it('excludes house challenges from the interaction card force-close guard', () => {
+    const source = readSource('index.js');
+    // Must detect house challenges before deciding to force-close the interaction card
+    expect(source.includes("active.challengerId === 'system_house' || active.opponentId === 'system_house'")).toBe(true);
+    expect(source.includes('!isHouseChallenge && state.ui.interactionMode !== \'station\'')).toBe(true);
   });
 
   it('renders escrow activity with explicit game outcomes and suppresses redundant lock rows', () => {

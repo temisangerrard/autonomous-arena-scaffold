@@ -26,6 +26,57 @@ const WORLD_VERSION_BY_ALIAS: Record<string, string> = {
   world: '2026-02-17.2'
 };
 
+const WORLD_BUNDLES_BY_ALIAS: Record<string, {
+  shell: { alias: string; filename: string; version: string; kind: 'shell' };
+  zones: Array<{ alias: string; filename: string; version: string; kind: 'zone' | 'world'; replaceWorldRoot?: boolean }>;
+  decor: Array<{ alias: string; filename: string; version: string; kind: 'decor' }>;
+}> = {
+  train_world: {
+    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-02-17.2', kind: 'shell' },
+    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world.glb', version: '2026-02-17.2', kind: 'world', replaceWorldRoot: true }],
+    decor: []
+  },
+  'train-world': {
+    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-02-17.2', kind: 'shell' },
+    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world.glb', version: '2026-02-17.2', kind: 'world', replaceWorldRoot: true }],
+    decor: []
+  },
+  mega: {
+    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-02-17.2', kind: 'shell' },
+    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world.glb', version: '2026-02-17.2', kind: 'world', replaceWorldRoot: true }],
+    decor: []
+  },
+  plaza: {
+    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-02-17.2', kind: 'shell' },
+    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world.glb', version: '2026-02-17.2', kind: 'world', replaceWorldRoot: true }],
+    decor: []
+  },
+  base: {
+    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-02-17.2', kind: 'shell' },
+    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world.glb', version: '2026-02-17.2', kind: 'world', replaceWorldRoot: true }],
+    decor: []
+  },
+  world: {
+    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-02-17.2', kind: 'shell' },
+    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world.glb', version: '2026-02-17.2', kind: 'world', replaceWorldRoot: true }],
+    decor: []
+  }
+};
+
+export function worldBundleForAssetAlias(alias: string): { alias: string; filename: string; version: string; kind: 'shell' | 'zone' | 'world' | 'decor'; replaceWorldRoot?: boolean } | null {
+  const normalized = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
+  for (const plan of Object.values(WORLD_BUNDLES_BY_ALIAS)) {
+    if (plan.shell.alias === normalized) {
+      return { ...plan.shell };
+    }
+    const zoneMatch = plan.zones.find((entry) => entry.alias === normalized);
+    if (zoneMatch) return { ...zoneMatch };
+    const decorMatch = plan.decor.find((entry) => entry.alias === normalized);
+    if (decorMatch) return { ...decorMatch };
+  }
+  return null;
+}
+
 export function worldFilenameByAlias(): Record<string, string> {
   // Public mapping (safe to expose to clients).
   return { ...WORLD_FILE_BY_ALIAS };
@@ -36,9 +87,16 @@ export function worldVersionByAlias(): Record<string, string> {
   return { ...WORLD_VERSION_BY_ALIAS };
 }
 
+export function worldBundlesByAlias(): typeof WORLD_BUNDLES_BY_ALIAS {
+  return JSON.parse(JSON.stringify(WORLD_BUNDLES_BY_ALIAS));
+}
+
 export function worldFilenameForAlias(alias: string): string | null {
   const normalized = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
-  return WORLD_FILE_BY_ALIAS[normalized] ?? null;
+  if (WORLD_FILE_BY_ALIAS[normalized]) {
+    return WORLD_FILE_BY_ALIAS[normalized];
+  }
+  return worldBundleForAssetAlias(normalized)?.filename ?? null;
 }
 
 export function resolveWorldAssetPath(alias: string): string | null {
