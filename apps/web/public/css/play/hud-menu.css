@@ -206,8 +206,8 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M10 8H3M6 5l-3 3 3 3' stroke='%23b03020' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M9 3h3a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9' stroke='%23b03020' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
     }
     .menu-item:hover {
-      border-color: rgba(198, 152, 49, 0.22);
-      background: rgba(253, 248, 225, 0.85);
+      border-color: var(--border-medium);
+      background: var(--bg-secondary);
     }
     .menu-item:hover::before { opacity: 1; }
     .menu-item--logout:hover {
@@ -216,12 +216,12 @@
       color: #8c2010;
     }
     .menu-item:focus-visible {
-      outline: 2px solid rgba(198, 152, 49, 0.6);
+      outline: 2px solid var(--blue-primary);
       outline-offset: -2px;
     }
     .menu-pop__divider {
       height: 1px;
-      background: rgba(198, 152, 49, 0.16);
+      background: var(--border-light);
       margin: 2px 8px;
     }
 
