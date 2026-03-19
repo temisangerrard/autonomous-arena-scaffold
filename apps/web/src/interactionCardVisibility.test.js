@@ -146,7 +146,7 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Game LOSS')).toBe(true);
     expect(source.includes('Game PUSH')).toBe(true);
     expect(source.includes('Refund Failed')).toBe(true);
-    expect(source.includes('Stake Locked')).toBe(true);
+    expect(source.includes('In Progress')).toBe(true);
   });
 
   it('preserves saved autoplay state when opening the bot wizard', () => {
