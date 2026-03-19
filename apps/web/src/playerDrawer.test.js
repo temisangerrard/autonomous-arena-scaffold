@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   buildAutoplayConfigPayload,
   createPlayerDrawerController,
@@ -8,6 +11,8 @@ import {
   seedDrawerDataFromRuntime,
   resolveFundingRoute
 } from '../public/js/play/runtime/player-drawer.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe('player drawer helpers', () => {
   it('limits in-arena recent activity to the last five items', () => {
@@ -111,6 +116,13 @@ describe('player drawer helpers', () => {
       kind: 'match',
       title: 'Coinflip vs Wolverine'
     });
+  });
+
+  it('renders activity cards with badges and value labels for runtime events', () => {
+    const source = readFileSync(path.resolve(__dirname, '../public/js/play/runtime/player-drawer.js'), 'utf8');
+    expect(source).toContain('player-drawer__activity-badge');
+    expect(source).toContain('player-drawer__activity-amount');
+    expect(source).toContain('player-drawer__activity-item--');
   });
 
   it('derives wallet address from profile or onchain summary instead of missing wallet fields', () => {

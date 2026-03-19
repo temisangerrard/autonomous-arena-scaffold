@@ -484,6 +484,9 @@ export class AgentBot {
       case 'percent_wallet': {
         const pct = Math.max(0.01, Math.min(100, ap.walletPercent ?? 5)) / 100;
         const balance = this.getWalletBalance ? this.getWalletBalance() : baseW;
+        if (Number.isFinite(balance) && balance <= 0) {
+          return 0;
+        }
         const computed = Math.floor(balance * pct);
         return Math.max(1, Math.min(maxW, Math.max(computed, baseW)));
       }
@@ -561,6 +564,13 @@ export class AgentBot {
     }
 
     const wager = this.computeNextWager();
+    const walletBalance = this.getWalletBalance ? this.getWalletBalance() : null;
+    if (wager <= 0) {
+      return;
+    }
+    if (walletBalance != null && Number.isFinite(walletBalance) && walletBalance < wager) {
+      return;
+    }
     const gameType: GameType = this.config.behavior.autoplay
       ? this.pickAutoplayGame()
       : (this.config.behavior.personality === 'conservative' ? 'coinflip' : 'rps');

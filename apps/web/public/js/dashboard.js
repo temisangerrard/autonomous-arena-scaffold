@@ -683,35 +683,75 @@ function renderEscrowHistory(entries, errorMessage = '') {
           emoji = '⚠';
         }
       } else if (phase === 'lock') {
-        resultLabel = 'Stake Locked';
+        resultLabel = 'In Progress';
         emoji = '⏳';
       } else {
         resultLabel = outcome || 'Escrow update';
       }
-      const gameLabel = gameType ? gameType.toUpperCase() : 'GAME';
+      const gameLabel = gameType ? gameType.replace(/_/g, ' ').toUpperCase() : 'GAME';
       const source = String(entry?.activitySource || '');
       const sourceLabel =
         source === 'house_station'
-          ? 'house station'
+          ? 'House station'
           : source === 'owner_bot_autoplay'
-            ? 'your bot autoplay'
+            ? 'Bot autoplay'
             : source === 'player_pvp'
-              ? 'player pvp'
-              : 'unknown source';
+              ? 'Player PvP'
+              : 'Arena';
       const botBits = [entry?.challengerBotId, entry?.opponentBotId]
         .filter((item) => typeof item === 'string' && item.trim().length > 0)
         .map((item) => String(item).replace(/^agent_/, '@'))
         .join(' vs ');
       const sourceLine = botBits ? `${sourceLabel} · ${botBits}` : sourceLabel;
-      const detailBits = [`wager ${amount}`];
-      if (reason) detailBits.push(reason);
-      return `<div class="tx-item">
-        <div class="tx-icon ${ok === 'ok' ? 'in' : 'out'}">${emoji}</div>
+      const shortChallengeId = challengeId !== 'n/a' && challengeId.length > 14
+        ? `${challengeId.slice(0, 6)}…${challengeId.slice(-4)}`
+        : challengeId;
+      const detailBits = [at, sourceLine, reason || ''].filter(Boolean);
+
+      // Outcome badge variant
+      let badgeVariant = 'push';
+      let iconClass = 'neutral';
+      if (phase === 'resolve') {
+        if (!winnerId) { badgeVariant = 'push'; iconClass = 'neutral'; }
+        else if (signClass === 'positive') { badgeVariant = 'win'; iconClass = 'in'; }
+        else { badgeVariant = 'loss'; iconClass = 'out'; }
+      } else if (phase === 'refund') {
+        badgeVariant = ok === 'ok' ? 'refund' : 'failed';
+        iconClass = ok === 'ok' ? 'refund' : 'out';
+      } else if (phase === 'lock') {
+        badgeVariant = 'locked';
+        iconClass = 'neutral';
+      }
+
+      const rowClass = phase === 'resolve' && !winnerId ? 'push'
+        : signClass === 'positive' ? 'win'
+        : signClass === 'negative' ? 'loss'
+        : phase === 'refund' ? 'refund'
+        : phase === 'lock' ? 'locked'
+        : '';
+
+      // Amount display: show payout for resolved, wager otherwise
+      const amountDisplay = phase === 'resolve' && signClass === 'positive'
+        ? `+${payout}`
+        : phase === 'resolve' && signClass === 'negative'
+          ? `-${amount}`
+          : phase === 'resolve'
+            ? payout
+            : amount;
+
+      return `<div class="tx-item${rowClass ? ` tx-item--${rowClass}` : ''}">
+        <div class="tx-icon ${iconClass}">${emoji}</div>
         <div class="tx-details">
-          <div class="tx-type">${escapeHtml(`${gameLabel} ${resultLabel}`)} · ${escapeHtml(challengeId)}</div>
-          <div class="tx-time">${escapeHtml(at)} · ${txRef} · ${escapeHtml(sourceLine)}${detailBits.length ? ` · ${escapeHtml(detailBits.join(' · '))}` : ''}</div>
+          <div class="tx-type">
+            <span class="tx-type__game">${escapeHtml(gameLabel)}</span>
+            <span class="outcome-badge outcome-badge--${badgeVariant}">${escapeHtml(resultLabel)}</span>
+          </div>
+          <div class="tx-time">${escapeHtml(detailBits.join(' · '))} · ${txRef} · stake ${escapeHtml(amount)} · id ${escapeHtml(shortChallengeId)}</div>
         </div>
-        <div class="tx-amount ${signClass}">${escapeHtml(amount)} / ${escapeHtml(payout)}</div>
+        <div class="tx-amount ${signClass}">
+          ${escapeHtml(amountDisplay)}
+          ${phase === 'resolve' ? `<span class="tx-amount__sub">stake ${escapeHtml(amount)}</span>` : ''}
+        </div>
       </div>`;
     })
     .join('');

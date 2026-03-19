@@ -99,6 +99,14 @@ describe('computeNextWager — percent_wallet mode', () => {
     // 100% of 200 = 200, floor = 200, clamped to maxWager=10000 → 200
     expect(priv(bot).computeNextWager()).toBe(200);
   });
+
+  it('returns 0 when wallet balance is empty', () => {
+    const bot = makeBot({
+      autoplay: makeAutoplay({ wagerMode: 'percent_wallet', walletPercent: 10, baseWager: 20, maxWager: 1000 })
+    });
+    bot.getWalletBalance = () => 0;
+    expect(priv(bot).computeNextWager()).toBe(0);
+  });
 });
 
 describe('computeNextWager — martingale mode', () => {

@@ -744,6 +744,40 @@ describe('maybeSendChallenge — sends challenge', () => {
     bot.stop();
   });
 
+  it('does not send a challenge when wallet balance cannot cover the wager', () => {
+    const bot = makeBot({
+      mode: 'active',
+      challengeEnabled: true,
+      challengeCooldownMs: 0,
+      personality: 'aggressive',
+      targetPreference: 'any',
+      autoplay: makeAutoplay({ cooldownMs: 0, wagerMode: 'fixed', baseWager: 10, maxWager: 100 })
+    });
+    bot.getWalletBalance = () => 0;
+    bot.start();
+    const ws = lastWs();
+    ws.triggerOpen();
+    ws.triggerMessage({ type: 'welcome', playerId: 'self' });
+    ws.triggerMessage({
+      type: 'snapshot',
+      players: [
+        { id: 'self', x: 0, z: 0, role: 'agent' },
+        { id: 'target', x: 1, z: 1, role: 'human' }
+      ]
+    });
+    ws.triggerMessage({ type: 'proximity', event: 'enter', otherId: 'target' });
+
+    ws.sent = [];
+    priv(bot).lastChallengeSentAt = 0;
+    priv(bot).challengeSuppressedUntil = 0;
+    priv(bot).maybeSendChallenge();
+
+    const challenges = ws.sent.filter((m) => m.type === 'challenge_send');
+    expect(challenges.length).toBe(0);
+
+    bot.stop();
+  });
+
   it('skips challenge when conservative bot hits the modulo gate', () => {
     // Conservative bots only challenge when Date.now() % 2 === 0
     // Use fake timers to control time
@@ -779,4 +813,3 @@ describe('maybeSendChallenge — sends challenge', () => {
     bot.stop();
   });
 });
-

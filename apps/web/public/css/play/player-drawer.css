@@ -1,7 +1,7 @@
 .player-drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(7, 9, 16, 0.58);
+  background: rgba(26, 28, 27, 0.58);
   backdrop-filter: blur(8px);
   z-index: 79;
   opacity: 0;
@@ -23,9 +23,9 @@
   flex-direction: column;
   background:
     linear-gradient(180deg, rgba(26, 28, 38, 0.98), rgba(14, 16, 25, 0.98)),
-    radial-gradient(circle at top right, rgba(196, 167, 106, 0.16), transparent 42%);
-  color: #f4ead2;
-  border-top: 1px solid rgba(218, 190, 132, 0.2);
+    radial-gradient(circle at top right, rgba(0, 93, 167, 0.12), transparent 42%);
+  color: #f4f4f2;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px 24px 0 0;
   box-shadow: 0 -24px 80px rgba(0, 0, 0, 0.42);
   transform: translateY(104%);
@@ -42,13 +42,13 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.1rem 0.85rem;
-  border-bottom: 1px solid rgba(218, 190, 132, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .player-drawer__title {
-  font-family: "Cormorant Garamond", serif;
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-family: var(--font-primary);
+  font-size: 1.4rem;
+  font-weight: 700;
 }
 
 .player-drawer__eyebrow {
@@ -56,14 +56,14 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(217, 180, 107, 0.85);
+  color: rgba(164, 201, 255, 0.8);
 }
 
 .player-drawer__subtitle,
 .player-drawer__meta,
 .player-drawer__hint,
 .player-drawer__activity-detail {
-  color: rgba(244, 234, 210, 0.7);
+  color: rgba(244, 244, 242, 0.65);
 }
 
 .player-drawer__subtitle,
@@ -77,7 +77,7 @@
 
 .player-drawer__close {
   appearance: none;
-  border: 1px solid rgba(218, 190, 132, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.04);
   color: inherit;
   width: 2.25rem;
@@ -91,7 +91,7 @@
   transition: background 0.15s;
   flex-shrink: 0;
 }
-.player-drawer__close:hover { background: rgba(255, 255, 255, 0.09); }
+.player-drawer__close:hover { background: rgba(255, 255, 255, 0.1); }
 
 .player-drawer__body {
   overflow: auto;
@@ -101,7 +101,7 @@
 }
 
 .player-drawer__section {
-  border: 1px solid rgba(218, 190, 132, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   border-radius: 18px;
   padding: 0.95rem;
@@ -111,7 +111,7 @@
 
 .player-drawer__section--hero {
   background:
-    radial-gradient(circle at top left, rgba(217, 180, 107, 0.12), transparent 34%),
+    radial-gradient(circle at top left, rgba(0, 93, 167, 0.12), transparent 34%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
 }
 
@@ -121,10 +121,10 @@
 }
 
 .player-drawer__balance {
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-primary);
   font-size: 2.2rem;
   line-height: 1;
-  color: #f6e3b9;
+  color: var(--gold-light);
 }
 
 .player-drawer__meta-row,
@@ -160,9 +160,9 @@
 }
 
 .player-drawer__badge--warning {
-  color: #f1d58f;
-  background: rgba(198, 152, 49, 0.14);
-  border-color: rgba(198, 152, 49, 0.28);
+  color: var(--gold-light);
+  background: rgba(201, 162, 39, 0.14);
+  border-color: rgba(201, 162, 39, 0.28);
 }
 
 .player-drawer__badge--error {
@@ -172,7 +172,7 @@
 }
 
 .player-drawer__badge--muted {
-  color: rgba(244, 234, 210, 0.78);
+  color: rgba(244, 244, 242, 0.65);
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
 }
@@ -194,7 +194,7 @@
 .player-drawer__field input,
 .player-drawer__field select {
   border-radius: 12px;
-  border: 1px solid rgba(218, 190, 132, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(12, 14, 22, 0.9);
   color: inherit;
 }
@@ -210,9 +210,9 @@
 .player-drawer__button:disabled { opacity: 0.38; cursor: not-allowed; }
 
 .player-drawer__button--primary {
-  background: linear-gradient(135deg, #d9b46b, #a77a24);
-  color: #130d04;
-  border-color: rgba(217, 180, 107, 0.5);
+  background: var(--blue-primary);
+  color: #fff;
+  border-color: rgba(0, 93, 167, 0.5);
 }
 
 .player-drawer__field {
@@ -244,16 +244,16 @@
   min-height: 2.4rem;
   padding: 0.55rem 0.78rem;
   border-radius: 999px;
-  border: 1px solid rgba(218, 190, 132, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(12, 14, 22, 0.86);
-  color: rgba(244, 234, 210, 0.86);
+  color: rgba(244, 244, 242, 0.82);
   text-transform: capitalize;
 }
 
 .player-drawer__choice input:checked + span {
-  background: rgba(217, 180, 107, 0.18);
-  border-color: rgba(217, 180, 107, 0.44);
-  color: #f6e3b9;
+  background: rgba(0, 93, 167, 0.2);
+  border-color: rgba(0, 93, 167, 0.5);
+  color: #f4f4f2;
 }
 
 .player-drawer__field input,
@@ -269,7 +269,7 @@
 }
 
 .player-drawer__address {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   overflow-wrap: anywhere;
   padding: 0.65rem 0.75rem;
@@ -287,8 +287,50 @@
 
 .player-drawer__activity-item,
 .player-drawer__activity-empty {
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(218, 190, 132, 0.08);
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(12, 14, 21, 0.45);
+}
+
+.player-drawer__activity-item--positive {
+  border-color: rgba(90, 190, 124, 0.28);
+}
+
+.player-drawer__activity-item--negative {
+  border-color: rgba(210, 108, 90, 0.28);
+}
+
+.player-drawer__activity-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.player-drawer__activity-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.player-drawer__activity-badge {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.18rem 0.48rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(244, 244, 242, 0.72);
+  font: 600 0.68rem/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.player-drawer__activity-amount {
+  font: 700 0.84rem/1 var(--font-mono);
+  color: var(--gold-light);
 }
 
 .player-drawer__activity-title {
@@ -298,11 +340,11 @@
 .player-drawer__activity-time {
   margin-top: 0.22rem;
   font-size: 0.78rem;
-  color: rgba(244, 234, 210, 0.58);
+  color: rgba(244, 244, 242, 0.5);
 }
 
 .player-drawer__link {
-  color: #f6d792;
+  color: var(--blue-container);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
