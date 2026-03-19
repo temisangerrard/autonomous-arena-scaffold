@@ -954,8 +954,8 @@ function openBotModal(botId) {
   }
   // Populate autoplay fields
   const autoplay = bot.behavior?.autoplay;
-  if (botAutoplayEnabled) botAutoplayEnabled.checked = Boolean(autoplay?.enabled);
-  if (botAutoplayFields) botAutoplayFields.hidden = !autoplay?.enabled;
+  if (botAutoplayEnabled) botAutoplayEnabled.checked = true;
+  if (botAutoplayFields) botAutoplayFields.hidden = false;
   if (botAutoplayWagerMode) botAutoplayWagerMode.value = autoplay?.wagerMode || 'fixed';
   if (botAutoplayWalletPct) botAutoplayWalletPct.value = String(autoplay?.walletPercent ?? autoplay?.walletPct ?? 5);
   if (botAutoplayMartingaleMult) botAutoplayMartingaleMult.value = String(autoplay?.martingaleMultiplier ?? autoplay?.martingaleMult ?? 2);
