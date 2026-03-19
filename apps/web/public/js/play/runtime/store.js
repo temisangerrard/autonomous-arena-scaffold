@@ -63,6 +63,9 @@ function reduce(state, action) {
       state.challengeStatus = String(action.status || 'none');
       state.challengeMessage = String(action.message || '');
       return;
+    case 'PLAYER_CHALLENGE_MESSAGE_SET':
+      state.playerChallengeMessage = String(action.message || '');
+      return;
     case 'WALLET_SUMMARY_SET':
       state.walletBalance = Number.isFinite(Number(action.balance)) ? Number(action.balance) : null;
       state.walletChainId = Number.isFinite(Number(action.chainId)) ? Number(action.chainId) : null;
