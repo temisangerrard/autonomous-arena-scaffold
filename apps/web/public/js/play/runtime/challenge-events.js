@@ -34,11 +34,13 @@ export function handleChallengeEvent(params) {
 
     if (challenge.challengerId === state.playerId) {
       state.outgoingChallengeId = challenge.id;
+      const sentMsg = `Challenge created. Waiting for ${labelFor(challenge.opponentId)}.`;
       dispatch({
         type: 'CHALLENGE_STATUS_SET',
         status: 'sent',
-        message: `Challenge created. Waiting for ${labelFor(challenge.opponentId)}.`
+        message: sentMsg
       });
+      dispatch({ type: 'PLAYER_CHALLENGE_MESSAGE_SET', message: sentMsg });
     }
   }
 
@@ -64,11 +66,9 @@ export function handleChallengeEvent(params) {
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
-    dispatch({
-      type: 'CHALLENGE_STATUS_SET',
-      status: 'declined',
-      message: `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`
-    });
+    const declinedMsg = `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`;
+    dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'declined', message: declinedMsg });
+    dispatch({ type: 'PLAYER_CHALLENGE_MESSAGE_SET', message: declinedMsg });
   }
 
   if (payload.event === 'expired' && challenge) {
@@ -77,11 +77,9 @@ export function handleChallengeEvent(params) {
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
-    dispatch({
-      type: 'CHALLENGE_STATUS_SET',
-      status: 'expired',
-      message: `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`
-    });
+    const expiredMsg = `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`;
+    dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'expired', message: expiredMsg });
+    dispatch({ type: 'PLAYER_CHALLENGE_MESSAGE_SET', message: expiredMsg });
   }
 
   if (payload.event === 'resolved' && challenge) {
@@ -96,22 +94,18 @@ export function handleChallengeEvent(params) {
     } else if (challenge.winnerId) {
       state.streak = 0;
     }
-    dispatch({
-      type: 'CHALLENGE_STATUS_SET',
-      status: 'resolved',
-      message: challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.'
-    });
+    const resolvedMsg = challenge.winnerId ? `Resolved. Winner: ${winnerLabel}` : 'Resolved. Draw/refund.';
+    dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'resolved', message: resolvedMsg });
+    dispatch({ type: 'PLAYER_CHALLENGE_MESSAGE_SET', message: resolvedMsg });
     state.quickstart.matchResolved = true;
     void refreshWalletBalanceAndShowDelta(beforeBalance, challenge);
   }
 
   if (payload.event === 'invalid' || payload.event === 'busy') {
     state.respondingIncoming = false;
-    dispatch({
-      type: 'CHALLENGE_STATUS_SET',
-      status: state.challengeStatus || 'none',
-      message: challengeReasonLabel(payload.reason)
-    });
+    const invalidMsg = challengeReasonLabel(payload.reason);
+    dispatch({ type: 'CHALLENGE_STATUS_SET', status: state.challengeStatus || 'none', message: invalidMsg });
+    dispatch({ type: 'PLAYER_CHALLENGE_MESSAGE_SET', message: invalidMsg });
     const approvalStatus = String(payload?.approvalStatus || '');
     if (approvalStatus === 'failed' || isEscrowApprovalReason(payload.reason)) {
       state.ui.challenge.approvalState = 'required';

@@ -115,6 +115,71 @@ export interface SuperAgentLlmUsage {
 }
 
 /**
+ * Autonomy profile for agent strategy enforcement.
+ * Maps to delegation permission scopes:
+ *   supervised      — no autonomous action; every challenge requires approval
+ *   semi_autonomous — acts within session limits; pauses when limits are hit
+ *   autonomous      — full delegation within budget; self-renews within policy expiry
+ */
+export type AutonomyProfile = 'supervised' | 'semi_autonomous' | 'autonomous';
+
+/**
+ * Enforcement layer for the strategy policy.
+ *   onchain    — caveats enforced via DelegationManager (smart account required)
+ *   app_layer  — limits enforced in application code (EOA fallback)
+ */
+export type PolicyEnforcementMode = 'onchain' | 'app_layer';
+
+/**
+ * Pre-defined strategy template IDs.
+ * Each template ships with a recommended autonomy profile + spend limits.
+ */
+export type StrategyTemplateId =
+  | 'conservative'   // supervised, low wagers, coinflip only
+  | 'sparrer'        // semi_autonomous, moderate wagers, all games
+  | 'degen'          // autonomous, high wagers, all games, martingale
+  | 'sentinel'       // semi_autonomous, conservative, RPS patrol focus
+  | 'scout';         // supervised, minimal spend, explore-first
+
+/**
+ * Compiled bot strategy policy derived from natural language or a template.
+ * Represents the enforced constraints an agent operates within.
+ */
+export interface BotStrategyPolicy {
+  /** Unique policy ID */
+  id: string;
+  /** Profile that determines autonomy level */
+  profile: AutonomyProfile;
+  /** Where enforcement lives */
+  enforcementMode: PolicyEnforcementMode;
+  /** Original natural language description, if compiled from text */
+  naturalLanguageDescription?: string;
+  /** Template that generated this policy, if any */
+  sourceTemplate?: StrategyTemplateId;
+  /** Maximum spend per session (USDC) */
+  sessionBudgetUsdc: number;
+  /** Maximum spend per week (USDC); mirrors delegation caveat */
+  weeklyBudgetUsdc?: number;
+  /** Maximum wager per individual game (USDC) */
+  maxWagerPerGameUsdc: number;
+  /** Games this agent is allowed to play */
+  allowedGames: GameType[];
+  /** Whether the agent may initiate challenges (vs only accepting) */
+  mayInitiateChallenges: boolean;
+  /** Whether the agent may accept incoming challenges */
+  mayAcceptChallenges: boolean;
+  /** Unix ms timestamp when this delegation expires; null = no expiry */
+  expiresAt: number | null;
+  /** Timestamp when this policy was compiled */
+  compiledAt: number;
+  /**
+   * On-chain delegation hash, populated once redeemed via DelegationManager.
+   * Only present when enforcementMode === 'onchain'.
+   */
+  delegationHash?: string;
+}
+
+/**
  * Autoplay wager strategy modes
  */
 export type WagerStrategyMode = 'fixed' | 'percent_wallet' | 'martingale';
