@@ -285,6 +285,7 @@ export function renderInteractionCardTemplate(params) {
         ? `${labelFor(incoming.challengerId)} challenged you (${incoming.gameType.toUpperCase()}, ${formatWagerInline(incoming.wager)}).`
         : '';
 
+      const challengeMsg = String(state.challengeMessage || '');
       const playerRenderKey = [
         targetId,
         selectedGame,
@@ -299,11 +300,22 @@ export function renderInteractionCardTemplate(params) {
         incoming?.wager || '',
         outgoingPending ? 'outgoing' : 'idle',
         targetNearby ? 'nearby' : 'far',
-        canSend ? 'send' : 'blocked'
+        canSend ? 'send' : 'blocked',
+        challengeMsg
       ].join('|');
 
       if (interactionPlayerRenderKey !== playerRenderKey) {
         interactionPlayerRenderKey = playerRenderKey;
+        const showApprove = selectedWager > 0 && !approvalModeAuto;
+        const recentMsg = !outgoingPending && !incoming && challengeMsg ? challengeMsg : '';
+        const statusLine = incomingLabel
+          || recentMsg
+          || (targetNearby ? 'Pick a game and send a challenge.' : 'Move closer to challenge.')
+          + (outgoingPending ? ' Challenge already pending.' : '');
+        const approvalMeta = approvalModeAuto
+          ? '<div class="station-ui__meta">Super Agent active — wager approvals handled automatically.</div>'
+          : (selectedWager > 0 ? `<div class="station-ui__meta">${approvalHint}</div>` : '');
+
         interactionNpcInfo.innerHTML = `
           <div class="station-ui__title">${labelFor(targetId)}</div>
           <div class="station-ui__row">
@@ -315,25 +327,19 @@ export function renderInteractionCardTemplate(params) {
             </select>
           </div>
           <div class="station-ui__row">
-            <label for="player-challenge-wager">Wager (each, USDC)</label>
+            <label for="player-challenge-wager">Wager (USDC)</label>
             <input id="player-challenge-wager" type="number" min="0" max="10000" step="1" value="${selectedWager}" />
           </div>
-          ${approvalModeAuto
-            ? '<div class="station-ui__meta">Super Agent Approval Active (Testnet)</div>'
-            : `<div class="station-ui__actions">
-              <button id="player-challenge-approve" class="btn-ghost" type="button" ${(selectedWager > 0 && approvalState !== 'checking') ? '' : 'disabled'}>
-                ${approvalState === 'checking' ? 'Checking...' : approvalCapLabel}
-              </button>
-            </div>`}
           <div class="station-ui__actions">
-            <button id="player-challenge-send" class="btn-gold" type="button" ${canSend ? '' : 'disabled'}>Send Challenge (C)</button>
+            ${showApprove ? `<button id="player-challenge-approve" class="btn-ghost" style="flex:1" type="button" ${approvalState !== 'checking' ? '' : 'disabled'}>${approvalState === 'checking' ? 'Checking…' : approvalCapLabel}</button>` : ''}
+            <button id="player-challenge-send" class="btn-gold" style="flex:1" type="button" ${canSend ? '' : 'disabled'}>Send Challenge (C)</button>
           </div>
           ${incoming ? `<div class="station-ui__actions">
-            <button id="player-challenge-accept" class="btn-ghost" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Accept (Y)</button>
-            <button id="player-challenge-decline" class="btn-ghost" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Decline (N)</button>
+            <button id="player-challenge-accept" class="btn-ghost" style="flex:1" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Accept (Y)</button>
+            <button id="player-challenge-decline" class="btn-ghost" style="flex:1" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Decline (N)</button>
           </div>` : ''}
-          <div class="station-ui__meta">${incomingLabel || `${targetNearby ? 'Pick a game and send a challenge.' : 'Move closer to this player, then send challenge.'} ${outgoingPending ? 'You already have a pending outgoing challenge.' : ''}`}</div>
-          <div class="station-ui__meta">${approvalHint}</div>
+          ${approvalMeta}
+          <div class="station-ui__meta">${statusLine}</div>
         `;
 
         const renderedTargetId = targetId;
