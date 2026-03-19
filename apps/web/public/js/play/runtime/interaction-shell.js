@@ -167,8 +167,9 @@ export function renderInteractionPromptLine(params) {
       interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${openVerb} to open</span>`;
     }
   } else {
-    const hint = incoming ? ' · Y/N respond' : '';
-    interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${isTouch ? 'tap' : 'E'} interact · C challenge${hint}</span>`;
+    const hint = incoming ? (isTouch ? ' · respond' : ' · Y/N respond') : '';
+    const challengeHint = isTouch ? 'tap to challenge' : 'E interact · C challenge';
+    interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${challengeHint}${hint}</span>`;
   }
   interactionPrompt.classList.add('visible');
 }

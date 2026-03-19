@@ -21,7 +21,7 @@
     .onboarding-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(15, 12, 8, 0.92);
+      background: rgba(26, 28, 27, 0.88);
       z-index: 500;
       display: flex;
       align-items: center;
@@ -37,12 +37,12 @@
     }
     .onboarding-card {
       width: min(540px, calc(100vw - 32px));
-      background: linear-gradient(145deg, rgba(253, 248, 237, 0.98), rgba(255, 252, 245, 0.95));
-      border: 2px solid rgba(201, 162, 39, 0.5);
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
       border-radius: 20px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+      box-shadow: 0 24px 60px rgba(26, 28, 27, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
       padding: 28px;
-      color: #2c2416;
+      color: var(--text-primary);
       text-align: center;
       transform: scale(0.95);
       transition: transform 0.3s ease;
@@ -60,16 +60,16 @@
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: rgba(201, 162, 39, 0.3);
+      background: var(--border-medium);
       transition: all 0.3s ease;
     }
     .onboarding__dot.active {
-      background: var(--ui-gold);
-      box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+      background: var(--blue-primary);
+      box-shadow: 0 0 12px rgba(0, 93, 167, 0.5);
       transform: scale(1.2);
     }
     .onboarding__dot.completed {
-      background: var(--ui-success);
+      background: var(--accent-success);
     }
     .onboarding__icon {
       font-size: 48px;
@@ -77,16 +77,16 @@
       line-height: 1;
     }
     .onboarding__title {
-      font: 700 28px/1.2 'Cormorant Garamond', serif;
-      color: #2c2416;
+      font: 700 26px/1.2 var(--font-primary);
+      color: var(--text-primary);
       margin-bottom: 12px;
     }
     .onboarding__step--hidden {
       display: none;
     }
     .onboarding__desc {
-      font: 16px/1.5 'Crimson Text', serif;
-      color: #5a4d3a;
+      font: 500 16px/1.6 var(--font-primary);
+      color: var(--text-secondary);
       margin-bottom: 20px;
     }
     .onboarding__keys {
@@ -106,18 +106,18 @@
       width: 52px;
       height: 52px;
       border-radius: 10px;
-      border: 2px solid rgba(201, 162, 39, 0.5);
-      background: linear-gradient(180deg, #fff 0%, #f5f0e0 100%);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 0 #fff inset;
-      font: 700 18px/1 'IBM Plex Mono', monospace;
-      color: #3a2f1a;
+      border: 2px solid var(--border-medium);
+      background: var(--bg-secondary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 0 #fff inset;
+      font: 700 18px/1 var(--font-mono);
+      color: var(--text-primary);
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .onboarding__key-label {
-      font: 600 11px/1 'Crimson Text', serif;
-      color: #8c7d68;
+      font: 600 11px/1 var(--font-primary);
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -131,44 +131,45 @@
       height: 44px;
       border-radius: 12px;
       border: none;
-      font: 700 14px/1 'Crimson Text', serif;
+      font: 700 13px/1 var(--font-primary);
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       cursor: pointer;
       transition: all 0.2s ease;
     }
     .onboarding__btn--primary {
-      background: linear-gradient(135deg, #d4a84b 0%, #c49a38 100%);
-      color: #1a1408;
-      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4);
+      background: var(--blue-primary);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(0, 93, 167, 0.3);
     }
     .onboarding__btn--primary:hover {
+      background: var(--blue-dark);
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(201, 162, 39, 0.5);
+      box-shadow: 0 6px 20px rgba(0, 93, 167, 0.4);
     }
     .onboarding__btn--secondary {
       background: transparent;
-      border: 2px solid rgba(201, 162, 39, 0.4);
-      color: #6a5a38;
+      border: 2px solid var(--border-medium);
+      color: var(--text-secondary);
     }
     .onboarding__btn--secondary:hover {
-      background: rgba(201, 162, 39, 0.1);
+      background: var(--bg-secondary);
     }
     .onboarding__skip {
       margin-top: 16px;
-      font: 13px/1 'Crimson Text', serif;
-      color: #8c7d68;
+      font: 13px/1 var(--font-primary);
+      color: var(--text-muted);
     }
     .onboarding__skip a {
-      color: #a68523;
+      color: var(--blue-primary);
       text-decoration: underline;
       cursor: pointer;
     }
     .onboarding__speaker {
       display: block;
       margin-top: 12px;
-      font: italic 600 13px/1 'Crimson Text', serif;
-      color: #a68523;
+      font: 600 13px/1 var(--font-primary);
+      color: var(--blue-primary);
       letter-spacing: 0.03em;
     }
     /* Numbered checklist used in "Place your bet" step */
@@ -183,16 +184,16 @@
       display: flex;
       align-items: flex-start;
       gap: 12px;
-      font: 15px/1.4 'Crimson Text', serif;
-      color: #5a4d3a;
+      font: 500 15px/1.5 var(--font-primary);
+      color: var(--text-secondary);
     }
     .onboarding__check-num {
       flex-shrink: 0;
       width: 24px;
       height: 24px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #d4a84b 0%, #c49a38 100%);
-      color: #1a1408;
-      font: 700 12px/24px 'IBM Plex Mono', monospace;
+      background: var(--blue-primary);
+      color: #fff;
+      font: 700 12px/24px var(--font-mono);
       text-align: center;
     }
