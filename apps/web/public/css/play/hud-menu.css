@@ -24,11 +24,11 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      background: rgba(253, 248, 237, 0.92);
-      border: 1px solid rgba(198, 152, 49, 0.32);
+      background: rgba(249, 249, 247, 0.96);
+      border: 1px solid var(--border-light);
       border-radius: 40px;
       padding: 7px 14px 7px 8px;
-      box-shadow: 0 4px 18px rgba(20, 15, 5, 0.18);
+      box-shadow: var(--shadow-md);
       backdrop-filter: blur(12px);
       pointer-events: auto;
       transition: transform 0.3s ease, opacity 0.3s ease;
@@ -38,15 +38,15 @@
       width: 30px;
       height: 30px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #d4a84b 0%, #a87830 100%);
-      border: 1.5px solid rgba(198, 152, 49, 0.5);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      background: linear-gradient(135deg, var(--blue-light) 0%, var(--blue-primary) 100%);
+      border: 1.5px solid rgba(0, 93, 167, 0.3);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
       flex-shrink: 0;
     }
 
     .topbar-name {
-      font: 600 13px/1 'Crimson Text', serif;
-      color: #2c2010;
+      font: 600 13px/1 var(--font-primary);
+      color: var(--text-primary);
       max-width: 120px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -65,21 +65,21 @@
       gap: 5px;
       border-radius: 999px;
       padding: 5px 10px;
-      font: 700 11px/1 'JetBrains Mono', monospace;
+      font: 700 11px/1 var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.04em;
       transition: background 0.2s;
     }
 
     .topbar-pill.wallet {
-      background: rgba(212, 168, 75, 0.14);
-      border: 1px solid rgba(212, 168, 75, 0.44);
-      color: #7a5210;
+      background: rgba(201, 162, 39, 0.1);
+      border: 1px solid var(--border-gold);
+      color: var(--gold-dark);
       font-size: 13px;
       min-width: 72px;
       justify-content: center;
     }
-    .topbar-pill.wallet:hover { background: rgba(212, 168, 75, 0.22); }
+    .topbar-pill.wallet:hover { background: rgba(201, 162, 39, 0.18); }
 
     /* ---- Right island: streak + bot + menu ---- */
     .topbar-right {
@@ -94,24 +94,24 @@
     }
 
     .topbar-pill.streak {
-      background: rgba(253, 248, 237, 0.92);
-      border: 1px solid rgba(198, 152, 49, 0.32);
-      color: #6a4e14;
-      box-shadow: 0 4px 14px rgba(20, 15, 5, 0.14);
+      background: rgba(249, 249, 247, 0.96);
+      border: 1px solid var(--border-light);
+      color: var(--gold-dark);
+      box-shadow: var(--shadow-md);
       backdrop-filter: blur(12px);
     }
-    .topbar-pill.streak:hover { background: rgba(253, 248, 220, 0.96); }
+    .topbar-pill.streak:hover { background: var(--bg-card); }
 
     .topbar-pill.bot {
-      background: rgba(253, 248, 237, 0.92);
-      border: 1px solid rgba(80, 185, 122, 0.4);
-      color: #1a5e38;
-      box-shadow: 0 4px 14px rgba(20, 15, 5, 0.14);
+      background: rgba(249, 249, 247, 0.96);
+      border: 1px solid rgba(74, 124, 89, 0.4);
+      color: var(--accent-success);
+      box-shadow: var(--shadow-md);
       backdrop-filter: blur(12px);
     }
     .topbar-pill.bot.manual {
-      border-color: rgba(198, 152, 49, 0.44);
-      color: #7a5210;
+      border-color: var(--border-gold);
+      color: var(--gold-dark);
     }
     .topbar-pill__dot {
       width: 7px;
@@ -127,12 +127,12 @@
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      border: 1px solid rgba(198, 152, 49, 0.36);
-      background: rgba(253, 248, 237, 0.92);
-      color: #5a3e10;
-      font: 700 18px/1 'Inter', sans-serif;
+      border: 1px solid var(--border-light);
+      background: rgba(249, 249, 247, 0.96);
+      color: var(--text-secondary);
+      font: 700 18px/1 var(--font-primary);
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(20, 15, 5, 0.14);
+      box-shadow: var(--shadow-md);
       backdrop-filter: blur(12px);
       display: flex;
       align-items: center;
@@ -140,11 +140,11 @@
       transition: background 0.2s, border-color 0.2s;
     }
     .menu-ghost:hover {
-      background: rgba(253, 248, 220, 0.97);
-      border-color: rgba(198, 152, 49, 0.58);
+      background: var(--bg-card);
+      border-color: var(--blue-primary);
     }
     .menu-ghost:focus-visible {
-      outline: 2px solid rgba(198, 152, 49, 0.7);
+      outline: 2px solid var(--blue-primary);
       outline-offset: 2px;
     }
 
@@ -155,9 +155,9 @@
       top: 60px;
       width: 192px;
       border-radius: 14px;
-      border: 1px solid rgba(198, 152, 49, 0.32);
-      background: rgba(253, 248, 237, 0.97);
-      box-shadow: 0 14px 40px rgba(20, 15, 5, 0.22);
+      border: 1px solid var(--border-light);
+      background: rgba(249, 249, 247, 0.98);
+      box-shadow: var(--shadow-lg);
       z-index: 90;
       display: none;
       padding: 6px;
@@ -172,9 +172,9 @@
       border-radius: 10px;
       border: 1px solid transparent;
       background: transparent;
-      color: #3b2b12;
+      color: var(--text-primary);
       min-height: 40px;
-      font: 600 12px/1 'Crimson Text', serif;
+      font: 600 12px/1 var(--font-primary);
       letter-spacing: 0.04em;
       cursor: pointer;
       transition: all 0.15s ease;

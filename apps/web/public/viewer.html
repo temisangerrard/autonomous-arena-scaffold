@@ -543,6 +543,7 @@
         </div>
     </div>
 
+    <script src="/runtime-config.js"></script>
     <script type="importmap">
         {
             "imports": {
@@ -552,23 +553,23 @@
         }
     </script>
     <script type="module">
-        import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import {
+            THREE,
+            makeRenderer,
+            makeScene,
+            makeCamera,
+            pickWorldAlias,
+            loadWorldWithProgress,
+            fitCameraToWorld,
+            installResizeHandler
+        } from '/js/world-common.js';
 
         // Setup
         const canvas = document.getElementById('scene');
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1;
-
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0f);
-
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
-        camera.position.set(100, 80, 100);
+        const renderer = makeRenderer(canvas);
+        const scene = makeScene();
+        const camera = makeCamera();
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
@@ -576,102 +577,53 @@
         controls.maxDistance = 500;
         controls.minDistance = 5;
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-        scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-        dirLight.position.set(100, 150, 100);
-        dirLight.castShadow = true;
-        scene.add(dirLight);
-
-        const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3a3a3a, 0.6);
-        scene.add(hemiLight);
+        installResizeHandler(camera, renderer);
 
         // Optional helpers
         let gridHelper = null;
         let axesHelper = null;
 
-        async function loadConfig() {
-            try {
-                const res = await fetch('/api/config', { credentials: 'include' });
-                if (!res.ok) return null;
-                const cfg = await res.json();
-                window.__ARENA_CONFIG = cfg;
-                return cfg;
-            } catch {
-                return null;
-            }
-        }
-
         // Load world
-        const params = new URLSearchParams(window.location.search);
-        const worldAlias = params.get('world') || 'mega';
-
-        const loader = new GLTFLoader();
+        const worldAlias = pickWorldAlias();
         const loadingBar = document.getElementById('loading-bar');
         const loadingOverlay = document.getElementById('loading-overlay');
 
         let worldModel = null;
         let objectCount = 0;
-        let materialCount = new Set();
+        const materialCount = new Set();
 
-        const cfg = await loadConfig();
-        const base = String(cfg?.worldAssetBaseUrl || '').replace(/\/+$/, '');
-        const worldUrl = base
-            ? `${base}/assets/world/${worldAlias}.glb`
-            : `/assets/world/${worldAlias}.glb`;
-
-        loader.load(
-            worldUrl,
-            (gltf) => {
-                worldModel = gltf.scene;
-                scene.add(worldModel);
-
-                // Count objects and materials
-                worldModel.traverse((child) => {
-                    objectCount++;
-                    if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(m => materialCount.add(m.uuid));
-                        } else {
-                            materialCount.add(child.material.uuid);
-                        }
-                    }
-                });
-
-                // Update stats
-                document.getElementById('stat-objects').textContent = objectCount.toLocaleString();
-                document.getElementById('stat-materials').textContent = materialCount.size;
-
-                // Center camera on model
-                const box = new THREE.Box3().setFromObject(worldModel);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z);
-
-                controls.target.copy(center);
-                camera.position.set(center.x + maxDim * 0.7, center.y + maxDim * 0.5, center.z + maxDim * 0.7);
-                controls.update();
-
-                // Hide loading
-                loadingOverlay.classList.add('hidden');
-            },
-            (progress) => {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total) * 100;
-                    loadingBar.style.width = `${percent}%`;
-
-                    // Update size stat
-                    const sizeMB = (progress.total / (1024 * 1024)).toFixed(0);
-                    document.getElementById('stat-size').textContent = sizeMB;
-                }
-            },
-            (error) => {
-                console.error('Error loading world:', error);
-                document.querySelector('.loading-text').textContent = 'Error Loading World';
+        loadWorldWithProgress(scene, worldAlias, (progress) => {
+            if (progress.total > 0) {
+                const percent = (progress.loaded / progress.total) * 100;
+                loadingBar.style.width = `${Math.min(percent, 100)}%`;
+                const sizeMB = (progress.total / (1024 * 1024)).toFixed(0);
+                document.getElementById('stat-size').textContent = sizeMB;
             }
-        );
+        }).then(({ worldRoot }) => {
+            worldModel = worldRoot;
+
+            // Count objects and materials
+            worldRoot.traverse((child) => {
+                objectCount++;
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => materialCount.add(m.uuid));
+                    } else {
+                        materialCount.add(child.material.uuid);
+                    }
+                }
+            });
+
+            document.getElementById('stat-objects').textContent = objectCount.toLocaleString();
+            document.getElementById('stat-materials').textContent = materialCount.size;
+
+            fitCameraToWorld(camera, controls.target, worldRoot);
+            controls.update();
+            loadingOverlay.classList.add('hidden');
+        }).catch((error) => {
+            console.error('Error loading world:', error);
+            document.querySelector('.loading-text').textContent = 'Error Loading World';
+        });
 
         // FPS tracking
         let frameCount = 0;
