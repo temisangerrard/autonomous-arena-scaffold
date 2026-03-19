@@ -4,80 +4,88 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="base:app_id" content="69a988a7223099cde83059f4">
-  <title>The Arena — Play &amp; Win</title>
+  <title>Enter the Arena — Autonomous Arena</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/css/landing.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/css/claude-corners.css">
   <script src="/runtime-config.js"></script>
 </head>
 <body>
-  <main class="welcome-page">
-    <header class="welcome-header">
-      <div>
-        <p class="eyebrow">3D Betting Arena</p>
-        <h1>The Arena</h1>
+
+<nav class="land-nav">
+  <div class="land-nav__inner">
+    <a href="/" class="land-nav__logo">Autonomous <span>Arena</span></a>
+    <div class="land-nav__links">
+      <a href="/play?world=mega">Arena</a>
+      <a href="/dashboard">Dashboard</a>
+    </div>
+    <a href="/viewer?world=mega" class="land-nav__cta">Preview World</a>
+  </div>
+</nav>
+
+<main class="wlc-main">
+
+  <section class="wlc-split">
+
+    <!-- Left: brand copy -->
+    <div class="wlc-split__copy">
+      <div class="land-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink:0" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" fill="#0052ff"/>
+          <path d="M12 6.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill="#fff"/>
+        </svg>
+        <span class="land-badge__text">Live now — no download required</span>
       </div>
-      <a class="btn btn--ghost" href="/viewer?world=mega">Preview World</a>
-    </header>
 
-    <section class="card card--gold welcome-hero-card">
-      <p class="eyebrow welcome-kicker">Live now &mdash; no download required</p>
-      <h2 class="welcome-hero-title">Play arcade games. Win tokens.</h2>
-      <p class="welcome-hero-subtitle">
-        Walk a live 3D world, find a dealer, and place a wager. Every win pays out instantly — no waiting, no middlemen.
-      </p>
-      <div id="welcome-session-cta" class="welcome-cta"></div>
-      <p id="welcome-hint" class="text-muted">Loading...</p>
-      <p id="welcome-auth-error" class="welcome-auth-error"></p>
-    </section>
+      <h1 class="wlc-heading">Play games.<br><span class="wlc-heading--accent">Win tokens.</span></h1>
 
-    <section class="welcome-grid">
-      <article class="card">
-        <h3 class="card__title">How it works</h3>
-        <ol class="welcome-steps">
-          <li><strong class="welcome-step-num">01</strong><span class="welcome-step-copy">Sign in — your wallet and profile are created instantly.</span></li>
-          <li><strong class="welcome-step-num">02</strong><span class="welcome-step-copy">Enter the Arena and walk the 3D world to find the dealer stations.</span></li>
-          <li><strong class="welcome-step-num">03</strong><span class="welcome-step-copy">Walk up to a dealer and press <strong>E</strong> (or tap on mobile) to open a game.</span></li>
-          <li><strong class="welcome-step-num">04</strong><span class="welcome-step-copy">Set your wager, pick your side, and let the round settle on-chain based on the game mode and stake.</span></li>
-        </ol>
-      </article>
+      <p class="wlc-desc">Walk a live 3D world, find a dealer, and place a wager. Every win pays out instantly — no waiting, no middlemen.</p>
 
-      <article class="card">
-        <h3 class="card__title">Games available</h3>
-        <ul class="welcome-checks">
-          <li>Coin Flip — Heads or Tails, 50/50 odds</li>
-          <li>Rock Paper Scissors — beat the house</li>
-          <li>Dice Duel — pick a number, roll against the dealer</li>
-          <li>BTC Prediction — bet on the next 5-minute price move</li>
-        </ul>
-      </article>
-    </section>
+      <ol class="welcome-steps wlc-steps">
+        <li>
+          <strong class="welcome-step-num">01</strong>
+          <span class="welcome-step-copy">Sign in — your wallet and profile are created instantly.</span>
+        </li>
+        <li>
+          <strong class="welcome-step-num">02</strong>
+          <span class="welcome-step-copy">Enter the Arena and walk the 3D world to find dealer stations.</span>
+        </li>
+        <li>
+          <strong class="welcome-step-num">03</strong>
+          <span class="welcome-step-copy">Walk up to a dealer, press <strong>E</strong> to open a game, set your wager.</span>
+        </li>
+        <li>
+          <strong class="welcome-step-num">04</strong>
+          <span class="welcome-step-copy">Win settles on-chain instantly — tokens land in your wallet.</span>
+        </li>
+      </ol>
+    </div>
 
-    <section class="card welcome-journey-card">
-      <h3 class="card__title">Ready to play?</h3>
-      <p class="text-muted">Sign in above, then hit Enter Arena. The tutorial walks you through your first game.</p>
-      <div class="welcome-journey-actions">
-        <a class="btn btn--primary" href="/play?world=mega">Enter Arena</a>
-        <a class="btn btn--secondary" href="/dashboard">Dashboard</a>
+    <!-- Right: auth -->
+    <div class="wlc-split__auth">
+      <div id="welcome-session-cta" class="wlc-auth-mount"></div>
+      <p id="welcome-auth-error" class="wlc-auth-error" role="alert" aria-live="polite"></p>
+    </div>
+
+  </section>
+
+  <section class="welcome-admin-area">
+    <button id="admin-toggle" class="welcome-admin-toggle" type="button">Admin access</button>
+    <div id="admin-panel" class="welcome-admin-panel" hidden>
+      <p class="text-muted">Local scaffold login only. Production uses Google + <code>ADMIN_EMAILS</code> allowlist.</p>
+      <div class="welcome-admin-form">
+        <input class="form-input" id="admin-username" type="text" value="admin" placeholder="admin">
+        <input class="form-input" id="admin-password" type="password" value="" placeholder="password">
+        <button class="btn btn--secondary" id="admin-login-btn" type="button">Admin Login</button>
       </div>
-    </section>
+      <p class="text-muted" id="admin-login-status"></p>
+    </div>
+  </section>
 
-    <section class="welcome-admin-area">
-      <button id="admin-toggle" class="welcome-admin-toggle" type="button">Admin access</button>
-      <div id="admin-panel" class="welcome-admin-panel" hidden>
-        <p class="text-muted">Local scaffold login only. Production should use Google + `ADMIN_EMAILS` allowlist.</p>
-        <div class="welcome-admin-form">
-          <input class="form-input" id="admin-username" type="text" value="admin" placeholder="admin">
-          <input class="form-input" id="admin-password" type="password" value="" placeholder="password">
-          <button class="btn btn--secondary" id="admin-login-btn" type="button">Admin Login</button>
-        </div>
-        <p class="text-muted" id="admin-login-status"></p>
-      </div>
-    </section>
-  </main>
+</main>
 
-  <script type="module" src="/js/welcome.js"></script>
+<script type="module" src="/js/welcome.js"></script>
 </body>
 </html>
