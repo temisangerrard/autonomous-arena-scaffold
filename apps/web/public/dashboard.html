@@ -721,47 +721,66 @@
 
     /* ── Wallet ──────────────────────────────── */
     .wallet-hero {
-      background: linear-gradient(145deg, #1a1510 0%, #1f1b14 100%);
-      border-color: rgba(198, 152, 49, 0.22);
+      background: var(--dash-panel-soft);
+      border-color: rgba(201, 162, 39, 0.22);
     }
 
-    .wallet-hero h2 { color: #e8d9bc; }
-    .wallet-hero .label { color: #9b8a70; }
+    .wallet-hero h2 { color: var(--dash-ink); }
+    .wallet-hero .label { color: var(--dash-muted); }
 
     .wallet-hero .field {
-      background: rgba(0, 0, 0, 0.3);
-      border-color: rgba(198, 152, 49, 0.22);
-      color: #e0d2b6;
+      background: #ffffff;
+      border-color: #c1c7d3;
+      color: var(--dash-ink);
     }
 
     .wallet-hero .field:focus {
-      border-color: rgba(198, 152, 49, 0.5);
+      border-color: #005da7;
+      box-shadow: 0 0 0 2px rgba(0, 93, 167, 0.1);
+    }
+
+    /* Gold balance block — the one place we keep the arena gold feel */
+    .balance-block {
+      background: linear-gradient(135deg, rgba(201,162,39,0.07) 0%, rgba(201,162,39,0.03) 100%);
+      border: 1px solid rgba(201,162,39,0.2);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
     }
 
     .wallet-tabs {
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
-      margin: 0 0 12px;
+      margin: 0 0 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.16);
     }
 
     .wallet-tab {
       border-radius: 999px;
-      border: 1px solid rgba(198, 152, 49, 0.28);
-      color: #b0a08c;
-      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(201, 162, 39, 0.28);
+      color: var(--dash-muted);
+      background: transparent;
       padding: 6px 14px;
       min-height: 36px;
-      font: 400 13px/1 var(--dash-serif);
+      font: 500 13px/1 var(--dash-serif);
       cursor: pointer;
-      transition: background 0.14s;
+      transition: background 0.14s, color 0.14s, border-color 0.14s;
+    }
+
+    .wallet-tab:hover {
+      border-color: rgba(201, 162, 39, 0.5);
+      color: var(--dash-ink);
+      background: rgba(201, 162, 39, 0.05);
     }
 
     .wallet-tab.active {
-      background: rgba(198, 152, 49, 0.88);
-      color: #1a1208;
+      background: var(--dash-gold);
+      color: #fff;
       border-color: transparent;
-      font-weight: 600;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(201, 162, 39, 0.25);
     }
 
     .wallet-pane { display: none; }
@@ -771,18 +790,18 @@
       font: 400 10px/1 var(--dash-mono);
       letter-spacing: 0.07em;
       text-transform: uppercase;
-      color: #b0a08c;
+      color: var(--dash-muted);
       margin-bottom: 6px;
     }
 
     .balance-value {
-      color: #f0e6d0;
-      font: 500 36px/1 var(--dash-mono);
+      color: var(--dash-gold);
+      font: 700 36px/1 var(--dash-mono);
       margin: 0;
     }
 
     .balance-stat__meta {
-      color: #9b8a70;
+      color: var(--dash-muted);
       margin-top: 6px;
       font: 400 12px/1 var(--dash-mono);
     }
@@ -791,8 +810,9 @@
       margin-top: 10px;
       width: 100%;
       max-width: 320px;
-      height: 1px;
-      background: linear-gradient(90deg, rgba(198, 152, 49, 0.7) 0%, transparent 100%);
+      height: 2px;
+      background: linear-gradient(90deg, rgba(201, 162, 39, 0.6) 0%, transparent 100%);
+      border-radius: 2px;
     }
 
     .wallet-hero__head {
@@ -804,7 +824,7 @@
 
     .wallet-ids {
       padding-top: 12px;
-      border-top: 1px solid rgba(198, 152, 49, 0.18);
+      border-top: 1px solid rgba(201, 162, 39, 0.18);
     }
 
     .wallet-id-row {
@@ -821,18 +841,18 @@
       gap: 12px;
       margin: 12px 0;
       padding: 12px;
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(0, 93, 167, 0.03);
       border-radius: 8px;
-      border: 1px solid rgba(198, 152, 49, 0.14);
+      border: 1px solid var(--dash-card-edge);
     }
 
     .wallet-action-group { display: grid; gap: 6px; }
 
     .wallet-code {
       border-radius: 8px;
-      border: 1px solid rgba(198, 152, 49, 0.18);
-      background: rgba(12, 10, 8, 0.5);
-      color: #ded3bc;
+      border: 1px solid #c1c7d3;
+      background: #f9f9f7;
+      color: var(--dash-ink);
       padding: 9px 11px;
       min-height: 40px;
       display: flex;
@@ -841,7 +861,7 @@
     }
 
     .wallet-transfer-hint {
-      color: #9b8a70;
+      color: var(--dash-muted);
       font: italic 400 12px/1.4 var(--dash-serif);
       margin-top: 6px;
     }
@@ -857,12 +877,12 @@
       margin-top: 6px;
     }
 
-    .gas-indicator__label { color: #9b8a70; font: 400 11px/1 var(--dash-mono); }
-    .gas-indicator__value { color: #c8baa0; font: 400 11px/1 var(--dash-mono); }
+    .gas-indicator__label { color: var(--dash-muted); font: 400 11px/1 var(--dash-mono); }
+    .gas-indicator__value { color: var(--dash-ink); font: 400 11px/1 var(--dash-mono); }
 
     /* ── Transaction History ─────────────────── */
     .tx-history {
-      max-height: 320px;
+      max-height: 360px;
       overflow: auto;
     }
     .activity-filters {
@@ -872,18 +892,24 @@
       margin: 10px 0 8px;
     }
     .activity-filter {
-      border: 1px solid rgba(198, 152, 49, 0.28);
-      background: rgba(12, 10, 8, 0.45);
+      border: 1px solid var(--dash-card-edge);
+      background: transparent;
       color: var(--dash-muted);
       border-radius: 999px;
       padding: 5px 10px;
       font: 500 11px/1 var(--dash-mono);
       cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .activity-filter:hover {
+      border-color: rgba(201, 162, 39, 0.4);
+      color: var(--dash-ink);
     }
     .activity-filter.active {
-      border-color: rgba(198, 152, 49, 0.65);
+      border-color: rgba(201, 162, 39, 0.5);
       color: var(--dash-ink);
-      background: rgba(198, 152, 49, 0.15);
+      background: rgba(201, 162, 39, 0.1);
+      font-weight: 600;
     }
 
     .tx-item {
@@ -891,11 +917,21 @@
       grid-template-columns: auto 1fr auto;
       gap: 12px;
       align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid rgba(198, 152, 49, 0.14);
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--dash-card-edge);
+      border-radius: 8px;
+      transition: background 0.12s;
     }
 
+    .tx-item:hover { background: rgba(0, 93, 167, 0.03); }
     .tx-item:last-child { border-bottom: none; }
+
+    /* Subtle left-border tint for game outcomes */
+    .tx-item--win  { border-left: 3px solid rgba(47, 143, 94, 0.45); padding-left: 10px; }
+    .tx-item--loss { border-left: 3px solid rgba(186, 26, 26, 0.38); padding-left: 10px; }
+    .tx-item--push { border-left: 3px solid rgba(113, 119, 131, 0.35); padding-left: 10px; }
+    .tx-item--locked { border-left: 3px solid rgba(201, 162, 39, 0.4); padding-left: 10px; }
+    .tx-item--refund { border-left: 3px solid rgba(59, 130, 246, 0.38); padding-left: 10px; }
 
     .tx-icon {
       width: 34px;
@@ -905,29 +941,72 @@
       align-items: center;
       justify-content: center;
       font-size: 14px;
+      flex-shrink: 0;
     }
 
-    .tx-icon.in        { background: rgba(47, 143, 94, 0.12); }
-    .tx-icon.out       { background: rgba(180, 77, 60, 0.12); }
-    .tx-icon.challenge { background: rgba(168, 85, 247, 0.1); }
-    .tx-icon.refund    { background: rgba(59, 130, 246, 0.1); }
+    .tx-icon.in        { background: rgba(47, 143, 94, 0.12); color: var(--dash-good); }
+    .tx-icon.out       { background: rgba(186, 26, 26, 0.1); color: var(--dash-bad); }
+    .tx-icon.neutral   { background: rgba(113, 119, 131, 0.1); color: var(--dash-muted); }
+    .tx-icon.challenge { background: rgba(0, 93, 167, 0.1); color: #005da7; }
+    .tx-icon.refund    { background: rgba(59, 130, 246, 0.1); color: #1d4ed8; }
 
     .tx-details { min-width: 0; }
 
     .tx-type {
-      font: 600 13px/1.2 var(--dash-serif);
+      font: 600 13px/1.3 var(--dash-serif);
+      color: var(--dash-ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tx-type__game {
+      font: 700 12px/1 var(--dash-mono);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
       color: var(--dash-ink);
     }
 
+    /* ── Outcome Badges ──────────────────────── */
+    .outcome-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font: 700 10px/1.4 var(--dash-mono);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .outcome-badge--win    { background: rgba(47,143,94,0.12);   color: #2f8f5e;  border: 1px solid rgba(47,143,94,0.3); }
+    .outcome-badge--loss   { background: rgba(186,26,26,0.1);    color: #ba1a1a;  border: 1px solid rgba(186,26,26,0.28); }
+    .outcome-badge--push   { background: rgba(113,119,131,0.1);  color: #4f5560;  border: 1px solid rgba(113,119,131,0.25); }
+    .outcome-badge--locked { background: rgba(201,162,39,0.1);   color: #8a6010;  border: 1px solid rgba(201,162,39,0.3); }
+    .outcome-badge--refund { background: rgba(59,130,246,0.1);   color: #1d4ed8;  border: 1px solid rgba(59,130,246,0.25); }
+    .outcome-badge--failed { background: rgba(186,26,26,0.1);    color: #ba1a1a;  border: 1px solid rgba(186,26,26,0.28); }
+
     .tx-time {
-      font: 400 11px/1.2 var(--dash-mono);
+      font: 400 11px/1.3 var(--dash-mono);
       color: var(--dash-muted);
-      margin-top: 2px;
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .tx-amount {
-      font: 500 13px/1 var(--dash-mono);
+      font: 600 13px/1 var(--dash-mono);
       text-align: right;
+      white-space: nowrap;
+    }
+
+    .tx-amount__sub {
+      display: block;
+      font: 400 10px/1.4 var(--dash-mono);
+      color: var(--dash-muted);
+      margin-top: 3px;
     }
 
     .tx-amount.positive { color: var(--dash-good); }
@@ -1306,8 +1385,9 @@
       .wallet-tab { border-radius: 8px; min-height: 40px; }
       .wallet-id-row { grid-template-columns: 1fr; }
       .wallet-id-row button { width: 100%; }
-      .tx-item { grid-template-columns: 1fr; gap: 6px; }
-      .tx-amount { text-align: left; }
+      .tx-item { grid-template-columns: auto 1fr; gap: 8px; }
+      .tx-item .tx-amount { grid-column: 2; text-align: left; }
+      .tx-item--win, .tx-item--loss, .tx-item--push, .tx-item--locked, .tx-item--refund { padding-left: 8px; }
     }
   </style>
 </head>
@@ -1328,7 +1408,7 @@
       </div>
 
       <div class="sidebar-balance">
-        <span class="sidebar-balance__label">Token Balance</span>
+        <span class="sidebar-balance__label">USDC Balance</span>
         <span class="sidebar-balance__value" id="sidebar-wallet">0.00</span>
       </div>
 
@@ -1377,24 +1457,22 @@
             <article class="panel wallet-hero">
               <h2>Wallet</h2>
               <div class="wallet-tabs" role="tablist" aria-label="Wallet sections">
-                <button class="wallet-tab active" type="button" data-wallet-tab="overview">Overview</button>
-                <button class="wallet-tab" type="button" data-wallet-tab="fund">Fund</button>
+                <button class="wallet-tab active" type="button" data-wallet-tab="overview">Balance</button>
+                <button class="wallet-tab" type="button" data-wallet-tab="fund">Deposit</button>
                 <button class="wallet-tab" type="button" data-wallet-tab="withdraw">Withdraw</button>
-                <button class="wallet-tab" type="button" data-wallet-tab="transfer">Transfer</button>
+                <button class="wallet-tab" type="button" data-wallet-tab="transfer">Send</button>
               </div>
 
               <section class="wallet-pane active" data-wallet-pane="overview">
-                <div class="wallet-hero__head">
-                  <div>
-                    <div class="balance-label">Available Balance</div>
-                    <p class="balance-value"><span id="wallet-balance">0.0000</span></p>
-                    <div class="balance-stat__meta" id="wallet-balance-note">USDC · Base mainnet</div>
-                    <div class="balance-underline"></div>
+                <div class="balance-block">
+                  <div class="balance-label">USDC Balance</div>
+                  <p class="balance-value"><span id="wallet-balance">0.0000</span></p>
+                  <div class="balance-stat__meta" id="wallet-balance-note">USDC · Base mainnet</div>
+                  <div class="balance-underline"></div>
+                  <div class="gas-indicator" id="gas-indicator" style="display:none;margin-top:10px;">
+                    <div class="gas-indicator__label">Gas fee:</div>
+                    <div class="gas-indicator__value"><span id="gas-balance">0.00000</span> ETH</div>
                   </div>
-                </div>
-                <div class="gas-indicator" id="gas-indicator" style="display:none;">
-                  <div class="gas-indicator__label">Gas:</div>
-                  <div class="gas-indicator__value"><span id="gas-balance">0.00000</span> ETH</div>
                 </div>
                 <div class="wallet-ids">
                   <div class="wallet-id-row">
@@ -1406,7 +1484,7 @@
                   </div>
                   <div class="wallet-id-row" style="margin-top:8px;">
                     <div>
-                      <span class="label">Address</span>
+                      <span class="label">On-chain Address</span>
                       <div class="wallet-code mono" id="me-wallet-address" style="margin-top:4px;">—</div>
                     </div>
                     <button id="copy-wallet-address" class="btn-ghost" type="button">Copy</button>
@@ -1417,10 +1495,10 @@
               <section class="wallet-pane" data-wallet-pane="fund">
                 <div class="wallet-actions">
                   <div class="wallet-action-group">
-                    <label class="label" for="wallet-fund-amount">Add Funds (USDC)</label>
+                    <label class="label" for="wallet-fund-amount">Amount (USDC)</label>
                     <div class="input-row-3">
-                      <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10" placeholder="Amount">
-                      <button id="wallet-fund" class="btn-gold" type="button">Fund</button>
+                      <input id="wallet-fund-amount" class="field" type="number" min="1" step="1" value="10" placeholder="e.g. 10">
+                      <button id="wallet-fund" class="btn-gold" type="button">Deposit</button>
                     </div>
                   </div>
                 </div>
@@ -1429,9 +1507,9 @@
               <section class="wallet-pane" data-wallet-pane="withdraw">
                 <div class="wallet-actions">
                   <div class="wallet-action-group">
-                    <label class="label" for="wallet-withdraw-amount">Withdraw (USDC)</label>
+                    <label class="label" for="wallet-withdraw-amount">Amount (USDC)</label>
                     <div class="input-row-3">
-                      <input id="wallet-withdraw-amount" class="field" type="number" min="1" step="1" value="5" placeholder="Amount">
+                      <input id="wallet-withdraw-amount" class="field" type="number" min="1" step="1" value="5" placeholder="e.g. 5">
                       <button id="wallet-withdraw" class="btn-ghost" type="button">Withdraw</button>
                     </div>
                   </div>
@@ -1441,22 +1519,22 @@
               <section class="wallet-pane" data-wallet-pane="transfer">
                 <div class="stack">
                   <div>
-                    <label class="label" for="wallet-transfer-target">Player</label>
+                    <label class="label" for="wallet-transfer-target">Recipient (player)</label>
                     <select id="wallet-transfer-target" class="field">
-                      <option value="">Select a player</option>
+                      <option value="">Choose a player…</option>
                     </select>
                   </div>
                   <div>
-                    <label class="label" for="wallet-transfer-wallet-id">Or Wallet ID</label>
-                    <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="Paste wallet ID">
+                    <label class="label" for="wallet-transfer-wallet-id">Or paste wallet ID</label>
+                    <input id="wallet-transfer-wallet-id" class="field" type="text" placeholder="e.g. wallet_abc123">
                   </div>
                   <div>
                     <label class="label" for="wallet-transfer-amount">Amount (USDC)</label>
                     <div class="input-row-3">
-                      <input id="wallet-transfer-amount" class="field" type="number" min="1" step="1" value="2">
+                      <input id="wallet-transfer-amount" class="field" type="number" min="1" step="1" value="2" placeholder="e.g. 2">
                       <button id="wallet-transfer" class="btn-gold" type="button">Send</button>
                     </div>
-                    <p class="wallet-transfer-hint">Transfer by player selection or wallet ID.</p>
+                    <p class="wallet-transfer-hint">Sends USDC to another player's arena wallet.</p>
                   </div>
                 </div>
               </section>
@@ -1464,12 +1542,12 @@
           </div>
 
           <article id="wallet-escrow-panel" class="panel">
-            <h2>Wallet Activity</h2>
+            <h2>Activity</h2>
             <div class="activity-filters" id="activity-filters">
               <button class="activity-filter active" type="button" data-activity-filter="all" aria-pressed="true">All</button>
-              <button class="activity-filter" type="button" data-activity-filter="onchain" aria-pressed="false">Onchain</button>
-              <button class="activity-filter" type="button" data-activity-filter="escrow" aria-pressed="false">Escrow</button>
-              <button class="activity-filter" type="button" data-activity-filter="markets" aria-pressed="false">Markets</button>
+              <button class="activity-filter" type="button" data-activity-filter="onchain" aria-pressed="false">On-chain</button>
+              <button class="activity-filter" type="button" data-activity-filter="escrow" aria-pressed="false">Games</button>
+              <button class="activity-filter" type="button" data-activity-filter="markets" aria-pressed="false">Predictions</button>
             </div>
             <div id="escrow-history" class="tx-history muted">Loading...</div>
           </article>
