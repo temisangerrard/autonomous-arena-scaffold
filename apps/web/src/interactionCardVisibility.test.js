@@ -127,6 +127,11 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Start Round')).toBe(true);
   });
 
+  it('includes a player seed when starting a blackjack hand', () => {
+    const source = readSource('blackjack-panel.js');
+    expect(source.includes("sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })")).toBe(true);
+  });
+
   it('excludes house challenges from the interaction card force-close guard', () => {
     const source = readSource('index.js');
     // Must detect house challenges before deciding to force-close the interaction card
@@ -142,5 +147,13 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Game PUSH')).toBe(true);
     expect(source.includes('Refund Failed')).toBe(true);
     expect(source.includes('In Progress')).toBe(true);
+  });
+
+  it('preserves saved autoplay state when opening the bot wizard', () => {
+    const source = readFileSync(resolve(__dirname, '../public/js/dashboard.js'), 'utf8');
+    expect(source.includes('botAutoplayEnabled.checked = Boolean(autoplay?.enabled)')).toBe(true);
+    expect(source.includes('botAutoplayFields.hidden = !autoplay?.enabled')).toBe(true);
+    expect(source.includes('botAutoplayEnabled.checked = true')).toBe(false);
+    expect(source.includes('botAutoplayFields.hidden = false')).toBe(false);
   });
 });

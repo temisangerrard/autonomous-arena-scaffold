@@ -123,7 +123,19 @@
     margin: 0 auto;
     padding: 4rem 3rem 6rem;
 }
-@media (max-width: 768px) { .land-main { padding: 2rem 1.5rem 4rem; } }
+@media (max-width: 768px) {
+    .land-main { padding: 2rem 1rem 3rem; }
+    .land-hero { margin-bottom: 4rem; gap: 2rem; }
+    .land-float-card, .land-live-badge { display: none; }
+    .land-float-tag { font-size: 8px; padding: 2px 5px; }
+    .land-hero__frame { aspect-ratio: 4/3; }
+    .land-bento { gap: 1rem; }
+    .land-missions-section { padding: 1.5rem; }
+    .land-missions-grid { gap: 2rem; }
+    .land-missions__title { font-size: 2rem; }
+    .land-arena-section { min-height: auto; padding: 1.5rem; }
+    .land-stats-chip { align-self: auto; }
+}
 
 /* ── Hero ── */
 .land-hero {
