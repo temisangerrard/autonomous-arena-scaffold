@@ -322,11 +322,13 @@ function applyPlayerShellSnapshot(bootstrap) {
 }
 
 function statusClassForBot(bot) {
-  return deriveDashboardBotState(bot).statusClass;
+  const readiness = botReadinessCache.get(bot?.id);
+  return deriveDashboardBotState(readiness ? { ...bot, readiness } : bot).statusClass;
 }
 
 function statusTextForBot(bot) {
-  return deriveDashboardBotState(bot).statusText;
+  const readiness = botReadinessCache.get(bot?.id);
+  return deriveDashboardBotState(readiness ? { ...bot, readiness } : bot).statusText;
 }
 
 function renderBotCards() {
@@ -929,7 +931,8 @@ function openBotModal(botId) {
     botModalTitle.textContent = `Configure ${bot.meta?.displayName || bot.id}`;
   }
   if (botModalSub) {
-    botModalSub.textContent = formatDashboardBotSubtitle(bot);
+    const readiness = botReadinessCache.get(bot.id);
+    botModalSub.textContent = formatDashboardBotSubtitle(readiness ? { ...bot, readiness } : bot);
   }
   // Populate fields from bot state
   setWizardPersonality(bot.behavior.personality || 'social');

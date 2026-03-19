@@ -287,8 +287,50 @@
 
 .player-drawer__activity-item,
 .player-drawer__activity-empty {
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(12, 14, 21, 0.45);
+}
+
+.player-drawer__activity-item--positive {
+  border-color: rgba(90, 190, 124, 0.28);
+}
+
+.player-drawer__activity-item--negative {
+  border-color: rgba(210, 108, 90, 0.28);
+}
+
+.player-drawer__activity-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.player-drawer__activity-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.player-drawer__activity-badge {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.18rem 0.48rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(244, 244, 242, 0.72);
+  font: 600 0.68rem/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.player-drawer__activity-amount {
+  font: 700 0.84rem/1 var(--font-mono);
+  color: var(--gold-light);
 }
 
 .player-drawer__activity-title {

@@ -2,9 +2,22 @@ export function isAutoplayEnabled(bot) {
   return Boolean(bot?.behavior?.autoplay?.enabled);
 }
 
+function readinessStatusForBot(bot) {
+  return String(bot?.readiness?.status || bot?.readinessStatus || '').trim().toLowerCase();
+}
+
 export function deriveDashboardBotState(bot) {
   const controlMode = String(bot?.controlMode || bot?.meta?.controlState || '').trim().toLowerCase();
   const autoplayEnabled = isAutoplayEnabled(bot);
+  const readinessStatus = readinessStatusForBot(bot);
+
+  if (readinessStatus === 'insufficient_usdc') {
+    return {
+      statusClass: 'disconnected',
+      statusText: 'Low Funds',
+      autoplayText: autoplayEnabled ? 'Needs top up' : 'Autoplay off'
+    };
+  }
 
   if (controlMode === 'human_active') {
     return {

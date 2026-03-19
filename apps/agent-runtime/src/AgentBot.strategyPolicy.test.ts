@@ -68,7 +68,8 @@ describe('AgentBot strategy policy acceptance', () => {
     expect(send).toHaveBeenCalledTimes(1);
     const firstCall = send.mock.calls[0];
     expect(firstCall).toBeDefined();
-    expect(JSON.parse(firstCall![0])).toMatchObject({
+    const [message] = firstCall!;
+    expect(JSON.parse(String(message))).toMatchObject({
       type: 'challenge_response',
       challengeId: 'challenge-1',
       accept: false

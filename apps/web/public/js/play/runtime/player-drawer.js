@@ -163,6 +163,9 @@ function summarizeActivity(entry) {
   const kind = String(entry?.kind || entry?.activityType || '');
   if (kind === 'match') {
     return {
+      tone: 'neutral',
+      badges: ['match'],
+      amountLabel: '',
       title: String(entry?.title || 'Match'),
       detail: String(entry?.detail || 'Arena match')
     };
@@ -171,27 +174,54 @@ function summarizeActivity(entry) {
     const outcome = String(entry?.outcome || entry?.phase || 'update').replaceAll('_', ' ');
     const wager = Number(entry?.wager ?? 0);
     const payout = Number(entry?.payout ?? 0);
+    const gameType = String(entry?.gameType || 'game').replaceAll('_', ' ');
+    const phase = String(entry?.phase || '').toLowerCase();
+    const badges = [gameType];
+    let tone = 'neutral';
+    if (phase === 'resolve' && payout > 0) {
+      tone = 'positive';
+      badges.push('win');
+    } else if (phase === 'resolve' && payout === 0) {
+      tone = 'negative';
+      badges.push('loss');
+    } else if (phase === 'refund') {
+      badges.push('refund');
+    } else if (phase === 'lock') {
+      badges.push('locked');
+    }
     return {
-      title: `Game ${outcome}`,
-      detail: wager > 0 ? `Wager ${formatUsd(wager)}${payout > 0 ? ` · Payout ${formatUsd(payout)}` : ''}` : 'Escrow update'
+      tone,
+      badges,
+      amountLabel: payout > 0 ? formatUsd(payout) : wager > 0 ? formatUsd(wager) : '',
+      title: `${gameType.charAt(0).toUpperCase()}${gameType.slice(1)} ${outcome}`,
+      detail: wager > 0 ? `Wager ${formatUsd(wager)}${payout > 0 ? ` · Return ${formatUsd(payout)}` : ''}` : 'Escrow update'
     };
   }
   if (kind === 'market_position') {
     const question = String(entry?.marketQuestion || 'Market');
+    const status = String(entry?.status || 'open').replaceAll('_', ' ');
     return {
+      tone: status === 'won' ? 'positive' : status === 'lost' ? 'negative' : 'neutral',
+      badges: ['market', status],
+      amountLabel: Number.isFinite(Number(entry?.payout)) ? formatUsd(entry?.payout) : '',
       title: question,
-      detail: `Position ${String(entry?.status || 'open').replaceAll('_', ' ')}`
+      detail: `Position ${status}`
     };
   }
   const direction = String(entry?.direction || 'transfer').replaceAll('_', ' ');
   const amount = entry?.amount != null ? `${entry.amount} ${entry?.tokenSymbol || 'TOKEN'}` : 'Transfer';
   return {
+    tone: direction === 'in' ? 'positive' : direction === 'out' ? 'negative' : 'neutral',
+    badges: [direction],
+    amountLabel: entry?.amount != null ? String(amount) : '',
     title: direction.charAt(0).toUpperCase() + direction.slice(1),
     detail: amount
   };
 }
 
-function describeControlMode(bot) {
+function describeControlMode(bot, readiness) {
+  const status = String(readiness?.status || '').trim().toLowerCase();
+  if (status === 'insufficient_usdc') return 'Low Funds';
   const mode = String(bot?.controlMode || '').trim().toLowerCase();
   if (mode === 'human_active') return 'Human controlling';
   if (mode === 'bot_active') return 'Bot roaming';
@@ -274,12 +304,16 @@ export function seedDrawerDataFromRuntime({ state, dom } = {}) {
 function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, activityPreview }) {
   const walletView = deriveWalletSummaryView({ summary: walletSummary, player, readiness, funding });
   const autoplay = normalizeAutoplay(bot);
-  const controlModeLabel = describeControlMode(bot);
+  const controlModeLabel = describeControlMode(bot, readiness);
   const actorClassLabel = describeActorClass(bot);
   const activityItems = limitDrawerActivity(activityPreview).map((entry) => {
     const summaryBits = summarizeActivity(entry);
     return `
-      <li class="player-drawer__activity-item">
+      <li class="player-drawer__activity-item player-drawer__activity-item--${escapeHtml(summaryBits.tone || 'neutral')}">
+        <div class="player-drawer__activity-topline">
+          <div class="player-drawer__activity-badges">${(summaryBits.badges || []).map((badge) => `<span class="player-drawer__activity-badge">${escapeHtml(badge)}</span>`).join('')}</div>
+          ${summaryBits.amountLabel ? `<div class="player-drawer__activity-amount">${escapeHtml(summaryBits.amountLabel)}</div>` : ''}
+        </div>
         <div class="player-drawer__activity-title">${escapeHtml(summaryBits.title)}</div>
         <div class="player-drawer__activity-detail">${escapeHtml(summaryBits.detail)}</div>
         <div class="player-drawer__activity-time">${escapeHtml(formatRelativeTime(entry?.at))}</div>
