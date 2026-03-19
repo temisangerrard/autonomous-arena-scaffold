@@ -316,6 +316,7 @@ export function renderInteractionCardTemplate(params) {
           ? '<div class="station-ui__meta">Super Agent active — wager approvals handled automatically.</div>'
           : (selectedWager > 0 ? `<div class="station-ui__meta">${approvalHint}</div>` : '');
 
+        const isTouch = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
         const gameIcons = { rps: '✊', coinflip: '🪙', dice_duel: '🎲' };
         const gameLabels = { rps: 'RPS', coinflip: 'Coin Flip', dice_duel: 'Dice Duel' };
 
@@ -331,8 +332,8 @@ export function renderInteractionCardTemplate(params) {
               — wager <strong>${formatWagerInline(incoming.wager)}</strong> each
             </div>
             <div class="challenge-incoming__actions">
-              <button id="player-challenge-accept" class="btn-accept" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Accept (Y)</button>
-              <button id="player-challenge-decline" class="btn-decline" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Decline (N)</button>
+              <button id="player-challenge-accept" class="btn-accept" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>${isTouch ? 'Accept' : 'Accept (Y)'}</button>
+              <button id="player-challenge-decline" class="btn-decline" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>${isTouch ? 'Decline' : 'Decline (N)'}</button>
             </div>
           </div>
           ` : ''}
@@ -364,7 +365,7 @@ export function renderInteractionCardTemplate(params) {
 
           <div class="challenge-status ${approvalHint.includes('ready') || selectedWager <= 0 ? 'challenge-status--ok' : (showApprove && !approvalReady ? 'challenge-status--warn' : '')}">${recentMsg || statusLine}</div>
 
-          <button id="player-challenge-send" class="btn-lock-in" type="button" ${canSend ? '' : 'disabled'}>Lock In Challenge (C)</button>
+          <button id="player-challenge-send" class="btn-lock-in" type="button" ${canSend ? '' : 'disabled'}>${isTouch ? 'Lock In Challenge' : 'Lock In Challenge (C)'}</button>
           `}
         `;
 
@@ -375,9 +376,10 @@ export function renderInteractionCardTemplate(params) {
         const acceptBtn = document.getElementById('player-challenge-accept');
         const declineBtn = document.getElementById('player-challenge-decline');
 
+        const lockInLabel = isTouch ? 'Lock In Challenge' : 'Lock In Challenge (C)';
         if (outgoingPending || state.challengeStatus === 'active') {
           clearTimer('challenge:send');
-          clearPendingBtn(sendBtn, 'Lock In Challenge (C)');
+          clearPendingBtn(sendBtn, lockInLabel);
         }
         if (!state.respondingIncoming) {
           clearTimer('challenge:respond');
