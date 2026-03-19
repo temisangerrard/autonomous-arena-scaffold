@@ -1,10 +1,18 @@
 import { copyFile, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-export const canonicalWorldAssetBaseUrl = 'https://arena-world-assets.netlify.app';
+export const canonicalWorldAssetBaseUrl = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 export const defaultWorldAssetSourcePath = path.resolve(process.cwd(), 'train_station_mega_world.glb');
+export const defaultWorldBundlesByAlias = {
+  mega: {
+    shell: { alias: 'mega-shell', sourcePath: path.resolve(process.cwd(), 'train_station_world.glb'), kind: 'shell', version: '2026-02-17.2' },
+    zones: [{ alias: 'mega-world', sourcePath: defaultWorldAssetSourcePath, kind: 'world', version: '2026-02-17.2', replaceWorldRoot: true }],
+    decor: []
+  }
+};
 
 export function resolveWorldAssetDeployTarget(env = process.env) {
   const siteId = String(env.NETLIFY_WORLD_ASSETS_SITE_ID || '').trim();
@@ -18,12 +26,59 @@ export function resolveWorldAssetDeployTarget(env = process.env) {
 
 export async function stageWorldAssetPublishDir({
   sourcePath = defaultWorldAssetSourcePath,
+  bundlesByAlias = defaultWorldBundlesByAlias,
   stagingDir
 } = {}) {
   const root = stagingDir || await mkdtemp(path.join(os.tmpdir(), 'arena-world-assets-'));
   const worldDir = path.join(root, 'assets', 'world');
+  const effectiveBundlesByAlias = Object.fromEntries(
+    Object.entries(bundlesByAlias || {}).map(([alias, plan]) => [
+      alias,
+      {
+        shell: plan?.shell
+          ? {
+              ...plan.shell,
+              sourcePath: plan.shell.sourcePath === defaultWorldAssetSourcePath ? sourcePath : plan.shell.sourcePath
+            }
+          : null,
+        zones: Array.isArray(plan?.zones)
+          ? plan.zones.map((bundle) => ({
+              ...bundle,
+              sourcePath: bundle.sourcePath === defaultWorldAssetSourcePath ? sourcePath : bundle.sourcePath
+            }))
+          : [],
+        decor: Array.isArray(plan?.decor)
+          ? plan.decor.map((bundle) => ({
+              ...bundle,
+              sourcePath: bundle.sourcePath === defaultWorldAssetSourcePath ? sourcePath : bundle.sourcePath
+            }))
+          : []
+      }
+    ])
+  );
   await mkdir(worldDir, { recursive: true });
   await copyFile(sourcePath, path.join(worldDir, 'mega.glb'));
+  const stagedBundleAliases = new Set();
+  for (const plan of Object.values(effectiveBundlesByAlias || {})) {
+    const bundles = [plan?.shell, ...(plan?.zones || []), ...(plan?.decor || [])].filter(Boolean);
+    for (const bundle of bundles) {
+      const alias = String(bundle.alias || '').trim();
+      const rawBundleSourcePath = bundle.sourcePath == null
+        ? String(sourcePath)
+        : String(bundle.sourcePath);
+      let bundleSourcePath = path.isAbsolute(rawBundleSourcePath)
+        ? rawBundleSourcePath
+        : path.resolve(process.cwd(), rawBundleSourcePath);
+      if (!existsSync(bundleSourcePath) && existsSync(sourcePath)) {
+        bundleSourcePath = sourcePath;
+      }
+      if (!alias || stagedBundleAliases.has(alias)) {
+        continue;
+      }
+      await copyFile(bundleSourcePath, path.join(worldDir, `${alias}.glb`));
+      stagedBundleAliases.add(alias);
+    }
+  }
   // CORS headers so browsers can fetch the GLB directly from this origin
   // (used when worldAssetBaseUrl is set to the absolute canonical host).
   await writeFile(

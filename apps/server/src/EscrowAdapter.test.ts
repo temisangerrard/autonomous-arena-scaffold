@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as builderCode from './lib/builderCode.js';
 import { EscrowAdapter } from './EscrowAdapter.js';
 
 describe('EscrowAdapter preflight mapping', () => {
@@ -196,6 +197,7 @@ describe('EscrowAdapter onchain error decoding', () => {
   });
 
   type TestPoolContract = {
+    getAddress?: () => Promise<string>;
     interface: {
       parseError: (data: string) => { name: string } | null;
     };
@@ -302,10 +304,12 @@ describe('EscrowAdapter onchain error decoding', () => {
       interface: {
         parseError: () => ({ name: 'BetAlreadyExists' })
       },
+      getAddress: vi.fn(async () => '0x3333333333333333333333333333333333333333'),
       deposit: vi.fn(async () => {
         throw { data: '0xdeadbeef' };
       })
     };
+    vi.spyOn(builderCode, 'sendContractCallWithBuilderCode').mockRejectedValueOnce({ data: '0xdeadbeef' });
 
     const result = await adapter.lockStake({
       challengeId: 'c_test_a',
@@ -327,10 +331,12 @@ describe('EscrowAdapter onchain error decoding', () => {
       interface: {
         parseError: () => ({ name: 'InvalidAmount' })
       },
+      getAddress: vi.fn(async () => '0x3333333333333333333333333333333333333333'),
       deposit: vi.fn(async () => {
         throw { data: '0xdeadbeef' };
       })
     };
+    vi.spyOn(builderCode, 'sendContractCallWithBuilderCode').mockRejectedValueOnce({ data: '0xdeadbeef' });
 
     const result = await adapter.lockStake({
       challengeId: 'c_test_b',
@@ -353,10 +359,14 @@ describe('EscrowAdapter onchain error decoding', () => {
           throw new Error('unknown custom error');
         }
       },
+      getAddress: vi.fn(async () => '0x3333333333333333333333333333333333333333'),
       deposit: vi.fn(async () => {
         throw { shortMessage: 'execution reverted (unknown custom error)' };
       })
     };
+    vi.spyOn(builderCode, 'sendContractCallWithBuilderCode').mockRejectedValueOnce({
+      shortMessage: 'execution reverted (unknown custom error)'
+    });
 
     const result = await adapter.lockStake({
       challengeId: 'c_test_c',
@@ -368,5 +378,71 @@ describe('EscrowAdapter onchain error decoding', () => {
     expect(result.ok).toBe(false);
     expect(result.raw?.reasonCode).toBe('ONCHAIN_EXECUTION_ERROR');
     expect(String(result.raw?.reasonText || '')).toContain('execution reverted');
+  });
+});
+
+describe('EscrowAdapter builder code attribution', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('routes pool deposits through the builder-code helper', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/wallets/onchain/prepare-escrow')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, results: [] })
+        };
+      }
+      if (url.endsWith('/wallets')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            wallets: [{ id: 'wallet_player', address: '0x1111111111111111111111111111111111111111' }]
+          })
+        };
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ ok: false })
+      };
+    }) as unknown as typeof fetch);
+
+    const adapter = new EscrowAdapter('http://runtime.local', {
+      tokenDecimals: 6,
+      rpcUrl: 'http://localhost:8545',
+      resolverPrivateKey: '0x0123456789012345678901234567890123456789012345678901234567890123',
+      escrowContractAddress: '0x3333333333333333333333333333333333333333'
+    });
+
+    const builderSpy = vi.spyOn(builderCode, 'sendContractCallWithBuilderCode').mockImplementation(
+      async () => ({ hash: '0xabc', wait: async () => ({ hash: '0xabc' }) })
+    );
+
+    (adapter as unknown as { signer: { sendTransaction: ReturnType<typeof vi.fn> }; poolContract: Record<string, unknown> }).signer = {
+      sendTransaction: vi.fn(async () => ({ hash: '0xabc', wait: async () => ({ hash: '0xabc' }) }))
+    };
+    (adapter as unknown as { poolContract: Record<string, unknown> }).poolContract = {
+      interface: {
+        encodeFunctionData: vi.fn(() => '0x1234')
+      },
+      getAddress: vi.fn(async () => '0x3333333333333333333333333333333333333333'),
+      deposit: vi.fn(async () => ({ hash: '0xraw', wait: async () => ({ hash: '0xraw' }) }))
+    };
+
+    const result = await adapter.lockPoolBet({
+      betId: 'builder_pool_1',
+      marketId: 'market_builder_1',
+      side: true,
+      playerWalletId: 'wallet_player',
+      amount: 1
+    });
+
+    expect(result.ok).toBe(true);
+    expect(builderSpy).toHaveBeenCalledTimes(1);
+    expect(((adapter as unknown as { poolContract: { deposit: ReturnType<typeof vi.fn> } }).poolContract.deposit)).not.toHaveBeenCalled();
   });
 });

@@ -12,7 +12,8 @@ import { rewriteEmailIdentityBindings } from './adminWalletRelink.js';
 import { log } from './logger.js';
 import { resolveAuthSubjects } from './authSubjects.js';
 import { findMatchingContinuityLink, preferEmailIdentityOverContinuity } from './identityContinuity.js';
-import { availableWorldAliases, resolveWorldAssetPath, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
+import { buildPlayerShell } from './playerShell.js';
+import { availableWorldAliases, resolveWorldAssetPath, worldBundleForAssetAlias, worldBundlesByAlias, worldFilenameByAlias, worldFilenameForAlias, worldVersionByAlias } from './worldAssets.js';
 import { resolveEscrowApprovalPolicy, signWsAuthToken } from '@arena/shared';
 import { loadEnvFromFile } from './lib/env.js';
 import { clearSessionCookie, readJsonBody, redirect, sendFile, sendFileCached, sendJson, setSessionCookieWithOptions } from './lib/http.js';
@@ -45,7 +46,7 @@ const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
-const defaultWorldAssetBaseUrl = 'https://arena-world-assets.netlify.app';
+const defaultWorldAssetBaseUrl = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 const allowedAuthOrigins = new Set(
   (process.env.ALLOWED_AUTH_ORIGINS?.trim()
     ? process.env.ALLOWED_AUTH_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)
@@ -216,6 +217,11 @@ type RuntimeStatusPayload = {
       duty?: string;
       managedBySuperAgent?: boolean;
       patrolSection?: number | null;
+      actorId?: string;
+      botClass?: 'owner' | 'background' | 'house';
+      controlState?: 'human_active' | 'bot_active' | 'idle_offline';
+      visibilityHint?: string;
+      ownerOnline?: boolean;
     };
   }>;
   wallets?: Array<{
@@ -475,6 +481,212 @@ function candidatePlayerIds(profileId: string): string[] {
     return [normalized, normalized.slice(2)].filter(Boolean);
   }
   return [normalized, `u_${normalized}`];
+}
+
+async function loadPlayerWalletSummary(identity: IdentityRecord) {
+  if (!identity.walletId) return null;
+  try {
+    const runtimeResponse = await fetch(`${runtimeBase}/wallets/${identity.walletId}/summary`, {
+      headers: internalToken ? { 'x-internal-token': internalToken } : undefined
+    });
+    const payload = await runtimeResponse.json().catch(() => null);
+    if (!runtimeResponse.ok) {
+      return null;
+    }
+    return payload && typeof payload === 'object' ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadPlayerRuntimeBotContext(identity: IdentityRecord, profile: PlayerProfile) {
+  const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [], wallets: [] }));
+  const ownerWalletId = profile.wallet?.id ?? profile.walletId;
+  const ownerWalletAddress = profile.wallet?.address
+    ?? (runtimeStatus.wallets ?? []).find((wallet) => wallet?.id === ownerWalletId)?.address
+    ?? '';
+  const bots = (runtimeStatus.bots ?? [])
+    .filter((bot) => bot.meta?.ownerProfileId === identity.profileId)
+    .map((bot) => ({
+      ...bot,
+      walletId: ownerWalletId,
+      walletAddress: ownerWalletAddress || undefined
+    }));
+  return {
+    runtimeStatus,
+    ownerWalletId,
+    ownerWalletAddress,
+    bots,
+    ownerBot: bots[0] ?? null
+  };
+}
+
+async function loadPlayerActivity(identity: IdentityRecord, limit = 30) {
+  if (!identity.profileId || !identity.walletId) {
+    return {
+      ok: false,
+      chainId: null,
+      explorerTxBaseUrl: null,
+      walletAddress: '',
+      activity: []
+    };
+  }
+  type OnchainActivityPayload = {
+    ok?: boolean;
+    chainId?: number | null;
+    address?: string;
+    tokenSymbol?: string;
+    recent?: Array<{
+      kind?: string;
+      direction?: string;
+      txHash?: string;
+      amount?: string;
+      from?: string;
+      to?: string;
+      method?: string | null;
+      methodLabel?: string | null;
+      txFrom?: string | null;
+      txTo?: string | null;
+      nativeValueEth?: string | null;
+      timestampMs?: number | null;
+    }>;
+  };
+  type MarketPositionActivityPayload = {
+    ok?: boolean;
+    recent?: Array<{
+      id?: string;
+      marketId?: string;
+      marketQuestion?: string;
+      side?: 'yes' | 'no';
+      stake?: number;
+      price?: number;
+      shares?: number;
+      status?: 'scheduled' | 'open' | 'won' | 'lost' | 'voided';
+      payout?: number | null;
+      settlementReason?: string | null;
+      clobOrderId?: string | null;
+      marketRoundType?: 'current' | 'next' | null;
+      marketCurrentSpotPrice?: number | null;
+      marketLockPrice?: number | null;
+      marketFinalPrice?: number | null;
+      createdAt?: number;
+      settledAt?: number | null;
+    }>;
+  };
+  const onchainFallback: OnchainActivityPayload = {
+    ok: false,
+    chainId: null,
+    address: '',
+    tokenSymbol: 'TOKEN',
+    recent: []
+  };
+
+  let escrow: { ok?: boolean; recent?: Array<Record<string, unknown>> } = { recent: [] };
+  for (const pid of candidatePlayerIds(identity.profileId)) {
+    escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+      `/escrow/events/recent?playerId=${encodeURIComponent(pid)}&limit=${limit}`
+    ).catch(() => ({ recent: [] }));
+    if (Array.isArray(escrow?.recent) && escrow.recent.length > 0) {
+      break;
+    }
+  }
+  if ((!Array.isArray(escrow?.recent) || escrow.recent.length === 0) && identity.walletId) {
+    escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
+      `/escrow/events/recent?walletId=${encodeURIComponent(identity.walletId)}&limit=${limit}`
+    ).catch(() => escrow);
+  }
+
+  const onchain = await runtimeGet<OnchainActivityPayload>(`/wallets/${encodeURIComponent(identity.walletId)}/activity?limit=${limit}`)
+    .catch(() => onchainFallback);
+  let marketPositions: MarketPositionActivityPayload = { ok: false, recent: [] };
+  for (const pid of candidatePlayerIds(identity.profileId)) {
+    marketPositions = await serverGet<MarketPositionActivityPayload>(
+      `/markets/player/positions?playerId=${encodeURIComponent(pid)}&limit=${limit}`
+    ).catch(() => ({ ok: false, recent: [] }));
+    if (Array.isArray(marketPositions?.recent) && marketPositions.recent.length > 0) {
+      break;
+    }
+  }
+  if ((!Array.isArray(marketPositions?.recent) || marketPositions.recent.length === 0) && identity.walletId) {
+    marketPositions = await serverGet<MarketPositionActivityPayload>(
+      `/markets/player/positions?walletId=${encodeURIComponent(identity.walletId)}&limit=${limit}`
+    ).catch(() => marketPositions);
+  }
+
+  const chainId = Number(onchain?.chainId ?? Number.NaN);
+  const txBase = chainExplorerTxBase(Number.isFinite(chainId) ? chainId : null);
+  const escrowActivity = (Array.isArray(escrow?.recent) ? escrow.recent : []).map((entry) => {
+    const txHash = String(entry?.txHash || '');
+    const at = Number(entry?.at ?? 0);
+    return {
+      ...entry,
+      kind: 'escrow',
+      at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+      txHash: txHash || null,
+      txUrl: txHash && txBase ? `${txBase}${txHash}` : null,
+      phase: String(entry?.phase || ''),
+      outcome: String(entry?.outcome || ''),
+      challengeId: String(entry?.challengeId || ''),
+      activitySource: String(entry?.activitySource || ''),
+      wager: Number(entry?.wager ?? entry?.amount ?? 0),
+      payout: Number(entry?.payout ?? 0),
+      ok: entry?.ok !== false
+    };
+  });
+  const onchainActivity = (Array.isArray(onchain?.recent) ? onchain.recent : []).map((entry) => {
+    const txHash = String(entry?.txHash || '');
+    const at = Number(entry?.timestampMs ?? 0);
+    return {
+      kind: 'onchain_transfer',
+      at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+      txHash: txHash || null,
+      txUrl: txHash && txBase ? `${txBase}${txHash}` : null,
+      direction: String(entry?.direction || 'unknown'),
+      amount: String(entry?.amount || '0'),
+      from: String(entry?.from || ''),
+      to: String(entry?.to || ''),
+      tokenSymbol: String(onchain?.tokenSymbol || 'TOKEN'),
+      method: entry?.method == null ? null : String(entry.method),
+      methodLabel: entry?.methodLabel == null ? null : String(entry.methodLabel),
+      txFrom: entry?.txFrom == null ? null : String(entry.txFrom),
+      txTo: entry?.txTo == null ? null : String(entry.txTo),
+      nativeValueEth: entry?.nativeValueEth == null ? null : String(entry.nativeValueEth)
+    };
+  });
+  const marketActivity = (Array.isArray(marketPositions?.recent) ? marketPositions.recent : []).map((entry) => {
+    const settledAt = Number(entry?.settledAt ?? 0);
+    const createdAt = Number(entry?.createdAt ?? 0);
+    const at = Number.isFinite(settledAt) && settledAt > 0 ? settledAt : createdAt;
+    return {
+      kind: 'market_position',
+      at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+      positionId: String(entry?.id || ''),
+      marketId: String(entry?.marketId || ''),
+      marketQuestion: String(entry?.marketQuestion || entry?.marketId || ''),
+      side: String(entry?.side || ''),
+      stake: Number(entry?.stake ?? 0),
+      price: Number(entry?.price ?? 0),
+      shares: Number(entry?.shares ?? 0),
+      status: String(entry?.status || 'open'),
+      payout: entry?.payout == null ? null : Number(entry.payout),
+      settlementReason: entry?.settlementReason == null ? null : String(entry.settlementReason),
+      clobOrderId: entry?.clobOrderId == null ? null : String(entry.clobOrderId),
+      marketRoundType: entry?.marketRoundType == null ? null : String(entry.marketRoundType),
+      marketCurrentSpotPrice: entry?.marketCurrentSpotPrice == null ? null : Number(entry.marketCurrentSpotPrice),
+      marketLockPrice: entry?.marketLockPrice == null ? null : Number(entry.marketLockPrice),
+      marketFinalPrice: entry?.marketFinalPrice == null ? null : Number(entry.marketFinalPrice)
+    };
+  });
+
+  return {
+    ok: true,
+    chainId: Number.isFinite(chainId) ? chainId : null,
+    explorerTxBaseUrl: txBase,
+    walletAddress: String(onchain?.address || ''),
+    activity: [...escrowActivity, ...onchainActivity, ...marketActivity]
+      .sort((a, b) => Number(b?.at ?? 0) - Number(a?.at ?? 0))
+      .slice(0, limit)
+  };
 }
 
 const chiefService = createChiefService({
@@ -1207,7 +1419,8 @@ const server = createServer(async (req, res) => {
       compatibilityAliases: ['train_world', 'train-world', 'base', 'plaza', 'world'],
       aliases: availableWorldAliases(),
       filenameByAlias: worldFilenameByAlias(),
-      versionByAlias: worldVersionByAlias()
+      versionByAlias: worldVersionByAlias(),
+      bundlesByAlias: worldBundlesByAlias()
     });
     return;
   }
@@ -1621,6 +1834,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/logout' && req.method === 'POST') {
+    const identity = await getIdentityFromReq(req).catch(() => null);
+    if (identity?.profileId) {
+      await runtimePost(`/owners/${identity.profileId}/presence`, {
+        state: 'offline'
+      }).catch(() => undefined);
+    }
     const sid = cookieSessionId(req);
     if (sid) {
       const session = await sessionStore.getSession(sid);
@@ -1744,18 +1963,7 @@ const server = createServer(async (req, res) => {
       await sessionStore.addSubForProfile(identity.profileId, identity.sub, IDENTITY_TTL_MS);
     }
 
-    const runtimeStatus = await runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [], wallets: [] }));
-    const ownerWalletId = profile.wallet?.id ?? profile.walletId;
-    const ownerWalletAddress = profile.wallet?.address
-      ?? (runtimeStatus.wallets ?? []).find((wallet) => wallet?.id === ownerWalletId)?.address
-      ?? '';
-    const bots = (runtimeStatus.bots ?? [])
-      .filter((bot) => bot.meta?.ownerProfileId === identity.profileId)
-      .map((bot) => ({
-        ...bot,
-        walletId: ownerWalletId,
-        walletAddress: ownerWalletAddress || undefined
-      }));
+    const { bots } = await loadPlayerRuntimeBotContext(identity, profile);
     const ownerBot = bots[0] ?? null;
 
     sendJson(res, {
@@ -1902,10 +2110,36 @@ const server = createServer(async (req, res) => {
       playParams.set('ws', publicGameWsUrl);
     }
 
+    const { ownerWalletAddress, ownerBot } = await loadPlayerRuntimeBotContext(identity, profile);
+    const walletSummary = await loadPlayerWalletSummary(identity);
+    const activityPayload = await loadPlayerActivity(identity, 5);
+    const ownerBotWallet = ownerBot?.id
+      ? await runtimeGet<Record<string, any>>(`/bots/${encodeURIComponent(ownerBot.id)}/wallet`).catch(() => null)
+      : null;
+    const playerShell = buildPlayerShell({
+      user: sanitizeUser(identity),
+      profile,
+      walletSummary,
+      funding: {
+        walletProvider: walletSummary?.wallet?.walletProvider ?? null,
+        depositAddress: walletSummary?.wallet?.externalWalletAddress
+          ?? ownerWalletAddress
+          ?? walletSummary?.onchain?.address
+          ?? '',
+        chainId: Number.isFinite(Number(walletSummary?.onchain?.chainId)) ? Number(walletSummary.onchain.chainId) : null,
+        tokenSymbol: String(walletSummary?.onchain?.tokenSymbol || 'USDC')
+      },
+      bot: ownerBot,
+      readiness: ownerBotWallet?.readiness || ownerBotWallet || null,
+      activity: Array.isArray(activityPayload?.activity) ? activityPayload.activity : [],
+      loadedAt: Date.now()
+    });
+
     sendJson(res, {
       ok: true,
       user: sanitizeUser(identity),
       profile,
+      playerShell,
       links: {
         welcome: '/welcome',
         dashboard: '/dashboard',
@@ -2024,164 +2258,8 @@ const server = createServer(async (req, res) => {
       return;
     }
     const limit = Math.max(1, Math.min(120, Number(requestUrl.searchParams.get('limit') ?? 30)));
-    type OnchainActivityPayload = {
-      ok?: boolean;
-      chainId?: number | null;
-      address?: string;
-      tokenSymbol?: string;
-      recent?: Array<{
-        kind?: string;
-        direction?: string;
-        txHash?: string;
-        amount?: string;
-        from?: string;
-        to?: string;
-        method?: string | null;
-        methodLabel?: string | null;
-        txFrom?: string | null;
-        txTo?: string | null;
-        nativeValueEth?: string | null;
-        timestampMs?: number | null;
-      }>;
-    };
-    type MarketPositionActivityPayload = {
-      ok?: boolean;
-      recent?: Array<{
-        id?: string;
-        marketId?: string;
-        marketQuestion?: string;
-        side?: 'yes' | 'no';
-        stake?: number;
-        price?: number;
-        shares?: number;
-        status?: 'scheduled' | 'open' | 'won' | 'lost' | 'voided';
-        payout?: number | null;
-        settlementReason?: string | null;
-        clobOrderId?: string | null;
-        marketRoundType?: 'current' | 'next' | null;
-        marketCurrentSpotPrice?: number | null;
-        marketLockPrice?: number | null;
-        marketFinalPrice?: number | null;
-        createdAt?: number;
-        settledAt?: number | null;
-      }>;
-    };
-    const onchainFallback: OnchainActivityPayload = {
-      ok: false,
-      chainId: null,
-      address: '',
-      tokenSymbol: 'TOKEN',
-      recent: []
-    };
     try {
-      let escrow: { ok?: boolean; recent?: Array<Record<string, unknown>> } = { recent: [] };
-      for (const pid of candidatePlayerIds(auth.identity.profileId)) {
-        escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
-          `/escrow/events/recent?playerId=${encodeURIComponent(pid)}&limit=${limit}`
-        ).catch(() => ({ recent: [] }));
-        if (Array.isArray(escrow?.recent) && escrow.recent.length > 0) {
-          break;
-        }
-      }
-      if ((!Array.isArray(escrow?.recent) || escrow.recent.length === 0) && auth.identity.walletId) {
-        escrow = await serverGet<{ ok?: boolean; recent?: Array<Record<string, unknown>> }>(
-          `/escrow/events/recent?walletId=${encodeURIComponent(auth.identity.walletId)}&limit=${limit}`
-        ).catch(() => escrow);
-      }
-      const onchain = await runtimeGet<OnchainActivityPayload>(`/wallets/${encodeURIComponent(auth.identity.walletId)}/activity?limit=${limit}`)
-        .catch(() => onchainFallback);
-      let marketPositions: MarketPositionActivityPayload = { ok: false, recent: [] };
-      for (const pid of candidatePlayerIds(auth.identity.profileId)) {
-        marketPositions = await serverGet<MarketPositionActivityPayload>(
-          `/markets/player/positions?playerId=${encodeURIComponent(pid)}&limit=${limit}`
-        ).catch(() => ({ ok: false, recent: [] }));
-        if (Array.isArray(marketPositions?.recent) && marketPositions.recent.length > 0) {
-          break;
-        }
-      }
-      if ((!Array.isArray(marketPositions?.recent) || marketPositions.recent.length === 0) && auth.identity.walletId) {
-        marketPositions = await serverGet<MarketPositionActivityPayload>(
-          `/markets/player/positions?walletId=${encodeURIComponent(auth.identity.walletId)}&limit=${limit}`
-        ).catch(() => marketPositions);
-      }
-
-      const chainId = Number(onchain?.chainId ?? Number.NaN);
-      const txBase = chainExplorerTxBase(Number.isFinite(chainId) ? chainId : null);
-
-      const escrowActivity = (Array.isArray(escrow?.recent) ? escrow.recent : []).map((entry) => {
-        const txHash = String(entry?.txHash || '');
-        const at = Number(entry?.at ?? 0);
-        return {
-          kind: 'escrow',
-          at: Number.isFinite(at) && at > 0 ? at : Date.now(),
-          txHash: txHash || null,
-          txUrl: txHash && txBase ? `${txBase}${txHash}` : null,
-          phase: String(entry?.phase || ''),
-          outcome: String(entry?.outcome || ''),
-          challengeId: String(entry?.challengeId || ''),
-          activitySource: String(entry?.activitySource || ''),
-          wager: Number(entry?.wager ?? entry?.amount ?? 0),
-          payout: Number(entry?.payout ?? 0),
-          ok: entry?.ok !== false
-        };
-      });
-
-      const onchainActivity = (Array.isArray(onchain?.recent) ? onchain.recent : []).map((entry) => {
-        const txHash = String(entry?.txHash || '');
-        const at = Number(entry?.timestampMs ?? 0);
-        return {
-          kind: 'onchain_transfer',
-          at: Number.isFinite(at) && at > 0 ? at : Date.now(),
-          txHash: txHash || null,
-          txUrl: txHash && txBase ? `${txBase}${txHash}` : null,
-          direction: String(entry?.direction || 'unknown'),
-          amount: String(entry?.amount || '0'),
-          from: String(entry?.from || ''),
-          to: String(entry?.to || ''),
-          tokenSymbol: String(onchain?.tokenSymbol || 'TOKEN'),
-          method: entry?.method == null ? null : String(entry.method),
-          methodLabel: entry?.methodLabel == null ? null : String(entry.methodLabel),
-          txFrom: entry?.txFrom == null ? null : String(entry.txFrom),
-          txTo: entry?.txTo == null ? null : String(entry.txTo),
-          nativeValueEth: entry?.nativeValueEth == null ? null : String(entry.nativeValueEth)
-        };
-      });
-      const marketActivity = (Array.isArray(marketPositions?.recent) ? marketPositions.recent : []).map((entry) => {
-        const settledAt = Number(entry?.settledAt ?? 0);
-        const createdAt = Number(entry?.createdAt ?? 0);
-        const at = Number.isFinite(settledAt) && settledAt > 0 ? settledAt : createdAt;
-        return {
-          kind: 'market_position',
-          at: Number.isFinite(at) && at > 0 ? at : Date.now(),
-          positionId: String(entry?.id || ''),
-          marketId: String(entry?.marketId || ''),
-          marketQuestion: String(entry?.marketQuestion || entry?.marketId || ''),
-          side: String(entry?.side || ''),
-          stake: Number(entry?.stake ?? 0),
-          price: Number(entry?.price ?? 0),
-          shares: Number(entry?.shares ?? 0),
-          status: String(entry?.status || 'open'),
-          payout: entry?.payout == null ? null : Number(entry.payout),
-          settlementReason: entry?.settlementReason == null ? null : String(entry.settlementReason),
-          clobOrderId: entry?.clobOrderId == null ? null : String(entry.clobOrderId),
-          marketRoundType: entry?.marketRoundType == null ? null : String(entry.marketRoundType),
-          marketCurrentSpotPrice: entry?.marketCurrentSpotPrice == null ? null : Number(entry.marketCurrentSpotPrice),
-          marketLockPrice: entry?.marketLockPrice == null ? null : Number(entry.marketLockPrice),
-          marketFinalPrice: entry?.marketFinalPrice == null ? null : Number(entry.marketFinalPrice)
-        };
-      });
-
-      const activity = [...escrowActivity, ...onchainActivity, ...marketActivity]
-        .sort((a, b) => b.at - a.at)
-        .slice(0, limit);
-
-      sendJson(res, {
-        ok: true,
-        chainId: Number.isFinite(chainId) ? chainId : null,
-        explorerTxBaseUrl: txBase,
-        walletAddress: String(onchain?.address || ''),
-        activity
-      });
+      sendJson(res, await loadPlayerActivity(auth.identity, limit));
     } catch {
       sendJson(res, { ok: false, reason: 'activity_unavailable' }, 503);
     }
@@ -2195,19 +2273,12 @@ const server = createServer(async (req, res) => {
       return;
     }
     try {
-      const runtimeResponse = await fetch(`${runtimeBase}/wallets/${auth.identity.walletId}/summary`, {
-        headers: internalToken ? { 'x-internal-token': internalToken } : undefined
-      });
-      const payload = await runtimeResponse.json().catch(() => null);
-      if (!runtimeResponse.ok) {
-        sendJson(
-          res,
-          payload && typeof payload === 'object' ? payload : { ok: false, reason: 'wallet_summary_unavailable' },
-          runtimeResponse.status
-        );
+      const payload = await loadPlayerWalletSummary(auth.identity);
+      if (!payload) {
+        sendJson(res, { ok: false, reason: 'wallet_summary_unavailable' }, 503);
         return;
       }
-      sendJson(res, payload ?? { ok: false, reason: 'wallet_summary_unavailable' });
+      sendJson(res, payload);
     } catch {
       sendJson(res, { ok: false, reason: 'wallet_summary_unavailable' }, 503);
     }
@@ -2553,10 +2624,12 @@ const server = createServer(async (req, res) => {
     const body = await readJsonBody<{ state?: 'online' | 'offline' }>(req);
     const state = body?.state === 'offline' ? 'offline' : 'online';
     try {
-      const payload = await runtimePost(`/owners/${identity.profileId}/presence`, {
-        state,
-        ttlMs: 90_000
-      });
+      const payload = await runtimePost(
+        `/owners/${identity.profileId}/presence`,
+        state === 'offline'
+          ? { state: 'offline', source: 'legacy_browser' }
+          : { state: 'online', ttlMs: 90_000, source: 'legacy_browser' }
+      );
       sendJson(res, { ok: true, state, runtime: payload });
     } catch {
       // Presence should not hard-fail gameplay when runtime heartbeat is degraded.
@@ -2965,6 +3038,7 @@ const server = createServer(async (req, res) => {
     }
     const worldPath = resolveWorldAssetPath(alias);
     if (!worldPath) {
+      const requestedBundle = worldBundleForAssetAlias(alias);
       const canonicalFilename = worldFilenameForAlias(alias) || worldFilenameForAlias('mega') || 'train_station_mega_world.glb';
       const normalizedBase = String(publicWorldAssetBaseUrl || defaultWorldAssetBaseUrl).replace(/\/+$/, '');
       if (!normalizedBase) {
@@ -2982,8 +3056,8 @@ const server = createServer(async (req, res) => {
       }
       const versionByAlias = worldVersionByAlias();
       const normalizedAlias = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
-      const version = String(versionByAlias[normalizedAlias] || versionByAlias.mega || '');
-      let fallbackUrl = `${normalizedBase}/assets/world/mega.glb`;
+      const version = String(requestedBundle?.version || versionByAlias[normalizedAlias] || versionByAlias.mega || '');
+      let fallbackUrl = `${normalizedBase}/assets/world/${encodeURIComponent(normalizedAlias)}.glb`;
       if (version) {
         fallbackUrl += `${fallbackUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}`;
       }

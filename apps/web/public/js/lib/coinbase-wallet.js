@@ -1,5 +1,7 @@
 const CDP_CORE_URL = 'https://esm.sh/@coinbase/cdp-core@0.0.96?bundle';
 const VIEM_URL = 'https://esm.sh/viem@2.47.0?bundle';
+const DEFAULT_BUILDER_CODE = 'bc_uukadkll';
+const DEFAULT_BUILDER_SUFFIX = '0x0b62635f75756b61646b6c6c0080218021802180218021802180218021';
 const ERC20_APPROVE_ABI = [
   {
     type: 'function',
@@ -12,6 +14,43 @@ const ERC20_APPROVE_ABI = [
     outputs: [{ name: '', type: 'bool' }]
   }
 ];
+
+function normalizeHex(input) {
+  const raw = String(input || '').trim().toLowerCase();
+  if (!raw) return '';
+  const prefixed = raw.startsWith('0x') ? raw : `0x${raw}`;
+  if (!/^0x[0-9a-f]*$/i.test(prefixed)) return '';
+  if ((prefixed.length - 2) % 2 !== 0) return '';
+  return prefixed;
+}
+
+function builderCodeHexFromCode(code) {
+  const normalized = String(code || '').trim();
+  if (!normalized) return '';
+  const utf8 = new TextEncoder().encode(normalized);
+  if (utf8.length === 0 || utf8.length > 255) return '';
+  const lengthHex = utf8.length.toString(16).padStart(2, '0');
+  const codeHex = Array.from(utf8, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const trailer = '0080218021802180218021802180218021';
+  return `0x${lengthHex}${codeHex}${trailer}`;
+}
+
+export function resolveBuilderCodeContext(env = {}) {
+  const code = String(env.BUILDER_CODE || DEFAULT_BUILDER_CODE).trim();
+  const explicitSuffix = normalizeHex(String(env.BUILDER_CODE_SUFFIX || ''));
+  const derivedSuffix = builderCodeHexFromCode(code);
+  const suffixHex = explicitSuffix || derivedSuffix || DEFAULT_BUILDER_SUFFIX;
+  return { code, suffixHex, enabled: Boolean(suffixHex) };
+}
+
+export function appendBuilderCodeSuffix(data, suffixHex) {
+  const suffix = normalizeHex(suffixHex);
+  if (!suffix) return String(data || '0x');
+  const base = normalizeHex(String(data || '0x')) || '0x';
+  if (base === '0x') return suffix;
+  if (base.endsWith(suffix.slice(2))) return base;
+  return `${base}${suffix.slice(2)}`;
+}
 
 export function resolveSmartAccountAddress(user, expectedAddress = '') {
   const smartAccounts = Array.isArray(user?.evmSmartAccounts)
@@ -93,13 +132,18 @@ export async function waitForUserOperationReceipt(params) {
 export function createCoinbaseWalletApprovalClient(params = {}) {
   const {
     windowRef = window,
-    getFirebaseIdToken
+    getFirebaseIdToken,
+    loadSdk: providedLoadSdk,
+    loadViem: providedLoadViem
   } = params;
   let sdkPromise = null;
   let viemPromise = null;
   let initializedProjectId = '';
 
   async function loadSdk() {
+    if (providedLoadSdk) {
+      return providedLoadSdk();
+    }
     if (!sdkPromise) {
       sdkPromise = import(CDP_CORE_URL);
     }
@@ -107,6 +151,9 @@ export function createCoinbaseWalletApprovalClient(params = {}) {
   }
 
   async function loadViem() {
+    if (providedLoadViem) {
+      return providedLoadViem();
+    }
     if (!viemPromise) {
       viemPromise = import(VIEM_URL);
     }
@@ -151,10 +198,16 @@ export function createCoinbaseWalletApprovalClient(params = {}) {
       capUsdc: options?.capUsdc,
       encodeFunctionData
     });
+    const builderCodeContext = resolveBuilderCodeContext(windowRef.ARENA_CONFIG || {});
     const response = await sdk.sendUserOperation({
       evmSmartAccount: smartAccount,
       network,
-      calls: [call],
+      calls: [
+        {
+          ...call,
+          data: appendBuilderCodeSuffix(call.data, builderCodeContext.suffixHex)
+        }
+      ],
       useCdpPaymaster: true
     });
     const receipt = await waitForUserOperationReceipt({

@@ -118,12 +118,18 @@ export function validateHumanAuthClaims(
 export function validateAgentAuthClaims(
   claims: Record<string, unknown>,
   requestedAgentId: string | undefined,
+  normalizedClientId: string | undefined,
   walletId: string | undefined
 ): { ok: boolean; reason?: string } {
   const claimAgentId = String(claims.agentId || '').trim();
+  const claimClientId = String(claims.clientId || '').trim();
   
   if (!claimAgentId || (requestedAgentId && requestedAgentId !== claimAgentId)) {
     return { ok: false, reason: 'ws_auth_agent_mismatch' };
+  }
+
+  if (normalizedClientId && normalizedClientId !== claimClientId) {
+    return { ok: false, reason: 'ws_auth_client_mismatch' };
   }
   
   if (claims.walletId && walletId && String(claims.walletId) !== walletId) {

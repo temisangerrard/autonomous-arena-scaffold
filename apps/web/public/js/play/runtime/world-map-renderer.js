@@ -41,20 +41,53 @@ export function renderWorldMapPanel(params) {
   ctx.fillText('E', width - 3, height / 2 - 2);
   ctx.textAlign = 'left';
 
+  // Collect active-match participant ids for pulsing rings.
+  const activeMatchIds = new Set();
+  if (state.activeChallenge && state.activeChallenge.status === 'active') {
+    activeMatchIds.add(state.activeChallenge.challengerId);
+    activeMatchIds.add(state.activeChallenge.opponentId);
+  }
+
   for (const player of state.players.values()) {
     const x = ((player.x + worldBound) / (worldBound * 2)) * width;
     const y = ((player.z + worldBound) / (worldBound * 2)) * height;
 
     const isSelf = player.id === state.playerId;
-    const role = player.role ?? 'human';
+    const actorClass = player.actorClass ?? (player.role === 'agent' ? 'background_bot' : 'human');
+
+    // Pulsing ring around active-match participants.
+    if (activeMatchIds.has(player.id)) {
+      const pulseR = 5.5 + Math.sin(Date.now() * 0.006) * 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, pulseR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(215, 178, 77, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
 
     ctx.beginPath();
     ctx.arc(x, y, isSelf ? 4.8 : 3.2, 0, Math.PI * 2);
-    ctx.fillStyle = isSelf ? '#2f6dff' : role === 'agent' ? '#b4792a' : '#4f8a63';
+    ctx.fillStyle = isSelf
+      ? '#2f6dff'
+      : actorClass === 'owner_bot'
+        ? '#b5915a'
+        : actorClass === 'background_bot'
+          ? '#888888'
+          : '#4f8a63';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
     ctx.lineWidth = 1;
     ctx.stroke();
+  }
+
+  // Win glyph: show ★ at last-win position for 10 seconds.
+  if (state.lastWinPosition && Date.now() - state.lastWinPosition.at < 10000) {
+    const wx = ((state.lastWinPosition.x + worldBound) / (worldBound * 2)) * width;
+    const wy = ((state.lastWinPosition.z + worldBound) / (worldBound * 2)) * height;
+    ctx.font = '10px serif';
+    ctx.fillStyle = 'rgba(215, 178, 77, 0.9)';
+    ctx.textAlign = 'center';
+    ctx.fillText('★', wx, wy - 6);
   }
 
   const STATION_LABELS = {

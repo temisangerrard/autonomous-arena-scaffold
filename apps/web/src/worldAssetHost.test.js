@@ -9,7 +9,7 @@ const arenaConfigPath = path.resolve(__dirname, '../public/js/play/runtime/netwo
 const worldCommonPath = path.resolve(__dirname, '../public/js/world-common.js');
 const netlifyBuildPath = path.resolve(__dirname, '../../../scripts/netlify-build.mjs');
 
-const CANONICAL_WORLD_ASSET_BASE_URL = 'https://arena-world-assets.netlify.app';
+const CANONICAL_WORLD_ASSET_BASE_URL = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 
 describe('world asset host', () => {
   it('uses the canonical Netlify world asset host across server and static runtime config', () => {

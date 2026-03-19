@@ -7,6 +7,8 @@ type PresenceEntry = {
   role: 'human' | 'agent';
   displayName: string;
   walletId: string | null;
+  actorClass?: 'human' | 'owner_bot' | 'background_bot';
+  ownerProfileId?: string | null;
   x: number;
   y: number;
   z: number;
@@ -50,6 +52,8 @@ function parsePresence(hash: Record<string, string>): PresenceEntry | null {
     role: hash.role === 'agent' ? 'agent' : 'human',
     displayName: hash.displayName || hash.playerId,
     walletId: hash.walletId || null,
+    actorClass: hash.actorClass === 'owner_bot' || hash.actorClass === 'background_bot' ? hash.actorClass : 'human',
+    ownerProfileId: hash.ownerProfileId || null,
     x: toNumber(hash.x),
     y: toNumber(hash.y),
     z: toNumber(hash.z),
@@ -103,6 +107,8 @@ export class PresenceStore {
       role: full.role,
       displayName: full.displayName,
       walletId: full.walletId ?? '',
+      actorClass: full.actorClass ?? 'human',
+      ownerProfileId: full.ownerProfileId ?? '',
       x: String(full.x),
       y: String(full.y),
       z: String(full.z),

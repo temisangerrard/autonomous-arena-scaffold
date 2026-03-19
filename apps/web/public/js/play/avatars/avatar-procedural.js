@@ -71,7 +71,71 @@ export function createNameTag(THREE, initialText) {
   return { sprite, setText: draw };
 }
 
-function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
+// Badge colors per actorClass
+const BADGE_COLORS = {
+  owner_bot: { bg: '#b5915a', border: '#e8c080', text: '#fff', label: 'OWNER BOT' },
+  background_bot: { bg: '#555', border: '#888', text: '#ddd', label: 'BOT' },
+  human: { bg: '#3a7a50', border: '#5fc480', text: '#fff', label: 'HUMAN' }
+};
+
+export function createRoleBadge(THREE, actorClass) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 140;
+  canvas.height = 20;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  function draw(cls, streak) {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const scheme = BADGE_COLORS[cls] || BADGE_COLORS.human;
+    const radius = canvas.height / 2;
+    ctx.beginPath();
+    ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, radius);
+    ctx.fillStyle = scheme.bg;
+    ctx.fill();
+    ctx.strokeStyle = scheme.border;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = scheme.text;
+    ctx.font = 'bold 8px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(scheme.label, canvas.width / 2, canvas.height / 2 + 0.5);
+
+    // Streak pips: up to 3, rightmost 3 recent outcomes
+    if (Array.isArray(streak) && streak.length > 0) {
+      const pips = streak.slice(-3);
+      const pipR = 3;
+      const startX = canvas.width - 6 - (pips.length - 1) * (pipR * 2 + 2);
+      for (let i = 0; i < pips.length; i++) {
+        ctx.beginPath();
+        ctx.arc(startX + i * (pipR * 2 + 2), canvas.height / 2, pipR, 0, Math.PI * 2);
+        ctx.fillStyle = pips[i] === 'win' ? '#6fe08a' : pips[i] === 'loss' ? '#e06060' : '#aaa';
+        ctx.fill();
+      }
+    }
+    texture.needsUpdate = true;
+  }
+
+  draw(actorClass, []);
+
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  sprite.scale.set(0.82, 0.12, 1);
+  sprite.position.set(0, 1.62, 0);
+
+  return { sprite, update: draw };
+}
+
+function createAvatar(THREE, colorScheme, initialName, isLocal = false, actorClass = 'human') {
   const colors = colorScheme;
   const avatar = new THREE.Group();
 
@@ -183,6 +247,9 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
   }
 
   const nameTag = isLocal ? null : createNameTag(THREE, initialName);
+  const roleBadge = (!isLocal && actorClass && actorClass !== 'human')
+    ? createRoleBadge(THREE, actorClass)
+    : null;
 
   avatar.add(
     body, head, hair, faceGroup,
@@ -191,6 +258,9 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
   );
   if (nameTag?.sprite) {
     avatar.add(nameTag.sprite);
+  }
+  if (roleBadge?.sprite) {
+    avatar.add(roleBadge.sprite);
   }
   avatar.scale.setScalar(AVATAR_WORLD_SCALE);
 
@@ -207,18 +277,19 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false) {
     rightLeg,
     leftFoot,
     rightFoot,
-    setName: nameTag?.setText || (() => {})
+    setName: nameTag?.setText || (() => {}),
+    updateRoleBadge: roleBadge ? roleBadge.update : () => {}
   };
 }
 
-export function createProceduralAvatar(THREE, role, initialName, isLocal = false) {
+export function createProceduralAvatar(THREE, role, initialName, isLocal = false, actorClass = 'human') {
   const normalizedRole = String(role || '').toLowerCase();
   const colorScheme = isLocal
     ? COLORS.local
     : normalizedRole === 'agent'
       ? COLORS.agent
       : COLORS.human;
-  return createAvatar(THREE, colorScheme, initialName, isLocal);
+  return createAvatar(THREE, colorScheme, initialName, isLocal, actorClass);
 }
 
 export function animateAvatar(parts, speed, t, phaseOffset = 0) {

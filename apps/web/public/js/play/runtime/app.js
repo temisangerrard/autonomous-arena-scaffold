@@ -26,6 +26,7 @@ import { deriveDealerGameType } from './dealer-game-type.js';
 import { computeMobileControlVisibility, isTouchLikeDevice } from './mobile-controls.js';
 import { renderMobileControlsRuntime } from './mobile-controls-renderer.js';
 import { createWalletSyncController } from './wallet-sync.js';
+import { createPlayerDrawerController } from './player-drawer.js';
 import { createEscrowApprovalController } from './escrow-approval.js';
 import { showResultSplash } from './result-splash.js';
 import { installRuntimeTestHooks } from './test-hooks.js';
@@ -35,7 +36,8 @@ import {
   updateLocalAvatarRuntime,
   applyDisplaySeparationRuntime,
   renderMatchSpotlightRuntime,
-  renderTargetSpotlightRuntime
+  renderTargetSpotlightRuntime,
+  updateAmbientMotion
 } from './scene-dynamics.js';
 import {
   asFiniteNumber,
@@ -61,9 +63,14 @@ import { createFrameLoop } from './frame-loop.js';
 import { createStationInteractionsController } from './station-interactions.js';
 import { createApiJsonClient } from './api-client.js';
 import { createRuntimeSpotlights } from './spotlights.js';
+import { createWorldBillboards } from './world-billboards.js';
+import { createAudioController } from './audio.js';
+import { createWorldPoi } from './world-poi.js';
 import { createRuntimeUpdate } from './runtime-update.js';
 import { createLabelFor, isStationId } from './selectors.js';
 import { startRuntimeLifecycle } from './startup-lifecycle.js';
+import { playerShellFromBootstrap } from '../../shared/player-shell.js';
+import { saveStoredPlayerShell } from '../../shared/player-shell-storage.js';
 import { bindInteractionUi } from './interaction-bindings.js';
 import { createArenaConfigRuntime } from './network/arena-config.js';
 import { createQuickPlayPanel, launchQuickPlayStation } from './quick-play.js';
@@ -152,6 +159,10 @@ const {
   worldLoading,
   worldLoadingBar,
   worldLoadingText,
+  playerDrawer,
+  playerDrawerBackdrop,
+  playerDrawerClose,
+  playerDrawerBody,
   mobileControls,
   mobileSend,
   mobileAccept,
@@ -178,7 +189,10 @@ const renderer = makeRenderer(canvas);
 const scene = makeScene();
 const camera = makeCamera();
 installResizeHandler(camera, renderer);
-const { matchSpotlight, targetSpotlight } = createRuntimeSpotlights({ THREE, scene });
+const { matchSpotlight, targetSpotlight, triggerCelebrationBurst, updateBursts } = createRuntimeSpotlights({ THREE, scene });
+const worldBillboards = createWorldBillboards({ THREE, scene });
+const worldPoi = createWorldPoi({ THREE, scene });
+const audioController = createAudioController();
 
 const { localAvatarParts, remoteAvatars, syncRemoteAvatars, updateWorldScale } = createAvatarSystem({ THREE, scene });
 const { syncStations } = createStationSystem({ THREE, scene });
@@ -257,6 +271,39 @@ if (!(state.nearbyStationIds instanceof Set)) {
   state.nearbyStationIds = new Set();
 }
 
+async function warmPlayerShellFromBootstrap() {
+  try {
+    const bootstrap = await apiJson(`/api/player/bootstrap?world=${encodeURIComponent(state.worldAlias || 'mega')}`);
+    const playerShell = playerShellFromBootstrap(bootstrap, state.playerShellData || {});
+    state.playerShellData = playerShell;
+    state.playerShellLoadedAt = Number(playerShell.loadedAt || Date.now());
+    saveStoredPlayerShell(window.localStorage, playerShell);
+    const summary = playerShell.walletSummary;
+    if (summary && typeof summary === 'object') {
+      const bal = Number(summary?.onchain?.tokenBalance);
+      const chainId = Number(summary?.onchain?.chainId);
+      dispatch({
+        type: 'WALLET_SUMMARY_SET',
+        chainId: Number.isFinite(chainId) ? chainId : state.walletChainId,
+        balance: Number.isFinite(bal) ? bal : state.walletBalance,
+        tokenSymbol: summary?.onchain?.tokenSymbol ?? state.walletTokenSymbol ?? null,
+        tokenDecimals: Number.isFinite(Number(summary?.onchain?.tokenDecimals))
+          ? Number(summary.onchain.tokenDecimals)
+          : (state.walletTokenDecimals ?? null),
+        mode: summary?.onchain?.mode ?? state.walletMode ?? null,
+        synced: Boolean(summary?.onchain?.synced),
+        walletProvider: summary?.wallet?.walletProvider ?? state.walletProvider ?? null,
+        walletExternalAddress: summary?.wallet?.externalWalletAddress ?? state.walletExternalAddress ?? null,
+        escrowApprovalCapUsdc: summary?.wallet?.escrowApproval?.capUsdc ?? state.walletEscrowApprovalCapUsdc ?? null,
+        escrowApprovalTokenAddress: summary?.wallet?.escrowApproval?.tokenAddress ?? state.walletEscrowApprovalTokenAddress ?? null,
+        escrowApprovalSpenderAddress: summary?.wallet?.escrowApproval?.spenderAddress ?? state.walletEscrowApprovalSpenderAddress ?? null
+      });
+    }
+  } catch {
+    // Keep play startup resilient if bootstrap is briefly unavailable.
+  }
+}
+
 const stationRouting = createStationRouting({
   state,
   hostStationProxyMap: HOST_STATION_PROXY_MAP
@@ -278,8 +325,6 @@ const worldStations = createWorldStationsController({
   remapLocalStationProxies: (...args) => remapLocalStationProxies(...args),
   mergeStations: (...args) => mergeStations(...args)
 });
-
-initMenu(dom, { queryParams });
 
 const escrowPolicy = createEscrowPolicyController({
   windowRef: window,
@@ -321,6 +366,22 @@ const {
   startWalletSyncScheduler,
   stopWalletSyncScheduler
 } = walletSync;
+void warmPlayerShellFromBootstrap();
+const playerDrawerController = createPlayerDrawerController({
+  apiJson,
+  state,
+  syncWalletSummary,
+  showToast,
+  dom,
+  drawer: playerDrawer,
+  drawerBackdrop: playerDrawerBackdrop,
+  drawerClose: playerDrawerClose,
+  drawerBody: playerDrawerBody
+});
+initMenu(dom, {
+  queryParams,
+  openPlayerDrawer: (nextOpen) => playerDrawerController.setOpen(nextOpen)
+});
 
 let socket = null;
 const socketRef = { current: null };
@@ -384,7 +445,17 @@ async function connectSocket() {
     refreshWalletBalanceAndShowDelta,
     handleChallenge,
     localAvatarParts,
-    challengeReasonLabel: (reason) => challengeReasonLabel(reason)
+    challengeReasonLabel: (reason) => challengeReasonLabel(reason),
+    onMatchResolved: ({ winnerId, wager }) => {
+      const winner = state.players.get(winnerId);
+      if (winner) {
+        const wx = winner.displayX ?? winner.x ?? 0;
+        const wz = winner.displayZ ?? winner.z ?? 0;
+        triggerCelebrationBurst(wx, wz, wager);
+        state.lastWinPosition = { x: wx, z: wz, at: Date.now() };
+      }
+      audioController.trigger('win');
+    }
   });
 }
 
@@ -425,6 +496,23 @@ const sendGameMove = (move) => sendGameMoveRuntime({
   showToast,
   pluginRegistry
 });
+
+// Initialize audio on first user gesture (browser autoplay policy requirement).
+{
+  let audioInitialized = false;
+  function initAudioOnce() {
+    if (audioInitialized) return;
+    audioInitialized = true;
+    audioController.init();
+    // Load ambient loop from public assets (file must be placed there by build/content pipeline).
+    audioController.loadAmbientLoop('/assets/audio/arena-ambient.ogg').catch(() => {});
+    audioController.loadSfx('win', '/assets/audio/sfx-win.ogg').catch(() => {});
+    audioController.loadSfx('resolve', '/assets/audio/sfx-resolve.ogg').catch(() => {});
+  }
+  ['keydown', 'pointerdown', 'touchstart'].forEach((ev) => {
+    window.addEventListener(ev, initAudioOnce, { once: true, passive: true });
+  });
+}
 
 const inputSystem = createInputSystem({
   state,
@@ -553,9 +641,19 @@ const update = createRuntimeUpdate({
   sanitizeRenderY
 });
 
+// Wrap the core update to layer in spectacle systems each frame.
+const coreUpdate = update;
+const spectacleUpdate = (nowMs) => {
+  coreUpdate(nowMs);
+  updateBursts(nowMs);
+  updateAmbientMotion(scene, nowMs);
+  worldBillboards.update(state, nowMs);
+  worldPoi.update(state);
+};
+
 const frameLoop = createFrameLoop({
   queryParams,
-  update,
+  update: spectacleUpdate,
   render: () => renderer.render(scene, camera)
 });
 

@@ -3,6 +3,17 @@ import {
   setRequestBackoffFromError,
   clearRequestBackoff
 } from './shared/request-backoff.js';
+import {
+  mergePlayerShell,
+  playerShellFromBootstrap,
+  shouldRefreshPlayerShell
+} from './shared/player-shell.js';
+import { loadStoredPlayerShell, saveStoredPlayerShell } from './shared/player-shell-storage.js';
+import {
+  deriveDashboardBotState,
+  formatDashboardBotSubtitle,
+  isAutoplayEnabled
+} from './dashboard-bot-state.js';
 
 const statusLine = document.getElementById('dashboard-status');
 const playLink = document.getElementById('dashboard-enter-play');
@@ -73,6 +84,7 @@ const botModal = document.getElementById('bot-modal');
 const botModalClose = document.getElementById('bot-modal-close');
 const botModalTitle = document.getElementById('bot-modal-title');
 const botModalSub = document.getElementById('bot-modal-sub');
+const botModalStatus = document.getElementById('bot-modal-status');
 
 const sidebarButtons = [...document.querySelectorAll('.sidebar-nav [data-view]')];
 const views = [...document.querySelectorAll('.dash-view')];
@@ -87,6 +99,9 @@ let selectedBotId = '';
 let walletSummaryCtx = null;
 let activityEntries = [];
 let activityFilter = 'all';
+let playerShellCtx = null;
+let playerShellLoadedAt = 0;
+let playerShellRefreshInFlight = null;
 const WALLET_SUMMARY_BACKOFF_KEY = 'dashboard_wallet_summary';
 /** @type {Map<string, {status: string, reason: string, gasSponsored: boolean}>} */
 const botReadinessCache = new Map();
@@ -130,6 +145,18 @@ function escapeHtml(value) {
 function setStatus(text) {
   if (statusLine) {
     statusLine.textContent = text;
+  }
+}
+
+function setBotModalStatus(text, tone = '') {
+  if (!botModalStatus) {
+    return;
+  }
+  botModalStatus.textContent = String(text || '');
+  if (tone) {
+    botModalStatus.setAttribute('data-tone', tone);
+  } else {
+    botModalStatus.removeAttribute('data-tone');
   }
 }
 
@@ -235,6 +262,23 @@ function getRequestStorage() {
   }
 }
 
+function hydrateDashboardFromStoredShell() {
+  const storage = getRequestStorage();
+  const storedShell = loadStoredPlayerShell(storage);
+  if (!storedShell) return false;
+  playerShellCtx = mergePlayerShell(playerShellCtx || {}, storedShell);
+  playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+  playerCtx = {
+    ...(playerCtx || {}),
+    bots: playerShellCtx.bot ? [playerShellCtx.bot] : (playerCtx?.bots || [])
+  };
+  walletSummaryCtx = playerShellCtx.walletSummary || walletSummaryCtx;
+  if (Array.isArray(playerShellCtx.activityPreview) && playerShellCtx.activityPreview.length > 0) {
+    activityEntries = playerShellCtx.activityPreview;
+  }
+  return true;
+}
+
 function parseAmount(el, fallback = 1) {
   const value = Number(el?.value || fallback);
   return Number.isFinite(value) ? Math.max(0, value) : fallback;
@@ -255,21 +299,34 @@ function getBotById(botId) {
   return (playerCtx?.bots || []).find((entry) => entry.id === botId) || null;
 }
 
+function applyPlayerShellSnapshot(bootstrap) {
+  const nextShell = playerShellFromBootstrap(bootstrap, playerShellCtx || {});
+  playerShellCtx = nextShell;
+  playerShellLoadedAt = Number(nextShell.loadedAt || Date.now());
+  saveStoredPlayerShell(getRequestStorage(), nextShell);
+  bootstrapCtx = bootstrap;
+  playerCtx = {
+    ...(playerCtx || {}),
+    user: bootstrap?.user || playerCtx?.user || null,
+    profile: bootstrap?.profile || playerCtx?.profile || null,
+    bots: nextShell.bot ? [nextShell.bot] : (playerCtx?.bots || [])
+  };
+  walletSummaryCtx = nextShell.walletSummary || walletSummaryCtx;
+  if (Array.isArray(nextShell.activityPreview) && nextShell.activityPreview.length > 0) {
+    activityEntries = nextShell.activityPreview;
+  }
+  if (nextShell.bot?.id && nextShell.readiness) {
+    botReadinessCache.set(nextShell.bot.id, nextShell.readiness);
+  }
+  return nextShell;
+}
+
 function statusClassForBot(bot) {
-  if (!bot.connected) {
-    return 'disconnected';
-  }
-  if (bot.behavior?.mode === 'passive' || bot.behavior?.challengeEnabled === false) {
-    return 'idle';
-  }
-  return 'active';
+  return deriveDashboardBotState(bot).statusClass;
 }
 
 function statusTextForBot(bot) {
-  const cls = statusClassForBot(bot);
-  if (cls === 'active') return 'Active';
-  if (cls === 'idle') return 'Idle';
-  return 'Disconnected';
+  return deriveDashboardBotState(bot).statusText;
 }
 
 function renderBotCards() {
@@ -291,6 +348,7 @@ function renderBotCards() {
       const cooldown = Number(bot.behavior?.challengeCooldownMs || 2600);
       const badgeClass = statusClassForBot(bot);
       const badgeText = statusTextForBot(bot);
+      const autoplayPill = isAutoplayEnabled(bot) ? 'Autoplay on' : 'Autoplay off';
       const botWalletId = String(bot.walletId || playerCtx?.profile?.wallet?.id || playerCtx?.profile?.walletId || '-');
       const botWalletAddress = String(bot.walletAddress || playerCtx?.profile?.wallet?.address || '-');
       const readiness = botReadinessCache.get(bot.id);
@@ -314,6 +372,7 @@ function renderBotCards() {
           <span class="pill">${escapeHtml(personality)}</span>
           <span class="pill">${escapeHtml(target)}</span>
           <span class="pill">${cooldown}ms</span>
+          <span class="pill">${escapeHtml(autoplayPill)}</span>
         </div>
         <div class="wager-box">Wager Range: ${Number(bot.behavior?.baseWager || 1)} to ${Number(bot.behavior?.maxWager || 3)}<br><span class="mono">${escapeHtml(botWalletAddress)}</span></div>
       </article>`;
@@ -659,54 +718,86 @@ function renderEscrowHistory(entries, errorMessage = '') {
 }
 
 async function refreshContext() {
-  const requestStorage = getRequestStorage();
-  const walletSummaryPromise = isRequestBackoffActive(requestStorage, WALLET_SUMMARY_BACKOFF_KEY)
-    ? Promise.resolve(null)
-    : api('/api/player/wallet/summary')
-      .then((payload) => {
-        clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
-        return payload;
-      })
-      .catch((error) => {
-        setRequestBackoffFromError(requestStorage, WALLET_SUMMARY_BACKOFF_KEY, error);
-        return null;
-      });
-  const [ctx, bootstrap, walletSummary] = await Promise.all([
-    api('/api/player/me'),
-    api('/api/player/bootstrap?world=mega'),
-    walletSummaryPromise
-  ]);
-  const canSeeDirectory = String(ctx?.user?.role || '') === 'admin';
-  const directory = canSeeDirectory
-    ? await api('/api/player/directory').catch(() => ({ players: [] }))
-    : { players: [] };
-  let nextActivityEntries = [];
-  let escrowError = '';
-  try {
-    const activity = await api('/api/player/activity?limit=30');
-    nextActivityEntries = Array.isArray(activity?.activity) ? activity.activity : [];
-  } catch (error) {
-    escrowError = String(error?.message || error);
+  if (playerShellRefreshInFlight) {
+    return playerShellRefreshInFlight;
   }
-  playerCtx = ctx;
-  bootstrapCtx = bootstrap;
-  playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
-  walletSummaryCtx = walletSummary;
-  activityEntries = nextActivityEntries;
-  renderEscrowHistory(activityEntries, escrowError);
-  renderContext();
-  // Fetch wallet readiness for each bot in parallel (non-blocking)
-  const bots = Array.isArray(ctx?.bots) ? ctx.bots : [];
-  if (bots.length > 0) {
-    Promise.allSettled(
-      bots.map((bot) =>
-        api(`/api/player/bots/${encodeURIComponent(bot.id)}/wallet`)
-          .then((r) => {
-            if (r?.readiness) botReadinessCache.set(bot.id, r.readiness);
-          })
-          .catch(() => {})
-      )
-    ).then(() => renderBotCards());
+  playerShellRefreshInFlight = (async () => {
+    const bootstrap = await api('/api/player/bootstrap?world=mega');
+    applyPlayerShellSnapshot(bootstrap);
+    renderEscrowHistory(activityEntries);
+    renderContext();
+
+    const requestStorage = getRequestStorage();
+    const shouldRefreshSummary = shouldRefreshPlayerShell(playerShellLoadedAt);
+    const walletSummaryPromise = !shouldRefreshSummary || isRequestBackoffActive(requestStorage, WALLET_SUMMARY_BACKOFF_KEY)
+      ? Promise.resolve(walletSummaryCtx)
+      : api('/api/player/wallet/summary')
+        .then((payload) => {
+          clearRequestBackoff(requestStorage, WALLET_SUMMARY_BACKOFF_KEY);
+          return payload;
+        })
+        .catch((error) => {
+          setRequestBackoffFromError(requestStorage, WALLET_SUMMARY_BACKOFF_KEY, error);
+          return walletSummaryCtx;
+        });
+    const canSeeDirectory = String(bootstrap?.user?.role || '') === 'admin';
+    const [ctx, walletSummary, directory, activityPayload] = await Promise.all([
+      api('/api/player/me').catch(() => playerCtx),
+      walletSummaryPromise,
+      canSeeDirectory
+        ? api('/api/player/directory').catch(() => ({ players: [] }))
+        : Promise.resolve({ players: [] }),
+      api('/api/player/activity?limit=30').catch((error) => ({ __error: error, activity: activityEntries }))
+    ]);
+
+    let escrowError = '';
+    if (activityPayload?.__error) {
+      escrowError = String(activityPayload.__error?.message || activityPayload.__error);
+    }
+    const nextActivityEntries = Array.isArray(activityPayload?.activity) ? activityPayload.activity : [];
+
+    playerCtx = ctx || playerCtx;
+    playerDirectory = Array.isArray(directory?.players) ? directory.players : [];
+    walletSummaryCtx = walletSummary || walletSummaryCtx;
+    activityEntries = nextActivityEntries.length > 0 ? nextActivityEntries : activityEntries;
+    playerShellCtx = mergePlayerShell(playerShellCtx, {
+      walletSummary: walletSummaryCtx,
+      activityPreview: activityEntries.slice(0, 5),
+      loadedAt: Date.now()
+    });
+    playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+    saveStoredPlayerShell(getRequestStorage(), playerShellCtx);
+    renderEscrowHistory(activityEntries, escrowError);
+    renderContext();
+
+    const bots = Array.isArray(playerCtx?.bots) ? playerCtx.bots : [];
+    if (bots.length > 0) {
+      Promise.allSettled(
+        bots.map((bot) =>
+          api(`/api/player/bots/${encodeURIComponent(bot.id)}/wallet`)
+            .then((r) => {
+              if (r?.readiness) {
+                botReadinessCache.set(bot.id, r.readiness);
+                if (playerShellCtx?.bot?.id === bot.id) {
+                  playerShellCtx = mergePlayerShell(playerShellCtx, {
+                    readiness: r.readiness,
+                    loadedAt: Date.now()
+                  });
+                  playerShellLoadedAt = Number(playerShellCtx.loadedAt || Date.now());
+                  saveStoredPlayerShell(getRequestStorage(), playerShellCtx);
+                }
+              }
+            })
+            .catch(() => {})
+        )
+      ).then(() => renderBotCards());
+    }
+  })();
+
+  try {
+    await playerShellRefreshInFlight;
+  } finally {
+    playerShellRefreshInFlight = null;
   }
 }
 
@@ -792,12 +883,13 @@ function openBotModal(botId) {
   if (!bot || !botModal) {
     return;
   }
+  setBotModalStatus('');
   selectedBotId = botId;
   if (botModalTitle) {
     botModalTitle.textContent = `Configure ${bot.meta?.displayName || bot.id}`;
   }
   if (botModalSub) {
-    botModalSub.textContent = `${bot.id} · patrol S${bot.meta?.patrolSection ?? '-'} · ${bot.connected ? 'connected' : 'disconnected'}`;
+    botModalSub.textContent = formatDashboardBotSubtitle(bot);
   }
   // Populate fields from bot state
   setWizardPersonality(bot.behavior.personality || 'social');
@@ -822,11 +914,15 @@ function openBotModal(botId) {
   if (botAutoplayEnabled) botAutoplayEnabled.checked = Boolean(autoplay?.enabled);
   if (botAutoplayFields) botAutoplayFields.hidden = !autoplay?.enabled;
   if (botAutoplayWagerMode) botAutoplayWagerMode.value = autoplay?.wagerMode || 'fixed';
-  if (botAutoplayWalletPct) botAutoplayWalletPct.value = String(autoplay?.walletPct || 5);
-  if (botAutoplayMartingaleMult) botAutoplayMartingaleMult.value = String(autoplay?.martingaleMult || 2);
+  if (botAutoplayWalletPct) botAutoplayWalletPct.value = String(autoplay?.walletPercent ?? autoplay?.walletPct ?? 5);
+  if (botAutoplayMartingaleMult) botAutoplayMartingaleMult.value = String(autoplay?.martingaleMultiplier ?? autoplay?.martingaleMult ?? 2);
   if (botAutoplayCooldown) botAutoplayCooldown.value = String(autoplay?.cooldownMs || 3000);
   // Game allowlist checkboxes
-  const allowedGames = Array.isArray(autoplay?.games) ? autoplay.games : ['rps', 'coinflip', 'dice_duel'];
+  const allowedGames = Array.isArray(autoplay?.allowedGames)
+    ? autoplay.allowedGames
+    : Array.isArray(autoplay?.games)
+      ? autoplay.games
+      : ['rps', 'coinflip', 'dice_duel'];
   for (const game of ['rps', 'coinflip', 'dice_duel']) {
     const el = document.getElementById(`bot-game-${game}`);
     if (el) el.checked = allowedGames.includes(game);
@@ -844,6 +940,7 @@ function closeBotModal() {
   }
   botModal.classList.remove('open');
   botModal.setAttribute('aria-hidden', 'true');
+  setBotModalStatus('');
 }
 
 profileSave?.addEventListener('click', async () => {
@@ -953,9 +1050,11 @@ walletTransfer?.addEventListener('click', async () => {
 });
 
 botSave?.addEventListener('click', async () => {
+  const previousLabel = botSave?.textContent || 'Save Bot';
   try {
     const botId = selectedBotId || playerCtx?.bots?.[0]?.id;
     if (!botId) {
+      setBotModalStatus('No bot selected.', 'error');
       setStatus('No bot selected.');
       return;
     }
@@ -969,15 +1068,20 @@ botSave?.addEventListener('click', async () => {
     const autoplay = autoplayEnabled ? {
       enabled: true,
       wagerMode: botAutoplayWagerMode?.value || 'fixed',
-      walletPct: Math.max(1, Math.min(100, Number(botAutoplayWalletPct?.value || 5))),
-      martingaleMult: Math.max(1.1, Number(botAutoplayMartingaleMult?.value || 2)),
+      walletPercent: Math.max(1, Math.min(100, Number(botAutoplayWalletPct?.value || 5))),
+      martingaleMultiplier: Math.max(1.1, Number(botAutoplayMartingaleMult?.value || 2)),
       cooldownMs: Math.max(1000, Number(botAutoplayCooldown?.value || 3000)),
-      games: ['rps', 'coinflip', 'dice_duel'].filter((g) => {
+      allowedGames: ['rps', 'coinflip', 'dice_duel'].filter((g) => {
         const el = document.getElementById(`bot-game-${g}`);
         return el ? el.checked : true;
       })
     } : null;
+    setBotModalStatus(`Saving ${botId}...`);
     setStatus(`Saving ${botId}...`);
+    if (botSave) {
+      botSave.disabled = true;
+      botSave.textContent = 'Saving...';
+    }
     await api(`/api/player/bots/${encodeURIComponent(botId)}/config`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -994,10 +1098,26 @@ botSave?.addEventListener('click', async () => {
       })
     });
     await refreshContext();
-    closeBotModal();
+    setBotModalStatus('Bot saved.', 'success');
+    if (botSave) {
+      botSave.textContent = 'Saved';
+    }
     setStatus(`Saved ${botId}.`);
+    window.setTimeout(() => {
+      if (botModal?.getAttribute('aria-hidden') === 'false') {
+        closeBotModal();
+      }
+    }, 700);
   } catch (error) {
+    setBotModalStatus(`Bot save failed: ${String(error.message || error)}`, 'error');
     setStatus(`Bot save failed: ${String(error.message || error)}`);
+  } finally {
+    window.setTimeout(() => {
+      if (botSave) {
+        botSave.disabled = false;
+        botSave.textContent = previousLabel;
+      }
+    }, 700);
   }
 });
 
@@ -1276,6 +1396,10 @@ for (const button of activityFilterButtons) {
 (async function init() {
   try {
     setWalletTab('overview');
+    if (hydrateDashboardFromStoredShell()) {
+      renderEscrowHistory(activityEntries);
+      renderContext();
+    }
     await refreshContext();
     setStatus('');
   } catch (error) {

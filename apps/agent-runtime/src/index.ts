@@ -43,6 +43,15 @@ import {
 } from './AgentBot.js';
 import { createHealthStatus } from './health.js';
 import {
+  createOwnerPresenceLease,
+  deriveOwnerControlState,
+  ownerAutoplayBehaviorPatch,
+  shouldAcceptOwnerPresenceOnline,
+  shouldOwnerBotReconnect,
+  shouldReleaseOwnerPresence,
+  type OwnerPresenceSource
+} from './ownerControl.js';
+import {
   buildWorkerDirectives,
   createDefaultSuperAgentConfig,
   type LlmPolicy,
@@ -310,7 +319,11 @@ const sponsorGasDiagnostics: {
 };
 
 type OwnerPresenceRecord = {
+  leaseId: string | null;
   until: number;
+  playerId: string | null;
+  serverId: string | null;
+  source: OwnerPresenceSource;
   savedByBotId: Map<string, { mode: AgentBehaviorConfig['mode']; challengeEnabled: boolean }>;
 };
 
@@ -616,11 +629,12 @@ function uniqueUsernameFromSeed(seed: string): string {
   return `player_${Math.floor(Math.random() * 9000 + 1000)}`;
 }
 
-function createBot(id: string, displayName: string, behavior: AgentBehaviorConfig, walletId: string | null): AgentBot {
+function createBot(id: string, displayName: string, behavior: AgentBehaviorConfig, walletId: string | null, clientId: string | null): AgentBot {
   const bot = new AgentBot({
     id,
     wsBaseUrl,
     displayName,
+    clientId,
     walletId,
     behavior
   });
@@ -645,7 +659,7 @@ function registerBot(id: string, behavior: AgentBehaviorConfig, record: BotRecor
   }
 
   usedDisplayNames.add(record.displayName);
-  bots.set(id, createBot(id, record.displayName, behavior, record.walletId));
+  bots.set(id, createBot(id, record.displayName, behavior, record.walletId, record.ownerProfileId || null));
   botRegistry.set(id, record);
 }
 
@@ -689,7 +703,6 @@ function reconcileOwnerBotsViaSuperAgent(): void {
         walletId
       }
     );
-    bots.get(primaryBotId)?.ensureActive();
   }
 }
 
@@ -713,24 +726,43 @@ function applySuperAgentDelegation(): void {
       // Keep section NPCs static; do not override via delegation.
       continue;
     }
-    if (record.duty === 'owner' && !record.autoplayEnabled) {
-      bots.get(directive.botId)?.updateBehavior({
-        ...makeBehaviorForDuty('owner', 0, record.patrolSection),
-        mode: 'passive',
-        challengeEnabled: false,
-        targetPreference: 'human_only'
+    const dutyBaseline = makeBehaviorForDuty(record.duty, 0, record.patrolSection);
+    if (record.duty === 'owner') {
+      const bot = bots.get(directive.botId);
+      const currentTargetPreference = bot?.getStatus().behavior.targetPreference;
+      bot?.updateBehavior({
+        ...dutyBaseline,
+        ...directive.patch,
+        ...ownerAutoplayBehaviorPatch({
+          autoplayEnabled: Boolean(record.autoplayEnabled),
+          targetPreference: currentTargetPreference || directive.patch.targetPreference || dutyBaseline.targetPreference
+        })
       });
+      if (!record.autoplayEnabled) {
+        bot?.stop();
+        continue;
+      }
+      if (record.ownerProfileId && ownerPresence.has(record.ownerProfileId)) {
+        bot?.stop();
+      } else if (shouldOwnerBotReconnect({
+        ownerOnline: false,
+        autoplayEnabled: Boolean(record.autoplayEnabled)
+      })) {
+        bot?.ensureActive();
+      } else {
+        bot?.stop();
+      }
       continue;
     }
     if (!record.managedBySuperAgent) {
       continue;
     }
-    const dutyBaseline = makeBehaviorForDuty(record.duty, 0, record.patrolSection);
     bots.get(directive.botId)?.updateBehavior({
       ...dutyBaseline,
       ...directive.patch,
       challengeEnabled: directive.patch.challengeEnabled ?? dutyBaseline.challengeEnabled
     });
+    bots.get(directive.botId)?.ensureActive();
   }
 
   // superAgentConfig is still used for delegation/policy, but the super agent does not spawn in-world.
@@ -829,9 +861,25 @@ function rememberSuperAgent(type: SuperAgentMemoryEntry['type'], message: string
 function botStatuses(): Array<AgentBotStatus & { meta?: BotRecord }> {
   return [...bots.values()].map((bot) => {
     const status = bot.getStatus();
+    const meta = botRegistry.get(status.id);
+    const ownerOnline = Boolean(meta?.ownerProfileId && ownerPresence.has(meta.ownerProfileId));
     return {
       ...status,
-      meta: botRegistry.get(status.id)
+      meta: meta ? {
+        ...meta,
+        actorId: meta.ownerProfileId ? `u_${meta.ownerProfileId}` : status.id,
+        botClass: meta.ownerProfileId ? 'owner' : 'background',
+        controlState: meta.ownerProfileId
+          ? deriveOwnerControlState({
+              ownerOnline,
+              autoplayEnabled: Boolean(meta.autoplayEnabled),
+              challengeEnabled: Boolean(status.behavior.challengeEnabled),
+              connected: Boolean(status.connected)
+            })
+          : 'bot_active',
+        visibilityHint: meta.ownerProfileId ? 'player_bot' : 'house_bot',
+        ownerOnline
+      } : undefined
     };
   });
 }
@@ -939,6 +987,14 @@ function runtimeStatus() {
   const statuses = botStatuses();
   const diagnostics = buildBotConnectionDiagnostics(statuses);
   const house = houseBankWallet();
+  const ownerPresenceSnapshot = [...ownerPresence.entries()].map(([profileId, record]) => ({
+    profileId,
+    leaseId: record.leaseId,
+    playerId: record.playerId,
+    serverId: record.serverId,
+    source: record.source,
+    until: record.until
+  }));
 
   return {
     configuredBotCount: statuses.length,
@@ -968,6 +1024,7 @@ function runtimeStatus() {
       }
     },
     bots: statuses,
+    ownerPresence: ownerPresenceSnapshot,
     profiles: publicProfiles(),
     wallets: [...wallets.values()].map((wallet) => walletSummary(wallet)),
     house: {
@@ -1844,6 +1901,7 @@ function applyOwnerPresence(profileId: string): void {
       });
     }
     bot.updateBehavior({ mode: 'passive', challengeEnabled: false });
+    bot.stop();
   }
 }
 
@@ -1858,24 +1916,82 @@ function restoreOwnerPresence(profileId: string): void {
       continue;
     }
     bot.updateBehavior({ mode: saved.mode, challengeEnabled: saved.challengeEnabled });
+    const meta = botRegistry.get(botId);
+    if (meta?.ownerProfileId === profileId && shouldOwnerBotReconnect({
+      ownerOnline: false,
+      autoplayEnabled: Boolean(meta.autoplayEnabled)
+    })) {
+      bot.ensureActive();
+    }
   }
   ownerPresence.delete(profileId);
 }
 
-function setOwnerOnline(profileId: string, ttlMs: number): void {
-  const boundedTtl = Math.max(10_000, Math.min(5 * 60_000, Number(ttlMs || 90_000)));
-  const until = Date.now() + boundedTtl;
+function setOwnerOnline(profileId: string, params: {
+  leaseId?: string | null;
+  ttlMs?: number;
+  playerId?: string | null;
+  serverId?: string | null;
+  source?: OwnerPresenceSource | null;
+}): void {
   const existing = ownerPresence.get(profileId);
+  if (!shouldAcceptOwnerPresenceOnline({
+    current: existing
+      ? {
+          leaseId: existing.leaseId,
+          until: existing.until,
+          playerId: existing.playerId,
+          serverId: existing.serverId,
+          source: existing.source
+        }
+      : null,
+    leaseId: params.leaseId
+  })) {
+    return;
+  }
+  const lease = createOwnerPresenceLease({
+    leaseId: params.leaseId,
+    ttlMs: Number(params.ttlMs ?? 90_000),
+    playerId: params.playerId,
+    serverId: params.serverId,
+    source: params.source ?? null
+  });
   if (existing) {
-    existing.until = until;
+    existing.leaseId = lease.leaseId;
+    existing.until = lease.until;
+    existing.playerId = lease.playerId;
+    existing.serverId = lease.serverId;
+    existing.source = lease.source;
     applyOwnerPresence(profileId);
     return;
   }
-  ownerPresence.set(profileId, { until, savedByBotId: new Map() });
+  ownerPresence.set(profileId, {
+    leaseId: lease.leaseId,
+    until: lease.until,
+    playerId: lease.playerId,
+    serverId: lease.serverId,
+    source: lease.source,
+    savedByBotId: new Map()
+  });
   applyOwnerPresence(profileId);
 }
 
-function setOwnerOffline(profileId: string): void {
+function setOwnerOffline(profileId: string, params?: { leaseId?: string | null }): void {
+  const current = ownerPresence.get(profileId);
+  if (!shouldReleaseOwnerPresence({
+    current: current
+      ? {
+          leaseId: current.leaseId,
+          until: current.until,
+          playerId: current.playerId,
+          serverId: current.serverId,
+          source: current.source
+        }
+      : null,
+    leaseId: params?.leaseId
+  })) {
+    return;
+  }
   restoreOwnerPresence(profileId);
 }
 
@@ -2643,6 +2759,7 @@ registerRuntimeRoutes(router, {
     walletSummary,
     reconcileBots,
     schedulePersistState,
+    applySuperAgentDelegation,
     coinbasePaymasterEnabled,
     coinbaseEscrowApprovalCapUsdc,
     chainId: null,

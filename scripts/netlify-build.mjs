@@ -46,7 +46,7 @@ const runtimeOrigin = mustUrl(
 );
 const worldAssetBaseUrl = mustUrl(
   'PUBLIC_WORLD_ASSET_BASE_URL',
-  env('PUBLIC_WORLD_ASSET_BASE_URL', 'https://arena-world-assets.netlify.app')
+  env('PUBLIC_WORLD_ASSET_BASE_URL', 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev')
 );
 
 // Build hash — stamped into every deploy so the game client can detect

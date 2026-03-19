@@ -16,19 +16,34 @@ function parseAutoplayConfig(raw: unknown): AutoplayStrategyConfig | null {
   const ap = raw as Record<string, unknown>;
 
   const enabled = typeof ap.enabled === 'boolean' ? ap.enabled : true;
-  const allowedGames: GameType[] = Array.isArray(ap.allowedGames)
-    ? (ap.allowedGames as unknown[]).filter((g): g is GameType => VALID_GAME_TYPES.includes(g as GameType))
+  const rawAllowedGames = Array.isArray(ap.allowedGames)
+    ? ap.allowedGames
+    : Array.isArray(ap.games)
+      ? ap.games
+      : null;
+  const allowedGames: GameType[] = Array.isArray(rawAllowedGames)
+    ? rawAllowedGames.filter((g): g is GameType => VALID_GAME_TYPES.includes(g as GameType))
     : [...VALID_GAME_TYPES];
   if (allowedGames.length === 0) allowedGames.push('rps');
 
   const wagerMode = ap.wagerMode === 'percent_wallet' || ap.wagerMode === 'martingale' ? ap.wagerMode : 'fixed';
   const baseWager = Math.max(1, Math.min(50, Math.floor(Number(ap.baseWager ?? 1))));
   const maxWager = Math.max(baseWager, Math.min(100, Math.floor(Number(ap.maxWager ?? baseWager))));
-  const walletPercent = typeof ap.walletPercent === 'number'
-    ? Math.max(1, Math.min(100, ap.walletPercent))
+  const walletPercentValue = typeof ap.walletPercent === 'number'
+    ? ap.walletPercent
+    : typeof ap.walletPct === 'number'
+      ? ap.walletPct
+      : undefined;
+  const walletPercent = typeof walletPercentValue === 'number'
+    ? Math.max(1, Math.min(100, walletPercentValue))
     : undefined;
-  const martingaleMultiplier = typeof ap.martingaleMultiplier === 'number'
-    ? Math.max(1.1, Math.min(10, ap.martingaleMultiplier))
+  const martingaleMultiplierValue = typeof ap.martingaleMultiplier === 'number'
+    ? ap.martingaleMultiplier
+    : typeof ap.martingaleMult === 'number'
+      ? ap.martingaleMult
+      : undefined;
+  const martingaleMultiplier = typeof martingaleMultiplierValue === 'number'
+    ? Math.max(1.1, Math.min(10, martingaleMultiplierValue))
     : undefined;
   const sessionLossLimit = typeof ap.sessionLossLimit === 'number'
     ? Math.max(0, Math.min(1000000, ap.sessionLossLimit))
@@ -50,6 +65,7 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
   walletSummary: (wallet: import('@arena/shared').WalletRecord | null) => unknown;
   reconcileBots: (count: number) => void;
   schedulePersistState: () => void;
+  applySuperAgentDelegation: () => void;
   coinbasePaymasterEnabled?: boolean;
   coinbaseEscrowApprovalCapUsdc?: number;
   chainId?: number | null;
@@ -151,8 +167,12 @@ export function registerBotRoutes(router: SimpleRouter, deps: {
           });
         }
       }
+      if (typeof body.autoplayEnabled !== 'boolean' && body.autoplay && typeof body.autoplay === 'object') {
+        record.autoplayEnabled = Boolean((body.autoplay as { enabled?: unknown }).enabled);
+      }
     }
 
+    deps.applySuperAgentDelegation();
     sendJson(res, { ok: true, bot: bot.getStatus(), meta: record });
     deps.schedulePersistState();
   });

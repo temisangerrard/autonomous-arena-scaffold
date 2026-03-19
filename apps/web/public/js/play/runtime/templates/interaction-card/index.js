@@ -109,7 +109,10 @@ export function renderInteractionCardTemplate(params) {
 
     const active = state.activeChallenge;
     const inMatch = Boolean(active && active.status === 'active');
-    if (inMatch && state.ui.interactionMode !== 'station') {
+    const isHouseChallenge = Boolean(
+      active && (active.challengerId === 'system_house' || active.opponentId === 'system_house')
+    );
+    if (inMatch && !isHouseChallenge && state.ui.interactionMode !== 'station') {
       setInteractOpen(false);
       return;
     }

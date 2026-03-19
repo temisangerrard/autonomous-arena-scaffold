@@ -1,45 +1,24 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import {
+  classifyRendererProfile,
+  getWorldBundlePlan,
+  normalizeWorldAlias,
+  normalizeWorldManifest
+} from './play/runtime/world-manifest.js';
 
 export { THREE };
+export { classifyRendererProfile, getWorldBundlePlan, normalizeWorldManifest };
 
 let worldManifestPromise = null;
+const CANONICAL_WORLD_BASE_FALLBACK = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 const CANONICAL_WORLD_ALIAS = 'mega';
-const CANONICAL_WORLD_BASE_FALLBACK = 'https://arena-world-assets.netlify.app';
-const WORLD_FILENAME_FALLBACK = {
-  train_world: 'train_station_mega_world.glb',
-  'train-world': 'train_station_mega_world.glb',
-  mega: 'train_station_mega_world.glb',
-  plaza: 'train_station_mega_world.glb',
-  base: 'train_station_mega_world.glb',
-  world: 'train_station_mega_world.glb'
-};
-const WORLD_VERSION_FALLBACK = {
-  train_world: '2026-02-17.2',
-  'train-world': '2026-02-17.2',
-  mega: '2026-02-17.2',
-  plaza: '2026-02-17.2',
-  base: '2026-02-17.2',
-  world: '2026-02-17.2'
-};
-
-function normalizeWorldAlias(alias) {
-  const normalized = String(alias || '').toLowerCase().replace(/\.glb$/i, '');
-  if (!normalized || normalized === CANONICAL_WORLD_ALIAS) return CANONICAL_WORLD_ALIAS;
-  if (normalized === 'train_world' || normalized === 'train-world' || normalized === 'base' || normalized === 'plaza' || normalized === 'world') {
-    return CANONICAL_WORLD_ALIAS;
-  }
-  return CANONICAL_WORLD_ALIAS;
-}
 
 async function loadWorldManifest() {
   if (worldManifestPromise) return worldManifestPromise;
   worldManifestPromise = (async () => {
-    const fallback = {
-      filenameByAlias: WORLD_FILENAME_FALLBACK,
-      versionByAlias: WORLD_VERSION_FALLBACK
-    };
+    const fallback = normalizeWorldManifest();
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         const res = await fetch('/api/worlds', { credentials: 'include' });
@@ -47,10 +26,7 @@ async function loadWorldManifest() {
           continue;
         }
         const payload = await res.json();
-        return {
-          filenameByAlias: payload?.filenameByAlias || WORLD_FILENAME_FALLBACK,
-          versionByAlias: payload?.versionByAlias || WORLD_VERSION_FALLBACK
-        };
+        return normalizeWorldManifest(payload);
       } catch {
         // retry once
       }
@@ -60,28 +36,100 @@ async function loadWorldManifest() {
   return worldManifestPromise;
 }
 
-async function resolveWorldUrl(alias) {
+function resolveBundleUrl(bundle, worldBaseUrl = '') {
+  const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
+  const rawUrl = normalizedBase
+    ? `${normalizedBase}/assets/world/${bundle.alias}.glb`
+    : `/assets/world/${bundle.alias}.glb`;
+  if (!bundle.version) {
+    return rawUrl;
+  }
+  const separator = rawUrl.includes('?') ? '&' : '?';
+  return `${rawUrl}${separator}v=${encodeURIComponent(bundle.version)}`;
+}
+
+async function resolveWorldPlan(alias) {
   const loaderAlias = normalizeWorldAlias(alias);
   const params = new URL(window.location.href).searchParams;
   const configuredBase = window.__ARENA_CONFIG?.worldAssetBaseUrl || window.ARENA_CONFIG?.worldAssetBaseUrl || '';
   const worldBaseUrl = params.get('worldBase') || configuredBase || CANONICAL_WORLD_BASE_FALLBACK;
-  const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
-
   const manifest = await loadWorldManifest();
-  const versionByAlias = manifest.versionByAlias || WORLD_VERSION_FALLBACK;
-  const version = String(versionByAlias?.[loaderAlias] || versionByAlias?.[CANONICAL_WORLD_ALIAS] || '');
+  const bundlePlan = getWorldBundlePlan(manifest, loaderAlias);
+  return {
+    manifest,
+    bundlePlan,
+    urls: {
+      shell: resolveBundleUrl(bundlePlan.shell, worldBaseUrl),
+      zones: bundlePlan.zones.map((bundle) => ({ bundle, url: resolveBundleUrl(bundle, worldBaseUrl) })),
+      decor: bundlePlan.decor.map((bundle) => ({ bundle, url: resolveBundleUrl(bundle, worldBaseUrl) }))
+    }
+  };
+}
 
-  let rawUrl = '';
-  if (!normalizedBase) {
-    rawUrl = `/assets/world/${loaderAlias}.glb`;
-  } else {
-    rawUrl = `${normalizedBase}/assets/world/${loaderAlias}.glb`;
+function createWorldLoader() {
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder?.(MeshoptDecoder);
+  return loader;
+}
+
+function createWorldRoot(scene, alias) {
+  const worldRoot = new THREE.Group();
+  worldRoot.name = `world_${normalizeWorldAlias(alias)}`;
+  scene.add(worldRoot);
+  return worldRoot;
+}
+
+function decorateWorldNode(root) {
+  root.traverse((node) => {
+    if (node.isMesh) {
+      node.castShadow = false;
+      node.receiveShadow = true;
+    }
+  });
+}
+
+async function loadBundleIntoWorld({ loader, worldRoot, bundle, url, onProgress }) {
+  const startedAt = performance.now();
+  let downloadFinishedAt = null;
+  console.debug('[world-cache] load_start', url);
+
+  const gltf = await new Promise((resolve, reject) => {
+    loader.load(
+      url,
+      (loaded) => resolve(loaded),
+      (evt) => {
+        const loadedBytes = Number(evt?.loaded || 0);
+        const totalBytes = Number(evt?.total || 0);
+        if (totalBytes > 0 && loadedBytes >= totalBytes) {
+          downloadFinishedAt = performance.now();
+        }
+        try {
+          onProgress?.({ ...evt, bundle });
+        } catch {
+          // ignore progress handler failures
+        }
+      },
+      (err) => reject(err)
+    );
+  });
+
+  decorateWorldNode(gltf.scene);
+  const targetRoot = bundle.replaceWorldRoot ? gltf.scene : worldRoot;
+  if (!bundle.replaceWorldRoot) {
+    worldRoot.add(gltf.scene);
   }
-  if (!version) {
-    return rawUrl;
-  }
-  const separator = rawUrl.includes('?') ? '&' : '?';
-  return `${rawUrl}${separator}v=${encodeURIComponent(version)}`;
+  const finishedAt = performance.now();
+  const totalMs = Math.max(0, finishedAt - startedAt);
+  const downloadMs = Math.max(0, (downloadFinishedAt || finishedAt) - startedAt);
+  const parseMs = Math.max(0, finishedAt - (downloadFinishedAt || finishedAt));
+  console.debug('[world-cache] load_done', url, `${Math.round(totalMs)}ms`);
+  return {
+    alias: bundle.alias,
+    kind: bundle.kind,
+    root: targetRoot,
+    replaceWorldRoot: Boolean(bundle.replaceWorldRoot),
+    metrics: { downloadMs, parseMs, totalMs }
+  };
 }
 
 export function pickWorldAlias() {
@@ -91,8 +139,17 @@ export function pickWorldAlias() {
 
 export function makeRenderer(canvas) {
   try {
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const profile = classifyRendererProfile({
+      innerWidth: window.innerWidth,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      maxTouchPoints: navigator.maxTouchPoints || 0,
+      hardwareConcurrency: navigator.hardwareConcurrency || 0,
+      deviceMemory: navigator.deviceMemory || 0,
+      userAgent: navigator.userAgent || ''
+    });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: profile.antialias });
+    renderer.shadowMap.enabled = profile.shadowMapEnabled;
+    renderer.setPixelRatio(profile.maxPixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     return renderer;
   } catch (error) {
@@ -118,68 +175,73 @@ export function makeScene() {
 
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
   dir.position.set(25, 40, 22);
-  dir.castShadow = true;
+  const profile = classifyRendererProfile({
+    innerWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio || 1,
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+    hardwareConcurrency: navigator.hardwareConcurrency || 0,
+    deviceMemory: navigator.deviceMemory || 0,
+    userAgent: navigator.userAgent || ''
+  });
+  dir.castShadow = profile.shadowMapEnabled;
   scene.add(dir);
 
   return scene;
 }
 
 export function makeCamera() {
-  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
+  const profile = classifyRendererProfile({
+    innerWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio || 1,
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+    hardwareConcurrency: navigator.hardwareConcurrency || 0,
+    deviceMemory: navigator.deviceMemory || 0,
+    userAgent: navigator.userAgent || ''
+  });
+  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, profile.cameraFar);
   camera.position.set(0, 8, 14);
   return camera;
 }
 
 export async function loadWorld(scene, alias) {
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder?.(MeshoptDecoder);
-  const url = await resolveWorldUrl(alias);
-  const startedAt = performance.now();
-  console.debug('[world-cache] load_start', url);
-
-  const gltf = await loader.loadAsync(url);
-  gltf.scene.traverse((node) => {
-    if (node.isMesh) {
-      node.castShadow = false;
-      node.receiveShadow = true;
-    }
-  });
-  scene.add(gltf.scene);
-  console.debug('[world-cache] load_done', url, `${Math.round(performance.now() - startedAt)}ms`);
-  return gltf.scene;
+  const { urls, bundlePlan } = await resolveWorldPlan(alias);
+  const worldRoot = createWorldRoot(scene, alias);
+  const loader = createWorldLoader();
+  await loadBundleIntoWorld({ loader, worldRoot, bundle: bundlePlan.shell, url: urls.shell });
+  const extraBundles = [...urls.zones, ...urls.decor];
+  for (const entry of extraBundles) {
+    await loadBundleIntoWorld({ loader, worldRoot, bundle: entry.bundle, url: entry.url });
+  }
+  return worldRoot;
 }
 
 export async function loadWorldWithProgress(scene, alias, onProgress) {
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder?.(MeshoptDecoder);
-  const url = await resolveWorldUrl(alias);
-  const startedAt = performance.now();
-  console.debug('[world-cache] load_start', url);
-
-  const gltf = await new Promise((resolve, reject) => {
-    loader.load(
-      url,
-      (loaded) => resolve(loaded),
-      (evt) => {
-        try {
-          onProgress?.(evt);
-        } catch {
-          // ignore progress handler failures
-        }
-      },
-      (err) => reject(err)
-    );
+  const { urls, bundlePlan } = await resolveWorldPlan(alias);
+  const worldRoot = createWorldRoot(scene, alias);
+  const loader = createWorldLoader();
+  const shellResult = await loadBundleIntoWorld({
+    loader,
+    worldRoot,
+    bundle: bundlePlan.shell,
+    url: urls.shell,
+    onProgress
   });
-
-  gltf.scene.traverse((node) => {
-    if (node.isMesh) {
-      node.castShadow = false;
-      node.receiveShadow = true;
-    }
-  });
-  scene.add(gltf.scene);
-  console.debug('[world-cache] load_done', url, `${Math.round(performance.now() - startedAt)}ms`);
-  return gltf.scene;
+  const extraBundles = [...urls.zones, ...urls.decor];
+  const backgroundLoads = Promise.allSettled(
+    extraBundles.map(async (entry) => await loadBundleIntoWorld({
+      loader,
+      worldRoot,
+      bundle: entry.bundle,
+      url: entry.url
+    }))
+  );
+  return {
+    worldRoot,
+    shellRoot: shellResult.root,
+    shellMetrics: shellResult.metrics,
+    bundlePlan,
+    backgroundLoads
+  };
 }
 
 export function fitCameraToWorld(camera, controlsTarget, worldRoot) {

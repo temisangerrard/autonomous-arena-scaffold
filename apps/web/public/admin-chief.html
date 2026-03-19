@@ -12,34 +12,6 @@
   <link rel="stylesheet" href="/css/claude-corners.css">
   <link rel="stylesheet" href="/css/admin-chief.css">
   <script src="/runtime-config.js"></script>
-  <style>
-    .view-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .view-header h3 { margin: 0; }
-    .view-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
-    .lab-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 1px solid rgba(198, 152, 49, 0.5);
-      border-radius: 8px;
-      padding: 7px 12px;
-      font: 500 11px/1 'JetBrains Mono', monospace;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      color: #3b2a0d;
-      text-decoration: none;
-      background: linear-gradient(125deg, rgba(219,170,68,.15), rgba(184,132,30,.1));
-    }
-    .lab-link:hover { background: linear-gradient(125deg, rgba(219,170,68,.25), rgba(184,132,30,.18)); }
-    .ops-panel { display: grid; gap: 10px; }
-    .rail-section-label {
-      font: 500 10px/1 'JetBrains Mono', monospace;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--muted);
-      margin: 14px 0 6px;
-    }
-  </style>
 </head>
 <body>
   <div class="chief-shell">
@@ -76,7 +48,7 @@
             <h3>Overview</h3>
           </div>
           <div id="overview-kpis" class="kpi-grid"></div>
-          <div class="split" style="margin-top:10px;">
+          <div class="split split--mt">
             <div class="panel-card">
               <h4>Runtime Snapshot</h4>
               <pre id="runtime-snapshot">Loading...</pre>
@@ -133,16 +105,16 @@
             </div>
             <div class="panel-card">
               <h4>Background Bots</h4>
-              <div class="form-row" style="align-items:end;">
+              <div class="form-row form-row--end">
                 <div>
                   <label class="form-label" for="bg-count">Target Count</label>
                   <input id="bg-count" type="number" min="0" max="120" value="8">
                 </div>
-                <div style="align-self:end;">
-                  <button id="apply-bg-count-inline" type="button" class="primary" style="width:100%;">Apply</button>
+                <div class="form-cell--end">
+                  <button id="apply-bg-count-inline" type="button" class="primary btn-full">Apply</button>
                 </div>
               </div>
-              <div class="chips" data-tool-group="fleet" style="margin-top:8px;"></div>
+              <div class="chips chips--mt" data-tool-group="fleet"></div>
             </div>
           </div>
           <div class="view-section">
@@ -181,7 +153,7 @@
             <button type="button" class="mode-btn" data-treasury-mode="risk">Risk &amp; Recovery</button>
           </div>
           <section class="treasury-panel is-active" data-treasury-panel="wallet">
-            <div class="panel-card" style="margin-bottom:14px;">
+            <div class="panel-card panel-card--mb">
               <h4>House Funds</h4>
               <div class="form-row">
                 <div>
@@ -199,7 +171,7 @@
                   <input id="house-funds-note" type="text" readonly value="-">
                 </div>
               </div>
-              <div class="table-wrap" style="margin-top:12px;">
+              <div class="table-wrap table-wrap--mt">
                 <table>
                   <thead>
                     <tr><th>Source</th><th>Balance</th><th>Location</th><th>Action</th></tr>
@@ -238,9 +210,7 @@
                 <div class="btn-row">
                   <button id="house-apply" type="button" class="primary">Apply House Policy</button>
                 </div>
-                <div style="margin-top:12px;">
-                  <div class="chips" data-tool-group="treasury"></div>
-                </div>
+                <div class="chips chips--mt" data-tool-group="treasury"></div>
               </div>
               <div class="panel-card">
                 <h4>Refill / Transfer</h4>
@@ -249,8 +219,8 @@
                     <label class="form-label" for="house-refill-amount">Refill Amount</label>
                     <input id="house-refill-amount" type="number" min="1" step="1" value="200">
                   </div>
-                  <div style="align-self:end;">
-                    <button id="house-refill" type="button" style="width:100%;">Refill House</button>
+                  <div class="form-cell--end">
+                    <button id="house-refill" type="button" class="btn-full">Refill House</button>
                   </div>
                 </div>
                 <div class="form-row">
@@ -279,7 +249,7 @@
               <div class="split">
                 <div class="panel-card">
                   <h4>Treasury Action Center</h4>
-                  <p class="muted" style="margin:0 0 8px;font-size:13px;">Operate only wallets you control from this runtime. Choose source wallet first.</p>
+                  <p class="panel-note panel-note--mb">Operate only wallets you control from this runtime. Choose source wallet first.</p>
                   <div class="form-row">
                     <div>
                       <label class="form-label" for="treasury-action-source">Source Wallet</label>
@@ -295,7 +265,7 @@
                       <label class="form-label" for="treasury-transfer-target">Internal Transfer To</label>
                       <select id="treasury-transfer-target"></select>
                     </div>
-                    <div style="align-self:end;">
+                    <div class="form-cell--end">
                       <button id="treasury-transfer-run" type="button">Transfer Internal</button>
                     </div>
                   </div>
@@ -304,7 +274,7 @@
                       <label class="form-label" for="treasury-external-address">External Payout Address (paste)</label>
                       <input id="treasury-external-address" type="text" placeholder="0x...">
                     </div>
-                    <div style="align-self:end;">
+                    <div class="form-cell--end">
                       <button id="treasury-external-withdraw-run" type="button" class="primary">Withdraw To External</button>
                     </div>
                   </div>
@@ -382,8 +352,8 @@
                   <label class="form-label" for="onchain-prepare-amount">Wager Amount</label>
                   <input id="onchain-prepare-amount" type="number" min="0.01" step="0.01" value="1">
                 </div>
-                <div style="align-self:end;">
-                  <button id="onchain-prepare-run" type="button" class="primary" style="width:100%;">Prepare Escrow</button>
+                <div class="form-cell--end">
+                  <button id="onchain-prepare-run" type="button" class="primary btn-full">Prepare Escrow</button>
                 </div>
               </div>
               <pre id="onchain-prepare-result">No prepare run yet.</pre>
@@ -398,10 +368,10 @@
               </div>
               <div class="panel-card">
                 <h4>Risk Notes</h4>
-                <p class="muted" style="margin:0;font-size:13px;">
+                <p class="panel-note">
                   Sponsor failures usually come from low sponsor ETH, stale Base RPC config, or missing wallet prep before placing wagers.
                 </p>
-                <p class="muted" style="margin:8px 0 0;font-size:13px;">
+                <p class="panel-note">
                   Use this section for audit/recovery while wallet and contract operations stay in their dedicated tabs.
                 </p>
               </div>
@@ -417,12 +387,12 @@
               <a class="lab-link" href="/admin/markets-lab">Markets Lab →</a>
             </div>
           </div>
-          <p class="muted" style="margin:0 0 10px; font-size:13px;">Player station check and quote testing are in Markets Lab. Use the controls below to activate/deactivate.</p>
+          <p class="panel-note panel-note--mb">Player station check and quote testing are in Markets Lab. Use the controls below to activate/deactivate.</p>
           <div class="markets-toolbar">
             <span id="markets-sync-status">—</span>
             <button id="markets-sync-btn" type="button">⚡ Force Create BTC Markets</button>
           </div>
-          <div class="markets-filter" style="margin-top:8px;">
+          <div class="markets-filter">
             <select id="markets-filter-status">
               <option value="all">All</option>
               <option value="active">Active</option>
@@ -430,7 +400,7 @@
             </select>
             <input id="markets-search" type="search" placeholder="Search question..." />
           </div>
-          <div id="markets-table" class="markets-table" style="margin-top:8px;"></div>
+          <div id="markets-table" class="markets-table"></div>
           <div id="markets-detail" class="markets-detail" hidden></div>
         </article>
 
@@ -503,15 +473,15 @@
                       <option value="any">any</option>
                     </select>
                   </div>
-                  <div style="align-self:end;">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                  <div class="form-cell--end">
+                    <label class="form-check-label">
                       <input id="super-challenge-enabled" type="checkbox" checked> Challenges On
                     </label>
                   </div>
                 </div>
                 <div class="form-row">
                   <div>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                    <label class="form-check-label">
                       <input id="wallet-enabled" type="checkbox"> Wallet Skills
                     </label>
                   </div>
@@ -531,14 +501,14 @@
                   <button id="save-wallet" type="button">Wallet Policy</button>
                   <button id="save-openrouter" type="button">Save OpenRouter Key</button>
                 </div>
-                <div class="btn-row" style="margin-top:6px;">
+                <div class="btn-row btn-row--mt">
                   <button id="sync-ethskills" type="button">Sync ETHSkills</button>
                   <button id="apply-delegation" type="button">Run Delegation</button>
                 </div>
               </div>
               <div class="panel-card">
                 <h4>Agent Console</h4>
-                <div id="super-chips" class="chips" style="margin-bottom:10px;"></div>
+                <div id="super-chips" class="chips chips--mt"></div>
                 <label class="form-label" for="super-chat-input">Command</label>
                 <textarea id="super-chat-input" rows="5" placeholder="status | why are games not starting? | rebalance bots"></textarea>
                 <div class="btn-row">

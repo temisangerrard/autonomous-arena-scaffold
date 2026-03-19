@@ -1,5 +1,5 @@
-export function initMenu(dom, { queryParams }) {
-  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuHowToPlay, menuLogout, onboardingOverlay } = dom;
+export function initMenu(dom, { queryParams, openPlayerDrawer }) {
+  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuLogout } = dom;
 
   function setMenuOpen(nextOpen) {
     if (!topbarMenuPop) return;
@@ -14,6 +14,11 @@ export function initMenu(dom, { queryParams }) {
   });
 
   menuDashboard?.addEventListener('click', () => {
+    setMenuOpen(false);
+    if (typeof openPlayerDrawer === 'function') {
+      openPlayerDrawer(true);
+      return;
+    }
     window.location.href = '/dashboard';
   });
 
@@ -22,18 +27,17 @@ export function initMenu(dom, { queryParams }) {
     window.location.href = `/viewer?world=${encodeURIComponent(world)}`;
   });
 
-  menuHowToPlay?.addEventListener('click', () => {
-    setMenuOpen(false);
-    if (typeof dom.openOnboarding === 'function') {
-      dom.openOnboarding(0);
-      return;
-    }
-    if (onboardingOverlay) {
-      onboardingOverlay.classList.add('visible');
-    }
-  });
-
   menuLogout?.addEventListener('click', async () => {
+    try {
+      await fetch('/api/player/presence', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ state: 'offline' })
+      });
+    } catch {
+      // best effort
+    }
     try {
       await fetch('/api/logout', {
         method: 'POST',

@@ -112,6 +112,37 @@ export function renderMatchSpotlightRuntime(state, matchSpotlight) {
   matchSpotlight.rotation.z += 0.01;
 }
 
+/**
+ * Ambient world motion: train light cycle + animated sign emissives.
+ * Call once per frame with the loaded scene object.
+ * Fails gracefully if no matching meshes exist.
+ */
+export function updateAmbientMotion(scene, nowMs) {
+  if (!scene) return;
+  const t = nowMs * 0.001;
+
+  scene.traverse((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    const name = (obj.name || '').toLowerCase();
+
+    // Train lights: slow sin-wave emissive pulse
+    if (name.includes('train') && name.includes('light')) {
+      const mat = obj.material;
+      if (mat.emissive !== undefined) {
+        mat.emissiveIntensity = 0.3 + Math.abs(Math.sin(t * 0.8)) * 0.6;
+      }
+    }
+
+    // Sign/billboard objects: faster blink
+    if (name.includes('sign') || name.includes('neon') || name.includes('billboard')) {
+      const mat = obj.material;
+      if (mat.emissive !== undefined) {
+        mat.emissiveIntensity = 0.5 + Math.sin(t * 2.3 + obj.id * 0.7) * 0.3;
+      }
+    }
+  });
+}
+
 export function renderTargetSpotlightRuntime(params) {
   const {
     state,

@@ -142,12 +142,16 @@ export function createChallengeController(deps) {
       if (dealerGameType === 'rps') return 'dealer_ready_rps';
       if (dealerGameType === 'dice_duel') return 'dealer_ready_dice_duel';
       if (dealerGameType === 'coinflip') return 'dealer_ready_coinflip';
+      if (dealerGameType === 'blackjack') return 'dealer_ready_blackjack';
       return 'idle';
     }
+    const isHouseChallenge = Boolean(
+      active && (active.challengerId === 'system_house' || active.opponentId === 'system_house')
+    );
     if (incoming) return 'incoming_challenge';
-    if (inMatch && active?.gameType === 'rps') return 'active_rps';
-    if (inMatch && active?.gameType === 'coinflip') return 'active_coinflip';
-    if (inMatch && active?.gameType === 'dice_duel') return 'active_dice_duel';
+    if (inMatch && !isHouseChallenge && active?.gameType === 'rps') return 'active_rps';
+    if (inMatch && !isHouseChallenge && active?.gameType === 'coinflip') return 'active_coinflip';
+    if (inMatch && !isHouseChallenge && active?.gameType === 'dice_duel') return 'active_dice_duel';
     if (playerTargetAvailable && !state.outgoingChallengeId) return 'near_player_idle';
     return 'idle';
   }
