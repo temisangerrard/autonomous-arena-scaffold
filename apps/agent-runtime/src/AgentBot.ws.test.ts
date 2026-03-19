@@ -434,6 +434,36 @@ describe('decideAndSendInput', () => {
     bot.stop();
   });
 
+  it('parks movement when wallet balance cannot cover the next wager', () => {
+    const bot = makeBot({
+      mode: 'active',
+      challengeEnabled: true,
+      personality: 'aggressive',
+      autoplay: makeAutoplay({ wagerMode: 'fixed', baseWager: 10, maxWager: 100 })
+    });
+    bot.getWalletBalance = () => 0;
+    bot.start();
+    const ws = lastWs();
+    ws.triggerOpen();
+    ws.triggerMessage({ type: 'welcome', playerId: 'self' });
+    ws.triggerMessage({
+      type: 'snapshot',
+      players: [
+        { id: 'self', x: 0, z: 0, role: 'agent' },
+        { id: 'target', x: 2, z: 1, role: 'human' }
+      ]
+    });
+
+    vi.advanceTimersByTime(120);
+
+    const inputMsgs = ws.sent.filter((m) => m.type === 'input') as Array<{ moveX: number; moveZ: number }>;
+    expect(inputMsgs.length).toBeGreaterThan(0);
+    expect(inputMsgs[0]!.moveX).toBe(0);
+    expect(inputMsgs[0]!.moveZ).toBe(0);
+
+    bot.stop();
+  });
+
   it('does nothing when playerId is not yet set (pre-welcome)', () => {
     const bot = makeBot();
     bot.start();

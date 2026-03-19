@@ -409,6 +409,13 @@ export class AgentBot {
       return;
     }
 
+    if (!this.canAffordNextWager()) {
+      // Low-funds bots stay visible in-world, but should not roam as if they
+      // can still initiate play.
+      this.ws.send(JSON.stringify({ type: 'input', moveX: 0, moveZ: 0 }));
+      return;
+    }
+
     const allOthers = [...this.playersById.values()].filter((entry) => entry.id !== this.playerId);
     const scopedOthers = allOthers.filter((entry) => this.isInSameOrAdjacentSection(self, entry));
     const worldOthers = scopedOthers.length > 0 ? scopedOthers : allOthers;
@@ -563,14 +570,10 @@ export class AgentBot {
       return;
     }
 
+    if (!this.canAffordNextWager()) {
+      return;
+    }
     const wager = this.computeNextWager();
-    const walletBalance = this.getWalletBalance ? this.getWalletBalance() : null;
-    if (wager <= 0) {
-      return;
-    }
-    if (walletBalance != null && Number.isFinite(walletBalance) && walletBalance < wager) {
-      return;
-    }
     const gameType: GameType = this.config.behavior.autoplay
       ? this.pickAutoplayGame()
       : (this.config.behavior.personality === 'conservative' ? 'coinflip' : 'rps');
@@ -579,6 +582,18 @@ export class AgentBot {
     this.stats.challengesSent += 1;
     this.stats.lastChallengeAt = now;
     this.ws.send(JSON.stringify({ type: 'challenge_send', targetId, gameType, wager }));
+  }
+
+  private canAffordNextWager(): boolean {
+    const wager = this.computeNextWager();
+    if (wager <= 0) {
+      return false;
+    }
+    const walletBalance = this.getWalletBalance ? this.getWalletBalance() : null;
+    if (walletBalance != null && Number.isFinite(walletBalance) && walletBalance < wager) {
+      return false;
+    }
+    return true;
   }
 
   private pickChallengeTarget(): string | null {
