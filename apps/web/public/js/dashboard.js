@@ -683,7 +683,7 @@ function renderEscrowHistory(entries, errorMessage = '') {
           emoji = '⚠';
         }
       } else if (phase === 'lock') {
-        resultLabel = 'Stake Locked';
+        resultLabel = 'In Progress';
         emoji = '⏳';
       } else {
         resultLabel = outcome || 'Escrow update';
