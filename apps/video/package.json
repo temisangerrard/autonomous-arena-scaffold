@@ -1,0 +1,21 @@
+{
+  "name": "@arena/video",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "preview": "remotion preview src/index.ts",
+    "render": "remotion render src/index.ts ArenaHype out/arena-hype.mp4 --codec h264",
+    "render:gif": "remotion render src/index.ts ArenaHype out/arena-hype.gif --codec gif"
+  },
+  "dependencies": {
+    "remotion": "^4.0.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "typescript": "^5.4.5"
+  }
+}
