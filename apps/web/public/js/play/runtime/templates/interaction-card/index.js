@@ -429,12 +429,13 @@ export function renderInteractionCardTemplate(params) {
         if (sendBtn instanceof HTMLButtonElement) {
           sendBtn.onclick = () => {
             const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
+            const gameType = state.ui.challenge.gameType;
             setPendingBtn(sendBtn, 'Locking In…');
             startTimer('challenge:send', () => {
               clearPendingBtn(sendBtn, 'Lock In Challenge (C)');
               showToast('No server response. Try again.', 'error');
             }, 7000);
-            const sent = challengeController.sendChallenge(renderedTargetId, state.ui.challenge.gameType, wager);
+            const sent = challengeController.sendChallenge(renderedTargetId, gameType, wager);
             if (!sent) {
               clearTimer('challenge:send');
               clearPendingBtn(sendBtn, 'Lock In Challenge (C)');
