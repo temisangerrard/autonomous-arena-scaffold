@@ -316,7 +316,7 @@ export function policyToBehaviorPatch(
   return {
     personality,
     mode,
-    challengeEnabled: mayInitiateChallenges,
+    challengeEnabled: mayInitiateChallenges || mayAcceptChallenges,
     challengeCooldownMs: profile === 'autonomous' ? 2000 : profile === 'semi_autonomous' ? 5000 : 10000,
     targetPreference: profile === 'supervised' ? 'human_only' : 'any',
     baseWager,

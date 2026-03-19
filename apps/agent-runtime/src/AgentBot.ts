@@ -506,7 +506,7 @@ export class AgentBot {
     if (this.config.behavior.mode === 'passive') {
       return;
     }
-    if (!this.config.behavior.challengeEnabled) {
+    if (!this.canInitiateChallenges()) {
       return;
     }
     if (!this.ws || this.ws.readyState !== this.ws.OPEN || !this.playerId) {
@@ -623,9 +623,7 @@ export class AgentBot {
 
     if (record.event === 'created' && challenge && challenge.opponentId === this.playerId) {
       this.stats.challengesReceived += 1;
-      // `challengeEnabled` gates participation. When disabled (e.g. owner is online),
-      // decline incoming challenges so humans control their own sessions.
-      const accept = this.config.behavior.challengeEnabled ? this.shouldAcceptChallenge() : false;
+      const accept = this.canAcceptChallenges() && this.shouldAcceptChallenge();
       setTimeout(() => {
         if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
           return;
@@ -681,6 +679,28 @@ export class AgentBot {
         this.targetCooldownUntil.set(otherId, Date.now() + 11000 + (this.memory.seed % 1800));
       }
     }
+  }
+
+  private canInitiateChallenges(): boolean {
+    if (!this.config.behavior.challengeEnabled) {
+      return false;
+    }
+    const policy = this.config.behavior.strategyPolicy;
+    if (policy) {
+      return policy.mayInitiateChallenges;
+    }
+    return true;
+  }
+
+  private canAcceptChallenges(): boolean {
+    if (!this.config.behavior.challengeEnabled) {
+      return false;
+    }
+    const policy = this.config.behavior.strategyPolicy;
+    if (policy) {
+      return policy.mayAcceptChallenges;
+    }
+    return true;
   }
 
   private shouldAcceptChallenge(): boolean {
