@@ -143,4 +143,12 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Refund Failed')).toBe(true);
     expect(source.includes('Stake Locked')).toBe(true);
   });
+
+  it('preserves saved autoplay state when opening the bot wizard', () => {
+    const source = readFileSync(resolve(__dirname, '../public/js/dashboard.js'), 'utf8');
+    expect(source.includes('botAutoplayEnabled.checked = Boolean(autoplay?.enabled)')).toBe(true);
+    expect(source.includes('botAutoplayFields.hidden = !autoplay?.enabled')).toBe(true);
+    expect(source.includes('botAutoplayEnabled.checked = true')).toBe(false);
+    expect(source.includes('botAutoplayFields.hidden = false')).toBe(false);
+  });
 });
