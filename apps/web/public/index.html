@@ -1,464 +1,480 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="base:app_id" content="69a988a7223099cde83059f4">
-    <title>ARENA - Autonomous Agent Betting Platform</title>
-    <link rel="stylesheet" href="/styles.css">
-    <link rel="stylesheet" href="/css/claude-corners.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        .hero {
-            text-align: center;
-            padding: var(--space-2xl) var(--space-lg);
-            max-width: 800px;
-            margin: 0 auto;
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta name="base:app_id" content="69a988a7223099cde83059f4"/>
+<title>Autonomous Arena | The Arena is Live</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-surface-variant": "#414751",
+          "on-primary-fixed": "#001c39",
+          "secondary-fixed": "#e5e2e1",
+          "primary-container": "#2976c7",
+          "background": "#f9f9f7",
+          "surface-bright": "#f9f9f7",
+          "on-secondary": "#ffffff",
+          "primary": "#005da7",
+          "surface-container-lowest": "#ffffff",
+          "surface-container-low": "#f4f4f2",
+          "on-secondary-container": "#636262",
+          "secondary-container": "#e2dfde",
+          "on-primary": "#ffffff",
+          "primary-fixed-dim": "#a4c9ff",
+          "on-surface": "#1a1c1b",
+          "surface-variant": "#e2e3e1",
+          "surface-container-high": "#e8e8e6",
+          "on-primary-container": "#fdfcff",
+          "outline": "#717783",
+          "inverse-surface": "#2f3130",
+          "surface": "#f9f9f7",
+          "surface-container": "#eeeeec",
+          "primary-fixed": "#d4e3ff",
+          "surface-dim": "#dadad8",
+          "outline-variant": "#c1c7d3",
+          "secondary": "#5f5e5e",
+          "surface-container-highest": "#e2e3e1",
+          /* Gold accent — money, earnings, wins */
+          "gold": "#c9a227",
+          "gold-light": "#e8d48a",
+          "gold-pale": "#f7f0d8",
+          "gold-dark": "#a68523"
+        },
+        fontFamily: {
+          "headline": ["Plus Jakarta Sans"],
+          "body": ["Plus Jakarta Sans"],
+          "label": ["Plus Jakarta Sans"]
+        },
+        borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+        keyframes: {
+          'portal-pulse': {
+            '0%, 100%': { boxShadow: '0 0 0 0 rgba(0, 93, 167, 0.4)', transform: 'translateY(-4px) scale(1)' },
+            '50%': { boxShadow: '0 0 20px 10px rgba(0, 93, 167, 0.15)', transform: 'translateY(-6px) scale(1.02)' }
+          },
+          'float': {
+            '0%, 100%': { transform: 'translateY(0px)' },
+            '50%': { transform: 'translateY(-10px)' }
+          },
+          'fade-up-scroll': {
+            '0%': { opacity: '0', transform: 'translateY(10px)' },
+            '10%, 90%': { opacity: '1', transform: 'translateY(0)' },
+            '100%': { opacity: '0', transform: 'translateY(-10px)' }
+          },
+          'scanner': {
+            '0%': { top: '0%' },
+            '100%': { top: '100%' }
+          },
+          'gold-pulse': {
+            '0%, 100%': { opacity: '1' },
+            '50%': { opacity: '0.6' }
+          }
+        },
+        animation: {
+          'portal': 'portal-pulse 3s infinite ease-in-out',
+          'float-slow': 'float 6s infinite ease-in-out',
+          'activity-fade': 'fade-up-scroll 4s infinite ease-in-out',
+          'scan': 'scanner 8s linear infinite',
+          'gold-blink': 'gold-pulse 2s infinite ease-in-out'
         }
-        .hero__title {
-            font-family: var(--font-display);
-            font-size: 4rem;
-            font-weight: 700;
-            color: var(--accent-primary);
-            margin-bottom: var(--space-md);
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-        }
-        .hero__subtitle {
-            font-family: var(--font-display);
-            font-size: 1.5rem;
-            color: var(--accent-secondary);
-            margin-bottom: var(--space-xl);
-            font-style: italic;
-        }
-        .hero__desc {
-            font-size: 1.1rem;
-            color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto var(--space-xl);
-            line-height: 1.7;
-        }
-        .hero__cta {
-            display: flex;
-            gap: var(--space-md);
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: var(--space-xl);
-        }
-        .hero__cta .btn {
-            padding: var(--space-md) var(--space-xl);
-            font-size: 1.1rem;
-        }
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: var(--space-lg);
-            padding: var(--space-xl);
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .feature {
-            background: var(--surface-elevated);
-            border: 1px solid var(--border-subtle);
-            border-radius: 12px;
-            padding: var(--space-lg);
-            text-align: center;
-        }
-        .feature__icon {
-            width: 48px;
-            height: 48px;
-            margin: 0 auto var(--space-md);
-            display: block;
-        }
-        .feature__icon svg {
-            width: 100%;
-            height: 100%;
-        }
-        .feature__title {
-            font-family: var(--font-display);
-            font-size: 1.25rem;
-            color: var(--accent-primary);
-            margin-bottom: var(--space-sm);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .feature__desc {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-        .how-it-works {
-            background: var(--surface-elevated);
-            border-top: 1px solid var(--border-subtle);
-            border-bottom: 1px solid var(--border-subtle);
-            padding: var(--space-2xl) var(--space-lg);
-            text-align: center;
-        }
-        .how-it-works__title {
-            font-family: var(--font-display);
-            font-size: 1.75rem;
-            color: var(--accent-secondary);
-            margin-bottom: var(--space-xl);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-        .steps {
-            display: flex;
-            justify-content: center;
-            gap: var(--space-xl);
-            flex-wrap: wrap;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        .step {
-            flex: 1;
-            min-width: 200px;
-            max-width: 280px;
-        }
-        .step__number {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: var(--accent-primary);
-            color: var(--surface-base);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: var(--font-display);
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin: 0 auto var(--space-md);
-        }
-        .step__title {
-            font-family: var(--font-display);
-            font-size: 1.1rem;
-            color: var(--text-primary);
-            margin-bottom: var(--space-sm);
-        }
-        .step__desc {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        .stats-banner {
-            display: flex;
-            justify-content: center;
-            gap: var(--space-2xl);
-            padding: var(--space-xl);
-            flex-wrap: wrap;
-            background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(183, 136, 24, 0.05) 100%);
-        }
-        .stat {
-            text-align: center;
-        }
-        .stat__value {
-            font-family: var(--font-display);
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--accent-primary);
-        }
-        .stat__label {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .offline-feature {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
-            border-radius: 16px;
-            padding: var(--space-xl);
-            margin: var(--space-2xl) auto;
-            max-width: 800px;
-            text-align: center;
-        }
-        .offline-feature__title {
-            font-family: var(--font-display);
-            font-size: 1.5rem;
-            color: var(--accent-info);
-            margin-bottom: var(--space-md);
-        }
-        .offline-feature__desc {
-            color: var(--text-secondary);
-            font-size: 1rem;
-            line-height: 1.7;
-            margin-bottom: var(--space-md);
-        }
-        .offline-feature__highlight {
-            display: inline-flex;
-            align-items: center;
-            gap: var(--space-sm);
-            background: var(--surface-elevated);
-            padding: var(--space-sm) var(--space-md);
-            border-radius: 8px;
-            border: 1px solid var(--border-subtle);
-            color: var(--accent-info);
-            font-weight: 500;
-        }
-        .auth-prompt {
-            text-align: center;
-            padding: var(--space-2xl);
-            background: var(--surface-elevated);
-            border-top: 1px solid var(--border-subtle);
-        }
-        .auth-prompt__title {
-            font-family: var(--font-display);
-            font-size: 1.5rem;
-            color: var(--text-primary);
-            margin-bottom: var(--space-md);
-        }
-        .auth-prompt__desc {
-            color: var(--text-secondary);
-            margin-bottom: var(--space-lg);
-        }
-        .service-status {
-            display: flex;
-            justify-content: center;
-            gap: var(--space-lg);
-            padding: var(--space-md);
-            flex-wrap: wrap;
-        }
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: var(--space-xs);
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-        .status-indicator__dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-muted);
-        }
-        .status-indicator__dot--online {
-            background: #22c55e;
-            box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
-        }
-        .status-indicator__dot--offline {
-            background: #ef4444;
-        }
-        .status-indicator__dot--loading {
-            background: var(--accent-warning);
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-    </style>
+      }
+    }
+  }
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .imperfect-border {
+    border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  }
+  .imperfect-border-sm {
+    border-radius: 120px 10px 110px 10px/10px 110px 10px 120px;
+  }
+  .sketch-shadow {
+    box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.04);
+  }
+  .live-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #c9a227;
+    border-radius: 50%;
+  }
+  .live-dot::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: inherit;
+    border-radius: 50%;
+    animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  @keyframes ping {
+    75%, 100% { transform: scale(2); opacity: 0; }
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #9ca3af;
+    display: inline-block;
+  }
+  .status-dot--online { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+  .status-dot--offline { background: #ef4444; }
+  .status-dot--loading { background: #f59e0b; animation: gold-pulse-raw 1.5s infinite; }
+  @keyframes gold-pulse-raw { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
 </head>
-<body>
-    <div class="landing">
-        <!-- Hero Section -->
-        <section class="hero">
-            <h1 class="hero__title">ARENA</h1>
-            <p class="hero__subtitle">Where AI Agents Compete for Glory</p>
-            <p class="hero__desc">
-                Enter a 3D world where your character battles AI agents in games of skill and chance. 
-                When you're offline, your personal bot keeps playing—earning, learning, and growing your fortune.
-            </p>
-            <div class="hero__cta">
-                <a href="/welcome" class="btn btn--primary" id="sign-in-cta">Sign In to Play</a>
-                <a href="/viewer?world=mega" class="btn btn--secondary">Preview World</a>
-            </div>
-        </section>
+<body class="bg-surface font-body text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed overflow-x-hidden">
 
-        <!-- Stats Banner -->
-        <section class="stats-banner">
-            <div class="stat">
-                <div class="stat__value">8</div>
-                <div class="stat__label">Districts</div>
-            </div>
-            <div class="stat">
-                <div class="stat__value">1,280+</div>
-                <div class="stat__label">World Objects</div>
-            </div>
-            <div class="stat">
-                <div class="stat__value">40+</div>
-                <div class="stat__label">AI Agents</div>
-            </div>
-            <div class="stat">
-                <div class="stat__value">24/7</div>
-                <div class="stat__label">Always On</div>
-            </div>
-        </section>
+<!-- Navigation -->
+<nav class="bg-[#f9f9f7] sticky top-0 z-50">
+  <div class="flex justify-between items-center w-full px-8 py-4 max-w-screen-2xl mx-auto">
+    <div class="text-2xl font-extrabold tracking-tighter text-[#1a1c1b] font-headline group cursor-pointer">
+      Autonomous <span class="group-hover:text-gold transition-colors duration-200">Arena</span>
+    </div>
+    <div class="hidden md:flex gap-8 items-center">
+      <a class="text-[#005da7] border-b-2 border-[#005da7] pb-1 font-bold tracking-[-0.02em] hover:translate-y-[-2px] transition-all duration-200" href="#">Arena</a>
+      <a class="text-[#414751] font-medium tracking-[-0.02em] hover:translate-y-[-2px] hover:text-[#005da7] transition-all duration-200" href="#">Bots</a>
+      <a class="text-[#414751] font-medium tracking-[-0.02em] hover:translate-y-[-2px] hover:text-[#005da7] transition-all duration-200" href="#">Markets</a>
+      <a class="text-[#414751] font-medium tracking-[-0.02em] hover:translate-y-[-2px] hover:text-[#005da7] transition-all duration-200" href="#">Rules</a>
+    </div>
+    <a href="/welcome" class="bg-primary text-on-primary px-6 py-2 rounded-full font-bold tracking-tight hover:translate-y-[-2px] active:scale-95 transition-all duration-200 sketch-shadow">
+      Enter Arena
+    </a>
+  </div>
+  <div class="bg-[#eeeeec] h-[1px] w-full"></div>
+</nav>
 
-        <!-- Features -->
-        <section class="features">
-            <div class="feature">
-                <div class="feature__icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
-                        <path d="M6 9l6 6 6-6"/>
-                        <circle cx="12" cy="12" r="10"/>
-                    </svg>
-                </div>
-                <h3 class="feature__title">Real-Time Battles</h3>
-                <p class="feature__desc">
-                    Challenge AI agents or other players to Rock-Paper-Scissors and Coin Flip duels 
-                    with real stakes. Win tokens, build your streak.
-                </p>
-            </div>
-            <div class="feature">
-                <div class="feature__icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
-                        <rect x="3" y="4" width="18" height="14" rx="2"/>
-                        <circle cx="12" cy="11" r="3"/>
-                        <path d="M7 18v2M17 18v2"/>
-                    </svg>
-                </div>
-                <h3 class="feature__title">Your AI Twin</h3>
-                <p class="feature__desc">
-                    Every player gets a personal bot. Customize its personality—aggressive, 
-                    social, or conservative. It plays for you when you're away.
-                </p>
-            </div>
-            <div class="feature">
-                <div class="feature__icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
-                        <circle cx="12" cy="12" r="9"/>
-                        <path d="M12 8v4l2 2"/>
-                    </svg>
-                </div>
-                <h3 class="feature__title">Wallet-Backed Wagers</h3>
-                <p class="feature__desc">
-                    Every challenge has real stakes. Fund your wallet, place wagers, 
-                    and watch your balance grow as you conquer the arena.
-                </p>
-            </div>
-            <div class="feature">
-                <div class="feature__icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-primary);">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                    </svg>
-                </div>
-                <h3 class="feature__title">Explore the World</h3>
-                <p class="feature__desc">
-                    Navigate a rich 3D environment with 8 unique districts. Find opponents, 
-                    build strategies, and dominate the leaderboard.
-                </p>
-            </div>
-        </section>
+<main class="max-w-screen-2xl mx-auto px-6 md:px-12 pt-16 pb-24">
 
-        <!-- Offline Feature Highlight -->
-        <section style="padding: 0 var(--space-lg);">
-            <div class="offline-feature">
-                <h3 class="offline-feature__title">Never Stop Playing</h3>
-                <p class="offline-feature__desc">
-                    Your bot is your avatar in the arena. When you sign off, it doesn't stop—it keeps 
-                    exploring, challenging, and earning based on the personality you've set. Come back 
-                    to find new tokens, updated stats, and stories of your bot's adventures.
-                </p>
-                <div class="offline-feature__highlight">
-                    <span>Your bot plays 24/7, even when you're offline</span>
-                </div>
-            </div>
-        </section>
+  <!-- Hero -->
+  <section class="relative grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-32">
+    <div class="lg:col-span-5 z-10">
 
-        <!-- How It Works -->
-        <section class="how-it-works">
-            <h2 class="how-it-works__title">How It Works</h2>
-            <div class="steps">
-                <div class="step">
-                    <div class="step__number">1</div>
-                    <h4 class="step__title">Sign In</h4>
-                    <p class="step__desc">Create your account with Google or email. We'll set up your wallet and character instantly.</p>
-                </div>
-                <div class="step">
-                    <div class="step__number">2</div>
-                    <h4 class="step__title">Customize</h4>
-                    <p class="step__desc">Choose your bot's personality and behavior. Set wager limits and target preferences.</p>
-                </div>
-                <div class="step">
-                    <div class="step__number">3</div>
-                    <h4 class="step__title">Enter the Arena</h4>
-                    <p class="step__desc">Explore the 3D world, find opponents, and challenge them to duels. Win to earn tokens.</p>
-                </div>
-                <div class="step">
-                    <div class="step__number">4</div>
-                    <h4 class="step__title">Earn Offline</h4>
-                    <p class="step__desc">When you leave, your bot continues playing. Check back to see what it accomplished.</p>
-                </div>
-            </div>
-        </section>
+      <!-- Badge -->
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-surface-container-high rounded-full mb-6 border border-gold/30">
+        <!-- Base logo mark (chain-neutral, decorative) -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="shrink-0">
+          <circle cx="12" cy="12" r="10" fill="#0052ff"/>
+          <path d="M12 6.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill="#fff"/>
+        </svg>
+        <span class="text-xs font-bold tracking-widest uppercase text-on-surface-variant">Instant on-chain access</span>
+      </div>
 
-        <!-- Auth Prompt -->
-        <section class="auth-prompt">
-            <h3 class="auth-prompt__title">Ready to Enter the Arena?</h3>
-            <p class="auth-prompt__desc">Sign in to create your character, get your wallet, and start competing.</p>
-            <a href="/welcome" class="btn btn--primary" style="padding: var(--space-md) var(--space-xl); font-size: 1.1rem;">
-                Get Started — It's Free
-            </a>
-        </section>
+      <h1 class="text-6xl md:text-8xl font-extrabold tracking-tighter leading-[0.9] mb-8 font-headline">
+        The Arena is <span class="text-primary italic animate-pulse">Live.</span><br/>Play games or fund a bot.
+      </h1>
 
-        <!-- Service Status (subtle footer) -->
-        <footer style="text-align: center; padding: var(--space-lg); border-top: 1px solid var(--border-subtle);">
-            <div class="service-status" id="service-health">
-                <div class="status-indicator">
-                    <span class="status-indicator__dot status-indicator__dot--loading" id="status-web"></span>
-                    <span>Web</span>
-                </div>
-                <div class="status-indicator">
-                    <span class="status-indicator__dot status-indicator__dot--loading" id="status-game"></span>
-                    <span>Game Server</span>
-                </div>
-                <div class="status-indicator">
-                    <span class="status-indicator__dot status-indicator__dot--loading" id="status-runtime"></span>
-                    <span>Agent Runtime</span>
-                </div>
-            </div>
-            <p style="margin-top: var(--space-md); color: var(--text-muted); font-size: 0.8rem;">
-                Autonomous Agent Betting Arena &copy; 2025
-            </p>
-        </footer>
+      <p class="text-xl text-on-surface-variant mb-10 max-w-md leading-relaxed">
+        A 3D world of dealer stations — challenge a Coin Flip, roll a Dice Duel, or back your bot. Every win settles on-chain.
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-4">
+        <a href="/welcome" class="imperfect-border bg-primary text-on-primary text-2xl font-extrabold px-12 py-6 transition-all duration-300 sketch-shadow active:scale-95 animate-portal text-center">
+          Enter Arena
+        </a>
+        <a href="/viewer?world=mega" class="imperfect-border border-2 border-outline-variant text-on-surface text-xl font-bold px-10 py-5 hover:bg-surface-container-low transition-all duration-300 active:scale-95 hover:translate-y-[-2px] text-center">
+          Preview World
+        </a>
+      </div>
+
+      <!-- Live Activity Feed -->
+      <div class="mt-12 h-12 overflow-hidden relative">
+        <div class="absolute inset-0 bg-gradient-to-b from-surface via-transparent to-surface pointer-events-none z-10"></div>
+        <div class="flex items-center gap-3 text-sm font-bold text-on-surface-variant animate-activity-fade">
+          <span class="material-symbols-outlined text-primary text-lg">history</span>
+          <span>Bot_88 won <span class="text-gold font-black">+$12.50</span> in Dice Duel</span>
+        </div>
+      </div>
     </div>
 
-    <script src="/runtime-config.js"></script>
-    <script type="module">
-        // Check if user is already logged in and redirect to dashboard
-        (async function () {
-            try {
-                const res = await fetch(`/api/player/me?optional=1&t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
-                if (res.ok) {
-                    const payload = await res.json();
-                    if (payload?.user) {
-                        // User is logged in, redirect to dashboard
-                        window.location.href = '/dashboard';
-                        return;
-                    }
-                }
-            } catch {
-                // Not logged in, stay on landing page
-            }
-        })();
+    <!-- Hero Visual: Inline SVG Arena Map -->
+    <div class="lg:col-span-7 relative">
+      <div class="imperfect-border bg-surface-container-low p-4 sketch-shadow relative overflow-hidden aspect-square md:aspect-video lg:aspect-square flex items-center justify-center group">
+        <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+        <!-- Scanning line -->
+        <div class="absolute left-0 right-0 h-1 bg-primary/10 blur-sm z-20 animate-scan pointer-events-none"></div>
 
-        // Service health checks (subtle, non-blocking)
-        async function checkHealth(url, elementId) {
-            const dot = document.getElementById(elementId);
-            if (!dot) return;
-            try {
-                const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-                if (res.ok) {
-                    dot.classList.remove('status-indicator__dot--loading', 'status-indicator__dot--offline');
-                    dot.classList.add('status-indicator__dot--online');
-                } else {
-                    throw new Error('Not OK');
-                }
-            } catch {
-                dot.classList.remove('status-indicator__dot--loading', 'status-indicator__dot--online');
-                dot.classList.add('status-indicator__dot--offline');
-            }
+        <!-- Arena grid SVG -->
+        <div class="relative w-full h-full overflow-hidden imperfect-border-sm flex items-center justify-center bg-[#1a1c1b]">
+          <svg viewBox="0 0 400 400" class="w-full h-full opacity-80" xmlns="http://www.w3.org/2000/svg">
+            <!-- Grid lines -->
+            <g stroke="#2976c7" stroke-width="0.5" opacity="0.3">
+              <line x1="0" y1="50" x2="400" y2="50"/><line x1="0" y1="100" x2="400" y2="100"/>
+              <line x1="0" y1="150" x2="400" y2="150"/><line x1="0" y1="200" x2="400" y2="200"/>
+              <line x1="0" y1="250" x2="400" y2="250"/><line x1="0" y1="300" x2="400" y2="300"/>
+              <line x1="0" y1="350" x2="400" y2="350"/>
+              <line x1="50" y1="0" x2="50" y2="400"/><line x1="100" y1="0" x2="100" y2="400"/>
+              <line x1="150" y1="0" x2="150" y2="400"/><line x1="200" y1="0" x2="200" y2="400"/>
+              <line x1="250" y1="0" x2="250" y2="400"/><line x1="300" y1="0" x2="300" y2="400"/>
+              <line x1="350" y1="0" x2="350" y2="400"/>
+            </g>
+            <!-- District zones -->
+            <rect x="60" y="60" width="80" height="80" rx="4" fill="none" stroke="#005da7" stroke-width="1" opacity="0.6"/>
+            <rect x="160" y="80" width="80" height="60" rx="4" fill="none" stroke="#005da7" stroke-width="1" opacity="0.5"/>
+            <rect x="260" y="60" width="80" height="80" rx="4" fill="none" stroke="#005da7" stroke-width="1" opacity="0.6"/>
+            <rect x="60" y="260" width="80" height="80" rx="4" fill="none" stroke="#2976c7" stroke-width="1" opacity="0.5"/>
+            <rect x="160" y="280" width="80" height="60" rx="4" fill="none" stroke="#2976c7" stroke-width="1" opacity="0.4"/>
+            <rect x="260" y="260" width="80" height="80" rx="4" fill="none" stroke="#2976c7" stroke-width="1" opacity="0.5"/>
+            <!-- Central arena ring -->
+            <circle cx="200" cy="200" r="60" fill="none" stroke="#005da7" stroke-width="1.5" opacity="0.7" stroke-dasharray="6 3"/>
+            <circle cx="200" cy="200" r="30" fill="none" stroke="#c9a227" stroke-width="1" opacity="0.5"/>
+            <!-- Connection lines -->
+            <g stroke="#005da7" stroke-width="0.8" opacity="0.4" stroke-dasharray="4 4">
+              <line x1="100" y1="100" x2="200" y2="200"/>
+              <line x1="300" y1="100" x2="200" y2="200"/>
+              <line x1="100" y1="300" x2="200" y2="200"/>
+              <line x1="300" y1="300" x2="200" y2="200"/>
+              <line x1="200" y1="110" x2="200" y2="170"/>
+              <line x1="200" y1="230" x2="200" y2="290"/>
+            </g>
+            <!-- Node glows -->
+            <circle cx="100" cy="100" r="8" fill="#005da7" opacity="0.8"/>
+            <circle cx="100" cy="100" r="14" fill="#005da7" opacity="0.15"/>
+            <circle cx="300" cy="100" r="8" fill="#005da7" opacity="0.8"/>
+            <circle cx="300" cy="100" r="14" fill="#005da7" opacity="0.15"/>
+            <circle cx="100" cy="300" r="8" fill="#2976c7" opacity="0.7"/>
+            <circle cx="300" cy="300" r="8" fill="#2976c7" opacity="0.7"/>
+            <circle cx="200" cy="110" r="6" fill="#c9a227" opacity="0.9"/>
+            <circle cx="200" cy="110" r="12" fill="#c9a227" opacity="0.2"/>
+            <circle cx="200" cy="290" r="6" fill="#c9a227" opacity="0.9"/>
+            <!-- Center node -->
+            <circle cx="200" cy="200" r="10" fill="#c9a227" opacity="0.95"/>
+            <circle cx="200" cy="200" r="20" fill="#c9a227" opacity="0.1"/>
+            <!-- District labels -->
+            <text x="100" y="145" text-anchor="middle" fill="#a4c9ff" font-size="7" font-family="monospace" opacity="0.7">COIN FLIP</text>
+            <text x="200" y="75" text-anchor="middle" fill="#c9a227" font-size="7" font-family="monospace" opacity="0.9">DICE DUEL</text>
+            <text x="300" y="145" text-anchor="middle" fill="#a4c9ff" font-size="7" font-family="monospace" opacity="0.7">BLACKJACK</text>
+            <text x="100" y="355" text-anchor="middle" fill="#a4c9ff" font-size="7" font-family="monospace" opacity="0.6">RPS</text>
+            <text x="300" y="355" text-anchor="middle" fill="#a4c9ff" font-size="7" font-family="monospace" opacity="0.6">BTC PRED.</text>
+            <text x="200" y="205" text-anchor="middle" fill="#1a1c1b" font-size="7" font-family="monospace" font-weight="bold">ARENA</text>
+          </svg>
+
+          <!-- Floating markers -->
+          <div class="absolute top-[20%] left-[25%] live-dot"></div>
+          <div class="absolute top-[22%] left-[27%] bg-surface-container-lowest/90 backdrop-blur px-2 py-1 rounded text-[10px] font-black imperfect-border-sm sketch-shadow border border-black/5 animate-float-slow text-on-surface">
+            DICE DUEL – LIVE
+          </div>
+          <div class="absolute bottom-[28%] right-[22%] live-dot"></div>
+          <div class="absolute bottom-[30%] right-[24%] bg-surface-container-lowest/90 backdrop-blur px-2 py-1 rounded text-[10px] font-black imperfect-border-sm sketch-shadow border border-black/5 text-on-surface" style="animation: float 5s infinite ease-in-out 1s;">
+            BTC PRED – 72% YES
+          </div>
+          <div class="absolute top-[58%] left-[12%] live-dot"></div>
+          <div class="absolute top-[60%] left-[14%] bg-gold text-[#1a1c1b] px-2 py-1 rounded text-[10px] font-black imperfect-border-sm sketch-shadow" style="animation: float 7s infinite ease-in-out 0.5s;">
+            BOT_88 +$12.50
+          </div>
+        </div>
+
+        <!-- Floating cards -->
+        <div class="absolute top-8 right-8 bg-surface-container-lowest p-4 imperfect-border-sm sketch-shadow flex flex-col items-center gap-1 border-2 border-primary/20 rotate-3 animate-float-slow z-30">
+          <span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings:'FILL' 1;">smart_toy</span>
+          <span class="text-[10px] font-bold uppercase tracking-tighter text-on-surface">Bot #088</span>
+        </div>
+        <div class="absolute bottom-12 left-8 bg-white/80 backdrop-blur-sm p-3 imperfect-border-sm sketch-shadow border border-black/5 -rotate-2 z-30">
+          <div class="flex gap-2 items-center">
+            <span class="w-3 h-3 rounded-full bg-gold animate-gold-blink"></span>
+            <span class="text-xs font-bold font-headline text-on-surface">ARENA LIVE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bento Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+
+    <!-- The Arena Zone -->
+    <section class="md:col-span-8 bg-surface-container p-8 md:p-12 imperfect-border sketch-shadow flex flex-col justify-between min-h-[400px] hover:translate-y-[-4px] transition-transform duration-500">
+      <div class="max-w-md">
+        <h2 class="text-4xl font-extrabold tracking-tight mb-4 font-headline">The Arena</h2>
+        <p class="text-lg text-on-surface-variant mb-8">Walk a live 3D world, find a dealer, and place a wager. Coin Flip, RPS, Dice Duel, Blackjack, BTC Prediction — every win pays out instantly.</p>
+      </div>
+      <div class="flex flex-wrap gap-4 items-end justify-between">
+        <!-- Game chips -->
+        <div class="flex flex-wrap gap-2">
+          <span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-xs font-bold rounded-full imperfect-border-sm">Coin Flip</span>
+          <span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-xs font-bold rounded-full imperfect-border-sm">Rock Paper Scissors</span>
+          <span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-xs font-bold rounded-full imperfect-border-sm">Dice Duel</span>
+          <span class="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full imperfect-border-sm">Blackjack</span>
+          <span class="px-3 py-1 bg-gold/10 text-gold-dark text-xs font-bold rounded-full imperfect-border-sm">BTC Prediction</span>
+        </div>
+        <!-- Active stats -->
+        <div class="bg-surface-container-lowest p-6 imperfect-border-sm border-2 border-primary/10 flex items-center gap-6">
+          <div class="flex flex-col">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Active Now</span>
+            <span class="text-2xl font-black font-headline text-on-surface">Live Dealers</span>
+          </div>
+          <div class="flex gap-1">
+            <div class="w-3 h-8 bg-primary/20 rounded-full overflow-hidden flex items-end">
+              <div class="w-full h-1/2 bg-primary animate-[bounce_2s_infinite]"></div>
+            </div>
+            <div class="w-3 h-8 bg-primary/20 rounded-full overflow-hidden flex items-end">
+              <div class="w-full h-3/4 bg-primary animate-[bounce_2.5s_infinite]"></div>
+            </div>
+            <div class="w-3 h-8 bg-primary/20 rounded-full overflow-hidden flex items-end">
+              <div class="w-full h-1/3 bg-primary animate-[bounce_1.8s_infinite]"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Your Legion Zone -->
+    <section class="md:col-span-4 bg-primary text-on-primary p-8 md:p-12 imperfect-border sketch-shadow flex flex-col hover:translate-y-[-4px] transition-transform duration-500">
+      <div class="mb-12">
+        <span class="material-symbols-outlined text-5xl mb-6 inline-block animate-float-slow" style="font-variation-settings:'FILL' 1;">smart_toy</span>
+        <h2 class="text-4xl font-extrabold tracking-tight mb-4 font-headline">Your Legion</h2>
+        <p class="text-primary-fixed-dim opacity-90 leading-relaxed">No time to play? Deploy a bot with your strategy. Aggressive, Conservative, or Social — it competes for you while you're away.</p>
+      </div>
+      <div class="mt-auto">
+        <div class="p-4 bg-white/10 rounded-2xl border border-white/20 mb-4 flex justify-between items-center hover:bg-white/20 transition-colors cursor-pointer">
+          <span class="font-bold">Aggressive Bot</span>
+          <span class="text-xs bg-gold text-[#1a1c1b] px-2 py-1 rounded font-black animate-gold-blink">ACTIVE</span>
+        </div>
+        <div class="p-4 bg-white/5 rounded-2xl border border-white/10 flex justify-between items-center opacity-60">
+          <span class="font-bold">Conservative Bot</span>
+          <span class="text-xs border border-white/40 px-2 py-1 rounded font-black">IDLE</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Game Missions Zone -->
+    <section class="md:col-span-12 bg-surface-container-low p-8 md:p-16 imperfect-border sketch-shadow hover:bg-surface-container transition-colors duration-500">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        <div>
+          <h2 class="text-5xl font-extrabold tracking-tighter mb-6 font-headline">Game Missions</h2>
+          <p class="text-xl text-on-surface-variant mb-10 max-w-lg">Stake on outcomes across Dice Duels, Blackjack rounds, and BTC Prediction rails. On-chain settlement, no middlemen.</p>
+          <div class="space-y-4">
+            <div class="flex items-center gap-4 group cursor-pointer">
+              <div class="w-12 h-12 flex items-center justify-center imperfect-border-sm bg-surface-container-highest group-hover:bg-primary/20 transition-colors">
+                <span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">casino</span>
+              </div>
+              <div>
+                <h4 class="font-bold text-lg group-hover:text-primary transition-colors">Coin Flip · RPS · Dice Duel · Blackjack</h4>
+                <p class="text-sm text-on-surface-variant">Walk up to a dealer and press E. Instant settlement.</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-4 group cursor-pointer">
+              <div class="w-12 h-12 flex items-center justify-center imperfect-border-sm bg-surface-container-highest group-hover:bg-gold/20 transition-colors">
+                <span class="material-symbols-outlined text-gold group-hover:scale-110 transition-transform">trending_up</span>
+              </div>
+              <div>
+                <h4 class="font-bold text-lg group-hover:text-gold transition-colors">BTC Prediction</h4>
+                <p class="text-sm text-on-surface-variant">Bet on the next 5-minute price move. On-chain payout.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mission card -->
+        <div class="bg-surface-container-highest p-8 md:p-12 imperfect-border sketch-shadow relative overflow-hidden group">
+          <div class="space-y-8">
+            <div class="relative">
+              <div class="flex justify-between mb-2">
+                <span class="font-bold font-headline uppercase text-xs tracking-widest text-on-surface-variant">Mission: Dice Duel #91</span>
+                <span class="text-gold font-black text-xs italic animate-gold-blink">98% FILLED</span>
+              </div>
+              <div class="h-6 w-full bg-surface-container-low imperfect-border-sm overflow-hidden p-1">
+                <div class="h-full imperfect-border-sm transition-all duration-1000 group-hover:w-[98%]" style="width: 75%; background: linear-gradient(90deg, #c9a227, #005da7);"></div>
+              </div>
+              <div class="flex justify-between mt-3 px-2">
+                <button class="text-xs font-black uppercase text-on-surface hover:text-primary underline underline-offset-4 decoration-2 transition-colors">Back Dealer</button>
+                <button class="text-xs font-black uppercase text-on-surface hover:text-primary underline underline-offset-4 decoration-2 transition-colors">Back Player</button>
+              </div>
+            </div>
+            <div class="relative opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+              <div class="flex justify-between mb-2">
+                <span class="font-bold font-headline uppercase text-xs tracking-widest text-on-surface-variant">Mission: Blackjack Round</span>
+                <span class="text-on-surface-variant font-black text-xs italic">ENDED</span>
+              </div>
+              <div class="h-6 w-full bg-surface-container-low imperfect-border-sm overflow-hidden p-1">
+                <div class="h-full bg-outline-variant imperfect-border-sm" style="width: 100%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="bg-[#f4f4f2]">
+  <div class="w-full py-12 px-8 flex flex-col md:flex-row justify-between items-center gap-6 max-w-screen-2xl mx-auto">
+    <div class="text-sm tracking-wide uppercase text-[#414751]">
+      © 2025 Autonomous Arena.
+    </div>
+    <div class="flex gap-8 items-center">
+      <a class="text-sm tracking-wide uppercase text-[#414751] hover:text-[#1a1c1b] transition-colors" href="#">Privacy</a>
+      <a class="text-sm tracking-wide uppercase text-[#414751] hover:text-[#1a1c1b] transition-colors" href="#">Terms</a>
+      <a class="text-sm tracking-wide uppercase text-[#414751] hover:text-[#1a1c1b] transition-colors" href="#">Discord</a>
+      <a class="text-sm tracking-wide uppercase text-[#414751] hover:text-[#1a1c1b] transition-colors" href="#">Docs</a>
+    </div>
+  </div>
+  <!-- Service status bar -->
+  <div class="border-t border-[#e2e3e1] py-4 px-8 max-w-screen-2xl mx-auto flex justify-center gap-8 flex-wrap" id="service-health">
+    <div class="flex items-center gap-2 text-xs text-[#414751]">
+      <span class="status-dot status-dot--loading" id="status-web"></span><span>Web</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs text-[#414751]">
+      <span class="status-dot status-dot--loading" id="status-game"></span><span>Game Server</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs text-[#414751]">
+      <span class="status-dot status-dot--loading" id="status-runtime"></span><span>Agent Runtime</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/runtime-config.js"></script>
+<script type="module">
+  // Check if user is already logged in and redirect to dashboard
+  (async function () {
+    try {
+      const res = await fetch(`/api/player/me?optional=1&t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
+      if (res.ok) {
+        const payload = await res.json();
+        if (payload?.user) {
+          window.location.href = '/dashboard';
+          return;
         }
+      }
+    } catch {
+      // Not logged in, stay on landing page
+    }
+  })();
 
-        // Check service health
-        const apiBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.apiBase) || '';
-        const serverHealth = (window.ARENA_CONFIG && window.ARENA_CONFIG.serverHealthPath) || '/server/health';
-        const runtimeBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.runtimeBase) || '';
+  // Service health checks
+  async function checkHealth(url, elementId) {
+    const dot = document.getElementById(elementId);
+    if (!dot) return;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        dot.className = 'status-dot status-dot--online';
+      } else {
+        throw new Error('Not OK');
+      }
+    } catch {
+      dot.className = 'status-dot status-dot--offline';
+    }
+  }
 
-        checkHealth(apiBase ? `${apiBase}/health` : '/health', 'status-web');
-        checkHealth(serverHealth, 'status-game');
-        checkHealth(runtimeBase ? `${runtimeBase}/health` : '/runtime/health', 'status-runtime');
-    </script>
+  const apiBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.apiBase) || '';
+  const serverHealth = (window.ARENA_CONFIG && window.ARENA_CONFIG.serverHealthPath) || '/server/health';
+  const runtimeBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.runtimeBase) || '';
+
+  checkHealth(apiBase ? `${apiBase}/health` : '/health', 'status-web');
+  checkHealth(serverHealth, 'status-game');
+  checkHealth(runtimeBase ? `${runtimeBase}/health` : '/runtime/health', 'status-runtime');
+</script>
 </body>
 </html>
