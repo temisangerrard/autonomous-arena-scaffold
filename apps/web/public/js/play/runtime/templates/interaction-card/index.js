@@ -285,7 +285,7 @@ export function renderInteractionCardTemplate(params) {
         ? `${labelFor(incoming.challengerId)} challenged you (${incoming.gameType.toUpperCase()}, ${formatWagerInline(incoming.wager)}).`
         : '';
 
-      const challengeMsg = String(state.challengeMessage || '');
+      const challengeMsg = String(state.playerChallengeMessage || '');
       const playerRenderKey = [
         targetId,
         selectedGame,
@@ -327,7 +327,7 @@ export function renderInteractionCardTemplate(params) {
             </select>
           </div>
           <div class="station-ui__row">
-            <label for="player-challenge-wager">Wager (USDC)</label>
+            <label for="player-challenge-wager">Wager (each, USDC)</label>
             <input id="player-challenge-wager" type="number" min="0" max="10000" step="1" value="${selectedWager}" />
           </div>
           <div class="station-ui__actions">
