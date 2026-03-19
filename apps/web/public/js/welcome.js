@@ -1,7 +1,6 @@
 const AUTH_KEY = 'arena_auth_user';
 
 const ctaRoot = document.getElementById('welcome-session-cta');
-const hint = document.getElementById('welcome-hint');
 const authError = document.getElementById('welcome-auth-error');
 const adminToggle = document.getElementById('admin-toggle');
 const adminPanel = document.getElementById('admin-panel');
@@ -143,22 +142,39 @@ function continueTarget() {
 }
 
 function renderSignedIn(user) {
-  if (!ctaRoot || !hint) {
+  if (!ctaRoot) {
     return;
   }
-  hint.textContent = `Signed in as ${user.name || user.email} (${user.role}).`;
+  const initial = (user.name || user.email || '?')[0].toUpperCase();
+  const displayName = user.name || user.email;
   ctaRoot.innerHTML = `
-    <a class="btn btn--primary" href="/play?world=mega">Enter Arena</a>
-    <a class="btn btn--secondary" href="${continueTarget()}">Open Dashboard</a>
-    <button id="welcome-logout" class="btn btn--ghost" type="button">Logout</button>
+    <div class="auth-card auth-card--signed-in land-border land-shadow">
+      <div class="auth-avatar">${initial}</div>
+      <div class="auth-user-info">
+        <p class="auth-user-name">${displayName}</p>
+        <p class="auth-user-role">${user.role}</p>
+      </div>
+      <div class="auth-signed-in-actions">
+        <a class="land-cta-primary land-border" href="/play?world=mega">Enter Arena</a>
+        <a class="land-cta-secondary land-border" href="${continueTarget()}">Dashboard</a>
+        <button id="welcome-logout" class="auth-logout-btn" type="button">Logout</button>
+      </div>
+    </div>
   `;
   ctaRoot.querySelector('#welcome-logout')?.addEventListener('click', () => {
     void logout();
   });
 }
 
+const GOOGLE_LOGO_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+</svg>`;
+
 function renderSignedOut() {
-  if (!ctaRoot || !hint) {
+  if (!ctaRoot) {
     return;
   }
 
@@ -168,34 +184,70 @@ function renderSignedOut() {
   const googleEnabled = firebaseGoogle || legacyGoogle;
 
   if (!emailEnabled && !googleEnabled) {
-    hint.textContent = 'Sign-in is not configured in this environment.';
-    ctaRoot.innerHTML = '<a class="btn btn--primary" href="/play?world=mega">Enter Arena</a><a class="btn btn--secondary" href="/viewer?world=mega">Explore Viewer</a>';
+    ctaRoot.innerHTML = `
+      <div class="auth-card land-border land-shadow">
+        <p class="auth-card__label">Sign-in is not configured in this environment.</p>
+        <div class="auth-unconfigured-actions">
+          <a class="land-cta-primary land-border" href="/play?world=mega">Enter Arena</a>
+          <a class="land-cta-secondary land-border" href="/viewer?world=mega">Explore Viewer</a>
+        </div>
+      </div>
+    `;
     return;
   }
 
-  hint.textContent = 'Sign in to create your player bot and wallet.';
   ctaRoot.innerHTML = `
-    <a class="btn btn--primary" href="/play?world=mega">Enter Arena</a>
-    ${emailEnabled ? `
-      <div class="welcome-email-auth">
-        <input id="welcome-email" class="form-input" type="email" placeholder="Email" autocomplete="email">
-        <input id="welcome-password" class="form-input" type="password" placeholder="Password" autocomplete="current-password">
-        <div class="welcome-email-auth__actions">
-          <button id="welcome-email-login" class="btn btn--secondary" type="button">Email Login</button>
-          <button id="welcome-email-signup" class="btn btn--secondary" type="button">Email Signup</button>
+    <div class="auth-card land-border land-shadow">
+      <p class="auth-card__heading">Welcome back</p>
+      <p class="auth-card__label">Sign in to play and manage your bot.</p>
+
+      ${emailEnabled ? `
+        <div class="auth-tabs" role="tablist">
+          <button class="auth-tab is-active" data-tab="login" role="tab" aria-selected="true">Login</button>
+          <button class="auth-tab" data-tab="signup" role="tab" aria-selected="false">Sign Up</button>
         </div>
-      </div>
-    ` : ''}
-    ${firebaseGoogle ? '<button id="welcome-google-login" class="btn btn--secondary" type="button">Continue with Google</button>' : ''}
-    ${legacyGoogle ? '<div id="google-signin-welcome"></div>' : ''}
+        <form class="auth-form" id="welcome-auth-form" novalidate>
+          <div class="auth-field">
+            <label class="auth-label" for="welcome-email">Email</label>
+            <input id="welcome-email" class="form-input" type="email" placeholder="you@example.com" autocomplete="email" required>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="welcome-password">Password</label>
+            <input id="welcome-password" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password" required>
+          </div>
+          <button class="auth-submit land-border" type="submit" id="welcome-email-submit">Login</button>
+        </form>
+      ` : ''}
+
+      ${googleEnabled ? `
+        ${emailEnabled ? '<div class="auth-divider"><span>or</span></div>' : ''}
+        ${firebaseGoogle ? `<button id="welcome-google-login" class="auth-google-btn land-border" type="button">${GOOGLE_LOGO_SVG}Continue with Google</button>` : ''}
+        ${legacyGoogle ? '<div id="google-signin-welcome"></div>' : ''}
+      ` : ''}
+    </div>
   `;
 
   if (emailEnabled) {
-    ctaRoot.querySelector('#welcome-email-login')?.addEventListener('click', () => {
-      void handleEmailAuth('login');
+    ctaRoot.querySelectorAll('.auth-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        ctaRoot.querySelectorAll('.auth-tab').forEach(t => {
+          t.classList.remove('is-active');
+          t.setAttribute('aria-selected', 'false');
+        });
+        tab.classList.add('is-active');
+        tab.setAttribute('aria-selected', 'true');
+        const mode = tab.dataset.tab;
+        const submitBtn = ctaRoot.querySelector('#welcome-email-submit');
+        if (submitBtn) submitBtn.textContent = mode === 'login' ? 'Login' : 'Create Account';
+        const pwdInput = ctaRoot.querySelector('#welcome-password');
+        if (pwdInput) pwdInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+      });
     });
-    ctaRoot.querySelector('#welcome-email-signup')?.addEventListener('click', () => {
-      void handleEmailAuth('signup');
+
+    ctaRoot.querySelector('#welcome-auth-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const activeTab = ctaRoot.querySelector('.auth-tab.is-active')?.dataset.tab || 'login';
+      void handleEmailAuth(activeTab);
     });
   }
 
