@@ -66,7 +66,10 @@ describe('AgentBot strategy policy acceptance', () => {
     vi.runAllTimers();
 
     expect(send).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(send.mock.calls[0][0])).toMatchObject({
+    const firstCall = send.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const [message] = firstCall!;
+    expect(JSON.parse(String(message))).toMatchObject({
       type: 'challenge_response',
       challengeId: 'challenge-1',
       accept: false
