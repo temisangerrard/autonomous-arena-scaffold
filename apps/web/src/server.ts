@@ -45,7 +45,7 @@ const serverBase = process.env.WEB_API_BASE_URL ?? 'http://localhost:4000';
 const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100';
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
-const defaultWorldAssetBaseUrl = 'https://arena-world-assets.netlify.app';
+const defaultWorldAssetBaseUrl = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 const allowedAuthOrigins = new Set(
   (process.env.ALLOWED_AUTH_ORIGINS?.trim()
     ? process.env.ALLOWED_AUTH_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)

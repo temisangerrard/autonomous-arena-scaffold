@@ -1,4 +1,4 @@
-const CANONICAL_WORLD_BASE_FALLBACK = 'https://arena-world-assets.netlify.app';
+const CANONICAL_WORLD_BASE_FALLBACK = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 
 export function createArenaConfigRuntime(params) {
   const {

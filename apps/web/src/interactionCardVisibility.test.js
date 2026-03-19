@@ -117,6 +117,11 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Start Round')).toBe(true);
   });
 
+  it('includes a player seed when starting a blackjack hand', () => {
+    const source = readSource('blackjack-panel.js');
+    expect(source.includes("sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })")).toBe(true);
+  });
+
   it('renders escrow activity with explicit game outcomes and suppresses redundant lock rows', () => {
     const source = readFileSync(resolve(__dirname, '../public/js/dashboard.js'), 'utf8');
     expect(source.includes('const terminalEscrowChallenges = new Set(')).toBe(true);

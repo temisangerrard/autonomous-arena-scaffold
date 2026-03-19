@@ -8,10 +8,10 @@ const serverPath = path.resolve(__dirname, './server.ts');
 const arenaConfigPath = path.resolve(__dirname, '../public/js/play/runtime/network/arena-config.js');
 const netlifyBuildPath = path.resolve(__dirname, '../../../scripts/netlify-build.mjs');
 
-const CANONICAL_WORLD_ASSET_BASE_URL = 'https://arena-world-assets.netlify.app';
+const CANONICAL_WORLD_ASSET_BASE_URL = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
 
 describe('world asset host', () => {
-  it('uses the canonical Netlify world asset host across server and static runtime config', () => {
+  it('uses the canonical Cloudflare R2 world asset host across server and static runtime config', () => {
     const serverSource = readFileSync(serverPath, 'utf8');
     const arenaConfigSource = readFileSync(arenaConfigPath, 'utf8');
     const netlifyBuildSource = readFileSync(netlifyBuildPath, 'utf8');

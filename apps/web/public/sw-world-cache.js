@@ -3,7 +3,7 @@ const META_URL = 'https://world-cache.local/__meta__';
 const MAX_WORLDS = 1;
 const CANONICAL_WORLD_KEY = 'train_station_mega_world.glb';
 // CDN hostname that hosts world GLB assets in production.
-const KNOWN_ASSET_HOSTS = ['arena-world-assets.netlify.app'];
+const KNOWN_ASSET_HOSTS = ['pub-302820e514cd451baaf272a33bd70765.r2.dev'];
 
 function normalizeWorldKey(name) {
   const raw = String(name || '').toLowerCase();
