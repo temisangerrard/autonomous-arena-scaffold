@@ -127,6 +127,11 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Start Round')).toBe(true);
   });
 
+  it('includes a player seed when starting a blackjack hand', () => {
+    const source = readSource('blackjack-panel.js');
+    expect(source.includes("sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })")).toBe(true);
+  });
+
   it('excludes house challenges from the interaction card force-close guard', () => {
     const source = readSource('index.js');
     // Must detect house challenges before deciding to force-close the interaction card
