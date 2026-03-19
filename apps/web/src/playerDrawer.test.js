@@ -125,6 +125,11 @@ describe('player drawer helpers', () => {
     expect(source).toContain('player-drawer__activity-item--');
   });
 
+  it('shows low funds as the control mode when bot readiness is insufficient', () => {
+    const source = readFileSync(path.resolve(__dirname, '../public/js/play/runtime/player-drawer.js'), 'utf8');
+    expect(source).toContain("if (status === 'insufficient_usdc') return 'Low Funds';");
+  });
+
   it('derives wallet address from profile or onchain summary instead of missing wallet fields', () => {
     const view = deriveWalletSummaryView({
       player: {

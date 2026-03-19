@@ -219,7 +219,9 @@ function summarizeActivity(entry) {
   };
 }
 
-function describeControlMode(bot) {
+function describeControlMode(bot, readiness) {
+  const status = String(readiness?.status || '').trim().toLowerCase();
+  if (status === 'insufficient_usdc') return 'Low Funds';
   const mode = String(bot?.controlMode || '').trim().toLowerCase();
   if (mode === 'human_active') return 'Human controlling';
   if (mode === 'bot_active') return 'Bot roaming';
@@ -302,7 +304,7 @@ export function seedDrawerDataFromRuntime({ state, dom } = {}) {
 function createDrawerMarkup({ walletSummary, player, bot, readiness, funding, activityPreview }) {
   const walletView = deriveWalletSummaryView({ summary: walletSummary, player, readiness, funding });
   const autoplay = normalizeAutoplay(bot);
-  const controlModeLabel = describeControlMode(bot);
+  const controlModeLabel = describeControlMode(bot, readiness);
   const actorClassLabel = describeActorClass(bot);
   const activityItems = limitDrawerActivity(activityPreview).map((entry) => {
     const summaryBits = summarizeActivity(entry);
