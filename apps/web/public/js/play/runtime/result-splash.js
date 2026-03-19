@@ -18,7 +18,7 @@ export function showResultSplash(text, tone = 'neutral') {
     border: `2px solid ${palette.border}`,
     background: palette.bg,
     color: palette.fg,
-    fontFamily: '"Cormorant Garamond", serif',
+    fontFamily: 'var(--font-primary, "Plus Jakarta Sans", sans-serif)',
     fontSize: '26px',
     fontWeight: '700',
     textAlign: 'center',
