@@ -8,10 +8,10 @@
       transform: translateX(-50%);
       width: min(420px, calc(100vw - 32px));
       max-height: calc(100vh - 152px);
-      background: rgba(253, 248, 237, 0.98);
-      border: 1px solid rgba(198, 152, 49, 0.45);
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
       border-radius: 16px;
-      box-shadow: 0 20px 50px rgba(25, 20, 10, 0.3);
+      box-shadow: 0 20px 50px rgba(26, 28, 27, 0.18);
       z-index: 95;
       display: none;
       overflow: auto;
@@ -41,13 +41,13 @@
       position: sticky;
       top: 0;
       z-index: 2;
-      background: rgba(253, 248, 237, 0.98);
+      background: var(--bg-card);
       backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 14px 16px 10px;
-      border-bottom: 1px solid rgba(198, 152, 49, 0.15);
+      border-bottom: 1px solid var(--border-light);
     }
     .interaction-card__head-actions {
       display: inline-flex;
@@ -55,14 +55,14 @@
       gap: 8px;
     }
     .interaction-card__help {
-      border: 1px solid rgba(198, 152, 49, 0.3);
-      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid var(--border-medium);
+      background: var(--bg-secondary);
       width: 28px;
       height: 28px;
       border-radius: 8px;
       cursor: pointer;
-      color: #5a3f16;
-      font: 700 14px/1 'JetBrains Mono', monospace;
+      color: var(--text-secondary);
+      font: 700 14px/1 var(--font-mono);
       transition: all 0.2s ease;
     }
     .interaction-card__help:hover {
@@ -70,10 +70,9 @@
     }
 
     .interaction-card__title {
-      font: 700 16px/1.1 'Cormorant Garamond', serif;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: #3b2b12;
+      font: 700 15px/1.1 var(--font-primary);
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
       display: flex;
       flex-direction: column;
       gap: 3px;
@@ -81,22 +80,22 @@
 
     .interaction-card__subtitle {
       display: block;
-      font: 400 10px/1 'IBM Plex Mono', monospace;
-      letter-spacing: 0.12em;
+      font: 500 10px/1 var(--font-mono);
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: #9a7e3a;
-      opacity: 0.8;
+      color: var(--text-muted);
+      opacity: 0.9;
     }
 
     .interaction-card__close {
-      border: 1px solid rgba(198, 152, 49, 0.3);
-      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid var(--border-medium);
+      background: var(--bg-secondary);
       width: 44px;
       height: 44px;
       border-radius: 10px;
       cursor: pointer;
-      color: #5a3f16;
-      font: 700 18px/1 'IBM Plex Sans', sans-serif;
+      color: var(--text-secondary);
+      font: 700 18px/1 var(--font-primary);
       transition: all 0.2s ease;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
@@ -120,17 +119,17 @@
     }
 
     .interaction-help {
-      border: 1px solid rgba(198, 152, 49, 0.3);
-      background: rgba(255, 251, 242, 0.8);
+      border: 1px solid var(--border-light);
+      background: var(--bg-secondary);
       border-radius: 12px;
       padding: 10px 11px;
-      color: #5f4a25;
-      font: 600 12px/1.4 'IBM Plex Sans', sans-serif;
+      color: var(--text-secondary);
+      font: 600 12px/1.4 var(--font-primary);
     }
 
     .station-ui {
-      border: 1px solid rgba(198, 152, 49, 0.25);
-      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--border-light);
+      background: var(--bg-secondary);
       border-radius: 12px;
       padding: 13px;
       display: grid;
@@ -149,7 +148,7 @@
       font: 800 12px/1 var(--font-mono);
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: #5a3f16;
+      color: var(--text-secondary);
     }
 
     .station-ui__row {
@@ -168,7 +167,7 @@
       font: 700 11px/1 var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: #6a5835;
+      color: var(--text-muted);
     }
 
     .station-ui__actions {
@@ -180,20 +179,20 @@
     }
 
     .station-ui__meta {
-      font: 600 12px/1.35 'IBM Plex Sans', sans-serif;
-      color: rgba(44, 33, 18, 0.9);
+      font: 600 12px/1.35 var(--font-primary);
+      color: var(--text-primary);
       border-radius: 10px;
-      border: 1px solid rgba(198, 152, 49, 0.22);
-      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid var(--border-light);
+      background: var(--bg-card);
       padding: 10px 11px;
       overflow-wrap: anywhere;
       word-break: break-word;
     }
 
     .station-ui__meta--warning {
-      border-color: rgba(200, 129, 41, 0.58);
-      background: rgba(255, 233, 186, 0.82);
-      color: #5f3f08;
+      border-color: rgba(184, 134, 11, 0.4);
+      background: rgba(247, 240, 216, 0.9);
+      color: var(--accent-warning);
       font-weight: 700;
     }
 
@@ -215,8 +214,8 @@
     }
 
     .prediction-panel__subhead {
-      font: 600 12px/1.35 'IBM Plex Sans', sans-serif;
-      color: rgba(68, 48, 14, 0.85);
+      font: 600 12px/1.35 var(--font-primary);
+      color: var(--text-secondary);
     }
 
     .prediction-panel__ticker {
@@ -231,9 +230,9 @@
       gap: 6px;
       padding: 6px 9px;
       border-radius: 999px;
-      border: 1px solid rgba(198, 152, 49, 0.32);
-      background: rgba(255, 252, 242, 0.92);
-      color: #4c3512;
+      border: 1px solid var(--border-light);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
       font: 700 10px/1 var(--font-mono);
       letter-spacing: 0.02em;
       max-width: 100%;
@@ -252,10 +251,10 @@
 
     /* NPC speech bubble (world_interactable stations) */
     .npc-speech__bubble {
-      font: 17px/1.6 'Crimson Text', serif;
-      color: #3a2e1e;
-      background: rgba(255, 252, 242, 0.7);
-      border: 1px solid rgba(201, 162, 39, 0.22);
+      font: 500 15px/1.65 var(--font-primary);
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
       border-radius: 12px;
       padding: 14px 16px;
     }
@@ -276,7 +275,7 @@
       font: 700 11px/1 var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: #6a5835;
+      color: var(--text-muted);
     }
 
     .interaction-row select,
@@ -285,11 +284,11 @@
       width: 100%;
       min-width: 0;
       border-radius: 10px;
-      border: 1px solid rgba(163, 128, 40, 0.35);
-      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid var(--border-medium);
+      background: var(--bg-card);
       padding: 0 12px;
-      font: 600 13px/1 'IBM Plex Sans', sans-serif;
-      color: #2c2112;
+      font: 600 13px/1 var(--font-primary);
+      color: var(--text-primary);
       transition: all 0.2s ease;
     }
     .interaction-row select:focus,
@@ -363,8 +362,8 @@
     }
 
     .interaction-hint {
-      font: 12px/1.4 'Crimson Text', serif;
-      color: rgba(60, 44, 18, 0.7);
+      font: 12px/1.4 var(--font-primary);
+      color: var(--text-muted);
     }
 
     /* ============================================
@@ -379,8 +378,8 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      background: rgba(255, 255, 255, 0.55);
-      border: 1px solid rgba(198, 152, 49, 0.28);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
       border-radius: 12px;
       padding: 10px 14px;
     }
@@ -388,7 +387,7 @@
       font: 700 11px/1 var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: #6a5835;
+      color: var(--text-muted);
       flex-shrink: 0;
     }
     .game-panel__currency {
@@ -400,11 +399,11 @@
       min-width: 0;
       height: 34px;
       border-radius: 8px;
-      border: 1px solid rgba(163, 128, 40, 0.3);
-      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--border-medium);
+      background: var(--bg-card);
       padding: 0 10px;
       font: 700 14px/1 var(--font-mono);
-      color: #2c2112;
+      color: var(--text-primary);
       text-align: right;
     }
     .game-panel__wager-input:focus {
@@ -474,21 +473,21 @@
       max-width: 100px;
       padding: 10px 6px 8px;
       border-radius: 12px;
-      border: 2px solid rgba(198, 152, 49, 0.3);
-      background: rgba(255, 255, 255, 0.72);
-      color: #2c2112;
+      border: 2px solid var(--border-light);
+      background: var(--bg-card);
+      color: var(--text-primary);
       cursor: pointer;
       transition: all 0.15s ease;
     }
     .game-panel__pick-btn:hover:not(:disabled) {
-      border-color: rgba(198, 152, 49, 0.75);
-      background: rgba(255, 248, 220, 0.95);
+      border-color: var(--blue-primary);
+      background: var(--blue-pale);
       transform: translateY(-2px);
-      box-shadow: 0 6px 18px rgba(198, 152, 49, 0.28);
+      box-shadow: 0 6px 18px rgba(0, 93, 167, 0.15);
     }
     .game-panel__pick-btn:active:not(:disabled) {
       transform: translateY(0);
-      background: rgba(245, 220, 130, 0.85);
+      background: var(--blue-pale);
     }
     .game-panel__pick-btn:disabled {
       opacity: 0.38;
@@ -511,14 +510,14 @@
       font: 700 10px/1 var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #5a3f16;
+      color: var(--text-muted);
     }
 
     .game-panel__status {
-      font: 600 12px/1.4 'IBM Plex Sans', sans-serif;
-      color: rgba(44, 33, 18, 0.8);
-      background: rgba(255, 255, 255, 0.55);
-      border: 1px solid rgba(198, 152, 49, 0.2);
+      font: 600 12px/1.4 var(--font-primary);
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
       border-radius: 10px;
       padding: 9px 12px;
       text-align: center;
@@ -528,9 +527,9 @@
       justify-content: center;
     }
     .game-panel__status--prompt {
-      border-color: rgba(198, 152, 49, 0.55);
-      background: rgba(255, 248, 215, 0.82);
-      color: #4a3210;
+      border-color: rgba(201, 162, 39, 0.4);
+      background: var(--gold-pale);
+      color: var(--gold-dark);
       font-weight: 700;
     }
     .game-panel__status--loading {
@@ -641,30 +640,30 @@
 
     /* Timing row (locks / settles) */
     .prediction-panel__info {
-      font: 500 11px/1.35 'IBM Plex Mono', monospace;
-      color: rgba(68, 48, 14, 0.78);
+      font: 500 11px/1.35 var(--font-mono);
+      color: var(--text-secondary);
       overflow-wrap: anywhere;
       word-break: break-word;
     }
 
     /* Prices row (spot / lock / final) */
     .prediction-panel__prices {
-      font: 500 11px/1.35 'IBM Plex Mono', monospace;
-      color: rgba(68, 48, 14, 0.65);
+      font: 500 11px/1.35 var(--font-mono);
+      color: var(--text-muted);
       overflow-wrap: anywhere;
       word-break: break-word;
     }
 
     /* Disclaimer line */
     .prediction-panel__disclaimer {
-      font: 400 11px/1.4 'IBM Plex Sans', sans-serif;
-      color: rgba(60, 44, 18, 0.6);
+      font: 400 11px/1.4 var(--font-primary);
+      color: var(--text-muted);
     }
 
     /* Inline status badge beside tab row */
     .prediction-market-status--inline {
-      font: 500 10px/1 'IBM Plex Mono', monospace;
-      color: rgba(68, 48, 14, 0.7);
+      font: 500 10px/1 var(--font-mono);
+      color: var(--text-muted);
       margin-left: auto;
       white-space: nowrap;
     }
@@ -679,9 +678,9 @@
       flex: 1;
       height: 32px;
       border-radius: 8px;
-      border: 1px solid rgba(198, 152, 49, 0.3);
-      background: rgba(255, 255, 255, 0.55);
-      color: #6a5835;
+      border: 1px solid var(--border-medium);
+      background: var(--bg-card);
+      color: var(--text-secondary);
       font: 700 11px/1 var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -690,8 +689,8 @@
     }
 
     .prediction-tab:hover:not(:disabled) {
-      background: rgba(255, 248, 220, 0.85);
-      border-color: rgba(198, 152, 49, 0.55);
+      background: var(--bg-secondary);
+      border-color: var(--blue-primary);
     }
 
     .prediction-tab.is-active {
@@ -765,16 +764,16 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 6px;
-      font: 12px/1.4 'IBM Plex Mono', monospace;
-      color: #3a2e1e;
+      font: 12px/1.4 var(--font-mono);
+      color: var(--text-primary);
       padding: 3px 0;
       overflow-wrap: anywhere;
       word-break: break-word;
     }
 
     .prediction-market-preview {
-      font: 500 11px/1.4 'IBM Plex Sans', sans-serif;
-      color: rgba(68, 48, 14, 0.8);
+      font: 500 11px/1.4 var(--font-primary);
+      color: var(--text-secondary);
       margin-top: -4px;
       overflow-wrap: anywhere;
       word-break: break-word;
@@ -842,8 +841,8 @@
         position: sticky;
         top: 0;
         z-index: 3;
-        background: rgba(253, 248, 237, 0.98);
-        border-bottom: 1px solid rgba(198, 152, 49, 0.18);
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-light);
       }
 
       .interaction-card__body {
