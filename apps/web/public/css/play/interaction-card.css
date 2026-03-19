@@ -322,42 +322,44 @@
     .btn-gold {
       height: 40px;
       border-radius: 8px;
-      border: 1px solid rgba(153, 113, 18, 0.5);
-      background: linear-gradient(180deg, #e8c860 0%, #d4a830 100%);
-      color: #241a07;
-      font: 900 13px/1 var(--font-mono);
+      border: 1px solid var(--border-gold);
+      background: linear-gradient(160deg, var(--gold-light) 0%, var(--gold-primary) 100%);
+      color: var(--text-primary);
+      font: 700 12px/1 var(--font-primary);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       cursor: pointer;
       transition: all 0.2s ease;
     }
     .btn-gold:hover {
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(212, 168, 48, 0.4);
+      box-shadow: var(--shadow-gold);
     }
     .btn-gold:focus-visible {
-      outline: 2px solid var(--ui-gold);
+      outline: 2px solid var(--blue-primary);
       outline-offset: 2px;
     }
 
     .btn-ghost {
       height: 40px;
-      border-radius: 12px;
-      border: 1px solid rgba(163, 128, 40, 0.35);
-      background: rgba(255, 255, 255, 0.6);
-      color: #5a3f16;
-      font: 800 12px/1 var(--font-mono);
+      border-radius: 8px;
+      border: 1px solid var(--border-medium);
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      font: 700 12px/1 var(--font-primary);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       cursor: pointer;
       padding: 0 14px;
       transition: all 0.2s ease;
     }
     .btn-ghost:hover {
-      background: rgba(255, 255, 255, 0.8);
+      background: var(--bg-tertiary);
+      border-color: var(--blue-primary);
+      color: var(--blue-primary);
     }
     .btn-ghost:focus-visible {
-      outline: 2px solid var(--ui-gold);
+      outline: 2px solid var(--blue-primary);
       outline-offset: 2px;
     }
 
