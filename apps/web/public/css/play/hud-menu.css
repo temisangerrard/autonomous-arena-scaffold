@@ -24,9 +24,9 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      background: rgba(249, 249, 247, 0.96);
+      background: var(--bg-card);
       border: 1px solid var(--border-light);
-      border-radius: 40px;
+      border-radius: 14px;
       padding: 7px 14px 7px 8px;
       box-shadow: var(--shadow-md);
       backdrop-filter: blur(12px);
@@ -63,7 +63,7 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      border-radius: 999px;
+      border-radius: 10px;
       padding: 5px 10px;
       font: 700 11px/1 var(--font-mono);
       text-transform: uppercase;
@@ -72,14 +72,14 @@
     }
 
     .topbar-pill.wallet {
-      background: rgba(201, 162, 39, 0.1);
-      border: 1px solid var(--border-gold);
-      color: var(--gold-dark);
+      background: var(--blue-pale);
+      border: 1px solid rgba(0, 93, 167, 0.25);
+      color: var(--blue-primary);
       font-size: 13px;
       min-width: 72px;
       justify-content: center;
     }
-    .topbar-pill.wallet:hover { background: rgba(201, 162, 39, 0.18); }
+    .topbar-pill.wallet:hover { background: rgba(0, 93, 167, 0.15); }
 
     /* ---- Right island: streak + bot + menu ---- */
     .topbar-right {
@@ -94,24 +94,24 @@
     }
 
     .topbar-pill.streak {
-      background: rgba(249, 249, 247, 0.96);
+      background: var(--bg-card);
       border: 1px solid var(--border-light);
-      color: var(--gold-dark);
+      color: var(--text-secondary);
       box-shadow: var(--shadow-md);
       backdrop-filter: blur(12px);
     }
-    .topbar-pill.streak:hover { background: var(--bg-card); }
+    .topbar-pill.streak:hover { background: var(--bg-secondary); }
 
     .topbar-pill.bot {
-      background: rgba(249, 249, 247, 0.96);
+      background: var(--bg-card);
       border: 1px solid rgba(74, 124, 89, 0.4);
       color: var(--accent-success);
       box-shadow: var(--shadow-md);
       backdrop-filter: blur(12px);
     }
     .topbar-pill.bot.manual {
-      border-color: var(--border-gold);
-      color: var(--gold-dark);
+      border-color: rgba(0, 93, 167, 0.35);
+      color: var(--blue-primary);
     }
     .topbar-pill__dot {
       width: 7px;
@@ -122,13 +122,13 @@
       flex: none;
     }
 
-    /* Menu button — circular pill matching the others */
+    /* Menu button — square tile matching the other pills */
     .menu-ghost {
       width: 36px;
       height: 36px;
-      border-radius: 50%;
+      border-radius: 10px;
       border: 1px solid var(--border-light);
-      background: rgba(249, 249, 247, 0.96);
+      background: var(--bg-card);
       color: var(--text-secondary);
       font: 700 18px/1 var(--font-primary);
       cursor: pointer;
@@ -154,9 +154,9 @@
       right: 14px;
       top: 60px;
       width: 192px;
-      border-radius: 14px;
+      border-radius: 12px;
       border: 1px solid var(--border-light);
-      background: rgba(249, 249, 247, 0.98);
+      background: var(--bg-card);
       box-shadow: var(--shadow-lg);
       z-index: 90;
       display: none;
@@ -194,8 +194,8 @@
       opacity: 0.72;
     }
     .menu-item--dashboard::before {
-      background-color: rgba(198, 152, 49, 0.18);
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Crect x='1' y='1' width='6' height='6' rx='1.5' fill='%23c69831'/%3E%3Crect x='9' y='1' width='6' height='6' rx='1.5' fill='%23c69831'/%3E%3Crect x='1' y='9' width='6' height='6' rx='1.5' fill='%23c69831'/%3E%3Crect x='9' y='9' width='6' height='6' rx='1.5' fill='%23c69831'/%3E%3C/svg%3E");
+      background-color: rgba(0, 93, 167, 0.12);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Crect x='1' y='1' width='6' height='6' rx='1.5' fill='%23005da7'/%3E%3Crect x='9' y='1' width='6' height='6' rx='1.5' fill='%23005da7'/%3E%3Crect x='1' y='9' width='6' height='6' rx='1.5' fill='%23005da7'/%3E%3Crect x='9' y='9' width='6' height='6' rx='1.5' fill='%23005da7'/%3E%3C/svg%3E");
     }
     .menu-item--viewer::before {
       background-color: rgba(80, 160, 120, 0.16);
