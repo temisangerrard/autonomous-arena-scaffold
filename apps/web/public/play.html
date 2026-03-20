@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
   <script src="/runtime-config.js"></script>
   <link rel="stylesheet" href="/css/play/play-shell.css">
 </head>
@@ -230,9 +231,13 @@
   <!-- Quick Play Panel -->
   <div id="quick-play-backdrop" class="qp-backdrop" hidden></div>
   <aside id="quick-play-panel" class="qp-panel" hidden aria-label="Quick play — start a game directly">
+    <button id="quick-play-close" class="qp-panel__close" type="button" aria-label="Close quick play panel">
+      <span class="material-symbols-outlined">close</span>
+    </button>
     <div class="qp-panel__head">
-      <span class="qp-panel__title">Quick Play</span>
-      <button id="quick-play-close" class="qp-panel__close" type="button" aria-label="Close quick play panel">&#215;</button>
+      <span class="qp-badge">Instant Duel</span>
+      <h2 class="qp-panel__title">QUICK PLAY MENU</h2>
+      <p class="qp-panel__subtitle">Choose a module and enter the duel. Outcomes settle on-chain.</p>
     </div>
     <div id="quick-play-list" class="qp-list"></div>
   </aside>

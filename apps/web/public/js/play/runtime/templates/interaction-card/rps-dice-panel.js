@@ -30,8 +30,10 @@ export function mountRpsDicePanel(params) {
 
   stationUi.innerHTML = `
     <div class="game-panel">
-      <div class="game-panel__title">${isRps ? 'Rock Paper Scissors' : 'Dice Duel'}</div>
-      <div class="game-panel__rule">${isRps ? 'Start the round, then throw your move.' : 'Pick the face you think will land.'}</div>
+      <div class="game-header-card">
+        <div class="game-panel__title">${isRps ? 'Rock Paper Scissors' : 'Dice Duel'}</div>
+        <div class="game-panel__rule">${isRps ? 'Start the round, then throw your move.' : 'Pick the face you think will land.'}</div>
+      </div>
       <div class="game-panel__wager-row">
         <label class="game-panel__wager-label" for="station-wager">Wager <span class="game-panel__currency">USDC</span></label>
         <input class="game-panel__wager-input" id="station-wager" type="number" min="0" max="10000" step="1" value="${curWager}" />

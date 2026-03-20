@@ -103,30 +103,59 @@ export function mountPredictionPanel(params) {
   stationUi.dataset.predictionMode = kioskMode ? 'kiosk' : 'dealer';
   stationUi.innerHTML = `
     <div class="prediction-panel">
-      <div class="prediction-panel__tabs-row">
-        <div class="prediction-tabs" role="tablist" aria-label="BTC market duration">
-          <button id="prediction-tab-5m" class="prediction-tab" type="button" role="tab" aria-selected="true">5m</button>
-          <button id="prediction-tab-24h" class="prediction-tab" type="button" role="tab" aria-selected="false">24h</button>
+      <div class="prediction-header-card">
+        <div class="prediction-header-card__badges">
+          <span class="prediction-badge">BTC / USD</span>
+          <span class="prediction-market-status--inline" id="prediction-market-status" aria-live="polite"></span>
         </div>
-        <div class="prediction-tabs prediction-tabs--round" role="tablist" aria-label="BTC market round">
-          <button id="prediction-round-current" class="prediction-tab" type="button" role="tab" aria-selected="true">Now</button>
-          <button id="prediction-round-next" class="prediction-tab" type="button" role="tab" aria-selected="false">Next</button>
+        <div class="prediction-question" id="prediction-market-preview" aria-live="polite">Will BTC/USD close higher?</div>
+        <div class="prediction-tabs prediction-chip-grid" role="tablist" aria-label="Market selector">
+          <button id="prediction-tab-5m" class="prediction-chip" type="button" role="tab" aria-selected="true">
+            <span class="prediction-chip__label">Rail</span>
+            <span class="prediction-chip__value">5M</span>
+          </button>
+          <button id="prediction-tab-24h" class="prediction-chip" type="button" role="tab" aria-selected="false">
+            <span class="prediction-chip__label">Rail</span>
+            <span class="prediction-chip__value">24H</span>
+          </button>
+          <button id="prediction-round-current" class="prediction-chip prediction-chip--queue" type="button" role="tab" aria-selected="true">
+            <span class="prediction-chip__label">Round</span>
+            <span class="prediction-chip__value">NOW</span>
+          </button>
+          <button id="prediction-round-next" class="prediction-chip prediction-chip--queue" type="button" role="tab" aria-selected="false">
+            <span class="prediction-chip__label">Round</span>
+            <span class="prediction-chip__value">NEXT</span>
+          </button>
         </div>
-        <span class="prediction-market-status prediction-market-status--inline" id="prediction-market-status" aria-live="polite"></span>
+        <div class="prediction-panel__info" id="prediction-market-timing"></div>
+        <div class="prediction-panel__prices" id="prediction-market-prices"></div>
       </div>
-      <div class="prediction-market-preview" id="prediction-market-preview" aria-live="polite"></div>
-      <div class="prediction-panel__info" id="prediction-market-timing"></div>
-      <div class="prediction-panel__prices" id="prediction-market-prices"></div>
-      <div class="station-ui__row">
-        <label for="prediction-stake">Stake <span class="game-panel__currency">USDC</span></label>
-        <input id="prediction-stake" type="number" min="1" max="10000" step="1" value="1" class="game-panel__wager-input" />
+      <div class="prediction-action-zone">
+        <div class="prediction-stake-field">
+          <label class="prediction-stake-field__label" for="prediction-stake">Stake</label>
+          <div class="prediction-stake-field__wrap">
+            <input id="prediction-stake" class="prediction-stake-input" type="number" min="1" max="10000" step="1" value="1" />
+            <span class="prediction-stake-field__unit">USDC</span>
+          </div>
+        </div>
+        <div class="prediction-sides">
+          <button id="prediction-btc-yes" class="prediction-side prediction-side--yes" type="button">
+            <span class="prediction-side__icon">📈</span>
+            <span class="prediction-side__name">BTC Up</span>
+            <span class="prediction-side__payout" id="prediction-yes-payout"></span>
+          </button>
+          <button id="prediction-btc-no" class="prediction-side prediction-side--no" type="button">
+            <span class="prediction-side__icon">📉</span>
+            <span class="prediction-side__name">BTC Down</span>
+            <span class="prediction-side__payout" id="prediction-no-payout"></span>
+          </button>
+        </div>
       </div>
-      <div class="prediction-sides">
-        <button id="prediction-btc-yes" class="prediction-side prediction-side--yes" type="button">BTC Up</button>
-        <button id="prediction-btc-no" class="prediction-side prediction-side--no" type="button">BTC Down</button>
+      <div class="prediction-disclaimer-box">
+        <span class="prediction-disclaimer-box__icon">⚡</span>
+        <p class="prediction-disclaimer-box__text">If your side wins without opposite liquidity, your stake is refunded. Next-round commitments lock immediately.</p>
       </div>
-      <div class="prediction-panel__disclaimer">If your side wins without opposite liquidity, your stake is refunded. Next-round commitments lock immediately.</div>
-      <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Fetching markets…'}</div>
+      <div class="station-ui__meta" id="prediction-status">${unavailable ? 'No prediction dealer mapped from this station yet.' : 'Fetching markets\u2026'}</div>
     </div>
   `;
 
@@ -140,6 +169,8 @@ export function mountPredictionPanel(params) {
   const timingEl = document.getElementById('prediction-market-timing');
   const marketStatusEl = document.getElementById('prediction-market-status');
   const pricesEl = document.getElementById('prediction-market-prices');
+  const btcYesNameSpan = btcYesBtn?.querySelector('.prediction-side__name');
+  const btcNoNameSpan = btcNoBtn?.querySelector('.prediction-side__name');
 
   function selectedRail() {
     return normalizePredictionRail(state.ui?.prediction?.selectedRail);
@@ -310,8 +341,10 @@ export function mountPredictionPanel(params) {
   }
 
   function clearPredictionBuyBtns() {
-    clearPendingBtn(btcYesBtn, 'BTC Up');
-    clearPendingBtn(btcNoBtn, 'BTC Down');
+    if (btcYesNameSpan) btcYesNameSpan.textContent = 'BTC Up';
+    if (btcNoNameSpan) btcNoNameSpan.textContent = 'BTC Down';
+    if (btcYesBtn) { btcYesBtn.disabled = false; btcYesBtn.classList.remove('is-pending'); }
+    if (btcNoBtn) { btcNoBtn.disabled = false; btcNoBtn.classList.remove('is-pending'); }
   }
 
   function submitPredictionOrder(side) {
@@ -337,7 +370,10 @@ export function mountPredictionPanel(params) {
     const otherButton = side === 'yes' ? btcNoBtn : btcYesBtn;
     if (button) {
       state.ui.prediction.state = 'pending';
-      setPendingBtn(button, 'Confirming…');
+      const nameSpan = button.querySelector('.prediction-side__name');
+      if (nameSpan) nameSpan.textContent = 'Confirming\u2026';
+      button.disabled = true;
+      button.classList.add('is-pending');
     }
     if (otherButton) otherButton.disabled = true;
 
@@ -488,23 +524,32 @@ export function updatePredictionLive(params) {
     const finalText = final ? `Final: ${formatUsdAmount(final)}` : '';
     pricesEl.textContent = [spotText, lockText, finalText].filter(Boolean).join(' • ');
   }
+  const yesPayoutEl = document.getElementById('prediction-yes-payout');
+  const noPayoutEl = document.getElementById('prediction-no-payout');
+  if (yesPayoutEl) yesPayoutEl.textContent = selected?.yesOdds ? `Payout ${Number(selected.yesOdds).toFixed(2)}x` : '';
+  if (noPayoutEl) noPayoutEl.textContent = selected?.noOdds ? `Payout ${Number(selected.noOdds).toFixed(2)}x` : '';
   if (statusEl) {
     const mode = String(prediction.state || 'idle');
     const _btcYes = document.getElementById('prediction-btc-yes');
     const _btcNo = document.getElementById('prediction-btc-no');
+    function restoreBtnLabel(btn, label) {
+      const span = btn?.querySelector('.prediction-side__name');
+      if (span) span.textContent = label;
+      if (btn) { btn.disabled = false; btn.classList.remove('is-pending'); }
+    }
     if (mode === 'requesting') {
-      setStationStatus(statusEl, 'Loading markets…', 'neutral');
+      setStationStatus(statusEl, 'Loading markets\u2026', 'neutral');
     } else if (mode === 'pending') {
       setStationStatus(statusEl, 'Submitting order...', 'neutral');
     } else if (mode === 'error') {
       clearTimer('prediction:buy');
-      if (_btcYes) { flashBtn(_btcYes, 'is-failed'); clearPendingBtn(_btcYes, 'BTC Up'); }
-      if (_btcNo) { flashBtn(_btcNo, 'is-failed'); clearPendingBtn(_btcNo, 'BTC Down'); }
+      if (_btcYes) { flashBtn(_btcYes, 'is-failed'); restoreBtnLabel(_btcYes, 'BTC Up'); }
+      if (_btcNo) { flashBtn(_btcNo, 'is-failed'); restoreBtnLabel(_btcNo, 'BTC Down'); }
       setStationStatus(statusEl, String(prediction.lastReasonText || 'Prediction request failed.'), 'warning');
     } else if (mode === 'filled') {
       clearTimer('prediction:buy');
-      if (_btcYes) { flashBtn(_btcYes, 'is-success'); clearPendingBtn(_btcYes, 'BTC Up'); }
-      if (_btcNo) { flashBtn(_btcNo, 'is-success'); clearPendingBtn(_btcNo, 'BTC Down'); }
+      if (_btcYes) { flashBtn(_btcYes, 'is-success'); restoreBtnLabel(_btcYes, 'BTC Up'); }
+      if (_btcNo) { flashBtn(_btcNo, 'is-success'); restoreBtnLabel(_btcNo, 'BTC Down'); }
       setStationStatus(statusEl, String(prediction.positionStatus || '') === 'scheduled' ? 'Committed to next round. Funds are locked.' : 'Order filled.', 'success');
     } else {
       if (markets.length === 0) {
