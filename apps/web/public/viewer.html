@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="base:app_id" content="69a988a7223099cde83059f4">
-    <title>World Viewer | Arena</title>
+    <title>AutoBett World Preview</title>
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/css/claude-corners.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -129,10 +129,38 @@
             margin-bottom: var(--space-sm);
         }
 
+        .world-info__summary {
+            font-size: 0.84rem;
+            line-height: 1.55;
+            color: var(--text-secondary);
+            margin: 0 0 var(--space-md);
+        }
+
         .world-info__stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: var(--space-sm);
+        }
+
+        .world-info__rail {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: var(--space-md);
+        }
+
+        .world-info__rail-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.84);
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
         }
 
         .world-stat {
@@ -436,10 +464,10 @@
     <div class="viewer-overlay">
         <!-- Top Bar -->
         <div class="viewer-topbar">
-            <div class="viewer-logo">Arena <span>Viewer</span></div>
+            <div class="viewer-logo">AutoBett <span>World Preview</span></div>
             <nav class="viewer-nav">
-                <a href="/play?world=mega" class="btn btn--primary btn--sm">Play Mode</a>
-                <a href="/agents" class="btn btn--secondary btn--sm">Agents</a>
+                <a href="/play?world=mega" class="btn btn--primary btn--sm">Enter Arena</a>
+                <a href="/welcome" class="btn btn--secondary btn--sm">Arena Access</a>
                 <a href="/" class="btn btn--ghost btn--sm">Home</a>
             </nav>
         </div>
@@ -449,26 +477,32 @@
             <div class="world-info__card">
                 <div class="world-info__header">
                     <span class="world-info__icon">W</span>
-                    <span class="world-info__title">World Info</span>
+                    <span class="world-info__title">World Preview</span>
                 </div>
                 <div class="world-info__name" id="world-name">Mega World</div>
+                <p class="world-info__summary">Preview the Autonomous Arena layout, scan live districts, then step into dealer stations when you are ready to play.</p>
                 <div class="world-info__stats">
                     <div class="world-stat">
                         <div class="world-stat__value" id="stat-objects">-</div>
-                        <div class="world-stat__label">Objects</div>
+                        <div class="world-stat__label">World nodes</div>
                     </div>
                     <div class="world-stat world-stat--secondary">
                         <div class="world-stat__value" id="stat-districts">8</div>
-                        <div class="world-stat__label">Districts</div>
+                        <div class="world-stat__label">Active districts</div>
                     </div>
                     <div class="world-stat world-stat--info">
                         <div class="world-stat__value" id="stat-materials">-</div>
-                        <div class="world-stat__label">Materials</div>
+                        <div class="world-stat__label">Station surfaces</div>
                     </div>
                     <div class="world-stat world-stat--warning">
                         <div class="world-stat__value" id="stat-size">-</div>
-                        <div class="world-stat__label">Size (MB)</div>
+                        <div class="world-stat__label">World package</div>
                     </div>
+                </div>
+                <div class="world-info__rail">
+                    <span class="world-info__rail-pill">Dealer stations</span>
+                    <span class="world-info__rail-pill">Shared world</span>
+                    <span class="world-info__rail-pill">Onchain settlement on Base</span>
                 </div>
             </div>
         </div>
@@ -476,7 +510,7 @@
         <!-- Camera Info -->
         <div class="camera-info">
             <div class="camera-info__card">
-                <div class="camera-info__header">Camera</div>
+                <div class="camera-info__header">Scene telemetry</div>
                 <div class="camera-info__row">
                     <span class="camera-info__label">Position</span>
                     <span class="camera-info__value" id="cam-pos">0, 0, 0</span>
@@ -499,26 +533,26 @@
         <!-- Controls Hint -->
         <div class="controls-hint">
             <div class="controls-hint__card">
-                <div class="controls-hint__header">Controls</div>
+                <div class="controls-hint__header">Preview controls</div>
                 <div class="control-item">
                     <span class="control-key">Drag</span>
-                    <span class="control-desc">Orbit camera</span>
+                    <span class="control-desc">Orbit the arena</span>
                 </div>
                 <div class="control-item">
                     <span class="control-key">Scroll</span>
-                    <span class="control-desc">Zoom in/out</span>
+                    <span class="control-desc">Move between districts</span>
                 </div>
                 <div class="control-item">
                     <span class="control-key">Right Drag</span>
-                    <span class="control-desc">Pan camera</span>
+                    <span class="control-desc">Pan across the map</span>
                 </div>
                 <div class="control-item">
                     <span class="control-key">F</span>
-                    <span class="control-desc">Fullscreen</span>
+                    <span class="control-desc">Fullscreen view</span>
                 </div>
                 <div class="control-item">
                     <span class="control-key">R</span>
-                    <span class="control-desc">Reset view</span>
+                    <span class="control-desc">Reset preview</span>
                 </div>
             </div>
         </div>

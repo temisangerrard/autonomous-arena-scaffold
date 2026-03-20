@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="base:app_id" content="69a988a7223099cde83059f4">
-  <title>Enter the Arena — Autonomous Arena</title>
+  <title>AutoBett | Enter the Arena</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/css/landing.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,7 +16,7 @@
 
 <nav class="land-nav">
   <div class="land-nav__inner">
-    <a href="/" class="land-nav__logo">Autonomous <span>Arena</span></a>
+    <a href="/" class="land-nav__logo">AutoBett <span>Arena</span></a>
     <div class="land-nav__links">
       <a href="/play?world=mega">Arena</a>
       <a href="/dashboard">Dashboard</a>
@@ -36,35 +36,79 @@
           <circle cx="12" cy="12" r="10" fill="#0052ff"/>
           <path d="M12 6.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill="#fff"/>
         </svg>
-        <span class="land-badge__text">Live now — no download required</span>
+        <span class="land-badge__text">Live arena on Base</span>
       </div>
 
-      <h1 class="wlc-heading">Play games.<br><span class="wlc-heading--accent">Win tokens.</span></h1>
+      <p class="wlc-eyebrow">AutoBett x Autonomous Arena</p>
+      <h1 class="wlc-heading">Enter a <span class="wlc-heading--accent">live betting arena</span><br>built for fast rounds on Base.</h1>
 
-      <p class="wlc-desc">Walk a live 3D world, find a dealer, and place a wager. Every win pays out instantly — no waiting, no middlemen.</p>
+      <p class="wlc-desc">Live betting arena on Base. Walk the Autonomous Arena, step up to dealer stations, place a wager, and see each round settle onchain. Fund a bot wallet and let strategy play in the same economy.</p>
+
+      <div class="wlc-proof-grid">
+        <article class="wlc-proof-card">
+          <span class="wlc-proof-card__eyebrow">How it works</span>
+          <h2 class="wlc-proof-card__title">Manual play first</h2>
+          <p class="wlc-proof-card__copy">Move through one shared world, open a live station, and enter quick dealer rounds without leaving the arena shell.</p>
+        </article>
+        <article class="wlc-proof-card wlc-proof-card--teal">
+          <span class="wlc-proof-card__eyebrow">Settlement</span>
+          <h2 class="wlc-proof-card__title">Base-backed payouts</h2>
+          <p class="wlc-proof-card__copy">Round outcomes settle onchain, wallet balances update in-product, and the arena stays grounded in the same Base economy.</p>
+        </article>
+      </div>
 
       <ol class="welcome-steps wlc-steps">
         <li>
           <strong class="welcome-step-num">01</strong>
-          <span class="welcome-step-copy">Sign in — your wallet and profile are created instantly.</span>
+          <span class="welcome-step-copy">Sign in and AutoBett prepares your profile, wallet, and arena session.</span>
         </li>
         <li>
           <strong class="welcome-step-num">02</strong>
-          <span class="welcome-step-copy">Enter the Arena and walk the 3D world to find dealer stations.</span>
+          <span class="welcome-step-copy">Enter the Autonomous Arena and walk the 3D world to find live dealer stations.</span>
         </li>
         <li>
           <strong class="welcome-step-num">03</strong>
-          <span class="welcome-step-copy">Walk up to a dealer, press <strong>E</strong> to open a game, set your wager.</span>
+          <span class="welcome-step-copy">Step up to a dealer, press <strong>E</strong>, choose your side, and enter a fast round.</span>
         </li>
         <li>
           <strong class="welcome-step-num">04</strong>
-          <span class="welcome-step-copy">Win settles on-chain instantly — tokens land in your wallet.</span>
+          <span class="welcome-step-copy">Track settlement onchain, then fund a bot wallet when you want strategy running in the same market loop.</span>
         </li>
       </ol>
+
+      <section class="wlc-trust-band" aria-label="Product proof points">
+        <div class="wlc-trust-pill">Dealer-station gameplay</div>
+        <div class="wlc-trust-pill">Shared multiplayer world</div>
+        <div class="wlc-trust-pill">Onchain settlement on Base</div>
+        <div class="wlc-trust-pill">Optional bot-wallet automation</div>
+      </section>
     </div>
 
     <!-- Right: auth -->
     <div class="wlc-split__auth">
+      <section class="wlc-visual-card" aria-label="Arena preview">
+        <div class="wlc-visual-card__head">
+          <div>
+            <p class="wlc-visual-card__eyebrow">World preview</p>
+            <h2 class="wlc-visual-card__title">Autonomous Arena, one shared map</h2>
+          </div>
+          <a class="wlc-visual-card__cta" href="/viewer?world=mega">Preview world</a>
+        </div>
+        <div class="wlc-visual-card__grid">
+          <div class="wlc-visual-node">
+            <span class="wlc-visual-node__label">Live stations</span>
+            <strong>Coin Flip, Dice Duel, RPS, Blackjack, BTC rails</strong>
+          </div>
+          <div class="wlc-visual-node">
+            <span class="wlc-visual-node__label">Choice</span>
+            <strong>Play manually or fund a bot wallet</strong>
+          </div>
+          <div class="wlc-visual-node">
+            <span class="wlc-visual-node__label">Settlement</span>
+            <strong>Round outcomes anchored on Base</strong>
+          </div>
+        </div>
+      </section>
       <div id="welcome-session-cta" class="wlc-auth-mount"></div>
       <p id="welcome-auth-error" class="wlc-auth-error" role="alert" aria-live="polite"></p>
     </div>
