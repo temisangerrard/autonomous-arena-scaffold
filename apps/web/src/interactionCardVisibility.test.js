@@ -38,6 +38,14 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('challengeController.sendChallenge(renderedTargetId, gameType, wager)')).toBe(true);
   });
 
+  it('stages player interactions through an encounter view before challenge composition', () => {
+    const source = readSource('index.js');
+    expect(source.includes("const playerView = String(state.ui?.playerView || 'encounter');")).toBe(true);
+    expect(source.includes("state.ui.playerView = 'challenge'")).toBe(true);
+    expect(source.includes("state.ui.playerView = 'encounter'")).toBe(true);
+    expect(source.includes('player-encounter-card')).toBe(true);
+  });
+
   it('clears challenge timeout timers after server state advances', () => {
     const source = readSource('index.js');
     expect(source.includes("if (outgoingPending || state.challengeStatus === 'active')")).toBe(true);

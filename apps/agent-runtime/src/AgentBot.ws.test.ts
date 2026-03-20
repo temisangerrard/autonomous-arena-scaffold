@@ -464,6 +464,44 @@ describe('decideAndSendInput', () => {
     bot.stop();
   });
 
+  it('parks movement when wallet readiness is not ready even if stored balance is positive', () => {
+    const bot = makeBot({
+      mode: 'active',
+      challengeEnabled: true,
+      personality: 'aggressive',
+      autoplay: makeAutoplay({ wagerMode: 'fixed', baseWager: 10, maxWager: 100 })
+    });
+    bot.getWalletBalance = () => 50;
+    const botWithReadiness = bot as InstanceType<typeof AgentBot> & {
+      getWalletReadiness: () => { status: string; reason: string; gasSponsored: boolean };
+    };
+    botWithReadiness.getWalletReadiness = () => ({
+      status: 'insufficient_usdc',
+      reason: 'balance_below_min_wager',
+      gasSponsored: false
+    });
+    bot.start();
+    const ws = lastWs();
+    ws.triggerOpen();
+    ws.triggerMessage({ type: 'welcome', playerId: 'self' });
+    ws.triggerMessage({
+      type: 'snapshot',
+      players: [
+        { id: 'self', x: 0, z: 0, role: 'agent' },
+        { id: 'target', x: 2, z: 1, role: 'human' }
+      ]
+    });
+
+    vi.advanceTimersByTime(120);
+
+    const inputMsgs = ws.sent.filter((m) => m.type === 'input') as Array<{ moveX: number; moveZ: number }>;
+    expect(inputMsgs.length).toBeGreaterThan(0);
+    expect(inputMsgs[0]!.moveX).toBe(0);
+    expect(inputMsgs[0]!.moveZ).toBe(0);
+
+    bot.stop();
+  });
+
   it('does nothing when playerId is not yet set (pre-welcome)', () => {
     const bot = makeBot();
     bot.start();

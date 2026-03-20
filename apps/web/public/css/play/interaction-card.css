@@ -1060,6 +1060,54 @@
       color: var(--accent-success);
     }
 
+    .player-encounter-card {
+      display: grid;
+      gap: 12px;
+    }
+
+    .player-encounter-card__head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .player-encounter-card__name {
+      font: 800 20px/1 var(--font-primary);
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .player-encounter-card__badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .player-encounter-card__badge {
+      border: 1px solid var(--border-light);
+      background: var(--bg-card);
+      border-radius: 999px;
+      padding: 6px 9px;
+      font: 700 10px/1 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+    }
+
+    .player-encounter-card__badge.is-live {
+      background: rgba(74, 124, 89, 0.08);
+      border-color: rgba(74, 124, 89, 0.3);
+      color: var(--accent-success);
+    }
+
+    .player-encounter-card__badge.is-muted {
+      background: rgba(186, 26, 26, 0.08);
+      border-color: rgba(186, 26, 26, 0.2);
+      color: var(--accent-error);
+    }
+
     /* Lock In CTA */
     .btn-lock-in {
       width: 100%;
