@@ -1,0 +1,28 @@
+- main [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: Loading...
+      - generic [ref=e8]: "@player"
+    - link "▶ Enter Arena" [ref=e10] [cursor=pointer]:
+      - /url: /play?world=mega
+    - generic [ref=e11]:
+      - generic [ref=e12]: USDC Balance
+      - text: "0.00"
+    - navigation [ref=e13]:
+      - button "Home" [ref=e14] [cursor=pointer]:
+        - generic [ref=e15]: Home
+      - button "Wallet" [ref=e16] [cursor=pointer]:
+        - generic [ref=e17]: Wallet
+      - button "Settings" [ref=e18] [cursor=pointer]:
+        - generic [ref=e19]: Settings
+      - button "Agent" [ref=e20] [cursor=pointer]:
+        - generic [ref=e21]: Agent
+  - generic [ref=e23]:
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - heading "Arena" [level=1] [ref=e26]
+        - paragraph
+      - link "Enter Arena" [ref=e28] [cursor=pointer]:
+        - /url: /play?world=mega
+    - article [ref=e30]:
+      - heading "Your bot" [level=2] [ref=e31]

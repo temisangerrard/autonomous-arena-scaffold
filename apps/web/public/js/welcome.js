@@ -148,15 +148,15 @@ function renderSignedIn(user) {
   const initial = (user.name || user.email || '?')[0].toUpperCase();
   const displayName = user.name || user.email;
   ctaRoot.innerHTML = `
-    <div class="auth-card auth-card--signed-in land-border land-shadow">
+    <div class="auth-card auth-card--signed-in">
       <div class="auth-avatar">${initial}</div>
       <div class="auth-user-info">
         <p class="auth-user-name">${displayName}</p>
         <p class="auth-user-role">${user.role}</p>
       </div>
       <div class="auth-signed-in-actions">
-        <a class="land-cta-primary land-border" href="/play?world=mega">Enter Arena</a>
-        <a class="land-cta-secondary land-border" href="${continueTarget()}">Dashboard</a>
+        <a class="land-cta-primary" href="/play?world=mega">Enter Arena</a>
+        <a class="land-cta-secondary" href="${continueTarget()}">Open Control Hub</a>
         <button id="welcome-logout" class="auth-logout-btn" type="button">Logout</button>
       </div>
     </div>
@@ -185,11 +185,12 @@ function renderSignedOut() {
 
   if (!emailEnabled && !googleEnabled) {
     ctaRoot.innerHTML = `
-      <div class="auth-card land-border land-shadow">
-        <p class="auth-card__label">Sign-in is not configured in this environment.</p>
+      <div class="auth-card">
+        <p class="auth-card__heading">Arena access offline</p>
+        <p class="auth-card__label">Sign-in is not configured in this environment. You can still preview the world or jump into the public shell.</p>
         <div class="auth-unconfigured-actions">
-          <a class="land-cta-primary land-border" href="/play?world=mega">Enter Arena</a>
-          <a class="land-cta-secondary land-border" href="/viewer?world=mega">Explore Viewer</a>
+          <a class="land-cta-primary" href="/play?world=mega">Enter Arena</a>
+          <a class="land-cta-secondary" href="/viewer?world=mega">Preview World</a>
         </div>
       </div>
     `;
@@ -197,9 +198,9 @@ function renderSignedOut() {
   }
 
   ctaRoot.innerHTML = `
-    <div class="auth-card land-border land-shadow">
-      <p class="auth-card__heading">Welcome back</p>
-      <p class="auth-card__label">Sign in to play and manage your bot.</p>
+    <div class="auth-card">
+      <p class="auth-card__heading">Enter AutoBett</p>
+      <p class="auth-card__label">Sign in to enter live dealer rounds, track onchain settlement, and manage your bot wallet.</p>
 
       ${emailEnabled ? `
         <div class="auth-tabs" role="tablist">
@@ -215,13 +216,13 @@ function renderSignedOut() {
             <label class="auth-label" for="welcome-password">Password</label>
             <input id="welcome-password" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password" required>
           </div>
-          <button class="auth-submit land-border" type="submit" id="welcome-email-submit">Login</button>
+          <button class="auth-submit" type="submit" id="welcome-email-submit">Login</button>
         </form>
       ` : ''}
 
       ${googleEnabled ? `
         ${emailEnabled ? '<div class="auth-divider"><span>or</span></div>' : ''}
-        ${firebaseGoogle ? `<button id="welcome-google-login" class="auth-google-btn land-border" type="button">${GOOGLE_LOGO_SVG}Continue with Google</button>` : ''}
+        ${firebaseGoogle ? `<button id="welcome-google-login" class="auth-google-btn" type="button">${GOOGLE_LOGO_SVG}Continue with Google</button>` : ''}
         ${legacyGoogle ? '<div id="google-signin-welcome"></div>' : ''}
       ` : ''}
     </div>

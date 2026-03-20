@@ -1,0 +1,158 @@
+- main [ref=e5]:
+  - iframe [active] [ref=e7]:
+    - main [ref=f1e5]:
+      - generic [ref=f1e7]:
+        - generic [ref=f1e10]:
+          - link "Product name, Stitch (beta)" [ref=f1e11] [cursor=pointer]:
+            - img "Product name, Stitch (beta)" [ref=f1e12]
+          - button "Try now" [ref=f1e14] [cursor=pointer]
+        - main [ref=f1e15]:
+          - generic [ref=f1e16]:
+            - generic [ref=f1e17]:
+              - heading "Design at the speed of AI" [level=1] [ref=f1e18]
+              - paragraph [ref=f1e19]: Transform ideas into UI designs for mobile and web applications
+            - generic [ref=f1e23]:
+              - textbox [active] [ref=f1e27]:
+                - paragraph [ref=f1e28]: What native mobile app shall we design?
+              - generic [ref=f1e29]:
+                - button "Choose File" [ref=f1e30]
+                - generic [ref=f1e31]:
+                  - generic [ref=f1e32]:
+                    - button [ref=f1e35] [cursor=pointer]:
+                      - img [ref=f1e37]
+                    - radiogroup [ref=f1e39]:
+                      - radio "App" [checked] [ref=f1e41] [cursor=pointer]:
+                        - generic [ref=f1e44]:
+                          - img [ref=f1e46]
+                          - text: App
+                      - radio "Web" [ref=f1e49] [cursor=pointer]:
+                        - generic [ref=f1e51]:
+                          - img [ref=f1e53]
+                          - text: Web
+                  - generic [ref=f1e56]:
+                    - button [ref=f1e58] [cursor=pointer]:
+                      - img [ref=f1e60]
+                    - button "3.0 Flash" [ref=f1e62] [cursor=pointer]:
+                      - img [ref=f1e64]
+                      - generic [ref=f1e67]: 3.0 Flash
+                      - img [ref=f1e70]
+                    - button "Start Live Mode (Preview)" [ref=f1e73] [cursor=pointer]:
+                      - img [ref=f1e74]
+                    - button "Generate designs" [disabled] [ref=f1e77]:
+                      - img [ref=f1e79]
+          - generic [ref=f1e81]:
+            - generic [ref=f1e82]:
+              - heading "Get started with templates" [level=2] [ref=f1e83]
+              - generic [ref=f1e84]:
+                - button "Previous template" [disabled]:
+                  - img
+                - button "Next template" [ref=f1e85] [cursor=pointer]:
+                  - img [ref=f1e86]
+            - generic [ref=f1e88]:
+              - link "SaaS Dashboard Use template Web Template SaaS Dashboard" [ref=f1e90] [cursor=pointer]:
+                - /url: https://stitch.withgoogle.com/projects/17168879426185116634
+                - generic [ref=f1e91]:
+                  - generic [ref=f1e93]:
+                    - img "SaaS Dashboard"
+                  - generic:
+                    - generic: Use template
+                  - generic [ref=f1e94]:
+                    - generic [ref=f1e95]: Web Template
+                    - generic [ref=f1e96]: SaaS Dashboard
+              - link "Health App Use template Mobile Template Health App" [ref=f1e98] [cursor=pointer]:
+                - /url: https://stitch.withgoogle.com/projects/7961213629411163965
+                - generic [ref=f1e99]:
+                  - img "Health App" [ref=f1e102]
+                  - generic:
+                    - generic: Use template
+                  - generic [ref=f1e103]:
+                    - generic [ref=f1e104]: Mobile Template
+                    - generic [ref=f1e105]: Health App
+              - link "Entertainment App Use template Mobile Template Entertainment App" [ref=f1e107] [cursor=pointer]:
+                - /url: https://stitch.withgoogle.com/projects/2982813652353387172
+                - generic [ref=f1e108]:
+                  - img "Entertainment App" [ref=f1e111]
+                  - generic:
+                    - generic: Use template
+                  - generic [ref=f1e112]:
+                    - generic [ref=f1e113]: Mobile Template
+                    - generic [ref=f1e114]: Entertainment App
+              - link "Fashion App Use template Mobile Template Fashion App" [ref=f1e116] [cursor=pointer]:
+                - /url: https://stitch.withgoogle.com/projects/7144321199231990450
+                - generic [ref=f1e117]:
+                  - img "Fashion App" [ref=f1e120]
+                  - generic:
+                    - generic: Use template
+                  - generic [ref=f1e121]:
+                    - generic [ref=f1e122]: Mobile Template
+                    - generic [ref=f1e123]: Fashion App
+              - link "Utility App Use template Mobile Template Utility App" [ref=f1e125] [cursor=pointer]:
+                - /url: https://stitch.withgoogle.com/projects/10100603439629535839
+                - generic [ref=f1e126]:
+                  - img "Utility App" [ref=f1e129]
+                  - generic:
+                    - generic: Use template
+                  - generic [ref=f1e130]:
+                    - generic [ref=f1e131]: Mobile Template
+                    - generic [ref=f1e132]: Utility App
+          - generic [ref=f1e134]:
+            - generic [ref=f1e136]:
+              - heading "Easy edits" [level=3] [ref=f1e137]
+              - paragraph [ref=f1e138]: Iterate and tweak designs to build an interface that works best for you.
+            - generic [ref=f1e140]:
+              - heading "Export code" [level=3] [ref=f1e143]
+              - paragraph [ref=f1e144]: Export static HTML code that matches the design and Figma export.
+            - generic [ref=f1e145]:
+              - heading "Build with Gemini" [level=3] [ref=f1e148]
+              - paragraph [ref=f1e149]: Leverage some of the latest AI models from Google DeepMind to generate designs.
+            - generic [ref=f1e150]:
+              - heading "Own your design" [level=3] [ref=f1e153]
+              - paragraph [ref=f1e154]: Use your original generations as you see fit. Export designs to Figma to fiddle further or copy the code to use how you'd like.
+          - generic [ref=f1e156]:
+            - heading "Vibe design is here" [level=2] [ref=f1e157]
+            - paragraph [ref=f1e158]: Stitch makes UI creation incredibly simple. No matter your background or expertise, Stitch will help you bring your ideas to life.
+            - button "Start designing" [ref=f1e159] [cursor=pointer]
+            - paragraph
+          - generic [ref=f1e161]:
+            - heading "Questions?" [level=2] [ref=f1e162]
+            - generic [ref=f1e163]:
+              - group [ref=f1e164]:
+                - generic "What is Google Stitch?" [ref=f1e165] [cursor=pointer]:
+                  - generic [ref=f1e166]: What is Google Stitch?
+                  - img [ref=f1e167]
+                - generic [ref=f1e170]: Google Stitch is an AI-native software design canvas developed by Google Labs. It bridges the gap between design and development by transforming natural language prompts, hand-drawn wireframes, or screenshots into fully editable user interfaces and production-ready front-end code.
+              - group [ref=f1e171]:
+                - generic "Is Google Stitch free of charge?" [ref=f1e172] [cursor=pointer]:
+                  - generic [ref=f1e173]: Is Google Stitch free of charge?
+                  - img [ref=f1e174]
+              - group [ref=f1e177]:
+                - generic "Where is Stitch available?" [ref=f1e178] [cursor=pointer]:
+                  - generic [ref=f1e179]: Where is Stitch available?
+                  - img [ref=f1e180]
+              - group [ref=f1e183]:
+                - generic "Can I export my designs to Figma?" [ref=f1e184] [cursor=pointer]:
+                  - generic [ref=f1e185]: Can I export my designs to Figma?
+                  - img [ref=f1e186]
+              - group [ref=f1e189]:
+                - generic "Does it generate working code?" [ref=f1e190] [cursor=pointer]:
+                  - generic [ref=f1e191]: Does it generate working code?
+                  - img [ref=f1e192]
+              - group [ref=f1e195]:
+                - generic "Can I create interactive multi-screen flows?" [ref=f1e196] [cursor=pointer]:
+                  - generic [ref=f1e197]: Can I create interactive multi-screen flows?
+                  - img [ref=f1e198]
+              - group [ref=f1e201]:
+                - generic "What is the new MCP (Model Context Protocol) integration?" [ref=f1e202] [cursor=pointer]:
+                  - generic [ref=f1e203]: What is the new MCP (Model Context Protocol) integration?
+                  - img [ref=f1e204]
+        - generic [ref=f1e211]:
+          - link [ref=f1e213] [cursor=pointer]:
+            - /url: https://labs.google.com
+            - img [ref=f1e214]
+          - navigation [ref=f1e217]:
+            - link "Privacy Notice" [ref=f1e218] [cursor=pointer]:
+              - /url: /privacy
+            - link "Terms & Privacy" [ref=f1e219] [cursor=pointer]:
+              - /url: https://policies.google.com/
+            - link "Third Party Notices" [ref=f1e220] [cursor=pointer]:
+              - /url: /third-party-licenses.txt
