@@ -63,6 +63,7 @@ export function setInteractOpenState(params) {
       state.ui.interactionMode = 'station';
     } else if (preferredTargetId && nearbyPlayers.has(preferredTargetId)) {
       state.ui.interactionMode = 'player';
+      state.ui.playerView = 'encounter';
     } else {
       const stationFirst = closestNearbyStationId();
       if (stationFirst) {
@@ -73,6 +74,7 @@ export function setInteractOpenState(params) {
         if (nearbyPlayer) {
           state.ui.targetId = nearbyPlayer;
           state.ui.interactionMode = 'player';
+          state.ui.playerView = 'encounter';
         } else {
           state.ui.interactionMode = 'none';
         }
@@ -93,6 +95,7 @@ export function setInteractOpenState(params) {
   } else {
     interactionCardState.interactionStationRenderKey = '';
     state.ui.interactionMode = 'none';
+    state.ui.playerView = 'encounter';
     resetDealerState();
     resetPredictionState();
     state.ui.world.stationId = '';
@@ -168,8 +171,8 @@ export function renderInteractionPromptLine(params) {
     }
   } else {
     const hint = incoming ? (isTouch ? ' · respond' : ' · Y/N respond') : '';
-    const challengeHint = isTouch ? 'tap to challenge' : 'E interact · C challenge';
-    interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${challengeHint}${hint}</span>`;
+    const interactHint = isTouch ? 'tap to interact' : `${openVerb} to interact`;
+    interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${interactHint}${hint}</span>`;
   }
   interactionPrompt.classList.add('visible');
 }

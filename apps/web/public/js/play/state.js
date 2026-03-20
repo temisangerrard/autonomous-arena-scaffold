@@ -63,6 +63,7 @@ export function createInitialState() {
       targetId: '',
       interactOpen: false,
       interactionMode: 'none',
+      playerView: 'encounter',
       challenge: {
         gameType: 'rps',
         wager: 1,

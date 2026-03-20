@@ -1,6 +1,6 @@
 import { WebSocket, type RawData } from 'ws';
 import { PolicyEngine, type AgentPlayerState, type Personality } from './PolicyEngine.js';
-import { signWsAuthToken, type AutoplayStrategyConfig, type AutoplaySessionState, type AutoplayPauseReason, type GameType, type BotStrategyPolicy } from '@arena/shared';
+import { signWsAuthToken, type AutoplayStrategyConfig, type AutoplaySessionState, type AutoplayPauseReason, type GameType, type BotStrategyPolicy, type WalletReadiness } from '@arena/shared';
 
 type SnapshotPlayer = AgentPlayerState & { role?: 'human' | 'agent' };
 
@@ -116,6 +116,8 @@ export class AgentBot {
 
   /** Wallet balance accessor — injected from runtime so wager calc can read % */
   getWalletBalance: (() => number) | null = null;
+  /** Wallet readiness accessor — injected for owner bots so autonomy follows live wallet readiness. */
+  getWalletReadiness: (() => WalletReadiness | null) | null = null;
 
   constructor(config: AgentBotConfig) {
     this.config = config;
@@ -585,6 +587,11 @@ export class AgentBot {
   }
 
   private canAffordNextWager(): boolean {
+    const readiness = this.getWalletReadiness ? this.getWalletReadiness() : null;
+    const readinessStatus = String(readiness?.status || '').trim().toLowerCase();
+    if (readinessStatus && readinessStatus !== 'ready' && readinessStatus !== 'all_checks_passed') {
+      return false;
+    }
     const wager = this.computeNextWager();
     if (wager <= 0) {
       return false;

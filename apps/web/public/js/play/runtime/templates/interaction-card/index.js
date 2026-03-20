@@ -259,6 +259,7 @@ export function renderInteractionCardTemplate(params) {
       showNpcInfoPanel(interactionNpcInfo);
 
       const incoming = challengeController.currentIncomingChallenge();
+      const playerView = String(state.ui?.playerView || 'encounter');
       const outgoingPending = Boolean(state.outgoingChallengeId);
       const targetNearby = state.nearbyIds instanceof Set && state.nearbyIds.has(targetId);
       const canSendBase = state.wsConnected && !state.respondingIncoming && !outgoingPending && targetId !== state.playerId && targetNearby;
@@ -319,6 +320,47 @@ export function renderInteractionCardTemplate(params) {
         const isTouch = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
         const gameIcons = { rps: '✊', coinflip: '🪙', dice_duel: '🎲' };
         const gameLabels = { rps: 'RPS', coinflip: 'Coin Flip', dice_duel: 'Dice Duel' };
+        const roleLabel = targetPlayer.role === 'agent' ? 'Bot' : 'Player';
+        const movementLabel = Number(targetPlayer.speed || 0) > 0.2 ? 'Active' : 'Parked';
+        const proximityLabel = targetNearby ? 'In range' : 'Out of range';
+
+        if (!incoming && !outgoingPending && playerView !== 'challenge') {
+          interactionNpcInfo.innerHTML = `
+            <div class="player-encounter-card">
+              <div class="player-encounter-card__head">
+                <div>
+                  <div class="station-ui__title">Encounter</div>
+                  <div class="player-encounter-card__name">${labelFor(targetId)}</div>
+                </div>
+                <div class="player-encounter-card__badges">
+                  <span class="player-encounter-card__badge">${roleLabel}</span>
+                  <span class="player-encounter-card__badge">${movementLabel}</span>
+                  <span class="player-encounter-card__badge ${targetNearby ? 'is-live' : 'is-muted'}">${proximityLabel}</span>
+                </div>
+              </div>
+              <div class="station-ui__meta">
+                ${targetNearby
+                  ? `You are in range of ${labelFor(targetId)}. Open the challenge composer when you are ready to play.`
+                  : `${labelFor(targetId)} moved out of range. Stay locked here or move closer to challenge.`}
+              </div>
+              <div class="station-ui__actions">
+                <button id="player-encounter-challenge" class="btn-lock-in" type="button" ${targetNearby ? '' : 'disabled'}>Open Challenge</button>
+              </div>
+            </div>
+          `;
+
+          const encounterChallengeBtn = document.getElementById('player-encounter-challenge');
+          if (encounterChallengeBtn instanceof HTMLButtonElement) {
+            encounterChallengeBtn.onclick = () => {
+              state.ui.playerView = 'challenge';
+            };
+          }
+          if (stateful && typeof stateful === 'object') {
+            stateful.interactionStationRenderKey = interactionStationRenderKey;
+            stateful.interactionPlayerRenderKey = interactionPlayerRenderKey;
+          }
+          return;
+        }
 
         interactionNpcInfo.innerHTML = `
           <div class="station-ui__title">${labelFor(targetId)}</div>
@@ -344,6 +386,9 @@ export function renderInteractionCardTemplate(params) {
             Challenge sent — waiting for response…
           </div>
           ` : `
+          <div class="station-ui__actions">
+            <button id="player-challenge-back" class="btn-decline" type="button">Back</button>
+          </div>
           <div class="challenge-game-picker">
             <button class="challenge-game-btn ${selectedGame === 'rps' ? 'is-selected' : ''}" data-game="rps" type="button">
               <span class="challenge-game-btn__icon">${gameIcons.rps}</span>RPS
@@ -373,6 +418,7 @@ export function renderInteractionCardTemplate(params) {
         const wagerEl = document.getElementById('player-challenge-wager');
         const approveBtn = document.getElementById('player-challenge-approve');
         const sendBtn = document.getElementById('player-challenge-send');
+        const backBtn = document.getElementById('player-challenge-back');
         const acceptBtn = document.getElementById('player-challenge-accept');
         const declineBtn = document.getElementById('player-challenge-decline');
 
@@ -424,6 +470,11 @@ export function renderInteractionCardTemplate(params) {
           approveBtn.onclick = () => {
             const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
             void ensureEscrowApproval(wager);
+          };
+        }
+        if (backBtn instanceof HTMLButtonElement) {
+          backBtn.onclick = () => {
+            state.ui.playerView = 'encounter';
           };
         }
         if (sendBtn instanceof HTMLButtonElement) {

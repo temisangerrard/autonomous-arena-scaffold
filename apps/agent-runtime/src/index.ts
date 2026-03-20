@@ -51,6 +51,7 @@ import {
   shouldReleaseOwnerPresence,
   type OwnerPresenceSource
 } from './ownerControl.js';
+import { computeWalletReadiness } from './walletReadiness.js';
 import {
   buildWorkerDirectives,
   createDefaultSuperAgentConfig,
@@ -638,6 +639,27 @@ function createBot(id: string, displayName: string, behavior: AgentBehaviorConfi
     walletId,
     behavior
   });
+  bot.getWalletBalance = () => {
+    const wallet = walletId ? wallets.get(walletId) ?? null : null;
+    return Number(wallet?.balance ?? 0);
+  };
+  bot.getWalletReadiness = () => {
+    if (!clientId) {
+      return null;
+    }
+    const wallet = walletId ? wallets.get(walletId) ?? null : null;
+    const currentBehavior = bot.getStatus().behavior;
+    const minWager = currentBehavior.autoplay?.baseWager ?? currentBehavior.baseWager ?? 1;
+    return computeWalletReadiness({
+      wallet,
+      minWager,
+      coinbasePaymasterEnabled,
+      coinbaseEscrowApprovalCapUsdc,
+      chainId: null,
+      chainHint: onchainRpcUrl || null,
+      mainnetGasSponsorEnabled
+    });
+  };
   bot.start();
   return bot;
 }
@@ -746,7 +768,8 @@ function applySuperAgentDelegation(): void {
         bot?.stop();
       } else if (shouldOwnerBotReconnect({
         ownerOnline: false,
-        autoplayEnabled: Boolean(record.autoplayEnabled)
+        autoplayEnabled: Boolean(record.autoplayEnabled),
+        readinessStatus: bot?.getWalletReadiness?.()?.status ?? null
       })) {
         bot?.ensureActive();
       } else {
@@ -1919,7 +1942,8 @@ function restoreOwnerPresence(profileId: string): void {
     const meta = botRegistry.get(botId);
     if (meta?.ownerProfileId === profileId && shouldOwnerBotReconnect({
       ownerOnline: false,
-      autoplayEnabled: Boolean(meta.autoplayEnabled)
+      autoplayEnabled: Boolean(meta.autoplayEnabled),
+      readinessStatus: bot.getWalletReadiness?.()?.status ?? null
     })) {
       bot.ensureActive();
     }
