@@ -109,7 +109,7 @@ export function mountPredictionPanel(params) {
           <span class="prediction-market-status--inline" id="prediction-market-status" aria-live="polite"></span>
         </div>
         <div class="prediction-question" id="prediction-market-preview" aria-live="polite">Will BTC/USD close higher?</div>
-        <div class="prediction-chip-grid" role="tablist" aria-label="Market selector">
+        <div class="prediction-tabs prediction-chip-grid" role="tablist" aria-label="Market selector">
           <button id="prediction-tab-5m" class="prediction-chip" type="button" role="tab" aria-selected="true">
             <span class="prediction-chip__label">Rail</span>
             <span class="prediction-chip__value">5M</span>

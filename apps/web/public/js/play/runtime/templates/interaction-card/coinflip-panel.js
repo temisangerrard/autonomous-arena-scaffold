@@ -17,7 +17,7 @@ export function mountCoinflipPanel(params) {
     <div class="game-panel">
       <div class="game-header-card">
         <div class="game-panel__title">Coinflip</div>
-        <div class="game-panel__rule">Pick your side before time runs out.</div>
+        <div class="game-panel__rule">Pick heads or tails after the round locks.</div>
       </div>
       <div class="game-panel__wager-row">
         <label class="game-panel__wager-label" for="station-wager">Wager <span class="game-panel__currency">USDC</span></label>
