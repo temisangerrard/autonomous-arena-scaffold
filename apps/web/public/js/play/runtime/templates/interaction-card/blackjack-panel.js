@@ -36,8 +36,10 @@ export function mountBlackjackPanel(params) {
   const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)));
   stationUi.innerHTML = `
     <div class="game-panel">
-      <div class="game-panel__title">Blackjack</div>
-      <div class="game-panel__rule">Beat the dealer — get closer to 21 without going over.</div>
+      <div class="game-header-card">
+        <div class="game-panel__title">Blackjack</div>
+        <div class="game-panel__rule">Beat the dealer. Get closer to 21 without busting.</div>
+      </div>
       <div class="game-panel__wager-row">
         <label class="game-panel__wager-label" for="station-wager">Wager <span class="game-panel__currency">USDC</span></label>
         <input class="game-panel__wager-input" id="station-wager" type="number" min="0" max="10000" step="1" value="${curWager}" />

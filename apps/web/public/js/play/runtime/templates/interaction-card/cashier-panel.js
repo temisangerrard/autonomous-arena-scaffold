@@ -11,32 +11,56 @@ export function mountCashierPanel(params) {
   } = params;
 
   stationUi.innerHTML = `
-    <div class="station-ui__title">Cashier</div>
-    <div class="station-ui__meta" id="station-balance">Loading balance...</div>
-    <div class="station-ui__row">
-      <label for="station-amount">Amount</label>
-      <input id="station-amount" type="number" min="0" max="10000" step="1" value="10" />
-    </div>
-    <div class="station-ui__actions">
-      <button id="station-refresh" class="btn-ghost" type="button">Refresh</button>
-      <button id="station-fund" class="btn-gold" type="button">Fund</button>
-      <button id="station-withdraw" class="btn-gold" type="button">Withdraw</button>
-    </div>
-    <div class="station-ui__row">
-      <label for="station-to-wallet">To Wallet</label>
-      <input id="station-to-wallet" type="text" placeholder="wallet_..." />
-    </div>
-    <div class="station-ui__actions">
-      <button id="station-transfer" class="btn-ghost" type="button">Transfer</button>
+    <div class="cashier-panel">
+      <div class="cashier-balance-card">
+        <span class="cashier-label">Arena Reserve</span>
+        <div class="cashier-balance-row">
+          <span class="cashier-balance-amount" id="station-balance-amount">\u2014</span>
+          <span class="cashier-balance-unit">USDC</span>
+        </div>
+      </div>
+      <div class="cashier-actions">
+        <button id="station-fund" class="cashier-action-btn cashier-action-btn--primary" type="button">
+          <span class="material-symbols-outlined cashier-action-btn__icon">add_circle</span>
+          <span class="cashier-action-btn__label">Fund</span>
+        </button>
+        <button id="station-withdraw" class="cashier-action-btn" type="button">
+          <span class="material-symbols-outlined cashier-action-btn__icon">outbound</span>
+          <span class="cashier-action-btn__label">Withdraw</span>
+        </button>
+        <button id="station-transfer-open" class="cashier-action-btn" type="button">
+          <span class="material-symbols-outlined cashier-action-btn__icon">send</span>
+          <span class="cashier-action-btn__label">Send</span>
+        </button>
+      </div>
+      <div class="cashier-amount-field">
+        <label class="cashier-amount-field__label" for="station-amount">Amount (USDC)</label>
+        <div class="cashier-amount-field__wrap">
+          <input id="station-amount" class="cashier-amount-input" type="number" min="0" max="10000" step="1" value="10"/>
+          <span class="cashier-amount-field__unit">USDC</span>
+        </div>
+      </div>
+      <div class="cashier-transfer-row" id="cashier-transfer-row" style="display:none;">
+        <label class="cashier-amount-field__label" for="station-to-wallet">Recipient Wallet ID</label>
+        <input id="station-to-wallet" class="cashier-amount-input cashier-transfer-input" type="text" placeholder="wallet_id\u2026"/>
+        <button id="station-transfer" class="cashier-confirm-btn" type="button">Confirm Transfer</button>
+      </div>
+      <button id="station-refresh" class="cashier-refresh-btn" type="button">
+        <span class="material-symbols-outlined">refresh</span> Sync Balance
+      </button>
+      <div class="station-ui__meta" id="station-balance"></div>
     </div>
   `;
 
   const balanceEl = document.getElementById('station-balance');
+  const balanceAmountEl = document.getElementById('station-balance-amount');
   const amountEl = document.getElementById('station-amount');
   const toWalletEl = document.getElementById('station-to-wallet');
   const refreshBtn = document.getElementById('station-refresh');
   const fundBtn = document.getElementById('station-fund');
   const withdrawBtn = document.getElementById('station-withdraw');
+  const transferOpenBtn = document.getElementById('station-transfer-open');
+  const transferRowEl = document.getElementById('cashier-transfer-row');
   const transferBtn = document.getElementById('station-transfer');
 
   async function api(path, init) {
@@ -57,12 +81,16 @@ export function mountCashierPanel(params) {
     try {
       const ok = await syncWalletSummary({ keepLastOnFailure: true });
       if (!ok || !Number.isFinite(Number(state.walletBalance))) {
-        balanceEl.textContent = 'Balance: unavailable (onchain)';
+        if (balanceAmountEl) balanceAmountEl.textContent = '\u2014';
+        if (balanceEl) balanceEl.textContent = 'Balance unavailable (onchain)';
         return;
       }
-      balanceEl.textContent = `Balance: ${formatUsdAmount(Number(state.walletBalance))} USDC`;
+      const formatted = formatUsdAmount(Number(state.walletBalance));
+      if (balanceAmountEl) balanceAmountEl.textContent = formatted;
+      if (balanceEl) balanceEl.textContent = '';
     } catch (err) {
-      balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
+      if (balanceAmountEl) balanceAmountEl.textContent = '\u2014';
+      if (balanceEl) balanceEl.textContent = `Balance unavailable (${String(err.message || err)})`;
     }
   }
 
@@ -104,6 +132,13 @@ export function mountCashierPanel(params) {
     showToast(`Transferred ${amount} to ${toWalletId}.`);
   }
 
+  if (transferOpenBtn) {
+    transferOpenBtn.onclick = () => {
+      if (!transferRowEl) return;
+      const isVisible = transferRowEl.style.display !== 'none';
+      transferRowEl.style.display = isVisible ? 'none' : 'flex';
+    };
+  }
   if (refreshBtn) refreshBtn.onclick = () => { void refresh(); };
   if (fundBtn) {
     fundBtn.onclick = () => {
