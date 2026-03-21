@@ -25,10 +25,10 @@ export function mountWorldPanel(params) {
   const localInteraction = station.localInteraction || {};
   const detail = state.ui.world.stationId === station.id
     ? state.ui.world.detail
-    : (localInteraction.inspect || 'Interact with this world object.');
+    : (localInteraction.inspect || 'This host can route you to live action.');
   const actionLabel = state.ui.world.stationId === station.id
     ? state.ui.world.actionLabel
-    : (localInteraction.useLabel || 'Use');
+    : (localInteraction.useLabel || 'Open route');
   const npcName = localInteraction.title || station.displayName;
 
   if (interactionTitle) {
@@ -48,6 +48,10 @@ export function mountWorldPanel(params) {
   if (useBtn) {
     useBtn.onclick = () => {
       if (renderGuideStationDetail(station, 'use')) {
+        if (String(localInteraction.routeStationId || '').trim()) {
+          setPendingBtn(useBtn, 'Opening…');
+          return;
+        }
         if (detailEl) {
           detailEl.textContent = state.ui.world.detail || 'Interaction complete.';
         }
@@ -69,7 +73,7 @@ export function mountWorldPanel(params) {
         return;
       }
       if (detailEl) {
-        detailEl.textContent = 'Using interaction...';
+        detailEl.textContent = 'Opening live route...';
       }
     };
   }

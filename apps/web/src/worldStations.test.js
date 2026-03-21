@@ -57,4 +57,59 @@ describe('world stations controller', () => {
     expect(remapLocalStationProxies).toHaveBeenCalled();
     expect(mergeStations).toHaveBeenCalled();
   });
+
+  it('degrades orphaned baked dealers into guide NPCs that route to live hosts', () => {
+    const state = makeState();
+    const mergeStations = vi.fn();
+    const remapLocalStationProxies = vi.fn();
+    const scene = { add() {}, remove() {} };
+    const controller = createWorldStationsController({
+      THREE: {},
+      scene,
+      state,
+      createWorldNpcHosts: () => ({
+        hostStations: new Map([
+          ['station_npc_host_3', {
+            id: 'station_npc_host_3',
+            source: 'host',
+            hostRole: 'coinflip',
+            kind: 'dealer_coinflip',
+            displayName: 'Jade',
+            x: -20,
+            z: -20,
+            localInteraction: { title: 'Jade' }
+          }]
+        ]),
+        updateHosts() {},
+        dispose() {}
+      }),
+      extractBakedNpcStations: () => new Map([
+        ['station_baked_coinflip_s1', {
+          id: 'station_baked_coinflip_s1',
+          source: 'baked',
+          hostRole: 'coinflip',
+          kind: 'dealer_coinflip',
+          displayName: 'S1 Coinflip Dealer 1',
+          x: -80,
+          z: -45,
+          proxyStationId: ''
+        }]
+      ]),
+      remapLocalStationProxies,
+      mergeStations
+    });
+
+    controller.setWorldRoot({});
+    controller.setupWorldNpcStations();
+
+    const baked = state.bakedStations.get('station_baked_coinflip_s1');
+    expect(baked.kind).toBe('world_interactable');
+    expect(baked.degradedToLocal).toBe(true);
+    expect(baked.displayName).toBe('Coinflip Runner');
+    expect(baked.localInteraction).toMatchObject({
+      title: 'Coinflip Runner',
+      useLabel: 'Open coinflip',
+      routeStationId: 'station_npc_host_3'
+    });
+  });
 });

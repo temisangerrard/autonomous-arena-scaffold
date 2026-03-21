@@ -165,9 +165,6 @@ const walletProviderDefault = String(process.env.WALLET_PROVIDER_DEFAULT ?? 'int
   ? 'coinbase_embedded'
   : 'internal';
 const runtimeDatabaseUrl = process.env.RUNTIME_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
-const userWalletAutoFloor = process.env.USER_WALLET_AUTO_FLOOR?.trim()
-  ? process.env.USER_WALLET_AUTO_FLOOR === 'true'
-  : process.env.NODE_ENV !== 'production';
 const cdpClientState = await initializeCdpClient(process.env);
 
 function startupDiagnostics() {
@@ -2464,12 +2461,9 @@ function ensureSeedBalances(): void {
       continue;
     }
     if (record.ownerProfileId) {
-      if (userWalletAutoFloor) {
-        const floor = userSeedBalance;
-        if (wallet.balance < floor) {
-          wallet.balance = floor;
-        }
-      }
+      // Player-owned wallets should reflect real available funds after their
+      // initial seed. Do not silently refill them or owner bots can keep
+      // wagering after the player appears broke in the UI.
       continue;
     }
 

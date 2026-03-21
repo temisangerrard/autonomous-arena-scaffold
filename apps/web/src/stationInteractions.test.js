@@ -57,4 +57,38 @@ describe('station interactions controller', () => {
       quickPlay: true
     }));
   });
+
+  it('routes guide NPC actions into a live station target', () => {
+    const state = {
+      ui: {
+        targetId: 'station_baked_coinflip_s1',
+        interactionMode: 'station',
+        world: { stationId: '', interactionTag: '', title: '', detail: '', actionLabel: '' }
+      }
+    };
+    const controller = createStationInteractionsController({
+      state,
+      showToast: vi.fn(),
+      getSocket: () => null,
+      resolveStationIdForSend: () => ''
+    });
+
+    const rendered = controller.renderGuideStationDetail({
+      id: 'station_baked_coinflip_s1',
+      displayName: 'Coinflip Runner',
+      interactionTag: 'baked_info_coinflip',
+      localInteraction: {
+        title: 'Coinflip Runner',
+        use: 'Opening Jade at the coinflip table.',
+        useLabel: 'Open coinflip',
+        routeStationId: 'station_npc_host_3'
+      }
+    }, 'use');
+
+    expect(rendered).toBe(true);
+    expect(state.ui.targetId).toBe('station_npc_host_3');
+    expect(state.ui.interactionMode).toBe('station');
+    expect(state.ui.world.actionLabel).toBe('Opening…');
+    expect(state.ui.world.detail).toContain('Opening Jade');
+  });
 });

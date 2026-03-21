@@ -51,7 +51,7 @@ function getStationHelpContent(station) {
   if (station.kind === 'cashier_bank') {
     return 'Cashier lets you <strong>fund</strong>, <strong>withdraw</strong>, or <strong>transfer</strong>. Use small test amounts first.';
   }
-  return 'This station supports local interactions. Press <strong>Inspect</strong> for context or <strong>Use</strong> for the primary action.';
+  return 'This host should always point you to a real next move. Read the cue, then route straight into live action.';
 }
 
 export function renderInteractionCardTemplate(params) {
@@ -136,7 +136,7 @@ export function renderInteractionCardTemplate(params) {
         interactionHelpToggle?.setAttribute('aria-expanded', 'false');
       } else {
         const helpContent = getStationHelpContent(station);
-        interactionHelp.innerHTML = helpContent || 'Use this station.';
+        interactionHelp.innerHTML = helpContent || 'This host can point you toward a live route.';
       }
     }
 
@@ -164,7 +164,7 @@ export function renderInteractionCardTemplate(params) {
           stationUi.innerHTML = `
             <div class="station-ui__title">${station.displayName || 'Station'}</div>
             <div class="station-ui__meta station-ui__meta--warning">
-              Station unavailable right now. Server station mapping is missing; retry shortly.
+              This host has no live route right now. Move to another named table.
             </div>
           `;
           if (stateful && typeof stateful === 'object') {
@@ -201,7 +201,7 @@ export function renderInteractionCardTemplate(params) {
             mountPredictionPanel: (opts) => mountPredictionPanel({ ...baseParams, ...opts })
           });
         } else {
-          stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
+          stationUi.innerHTML = `<div class="station-ui__meta">This host has no authored interaction yet.</div>`;
         }
       }
 

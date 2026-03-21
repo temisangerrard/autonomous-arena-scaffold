@@ -549,7 +549,10 @@ export function createRouter(ctx: RouteContext) {
       }
       const deduped = new Map<string, Record<string, unknown>>();
       for (const event of merged) {
-        const key = `${String(event.challengeId || '')}:${String(event.phase || '')}:${Number(event.at || 0)}`;
+        const txHash = String(event.txHash || '').trim().toLowerCase();
+        const phase = String(event.phase || '').trim();
+        if (!txHash || !phase) continue;
+        const key = `tx:${txHash}:${phase}`;
         if (!deduped.has(key)) deduped.set(key, event);
       }
       recent = [...deduped.values()]

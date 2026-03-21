@@ -502,6 +502,48 @@ describe('decideAndSendInput', () => {
     bot.stop();
   });
 
+  it('disconnects owner bots when wallet readiness is not ready', () => {
+    const bot = new AgentBot({
+      id: 'poor_owner_bot',
+      wsBaseUrl: 'ws://localhost:4000/ws',
+      displayName: 'PoorOwner',
+      clientId: 'client_poor_owner',
+      behavior: makeBehavior({
+        mode: 'active',
+        challengeEnabled: true,
+        personality: 'aggressive',
+        autoplay: makeAutoplay({ wagerMode: 'fixed', baseWager: 10, maxWager: 100 }) as any
+      } as any)
+    } as any);
+    bot.getWalletBalance = () => 0;
+    const botWithReadiness = bot as InstanceType<typeof AgentBot> & {
+      getWalletReadiness: () => { status: string; reason: string; gasSponsored: boolean };
+    };
+    botWithReadiness.getWalletReadiness = () => ({
+      status: 'insufficient_usdc',
+      reason: 'balance_below_min_wager',
+      gasSponsored: false
+    });
+
+    bot.start();
+    const ws = lastWs();
+    ws.triggerOpen();
+    ws.triggerMessage({ type: 'welcome', playerId: 'self' });
+    ws.triggerMessage({
+      type: 'snapshot',
+      players: [
+        { id: 'self', x: 0, z: 0, role: 'agent' },
+        { id: 'target', x: 2, z: 1, role: 'human' }
+      ]
+    });
+
+    vi.advanceTimersByTime(120);
+
+    expect(bot.isConnected()).toBe(false);
+    expect(priv(bot).ws).toBeNull();
+    expect(priv(bot).decisionTimer).toBeNull();
+  });
+
   it('does nothing when playerId is not yet set (pre-welcome)', () => {
     const bot = makeBot();
     bot.start();
@@ -699,6 +741,64 @@ describe('decideAndSendInput — with others in snapshot', () => {
 
     const inputMsgs = ws.sent.filter(m => m.type === 'input');
     expect(inputMsgs.length).toBeGreaterThan(0);
+
+    bot.stop();
+  });
+
+  it('excludes nearby humans from locomotion candidates for owner bots', () => {
+    const bot = new AgentBot({
+      id: 'owner_bot_ws_test',
+      wsBaseUrl: 'ws://localhost:4000/ws',
+      displayName: 'OwnerBot',
+      clientId: 'client_owner_123',
+      behavior: makeBehavior({ mode: 'active', personality: 'social' })
+    } as any);
+    const decideSpy = vi.spyOn(priv(bot).policyEngine, 'decide');
+
+    bot.start();
+    const ws = lastWs();
+    ws.triggerOpen();
+    ws.triggerMessage({ type: 'welcome', playerId: 'self' });
+    ws.triggerMessage({
+      type: 'snapshot',
+      players: [
+        { id: 'self', x: 0, z: 0, role: 'agent' },
+        { id: 'near_human', x: 3, z: 3, role: 'human' }
+      ]
+    });
+
+    vi.advanceTimersByTime(120);
+
+    expect(decideSpy).toHaveBeenCalled();
+    const context = decideSpy.mock.calls[0]?.[1] as { others?: unknown[] } | undefined;
+    expect(context?.others).toEqual([]);
+
+    bot.stop();
+  });
+
+  it('still includes nearby humans for non-owner roaming bots', () => {
+    const bot = makeBot({ mode: 'active', personality: 'social' });
+    const decideSpy = vi.spyOn(priv(bot).policyEngine, 'decide');
+
+    bot.start();
+    const ws = lastWs();
+    ws.triggerOpen();
+    ws.triggerMessage({ type: 'welcome', playerId: 'self' });
+    ws.triggerMessage({
+      type: 'snapshot',
+      players: [
+        { id: 'self', x: 0, z: 0, role: 'agent' },
+        { id: 'near_human', x: 3, z: 3, role: 'human' }
+      ]
+    });
+
+    vi.advanceTimersByTime(120);
+
+    expect(decideSpy).toHaveBeenCalled();
+    const context = decideSpy.mock.calls[0]?.[1] as { others?: unknown[] } | undefined;
+    expect(context?.others).toEqual([
+      expect.objectContaining({ id: 'near_human', role: 'human' })
+    ]);
 
     bot.stop();
   });

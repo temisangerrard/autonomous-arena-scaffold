@@ -323,4 +323,35 @@ describe('interaction prompt hints', () => {
     expect(interactionPrompt.innerHTML).toContain('Vera');
     expect(interactionPrompt.innerHTML).toContain('Rock Paper Scissors');
   });
+
+  it('uses the guide action label for named world hosts', () => {
+    const interactionPrompt = {
+      innerHTML: '',
+      classList: makeClassList()
+    };
+    const state = {
+      activeChallenge: null,
+      ui: { interactOpen: false },
+      stations: new Map([
+        ['station_npc_host_1', {
+          id: 'station_npc_host_1',
+          kind: 'world_interactable',
+          localInteraction: { title: 'Super Agent', useLabel: 'Route me in' }
+        }]
+      ])
+    };
+
+    renderInteractionPromptLine({
+      state,
+      interactionPrompt,
+      getUiTargetId: () => 'station_npc_host_1',
+      setInteractOpen: () => undefined,
+      challengeController: { currentIncomingChallenge: () => null },
+      isStation: (id) => String(id).startsWith('station_'),
+      labelFor: (id) => String(id)
+    });
+
+    expect(interactionPrompt.innerHTML).toContain('Super Agent');
+    expect(interactionPrompt.innerHTML).toContain('route me in');
+  });
 });
