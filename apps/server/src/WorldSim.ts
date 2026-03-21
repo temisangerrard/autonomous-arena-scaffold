@@ -10,6 +10,7 @@ type PlayerSnapshot = {
   z: number;
   yaw: number;
   speed: number;
+  pvpReady: boolean;
 };
 
 type WorldSnapshot = {
