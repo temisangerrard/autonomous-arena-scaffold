@@ -95,6 +95,7 @@ import { dealerPredictionStationPlugin } from '../plugins/stations/dealer-predic
 import { cashierStationPlugin } from '../plugins/stations/cashier.js';
 import { worldInteractableStationPlugin } from '../plugins/stations/world-interactable.js';
 import { dealerOperatorNpcPlugin } from '../plugins/npc-operator.js';
+import { updateLeaderboardFromResolution, renderLeaderboard } from './leaderboard.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
@@ -119,7 +120,8 @@ const refreshWalletBalanceAndShowDelta = (beforeBalance, challenge = null) => re
   challenge,
   syncWalletSummary,
   state,
-  showResultSplash
+  showResultSplash,
+  audio: audioController
 });
 
 const { showToast } = createToaster(dom.toastContainer);
@@ -497,6 +499,13 @@ const sendGameMove = (move) => sendGameMoveRuntime({
   pluginRegistry
 });
 
+function togglePvpReady() {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'pvp_ready_toggle' }));
+  }
+  state.pvpReady = !state.pvpReady;
+}
+
 // Initialize audio on first user gesture (browser autoplay policy requirement).
 {
   let audioInitialized = false;
@@ -508,6 +517,11 @@ const sendGameMove = (move) => sendGameMoveRuntime({
     audioController.loadAmbientLoop('/assets/audio/arena-ambient.ogg').catch(() => {});
     audioController.loadSfx('win', '/assets/audio/sfx-win.ogg').catch(() => {});
     audioController.loadSfx('resolve', '/assets/audio/sfx-resolve.ogg').catch(() => {});
+    audioController.loadSfx('loss', '/assets/audio/sfx-loss.ogg').catch(() => {});
+    audioController.loadSfx('challenge_incoming', '/assets/audio/sfx-challenge-incoming.ogg').catch(() => {});
+    audioController.loadSfx('card_deal', '/assets/audio/sfx-card-deal.ogg').catch(() => {});
+    audioController.loadSfx('card_bust', '/assets/audio/sfx-card-bust.ogg').catch(() => {});
+    audioController.loadSfx('bigwin', '/assets/audio/sfx-bigwin.ogg').catch(() => {});
   }
   ['keydown', 'pointerdown', 'touchstart'].forEach((ev) => {
     window.addEventListener(ev, initAudioOnce, { once: true, passive: true });
@@ -638,7 +652,10 @@ const update = createRuntimeUpdate({
   updateLocalAvatarRuntime,
   asFiniteNumber,
   normalizeYaw,
-  sanitizeRenderY
+  sanitizeRenderY,
+  audio: audioController,
+  topbarLfg: dom.topbarLfg,
+  togglePvpReady
 });
 
 // Wrap the core update to layer in spectacle systems each frame.
@@ -680,7 +697,12 @@ const challengeBridge = createChallengeBridge({
   showToast,
   addFeedEvent,
   handleChallengeEvent,
-  challengeReasonLabelForMode
+  challengeReasonLabelForMode,
+  audio: audioController,
+  updateLeaderboard: (challenge) => {
+    updateLeaderboardFromResolution({ state, challenge });
+    renderLeaderboard(state, dom.leaderboardList, state.playerId);
+  }
 });
 const updateRpsVisibility = challengeBridge.updateRpsVisibility;
 const handleChallenge = challengeBridge.handleChallenge;

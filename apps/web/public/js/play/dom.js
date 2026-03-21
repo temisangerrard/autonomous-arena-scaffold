@@ -6,6 +6,7 @@ export function getDom() {
     topbarWallet: document.getElementById('topbar-wallet'),
     topbarStreak: document.getElementById('topbar-streak'),
     topbarBot: document.getElementById('topbar-bot'),
+    topbarLfg: document.getElementById('topbar-lfg'),
     topbarMenu: document.getElementById('topbar-menu'),
     topbarMenuPop: document.getElementById('topbar-menu-pop'),
     menuDashboard: document.getElementById('menu-dashboard'),
@@ -54,6 +55,7 @@ export function getDom() {
     mobileMoveD3: document.getElementById('mobile-move-d3'),
     mobileMoveD4: document.getElementById('mobile-move-d4'),
     mobileMoveD5: document.getElementById('mobile-move-d5'),
-    mobileMoveD6: document.getElementById('mobile-move-d6')
+    mobileMoveD6: document.getElementById('mobile-move-d6'),
+    leaderboardList: document.getElementById('leaderboard-list')
   };
 }

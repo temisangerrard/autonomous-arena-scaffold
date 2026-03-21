@@ -10,7 +10,9 @@ export function handleChallengeEvent(params) {
     isEscrowApprovalReason,
     showToast,
     addFeedEvent,
-    updateRpsVisibility
+    updateRpsVisibility,
+    audio = null,
+    updateLeaderboard = null
   } = params;
 
   const challenge = payload.challenge;
@@ -25,6 +27,7 @@ export function handleChallengeEvent(params) {
     state.respondingIncoming = false;
     if (challenge.opponentId === state.playerId) {
       state.incomingChallengeId = challenge.id;
+      audio?.trigger('challenge_incoming');
       dispatch({
         type: 'CHALLENGE_STATUS_SET',
         status: 'incoming',
@@ -48,6 +51,7 @@ export function handleChallengeEvent(params) {
     state.respondingIncoming = false;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.45);
     dispatch({
       type: 'CHALLENGE_STATUS_SET',
       status: 'active',
@@ -65,6 +69,7 @@ export function handleChallengeEvent(params) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.0);
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     const declinedMsg = `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`;
     dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'declined', message: declinedMsg });
@@ -76,6 +81,7 @@ export function handleChallengeEvent(params) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.0);
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     const expiredMsg = `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`;
     dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'expired', message: expiredMsg });
@@ -88,9 +94,22 @@ export function handleChallengeEvent(params) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.0);
     const winnerLabel = challenge.winnerId ? labelFor(challenge.winnerId) : 'Draw';
     if (challenge.winnerId === state.playerId) {
       state.streak += 1;
+      const _getStreakTier = (n) => {
+        if (n >= 20) return { label: 'Legend', color: '#eab308', pulse: true };
+        if (n >= 10) return { label: 'Unstoppable', color: '#ef4444', pulse: false };
+        if (n >= 5)  return { label: 'On Fire', color: '#f97316', pulse: false };
+        if (n >= 3)  return { label: 'Hot', color: '#f59e0b', pulse: false };
+        return null;
+      };
+      const _streakMilestones = [3, 5, 10, 20];
+      if (_streakMilestones.includes(state.streak)) {
+        const _tier = _getStreakTier(state.streak);
+        if (_tier) showToast(`${_tier.label} — ${state.streak} in a row!`);
+      }
     } else if (challenge.winnerId) {
       state.streak = 0;
     }
@@ -98,6 +117,7 @@ export function handleChallengeEvent(params) {
     dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'resolved', message: resolvedMsg });
     dispatch({ type: 'PLAYER_CHALLENGE_MESSAGE_SET', message: resolvedMsg });
     state.quickstart.matchResolved = true;
+    updateLeaderboard?.(challenge);
     void refreshWalletBalanceAndShowDelta(beforeBalance, challenge);
   }
 

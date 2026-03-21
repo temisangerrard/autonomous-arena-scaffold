@@ -18,6 +18,7 @@ function writePref(key, value) {
 export function createAudioController() {
   let ctx = null;
   let masterGain = null;
+  let activityGain = null;
   let ambientSource = null;
   let ambientBuffer = null;
   let ambientPlaying = false;
@@ -35,6 +36,9 @@ export function createAudioController() {
       masterGain = ctx.createGain();
       masterGain.gain.value = muted ? 0 : volume;
       masterGain.connect(ctx.destination);
+      activityGain = ctx.createGain();
+      activityGain.gain.value = 1.0;
+      activityGain.connect(masterGain);
     } catch {
       // Audio not available in this environment.
     }
@@ -82,7 +86,7 @@ export function createAudioController() {
     const ambientGain = ctx.createGain();
     ambientGain.gain.value = 0.55; // Ambient is quieter than SFX
     ambientSource.connect(ambientGain);
-    ambientGain.connect(masterGain);
+    ambientGain.connect(activityGain);
     ambientSource.start();
     ambientPlaying = true;
   }
@@ -98,6 +102,13 @@ export function createAudioController() {
       src.connect(masterGain);
       src.start();
     } catch { /* ignore */ }
+  }
+
+  function setActivityLevel(level, durationSec = 1.5) {
+    if (!ctx || !activityGain) return;
+    activityGain.gain.cancelScheduledValues(ctx.currentTime);
+    activityGain.gain.setValueAtTime(activityGain.gain.value, ctx.currentTime);
+    activityGain.gain.linearRampToValueAtTime(level, ctx.currentTime + durationSec);
   }
 
   function init() {
@@ -133,6 +144,7 @@ export function createAudioController() {
     setMuted,
     setVolume,
     getMuted,
-    getVolume
+    getVolume,
+    setActivityLevel
   };
 }

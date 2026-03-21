@@ -9,6 +9,8 @@ export function createInitialState() {
     wsConnected: false,
     playerId: null,
     tick: 0,
+    pvpReady: false,
+    leaderboard: {},
     players: new Map(),
     serverStations: new Map(),
     hostStations: new Map(),

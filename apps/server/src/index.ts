@@ -477,6 +477,11 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
       });
     }
 
+    if (event.event === 'accepted') {
+      worldSim.clearPvpReady(challenge.challengerId);
+      worldSim.clearPvpReady(challenge.opponentId);
+    }
+
     if (event.event === 'accepted' && wager > 0) {
       const challengerWalletId = walletIdFor(challenge.challengerId);
       const opponentWalletId = walletIdFor(challenge.opponentId);
@@ -951,6 +956,11 @@ wss.on('connection', (ws, request) => {
         moveX: payload.moveX,
         moveZ: payload.moveZ
       });
+      return;
+    }
+
+    if (payload.type === 'pvp_ready_toggle') {
+      worldSim.togglePvpReady(playerId);
       return;
     }
 
@@ -1544,7 +1554,8 @@ setInterval(() => {
       displayName: displayNameFor(player.id),
       walletId: walletIdFor(player.id),
       actorClass: metaByPlayer.get(player.id)?.actorClass ?? 'human',
-      ownerProfileId: metaByPlayer.get(player.id)?.ownerProfileId ?? null
+      ownerProfileId: metaByPlayer.get(player.id)?.ownerProfileId ?? null,
+      pvpReady: player.pvpReady
     })),
     ...remotePlayers
   ];

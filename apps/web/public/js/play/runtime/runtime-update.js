@@ -23,6 +23,8 @@ export function createRuntimeUpdate(params) {
     topbarWallet,
     topbarStreak,
     topbarBot,
+    topbarLfg = null,
+    togglePvpReady = null,
     featureDirectioningV2,
     renderNextActionLine,
     challengeStatusLine,
@@ -91,7 +93,8 @@ export function createRuntimeUpdate(params) {
     updateLocalAvatarRuntime,
     asFiniteNumber,
     normalizeYaw,
-    sanitizeRenderY
+    sanitizeRenderY,
+    audio = null
   } = params;
 
   return function update(nowMs) {
@@ -120,7 +123,7 @@ export function createRuntimeUpdate(params) {
       getUiTargetId
     });
 
-    renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak, topbarBot });
+    renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak, topbarBot, topbarLfg }, { togglePvpReady });
     if (featureDirectioningV2) {
       renderNextActionLine(state, challengeStatusLine, labelFor, {
         pluginRegistry,
@@ -184,7 +187,8 @@ export function createRuntimeUpdate(params) {
       renderDealerRevealStatus,
       makePlayerSeed,
       pluginRegistry,
-      socket: getSocket()
+      socket: getSocket(),
+      audio
     });
     renderMobileControlsRuntime({
       computeMobileControlVisibility,
