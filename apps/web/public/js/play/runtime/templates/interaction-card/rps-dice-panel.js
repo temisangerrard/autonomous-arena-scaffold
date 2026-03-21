@@ -80,21 +80,21 @@ export function mountRpsDicePanel(params) {
   }
 
   function injectLockAnim() {
-    if (!stageEl) return;
-    if (stageEl.querySelector('.rps-think, .dice-roll')) return;
+    if (!stageEl || !document.createElement) return;
+    if (stageEl.querySelector?.('.rps-think, .dice-roll')) return;
     if (isRps) {
       const el = document.createElement('div');
       el.className = 'rps-think';
-      el.appendChild(document.createElement('span'));
-      el.appendChild(document.createElement('span'));
-      el.appendChild(document.createElement('span'));
-      stageEl.appendChild(el);
+      el.appendChild?.(document.createElement('span'));
+      el.appendChild?.(document.createElement('span'));
+      el.appendChild?.(document.createElement('span'));
+      stageEl.appendChild?.(el);
     } else {
       const el = document.createElement('div');
       el.className = 'dice-roll';
       el.id = 'dice-anim';
       el.textContent = DICE_FACES[0];
-      stageEl.appendChild(el);
+      stageEl.appendChild?.(el);
       let faceIdx = 0;
       clearDiceAnimInterval();
       _diceAnimInterval = setInterval(() => {
@@ -110,10 +110,10 @@ export function mountRpsDicePanel(params) {
   function clearLockAnim() {
     clearDiceAnimInterval();
     if (!stageEl) return;
-    const rpsEl = stageEl.querySelector('.rps-think');
-    if (rpsEl) rpsEl.remove();
-    const diceEl = stageEl.querySelector('.dice-roll');
-    if (diceEl) diceEl.remove();
+    const rpsEl = stageEl.querySelector?.('.rps-think');
+    if (rpsEl) rpsEl.remove?.();
+    const diceEl = stageEl.querySelector?.('.dice-roll');
+    if (diceEl) diceEl.remove?.();
   }
 
   function onRpsTimeout() {
@@ -195,10 +195,10 @@ export function updateRpsDiceLive(params) {
   function clearLockAnimLive() {
     clearDiceAnimInterval();
     if (!stageEl) return;
-    const rpsEl = stageEl.querySelector('.rps-think');
-    if (rpsEl) rpsEl.remove();
-    const diceEl = stageEl.querySelector('.dice-roll');
-    if (diceEl) diceEl.remove();
+    const rpsEl = stageEl.querySelector?.('.rps-think');
+    if (rpsEl) rpsEl.remove?.();
+    const diceEl = stageEl.querySelector?.('.dice-roll');
+    if (diceEl) diceEl.remove?.();
   }
 
   const ds = state.ui.dealer.state;

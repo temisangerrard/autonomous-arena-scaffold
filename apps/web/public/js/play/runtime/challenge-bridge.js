@@ -10,7 +10,8 @@ export function createChallengeBridge(params) {
     addFeedEvent,
     handleChallengeEvent,
     challengeReasonLabelForMode,
-    audio = null
+    audio = null,
+    updateLeaderboard = null
   } = params;
 
   function updateRpsVisibility() {
@@ -35,7 +36,8 @@ export function createChallengeBridge(params) {
       showToast,
       addFeedEvent,
       updateRpsVisibility,
-      audio
+      audio,
+      updateLeaderboard
     });
   }
 

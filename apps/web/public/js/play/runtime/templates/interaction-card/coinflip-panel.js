@@ -79,20 +79,18 @@ export function mountCoinflipPanel(params) {
   }
 
   function injectCoinAnim() {
-    if (stageEl && !stageEl.querySelector('.coin-spin')) {
+    if (stageEl && document.createElement && !stageEl.querySelector?.('.coin-spin')) {
       const el = document.createElement('div');
       el.className = 'coin-spin';
       el.textContent = '🪙';
-      stageEl.appendChild(el);
+      stageEl.appendChild?.(el);
     }
     if (stageEl) stageEl.style.display = 'flex';
   }
 
   function clearCoinAnim() {
-    if (stageEl) {
-      const el = stageEl.querySelector('.coin-spin');
-      if (el) el.remove();
-    }
+    const el = stageEl?.querySelector?.('.coin-spin');
+    if (el) el.remove?.();
   }
 
   function sendStart() {
@@ -143,10 +141,8 @@ export function updateCoinflipLive(params) {
   }
 
   function clearCoinAnimLive() {
-    if (stageEl) {
-      const el = stageEl.querySelector('.coin-spin');
-      if (el) el.remove();
-    }
+    const el = stageEl?.querySelector?.('.coin-spin');
+    if (el) el.remove?.();
   }
 
   const ds = state.ui.dealer.state;

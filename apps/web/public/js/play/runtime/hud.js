@@ -6,8 +6,8 @@ function getStreakTier(n) {
   return null;
 }
 
-export function renderTopHud(state, dom) {
-  const { hud, topbarName, topbarWallet, topbarStreak, topbarBot } = dom;
+export function renderTopHud(state, dom, opts = {}) {
+  const { hud, topbarName, topbarWallet, topbarStreak, topbarBot, topbarLfg } = dom;
   if (!hud || !topbarName || !topbarWallet || !topbarStreak || !topbarBot) {
     return;
   }
@@ -24,6 +24,15 @@ export function renderTopHud(state, dom) {
   topbarStreak.classList.toggle('streak--pulse', Boolean(tier?.pulse));
   topbarBot.textContent = `Bot: ${modeLabel}`;
   topbarBot.classList.toggle('manual', approvalMode !== 'auto');
+  if (topbarLfg) {
+    const ready = Boolean(state.pvpReady);
+    topbarLfg.textContent = ready ? 'READY' : 'LFG';
+    topbarLfg.classList.toggle('lfg-active', ready);
+    if (typeof opts.togglePvpReady === 'function' && !topbarLfg._lfgBound) {
+      topbarLfg._lfgBound = true;
+      topbarLfg.addEventListener('click', () => opts.togglePvpReady());
+    }
+  }
 }
 
 export function renderNextActionLine(state, el, labelFor, opts = {}) {

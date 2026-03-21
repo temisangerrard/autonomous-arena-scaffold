@@ -11,7 +11,8 @@ export function handleChallengeEvent(params) {
     showToast,
     addFeedEvent,
     updateRpsVisibility,
-    audio = null
+    audio = null,
+    updateLeaderboard = null
   } = params;
 
   const challenge = payload.challenge;
@@ -116,6 +117,7 @@ export function handleChallengeEvent(params) {
     dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'resolved', message: resolvedMsg });
     dispatch({ type: 'PLAYER_CHALLENGE_MESSAGE_SET', message: resolvedMsg });
     state.quickstart.matchResolved = true;
+    updateLeaderboard?.(challenge);
     void refreshWalletBalanceAndShowDelta(beforeBalance, challenge);
   }
 

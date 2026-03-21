@@ -23,6 +23,8 @@ export function createRuntimeUpdate(params) {
     topbarWallet,
     topbarStreak,
     topbarBot,
+    topbarLfg = null,
+    togglePvpReady = null,
     featureDirectioningV2,
     renderNextActionLine,
     challengeStatusLine,
@@ -121,7 +123,7 @@ export function createRuntimeUpdate(params) {
       getUiTargetId
     });
 
-    renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak, topbarBot });
+    renderTopHud(state, { hud, topbarName, topbarWallet, topbarStreak, topbarBot, topbarLfg }, { togglePvpReady });
     if (featureDirectioningV2) {
       renderNextActionLine(state, challengeStatusLine, labelFor, {
         pluginRegistry,

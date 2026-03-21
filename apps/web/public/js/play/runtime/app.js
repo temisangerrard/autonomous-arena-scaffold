@@ -95,6 +95,7 @@ import { dealerPredictionStationPlugin } from '../plugins/stations/dealer-predic
 import { cashierStationPlugin } from '../plugins/stations/cashier.js';
 import { worldInteractableStationPlugin } from '../plugins/stations/world-interactable.js';
 import { dealerOperatorNpcPlugin } from '../plugins/npc-operator.js';
+import { updateLeaderboardFromResolution, renderLeaderboard } from './leaderboard.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
@@ -498,6 +499,13 @@ const sendGameMove = (move) => sendGameMoveRuntime({
   pluginRegistry
 });
 
+function togglePvpReady() {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'pvp_ready_toggle' }));
+  }
+  state.pvpReady = !state.pvpReady;
+}
+
 // Initialize audio on first user gesture (browser autoplay policy requirement).
 {
   let audioInitialized = false;
@@ -645,7 +653,9 @@ const update = createRuntimeUpdate({
   asFiniteNumber,
   normalizeYaw,
   sanitizeRenderY,
-  audio: audioController
+  audio: audioController,
+  topbarLfg: dom.topbarLfg,
+  togglePvpReady
 });
 
 // Wrap the core update to layer in spectacle systems each frame.
@@ -688,7 +698,11 @@ const challengeBridge = createChallengeBridge({
   addFeedEvent,
   handleChallengeEvent,
   challengeReasonLabelForMode,
-  audio: audioController
+  audio: audioController,
+  updateLeaderboard: (challenge) => {
+    updateLeaderboardFromResolution({ state, challenge });
+    renderLeaderboard(state, dom.leaderboardList, state.playerId);
+  }
 });
 const updateRpsVisibility = challengeBridge.updateRpsVisibility;
 const handleChallenge = challengeBridge.handleChallenge;
