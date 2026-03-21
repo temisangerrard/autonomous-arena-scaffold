@@ -1,3 +1,5 @@
+import { formatWinningOutcomeLine } from './formatting.js';
+
 export async function refreshWalletBalanceAndShowDelta(params) {
   const {
     beforeBalance,
@@ -20,15 +22,21 @@ export async function refreshWalletBalanceAndShowDelta(params) {
       : Number((after - Number(beforeBalance || 0)).toFixed(2));
     const won = challenge.winnerId === state.playerId;
     const lost = Boolean(challenge.winnerId && challenge.winnerId !== state.playerId);
-    const toss = challenge.gameType === 'coinflip' && challenge.coinflipResult
-      ? `\nTOSS: ${String(challenge.coinflipResult).toUpperCase()}`
-      : '';
+    const iAmChallenger = challenge.challengerId === state.playerId;
+    const winningOutcome = formatWinningOutcomeLine({
+      gameType: challenge.gameType,
+      playerPick: iAmChallenger ? challenge.challengerMove : challenge.opponentMove,
+      opponentPick: iAmChallenger ? challenge.opponentMove : challenge.challengerMove,
+      coinflipResult: challenge.coinflipResult,
+      diceResult: challenge.diceResult
+    });
+    const detail = winningOutcome ? `\n${winningOutcome.toUpperCase()}` : '';
     if (won) {
-      showResultSplash(`YOU WIN${toss}\n+${Math.abs(delta).toFixed(2)}`, 'win');
+      showResultSplash(`YOU WIN${detail}\n+${Math.abs(delta).toFixed(2)}`, 'win');
     } else if (lost) {
-      showResultSplash(`YOU LOSE${toss}\n-${Math.abs(delta).toFixed(2)}`, 'loss');
+      showResultSplash(`YOU LOSE${detail}\n-${Math.abs(delta).toFixed(2)}`, 'loss');
     } else {
-      showResultSplash(`DRAW${toss}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, 'neutral');
+      showResultSplash(`DRAW${detail}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, 'neutral');
     }
   }
 }

@@ -386,9 +386,16 @@ export async function connectSocketRuntime(deps) {
       const won = winnerId && winnerId === state.playerId;
       const tone = won ? 'win' : (winnerId ? 'loss' : 'neutral');
       const title = won ? 'YOU WIN' : (winnerId ? 'YOU LOSE' : 'DRAW');
-      const tossLine = state.ui.dealer.coinflipResult ? `\nTOSS: ${state.ui.dealer.coinflipResult.toUpperCase()}` : '';
+      const winningOutcome = formatWinningOutcomeLine({
+        gameType: state.ui.dealer.gameType,
+        playerPick: state.ui.dealer.playerPick,
+        opponentPick: state.ui.dealer.opponentPick,
+        coinflipResult: state.ui.dealer.coinflipResult,
+        diceResult: state.ui.dealer.diceResult
+      });
+      const outcomeLine = winningOutcome ? `\n${winningOutcome.toUpperCase()}` : '';
       const delta = state.ui.dealer.payoutDelta;
-      showResultSplash(`${title}${tossLine}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, tone);
+      showResultSplash(`${title}${outcomeLine}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, tone);
       if (typeof onMatchResolved === 'function' && winnerId) {
         onMatchResolved({ winnerId, wager: Number(view.wager ?? state.ui.dealer.wager ?? 0) });
       }
@@ -495,3 +502,4 @@ export async function connectSocketRuntime(deps) {
   }
   });
 }
+import { formatWinningOutcomeLine } from '../formatting.js';
