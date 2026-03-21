@@ -412,8 +412,14 @@ export class AgentBot {
     }
 
     if (!this.canAffordNextWager()) {
-      // Low-funds bots stay visible in-world, but should not roam as if they
-      // can still initiate play.
+      // Owner bots should fully park offline when their wallet is no longer
+      // ready so they don't linger as active roamers in the world.
+      if (this.config.clientId) {
+        this.stop();
+        return;
+      }
+      // Non-owner roaming bots stay visible in-world, but should not roam as
+      // if they can still initiate play.
       this.ws.send(JSON.stringify({ type: 'input', moveX: 0, moveZ: 0 }));
       return;
     }
@@ -427,9 +433,11 @@ export class AgentBot {
     // Movement should not hard-swarm humans from far away. Humans only become
     // "interesting" for locomotion when already close enough to plausibly interact.
     const HUMAN_INTEREST_RADIUS = 9.5;
-    const movementHumans = humanOthers.filter(
-      (entry) => Math.hypot(entry.x - self.x, entry.z - self.z) <= HUMAN_INTEREST_RADIUS
-    );
+    const movementHumans = this.config.clientId
+      ? []
+      : humanOthers.filter(
+          (entry) => Math.hypot(entry.x - self.x, entry.z - self.z) <= HUMAN_INTEREST_RADIUS
+        );
     const movementOthers = agentOthers.concat(movementHumans);
 
     let decision = this.policyEngine.decide(
