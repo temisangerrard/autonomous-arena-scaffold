@@ -90,6 +90,14 @@ body {
   border-color: rgba(119, 86, 0, 0.2);
 }
 
+@keyframes streakPulse {
+  0%, 100% { text-shadow: 0 0 6px rgba(234,179,8,0.6); }
+  50%       { text-shadow: 0 0 16px rgba(234,179,8,1), 0 0 32px rgba(234,179,8,0.4); }
+}
+.streak--pulse {
+  animation: streakPulse 1.4s ease-in-out infinite;
+}
+
 .qp-btn {
   background: linear-gradient(135deg, #775600, #f7c150);
   border: none;
