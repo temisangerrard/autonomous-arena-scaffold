@@ -119,7 +119,8 @@ const refreshWalletBalanceAndShowDelta = (beforeBalance, challenge = null) => re
   challenge,
   syncWalletSummary,
   state,
-  showResultSplash
+  showResultSplash,
+  audio: audioController
 });
 
 const { showToast } = createToaster(dom.toastContainer);
@@ -508,6 +509,10 @@ const sendGameMove = (move) => sendGameMoveRuntime({
     audioController.loadAmbientLoop('/assets/audio/arena-ambient.ogg').catch(() => {});
     audioController.loadSfx('win', '/assets/audio/sfx-win.ogg').catch(() => {});
     audioController.loadSfx('resolve', '/assets/audio/sfx-resolve.ogg').catch(() => {});
+    audioController.loadSfx('loss', '/assets/audio/sfx-loss.ogg').catch(() => {});
+    audioController.loadSfx('challenge_incoming', '/assets/audio/sfx-challenge-incoming.ogg').catch(() => {});
+    audioController.loadSfx('card_deal', '/assets/audio/sfx-card-deal.ogg').catch(() => {});
+    audioController.loadSfx('card_bust', '/assets/audio/sfx-card-bust.ogg').catch(() => {});
   }
   ['keydown', 'pointerdown', 'touchstart'].forEach((ev) => {
     window.addEventListener(ev, initAudioOnce, { once: true, passive: true });
@@ -638,7 +643,8 @@ const update = createRuntimeUpdate({
   updateLocalAvatarRuntime,
   asFiniteNumber,
   normalizeYaw,
-  sanitizeRenderY
+  sanitizeRenderY,
+  audio: audioController
 });
 
 // Wrap the core update to layer in spectacle systems each frame.
@@ -680,7 +686,8 @@ const challengeBridge = createChallengeBridge({
   showToast,
   addFeedEvent,
   handleChallengeEvent,
-  challengeReasonLabelForMode
+  challengeReasonLabelForMode,
+  audio: audioController
 });
 const updateRpsVisibility = challengeBridge.updateRpsVisibility;
 const handleChallenge = challengeBridge.handleChallenge;

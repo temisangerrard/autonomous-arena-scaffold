@@ -10,7 +10,8 @@ export function handleChallengeEvent(params) {
     isEscrowApprovalReason,
     showToast,
     addFeedEvent,
-    updateRpsVisibility
+    updateRpsVisibility,
+    audio = null
   } = params;
 
   const challenge = payload.challenge;
@@ -25,6 +26,7 @@ export function handleChallengeEvent(params) {
     state.respondingIncoming = false;
     if (challenge.opponentId === state.playerId) {
       state.incomingChallengeId = challenge.id;
+      audio?.trigger('challenge_incoming');
       dispatch({
         type: 'CHALLENGE_STATUS_SET',
         status: 'incoming',

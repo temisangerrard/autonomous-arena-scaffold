@@ -6,7 +6,8 @@ export async function refreshWalletBalanceAndShowDelta(params) {
     challenge = null,
     syncWalletSummary,
     state,
-    showResultSplash
+    showResultSplash,
+    audio = null
   } = params;
 
   const synced = await syncWalletSummary({ keepLastOnFailure: true });
@@ -33,10 +34,13 @@ export async function refreshWalletBalanceAndShowDelta(params) {
     const detail = winningOutcome ? `\n${winningOutcome.toUpperCase()}` : '';
     if (won) {
       showResultSplash(`YOU WIN${detail}\n+${Math.abs(delta).toFixed(2)}`, 'win');
+      audio?.trigger('win');
     } else if (lost) {
       showResultSplash(`YOU LOSE${detail}\n-${Math.abs(delta).toFixed(2)}`, 'loss');
+      audio?.trigger('loss');
     } else {
       showResultSplash(`DRAW${detail}\n${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`, 'neutral');
+      audio?.trigger('resolve');
     }
   }
 }

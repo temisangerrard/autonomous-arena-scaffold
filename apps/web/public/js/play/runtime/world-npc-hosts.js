@@ -58,9 +58,9 @@ function roleDetails(role) {
   if (role === 'rps') {
     return {
       title: 'Axel',
-      inspect: '"Rock beats scissors, paper beats rock — you know the rules. What you don\'t know is that every round is sealed by escrow before either of us sees a result. Pure reads, pure nerve."',
+      inspect: '"Rock, paper, scissors — oldest stalemate in the world. Every outcome is sealed on-chain before you throw, so there\'s no bluffing me and no reading you. It\'s pure commitment. Pick your throw and live with it."',
       useLabel: 'Challenge me',
-      use: '"Hit Play to lock the round, then throw Rock, Paper, or Scissors. Escrow reveals the winner and settles immediately. No takebacks."'
+      use: '"Hit Play to lock the round, then throw Rock, Paper, or Scissors. The escrow reveals the winner and settles instantly. No takebacks, no second-guessing — just the result."'
     };
   }
   if (role === 'dice') {

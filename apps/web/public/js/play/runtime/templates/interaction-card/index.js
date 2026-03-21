@@ -84,7 +84,8 @@ export function renderInteractionCardTemplate(params) {
     setStationStatus,
     renderDealerRevealStatus,
     makePlayerSeed,
-    pluginRegistry
+    pluginRegistry,
+    audio = null
   } = params;
 
   let interactionStationRenderKey = String(stateful?.interactionStationRenderKey || '');
@@ -212,7 +213,8 @@ export function renderInteractionCardTemplate(params) {
           setPendingBtn,
           clearPendingBtn,
           flashBtn,
-          clearTimer
+          clearTimer,
+          audio
         });
       } else if (station.kind === 'dealer_coinflip') {
         updateCoinflipLive({

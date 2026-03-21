@@ -91,7 +91,8 @@ export function createRuntimeUpdate(params) {
     updateLocalAvatarRuntime,
     asFiniteNumber,
     normalizeYaw,
-    sanitizeRenderY
+    sanitizeRenderY,
+    audio = null
   } = params;
 
   return function update(nowMs) {
@@ -184,7 +185,8 @@ export function createRuntimeUpdate(params) {
       renderDealerRevealStatus,
       makePlayerSeed,
       pluginRegistry,
-      socket: getSocket()
+      socket: getSocket(),
+      audio
     });
     renderMobileControlsRuntime({
       computeMobileControlVisibility,
