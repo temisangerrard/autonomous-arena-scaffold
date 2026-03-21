@@ -164,8 +164,9 @@ export function renderInteractionPromptLine(params) {
     };
     const stationHint = gameHintByKind[String(station?.kind || '')] || '';
     if (local?.title) {
+      const actionHint = String(local.useLabel || '').trim();
       // Named NPC host — show character name as the call-to-action
-      interactionPrompt.innerHTML = `<span class="prompt-name">${local.title}</span><span class="prompt-hint">${stationHint || ` — ${openVerb} to talk`}</span>`;
+      interactionPrompt.innerHTML = `<span class="prompt-name">${local.title}</span><span class="prompt-hint">${stationHint || ` — ${openVerb} to ${actionHint ? actionHint.toLowerCase() : 'talk'}`}</span>`;
     } else {
       interactionPrompt.innerHTML = `<span class="prompt-name">${labelFor(targetId)}</span><span class="prompt-hint"> — ${openVerb} to open</span>`;
     }

@@ -9,16 +9,16 @@ export function createStationInteractionsController(params) {
   function sendStationInteract(station, action, extra = {}) {
     const socket = getSocket();
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      showToast('Not connected to server.');
+      showToast('Arena link is down. Reconnect, then step back to a live host.');
       return false;
     }
     if (station?.source === 'host' && station?.proxyMissing) {
-      showToast('Station unavailable right now. Please retry in a moment.');
+      showToast('That host is off the floor right now. Step to another named table.');
       return false;
     }
     const resolvedStationId = resolveStationIdForSend(station || station?.id || '');
     if (!resolvedStationId) {
-      showToast('Station unavailable.');
+      showToast('No live route from this host. Move to a named dealer or cashier.');
       return false;
     }
     const autoQuickPlay = station && typeof station === 'object'
@@ -50,17 +50,22 @@ export function createStationInteractionsController(params) {
     if (mode === 'inspect') {
       state.ui.world.stationId = station.id;
       state.ui.world.interactionTag = String(station.interactionTag || '');
-      state.ui.world.title = String(local.title || station.displayName || 'World Interaction');
-      state.ui.world.detail = String(local.inspect || 'Interaction ready.');
-      state.ui.world.actionLabel = String(local.useLabel || 'Use');
+      state.ui.world.title = String(local.title || station.displayName || 'Floor Host');
+      state.ui.world.detail = String(local.inspect || 'This host can route you to live action.');
+      state.ui.world.actionLabel = String(local.useLabel || 'Open route');
       return true;
     }
     if (mode === 'use') {
+      const routeStationId = String(local.routeStationId || '').trim();
+      if (routeStationId) {
+        state.ui.targetId = routeStationId;
+        state.ui.interactionMode = 'station';
+      }
       state.ui.world.stationId = station.id;
       state.ui.world.interactionTag = String(station.interactionTag || '');
-      state.ui.world.title = String(local.title || station.displayName || 'World Interaction');
-      state.ui.world.detail = String(local.use || 'Interaction complete.');
-      state.ui.world.actionLabel = 'Used';
+      state.ui.world.title = String(local.title || station.displayName || 'Floor Host');
+      state.ui.world.detail = String(local.use || 'Opening a live route now.');
+      state.ui.world.actionLabel = routeStationId ? 'Opening…' : 'Done';
       return true;
     }
     return false;
