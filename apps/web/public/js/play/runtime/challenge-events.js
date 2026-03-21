@@ -50,6 +50,7 @@ export function handleChallengeEvent(params) {
     state.respondingIncoming = false;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.45);
     dispatch({
       type: 'CHALLENGE_STATUS_SET',
       status: 'active',
@@ -67,6 +68,7 @@ export function handleChallengeEvent(params) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.0);
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     const declinedMsg = `Challenge declined (${challenge.id})${reason ? ` · ${reason}` : ''}`;
     dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'declined', message: declinedMsg });
@@ -78,6 +80,7 @@ export function handleChallengeEvent(params) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.0);
     const reason = payload.reason ? challengeReasonLabel(payload.reason) : '';
     const expiredMsg = `Challenge expired (${challenge.id})${reason ? ` · ${reason}` : ''}`;
     dispatch({ type: 'CHALLENGE_STATUS_SET', status: 'expired', message: expiredMsg });
@@ -90,6 +93,7 @@ export function handleChallengeEvent(params) {
     state.activeChallenge = null;
     state.incomingChallengeId = null;
     state.outgoingChallengeId = null;
+    audio?.setActivityLevel(1.0);
     const winnerLabel = challenge.winnerId ? labelFor(challenge.winnerId) : 'Draw';
     if (challenge.winnerId === state.playerId) {
       state.streak += 1;

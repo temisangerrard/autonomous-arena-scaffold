@@ -513,6 +513,7 @@ const sendGameMove = (move) => sendGameMoveRuntime({
     audioController.loadSfx('challenge_incoming', '/assets/audio/sfx-challenge-incoming.ogg').catch(() => {});
     audioController.loadSfx('card_deal', '/assets/audio/sfx-card-deal.ogg').catch(() => {});
     audioController.loadSfx('card_bust', '/assets/audio/sfx-card-bust.ogg').catch(() => {});
+    audioController.loadSfx('bigwin', '/assets/audio/sfx-bigwin.ogg').catch(() => {});
   }
   ['keydown', 'pointerdown', 'touchstart'].forEach((ev) => {
     window.addEventListener(ev, initAudioOnce, { once: true, passive: true });
