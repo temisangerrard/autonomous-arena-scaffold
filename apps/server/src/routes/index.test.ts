@@ -131,6 +131,7 @@ describe('internal route authorization', () => {
   it('returns escrow events by walletId via derived player ids', async () => {
     const internalToken = 'test_internal_token';
     const ctx = makeRouteContext(internalToken);
+    let eventAt = 1_770_000_000_000;
     ctx.presenceStore = {
       get: async () => null,
       list: async () => ([
@@ -158,7 +159,7 @@ describe('internal route authorization', () => {
         txHash: '0xabc',
         fee: null,
         payout: null,
-        at: Date.now(),
+        at: eventAt++,
         challengerId: playerId,
         opponentId: 'system_house',
         winnerId: playerId,
