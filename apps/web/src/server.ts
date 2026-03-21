@@ -8,6 +8,7 @@ import { createHealthStatus } from './health.js';
 import { createChiefService, type ChiefChatRequest } from './chief.js';
 import { createChief2Service } from './chief2/index.js';
 import { createChiefDbGateway } from './chief/dbGateway.js';
+import { applyCredentialedCors, buildAllowedOrigins } from './cors.js';
 import { rewriteEmailIdentityBindings } from './adminWalletRelink.js';
 import { log } from './logger.js';
 import { resolveAuthSubjects } from './authSubjects.js';
@@ -47,23 +48,13 @@ const runtimeBase = process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:
 const publicGameWsUrl = process.env.WEB_GAME_WS_URL ?? '';
 const publicWorldAssetBaseUrl = process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '';
 const defaultWorldAssetBaseUrl = 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev';
-const allowedAuthOrigins = new Set(
-  (process.env.ALLOWED_AUTH_ORIGINS?.trim()
-    ? process.env.ALLOWED_AUTH_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)
-    : [
-        'https://autobett.netlify.app',
-        'https://www.autobett.netlify.app',
-        'http://localhost:3000'
-      ])
-    .map((value) => {
-      try {
-        return new URL(value).origin.toLowerCase();
-      } catch {
-        return '';
-      }
-    })
-    .filter(Boolean)
-);
+const allowedAuthOrigins = buildAllowedOrigins(process.env.ALLOWED_AUTH_ORIGINS, [
+  'https://autobett.xyz',
+  'https://www.autobett.xyz',
+  'https://autobett.netlify.app',
+  'https://www.autobett.netlify.app',
+  'http://localhost:3000'
+]);
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
 const internalToken = resolveInternalServiceToken();
 const redisUrl = process.env.REDIS_URL?.trim() || '';
@@ -1266,6 +1257,12 @@ const server = createServer(async (req, res) => {
     res.setHeader('expires', '0');
     // Netlify edge may otherwise replay stale auth responses across sessions.
     res.setHeader('netlify-vary', 'cookie,query');
+    applyCredentialedCors(req, res, allowedAuthOrigins);
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
   }
 
   if (pathname === '/health') {
