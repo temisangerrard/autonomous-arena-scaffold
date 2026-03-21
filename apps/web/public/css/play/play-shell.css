@@ -51,6 +51,12 @@ body {
   max-width: 160px;
 }
 
+.topbar-meta {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
 .topbar-pill {
   border-radius: 999px;
   padding: 7px 12px;
