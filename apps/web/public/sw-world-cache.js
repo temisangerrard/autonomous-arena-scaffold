@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arena-world-cache-v2';
+const CACHE_NAME = 'arena-world-cache-v3';
 const META_URL = 'https://world-cache.local/__meta__';
 const MAX_WORLDS = 8;
 const LEGACY_WORLD_KEYS = new Set([
@@ -55,6 +55,28 @@ export function canonicalRequestFor(url, request) {
     integrity: request.integrity,
     keepalive: request.keepalive
   });
+}
+
+export async function persistWorldResponse({
+  cache,
+  canonicalRequest,
+  network,
+  key,
+  touch = touchKey,
+  enforce = enforceLimit
+}) {
+  if (!network || (!network.ok && network.type !== 'opaque')) {
+    return false;
+  }
+  try {
+    await cache.put(canonicalRequest, network.clone());
+    await touch(cache, key);
+    await enforce(cache);
+    return true;
+  } catch (error) {
+    console.warn('[world-cache] persist_error', key, String(error || 'unknown'));
+    return false;
+  }
 }
 
 async function readMeta(cache) {
@@ -158,10 +180,7 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
         event.waitUntil((async () => {
           try {
             const network = await fetch(request);
-            if (network && (network.ok || network.type === 'opaque')) {
-              await cache.put(canonicalRequest, network.clone());
-              await touchKey(cache, key);
-              await enforceLimit(cache);
+            if (await persistWorldResponse({ cache, canonicalRequest, network, key })) {
               console.debug('[world-cache] update', url.toString());
             }
           } catch (error) {
@@ -174,11 +193,7 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
       console.debug('[world-cache] miss', url.toString());
       try {
         const network = await fetch(request);
-        if (network && (network.ok || network.type === 'opaque')) {
-          await cache.put(canonicalRequest, network.clone());
-          await touchKey(cache, key);
-          await enforceLimit(cache);
-        }
+        await persistWorldResponse({ cache, canonicalRequest, network, key });
         return network;
       } catch (error) {
         console.error('[world-cache] error', String(error || 'unknown'));
