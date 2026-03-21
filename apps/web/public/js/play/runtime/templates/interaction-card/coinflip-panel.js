@@ -65,6 +65,7 @@ export function mountCoinflipPanel(params) {
   }
 
   function onCoinflipTimeout() {
+    clearCoinAnim();
     clearTimer('dealer:pick');
     state.ui.dealer.state = 'error';
     state.ui.dealer.reasonText = 'No server response. Try again.';
@@ -77,6 +78,23 @@ export function mountCoinflipPanel(params) {
     showToast?.('Station timed out. Retry.', 'error');
   }
 
+  function injectCoinAnim() {
+    if (stageEl && !stageEl.querySelector('.coin-spin')) {
+      const el = document.createElement('div');
+      el.className = 'coin-spin';
+      el.textContent = '🪙';
+      stageEl.appendChild(el);
+    }
+    if (stageEl) stageEl.style.display = 'flex';
+  }
+
+  function clearCoinAnim() {
+    if (stageEl) {
+      const el = stageEl.querySelector('.coin-spin');
+      if (el) el.remove();
+    }
+  }
+
   function sendStart() {
     const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
     if (!sendStationInteract(station, 'coinflip_house_start', { wager })) return;
@@ -85,6 +103,7 @@ export function mountCoinflipPanel(params) {
     setPendingBtn(startBtn, 'Locking in…');
     setPicksLocked(true);
     setGameStatus('Locking in…', 'loading');
+    injectCoinAnim();
     startTimer('dealer:preflight', onCoinflipTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);
   }
 
@@ -123,11 +142,19 @@ export function updateCoinflipLive(params) {
     statusEl.className = 'game-panel__status' + (tone ? ` game-panel__status--${tone}` : '');
   }
 
+  function clearCoinAnimLive() {
+    if (stageEl) {
+      const el = stageEl.querySelector('.coin-spin');
+      if (el) el.remove();
+    }
+  }
+
   const ds = state.ui.dealer.state;
   if (ds !== 'preflight') clearTimer('dealer:preflight');
   if (ds !== 'reveal' && statusEl) delete statusEl.dataset.revealKey;
 
   if (ds === 'ready' && dealerStationMatches(station)) {
+    clearCoinAnimLive();
     if (startBtn) { startBtn.disabled = false; delete startBtn.dataset.panelState; }
     if (headsBtn) headsBtn.disabled = false;
     if (tailsBtn) tailsBtn.disabled = false;
@@ -141,6 +168,7 @@ export function updateCoinflipLive(params) {
     if (pickActions) pickActions.style.display = 'none';
     setLiveStatus('Locking in…', 'loading');
   } else if (ds === 'dealing') {
+    clearCoinAnimLive();
     if (startBtn) { startBtn.disabled = true; delete startBtn.dataset.panelState; }
     if (headsBtn) headsBtn.disabled = true;
     if (tailsBtn) tailsBtn.disabled = true;
@@ -148,6 +176,7 @@ export function updateCoinflipLive(params) {
     if (pickActions) pickActions.style.display = 'flex';
     setLiveStatus('Flipping…', 'loading');
   } else if (ds === 'error') {
+    clearCoinAnimLive();
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
     if (startBtn) delete startBtn.dataset.panelState;
@@ -158,6 +187,7 @@ export function updateCoinflipLive(params) {
     if (pickActions) pickActions.style.display = 'none';
     setLiveStatus(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
   } else if (ds === 'reveal') {
+    clearCoinAnimLive();
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
     if (startBtn && startBtn.dataset.panelState !== 'reveal') {
