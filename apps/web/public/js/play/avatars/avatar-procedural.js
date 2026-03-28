@@ -140,20 +140,32 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false, actorCla
   const avatar = new THREE.Group();
 
   const bodyGeometry = new THREE.CapsuleGeometry(0.22, 0.45, 8, 16);
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: colors.primary, roughness: 0.6, metalness: 0.1 });
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: colors.primary,
+    roughness: 0.55,
+    metalness: 0.15,
+    emissive: colors.primary,
+    emissiveIntensity: 0.04
+  });
   const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
   body.position.y = 0.52;
   body.castShadow = true;
 
+  // Neck — bridges head/body gap
+  const neckGeometry = new THREE.CylinderGeometry(0.07, 0.08, 0.1, 10);
+  const neckMaterial = new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.85, metalness: 0 });
+  const neck = new THREE.Mesh(neckGeometry, neckMaterial);
+  neck.position.y = 0.89;
+
   const headGeometry = new THREE.SphereGeometry(0.18, 24, 20);
   headGeometry.scale(1, 1.08, 0.95);
-  const headMaterial = new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.85, metalness: 0 });
+  const headMaterial = new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.8, metalness: 0.02 });
   const head = new THREE.Mesh(headGeometry, headMaterial);
   head.position.y = 1.08;
   head.castShadow = true;
 
   const hairGeometry = new THREE.SphereGeometry(0.19, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
-  const hairMaterial = new THREE.MeshStandardMaterial({ color: colors.hair, roughness: 0.9 });
+  const hairMaterial = new THREE.MeshStandardMaterial({ color: colors.hair, roughness: 0.85, metalness: 0.05 });
   const hair = new THREE.Mesh(hairGeometry, hairMaterial);
   hair.position.y = 1.12;
   hair.rotation.x = -0.1;
@@ -161,9 +173,15 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false, actorCla
   const faceGroup = new THREE.Group();
   faceGroup.position.set(0, 1.08, 0);
 
-  const eyeWhiteMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
-  const eyePupilMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.1, metalness: 0.2 });
-  const eyeIrisMaterial = new THREE.MeshStandardMaterial({ color: isLocal ? 0x4a90d9 : 0x6b8e23, roughness: 0.3 });
+  const eyeWhiteMaterial = new THREE.MeshStandardMaterial({ color: 0xfefefe, roughness: 0.15, metalness: 0.05 });
+  const eyePupilMaterial = new THREE.MeshStandardMaterial({ color: 0x0d0d0d, roughness: 0.05, metalness: 0.3 });
+  const eyeIrisMaterial = new THREE.MeshStandardMaterial({
+    color: isLocal ? 0x4a90d9 : 0x6b8e23,
+    roughness: 0.2,
+    metalness: 0.1,
+    emissive: isLocal ? 0x4a90d9 : 0x6b8e23,
+    emissiveIntensity: 0.12
+  });
 
   const leftEyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), eyeWhiteMaterial);
   leftEyeWhite.position.set(-0.06, 0.02, 0.15);
@@ -202,7 +220,7 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false, actorCla
     leftEyebrow, rightEyebrow, mouth
   );
 
-  const armMaterial = new THREE.MeshStandardMaterial({ color: colors.secondary, roughness: 0.65 });
+  const armMaterial = new THREE.MeshStandardMaterial({ color: colors.secondary, roughness: 0.6, metalness: 0.08 });
   const leftArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.28, 6, 10), armMaterial);
   leftArm.position.set(-0.28, 0.55, 0);
   leftArm.rotation.z = 0.15;
@@ -226,20 +244,21 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false, actorCla
   rightLeg.position.set(0.1, 0.02, 0);
   rightLeg.castShadow = true;
 
-  const footMaterial = new THREE.MeshStandardMaterial({ color: 0x2c2c2c, roughness: 0.9 });
+  const footMaterial = new THREE.MeshStandardMaterial({ color: 0x2c2c2c, roughness: 0.75, metalness: 0.15 });
   const leftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.12), footMaterial);
   leftFoot.position.set(-0.1, -0.18, 0.02);
   const rightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.12), footMaterial);
   rightFoot.position.set(0.1, -0.18, 0.02);
 
   if (isLocal) {
-    const badgeGeometry = new THREE.CircleGeometry(0.05, 16);
+    // Chest badge with stronger glow so local player is distinct at a glance
+    const badgeGeometry = new THREE.CircleGeometry(0.055, 20);
     const badgeMaterial = new THREE.MeshStandardMaterial({
       color: colors.accent,
-      roughness: 0.3,
-      metalness: 0.5,
+      roughness: 0.2,
+      metalness: 0.6,
       emissive: colors.accent,
-      emissiveIntensity: 0.3
+      emissiveIntensity: 0.6
     });
     const badge = new THREE.Mesh(badgeGeometry, badgeMaterial);
     badge.position.set(0, 0.7, 0.23);
@@ -252,7 +271,7 @@ function createAvatar(THREE, colorScheme, initialName, isLocal = false, actorCla
     : null;
 
   avatar.add(
-    body, head, hair, faceGroup,
+    body, neck, head, hair, faceGroup,
     leftArm, rightArm, leftHand, rightHand,
     leftLeg, rightLeg, leftFoot, rightFoot
   );
@@ -296,31 +315,53 @@ export function animateAvatar(parts, speed, t, phaseOffset = 0) {
   const gait = Math.min(1, speed / 4.5);
   const phase = t * 7 + phaseOffset;
 
-  const breathe = Math.sin(t * 1.5) * 0.01;
+  // Breathing — subtle scale oscillation at rest, suppressed while running
+  const breathe = Math.sin(t * 1.5) * 0.01 * (1 - gait * 0.6);
   parts.body.scale.y = 1 + breathe;
   parts.body.position.y = 0.52 + breathe * 0.5;
 
-  parts.head.position.y = 1.08 + Math.sin(phase * 0.5) * 0.03 * gait + breathe;
+  // Body lean forward while running (squash-and-stretch inspiration)
+  parts.body.rotation.x = gait * 0.08;
 
-  const armSwing = Math.sin(phase) * 0.4 * gait;
+  // Lateral body sway synced to stride
+  parts.body.rotation.z = Math.sin(phase * 0.5) * 0.04 * gait;
+
+  // Head bob + gentle tilt toward stride side
+  const headBob = Math.sin(phase * 0.5) * 0.03 * gait + breathe;
+  parts.head.position.y = 1.08 + headBob;
+  parts.head.rotation.z = Math.sin(phase * 0.5) * 0.04 * gait;
+  // Idle head sway
+  if (gait < 0.05) {
+    parts.head.rotation.y = Math.sin(t * 0.6) * 0.06;
+  }
+
+  // Arm swing
+  const armSwing = Math.sin(phase) * 0.45 * gait;
   parts.leftArm.rotation.x = armSwing;
   parts.rightArm.rotation.x = -armSwing;
+  // Subtle outward arm flare while running
+  parts.leftArm.rotation.z = 0.15 + gait * 0.05;
+  parts.rightArm.rotation.z = -0.15 - gait * 0.05;
 
   if (parts.leftHand) parts.leftHand.position.y = 0.35 - Math.sin(phase) * 0.08 * gait;
   if (parts.rightHand) parts.rightHand.position.y = 0.35 + Math.sin(phase) * 0.08 * gait;
 
-  const legSwing = Math.sin(phase) * 0.5 * gait;
+  // Leg swing
+  const legSwing = Math.sin(phase) * 0.55 * gait;
   parts.leftLeg.rotation.x = legSwing;
   parts.rightLeg.rotation.x = -legSwing;
 
+  // Foot lift — back foot kicks up, front foot lands flat
   if (parts.leftFoot) {
-    parts.leftFoot.position.z = 0.02 + Math.sin(phase) * 0.04 * gait;
-    parts.leftFoot.rotation.x = Math.sin(phase) * 0.2 * gait;
+    const leftLift = Math.max(0, Math.sin(phase)) * 0.07 * gait;
+    parts.leftFoot.position.y = -0.18 + leftLift;
+    parts.leftFoot.position.z = 0.02 + Math.sin(phase) * 0.05 * gait;
+    parts.leftFoot.rotation.x = Math.sin(phase) * 0.25 * gait;
   }
   if (parts.rightFoot) {
-    parts.rightFoot.position.z = 0.02 - Math.sin(phase) * 0.04 * gait;
-    parts.rightFoot.rotation.x = -Math.sin(phase) * 0.2 * gait;
+    const rightLift = Math.max(0, -Math.sin(phase)) * 0.07 * gait;
+    parts.rightFoot.position.y = -0.18 + rightLift;
+    parts.rightFoot.position.z = 0.02 - Math.sin(phase) * 0.05 * gait;
+    parts.rightFoot.rotation.x = -Math.sin(phase) * 0.25 * gait;
   }
-
-  parts.body.rotation.z = Math.sin(phase * 0.5) * 0.03 * gait;
 }

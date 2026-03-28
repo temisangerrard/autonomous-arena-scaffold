@@ -169,10 +169,14 @@ export function makeRenderer(canvas) {
 export function makeScene() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfd7d8);
+  // Atmospheric depth fog — matches background color so horizon fades naturally
+  scene.fog = new THREE.FogExp2(0xbfd7d8, 0.018);
 
+  // Sky/ground hemisphere for warm ambient fill
   const hemi = new THREE.HemisphereLight(0xf8f3e8, 0x4f6e67, 1.2);
   scene.add(hemi);
 
+  // Primary sun light
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
   dir.position.set(25, 40, 22);
   const profile = classifyRendererProfile({
@@ -185,6 +189,11 @@ export function makeScene() {
   });
   dir.castShadow = profile.shadowMapEnabled;
   scene.add(dir);
+
+  // Cool fill light from opposite side — softens harsh shadow edges on characters
+  const fill = new THREE.DirectionalLight(0xd4e8ff, 0.35);
+  fill.position.set(-20, 10, -15);
+  scene.add(fill);
 
   return scene;
 }

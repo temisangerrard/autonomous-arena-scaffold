@@ -502,8 +502,8 @@ const sendGameMove = (move) => sendGameMoveRuntime({
 function togglePvpReady() {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'pvp_ready_toggle' }));
+    state.pvpReady = !state.pvpReady;
   }
-  state.pvpReady = !state.pvpReady;
 }
 
 // Initialize audio on first user gesture (browser autoplay policy requirement).
