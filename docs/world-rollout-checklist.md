@@ -1,21 +1,19 @@
 # World Rollout Checklist
 
-Goal: move production from monolithic first-load world delivery to shell-first loading with a dedicated binary origin better suited for very large immutable assets.
+Goal: serve the cleaned production world from the dedicated binary origin with a single-bundle load path that preserves the existing manifest contract.
 
 ## Desired production state
 
 - `PUBLIC_WORLD_ASSET_BASE_URL` points to object storage + CDN, not the current Netlify world host.
 - `/api/worlds` serves:
-  - `mega-shell` -> `train_station_world.glb`
-  - `mega-world` -> `train_station_mega_world.glb`
-- `/play` enters after shell load, then swaps to the full mega world when ready.
+  - `mega-shell` -> `train_station_mega_world_clean.glb`
+- `/play` enters after the cleaned world bundle loads once.
 - Initial load messaging says `Preparing world…`, not `Connecting to world server…`.
 
 ## Pre-rollout checks
 
-- Confirm both local source files exist:
-  - `train_station_world.glb`
-  - `train_station_mega_world.glb`
+- Confirm the cleaned source file exists:
+  - `train_station_mega_world_clean.glb`
 - Confirm the target object-storage/CDN bucket/origin is provisioned.
 - Confirm `PUBLIC_WORLD_ASSET_BASE_URL` can be updated on the deployed web service.
 
@@ -31,7 +29,7 @@ Verify the staged output contains:
 
 - `/assets/world/mega.glb`
 - `/assets/world/mega-shell.glb`
-- `/assets/world/mega-world.glb`
+- `/assets/world/mega-world.glb` as a compatibility alias
 
 If moving away from Netlify host, upload those staged files to the object-storage/CDN origin and preserve the same `/assets/world/*.glb` paths.
 
@@ -39,8 +37,7 @@ If moving away from Netlify host, upload those staged files to the object-storag
 
 Deploy the web runtime that includes:
 
-- shell-first bundle manifest support
-- shell-to-mega replacement loading
+- single-bundle manifest support through the existing shell slot
 - multi-bundle cache support
 - neutral initial loader copy
 
@@ -57,22 +54,22 @@ on the deployed web service.
 Check:
 
 - `/api/worlds` returns `bundlesByAlias`
-- `mega-shell` resolves to the 53 MB file
-- `mega-world` resolves to the large mega file
-- `/play` requests `mega-shell.glb` first
-- the player enters before `mega-world.glb` finishes
-- later the world swaps cleanly to the mega world
+- `mega-shell` resolves to `train_station_mega_world_clean.glb`
+- `mega-world` remains reachable as a compatibility alias to the same cleaned asset
+- `/play` requests `mega-shell.glb`
+- the player enters without any follow-up world swap
+- dealer and cashier stations still initialize on first load
 
 Manual browser verification:
 
 - initial loader copy should read `Preparing world…`
-- after shell load, gameplay UI should be present without the appearance of outage
-- mega world replacement should not leave overlapping duplicate shell geometry
+- after the world load, gameplay UI should be present without the appearance of outage
+- no `Streaming nearby world details…` phase should appear for the base world
 
 ## Rollback
 
-If shell-first rollout fails:
+If single-bundle rollout fails:
 
 - point `PUBLIC_WORLD_ASSET_BASE_URL` back to the previous binary origin
-- temporarily map `mega-shell` back to the legacy monolithic asset
+- restore the previous `/api/worlds` bundle mapping
 - keep the loader copy change; it is safer and more accurate even on rollback

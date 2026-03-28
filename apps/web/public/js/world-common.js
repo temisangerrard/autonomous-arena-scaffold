@@ -227,14 +227,16 @@ export async function loadWorldWithProgress(scene, alias, onProgress) {
     onProgress
   });
   const extraBundles = [...urls.zones, ...urls.decor];
-  const backgroundLoads = Promise.allSettled(
-    extraBundles.map(async (entry) => await loadBundleIntoWorld({
-      loader,
-      worldRoot,
-      bundle: entry.bundle,
-      url: entry.url
-    }))
-  );
+  const backgroundLoads = extraBundles.length > 0
+    ? Promise.allSettled(
+      extraBundles.map(async (entry) => await loadBundleIntoWorld({
+        loader,
+        worldRoot,
+        bundle: entry.bundle,
+        url: entry.url
+      }))
+    )
+    : null;
   return {
     worldRoot,
     shellRoot: shellResult.root,

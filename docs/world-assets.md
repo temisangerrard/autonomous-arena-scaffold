@@ -5,11 +5,11 @@ Current production world assets are hosted on the dedicated Netlify site:
 - Current canonical host: `https://arena-world-assets.netlify.app`
 - Current production asset path: `https://arena-world-assets.netlify.app/assets/world/mega.glb`
 
-Recommended target architecture for large world binaries:
+Current runtime shape:
 
 - Fly.io continues to host app/runtime/game services.
 - World bundles should move to object storage + CDN.
-- Production should load `mega-shell.glb` first and defer `mega-world.glb`.
+- Production now loads a single cleaned world bundle through `mega-shell.glb`.
 
 ## Why this exists
 
@@ -28,9 +28,8 @@ Recommended target architecture for large world binaries:
 
 Prerequisites:
 
-- local shell and mega GLBs present in the repo root:
-  - `train_station_world.glb`
-  - `train_station_mega_world.glb`
+- local cleaned world GLB present in the repo root:
+  - `train_station_mega_world_clean.glb`
 - Netlify CLI authenticated locally, or `NETLIFY_AUTH_TOKEN` set
 - one of:
   - `NETLIFY_WORLD_ASSETS_SITE_ID`
@@ -54,6 +53,6 @@ NETLIFY_WORLD_ASSETS_SITE_NAME=arena-world-assets npm run world:publish
 - The publish script now stages:
   - `mega.glb`
   - `mega-shell.glb`
-  - `mega-world.glb`
+  - `mega-world.glb` as a compatibility alias to the same cleaned asset
 - The main frontend resolves `/assets/world/*` through the configured asset origin.
 - Fly `arena-web` can still redirect missing local world requests to the configured host.
