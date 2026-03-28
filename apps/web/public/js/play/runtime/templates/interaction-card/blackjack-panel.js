@@ -202,6 +202,7 @@ export function updateBlackjackLive(params) {
     if (actionsEl) actionsEl.style.display = 'flex';
     if (wagerEl) wagerEl.disabled = true;
     updateHandDisplay();
+    audio?.trigger('card_deal');
     const pv = Number(state.ui.dealer.playerHandValue || 0);
     const readyKey = `${state.ui.dealer.playerHandValue}|${state.ui.dealer.dealerShowValue}`;
     if (handsEl && handsEl.dataset.audioReadyKey !== readyKey) {
@@ -246,6 +247,8 @@ export function updateBlackjackLive(params) {
     }
     if (wagerEl) wagerEl.disabled = false;
     updateHandDisplay();
+    audio?.trigger('card_deal');
+    if (Number(state.ui.dealer.dealerHandValue || 0) > 21) audio?.trigger('card_bust');
     if (statusEl) {
       const delta = Number(state.ui.dealer.payoutDelta || 0);
       const tone = delta > 0 ? 'success' : delta < 0 ? 'error' : '';
