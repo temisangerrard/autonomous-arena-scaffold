@@ -3,36 +3,117 @@
        ============================================ */
     @media (pointer: coarse), (max-width: 720px) {
       #hud {
-        top: 10px;
-        left: 10px;
-        right: 10px;
-        min-height: 46px;
-        padding: 0 10px;
+        top: 0;
+        left: 0;
+        right: 0;
+        min-height: 0;
+        padding: 0;
       }
       .topbar-left {
-        gap: 8px;
+        top: 12px;
+        left: 12px;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 14px;
+        min-height: 64px;
+        max-width: calc(100vw - 154px);
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(255, 251, 244, 0.96), rgba(247, 239, 225, 0.94));
+        box-shadow: 0 12px 28px rgba(51, 46, 32, 0.16);
+        backdrop-filter: blur(16px);
+      }
+      .topbar-meta {
+        gap: 4px;
+      }
+      .topbar-avatar {
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+      }
+      .topbar-name {
+        max-width: 120px;
+        font-size: 12px;
+        line-height: 1.1;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+      .topbar-pills {
+        gap: 0;
       }
       .topbar-right .topbar-pill.streak,
       .topbar-right .topbar-pill.bot {
         display: none;
       }
+      .topbar-right {
+        top: 12px;
+        right: 12px;
+        gap: 10px;
+      }
       .topbar-pill.wallet {
-        min-width: auto;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        color: #005da7;
         font-size: 13px;
+        letter-spacing: 0;
+        text-transform: none;
+        justify-content: flex-start;
+      }
+      .topbar-pill.qp-btn {
+        min-width: 0;
+        height: 44px;
+        padding: 0 18px;
+        border-radius: 14px;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        box-shadow: 0 12px 24px rgba(0, 53, 113, 0.22);
+        background: linear-gradient(180deg, #0d66b7 0%, #00509f 100%);
+        color: #f8fbff;
+        white-space: nowrap;
       }
       .menu-ghost {
-        width: 42px;
-        height: 34px;
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(255, 251, 244, 0.96), rgba(247, 239, 225, 0.94));
+        box-shadow: 0 12px 24px rgba(51, 46, 32, 0.14);
+      }
+      .menu-pop {
+        top: 64px;
+        right: 12px;
       }
       .world-map-panel {
         right: 10px;
-        bottom: 80px;
-        transform: scale(0.75);
+        bottom: 96px;
+        width: 104px;
+        padding: 8px;
+        border-radius: 18px;
+        transform: none;
         transform-origin: bottom right;
+        opacity: 0.94;
+        background: linear-gradient(180deg, rgba(30, 29, 33, 0.9), rgba(24, 24, 28, 0.96));
       }
       .world-map-panel:hover {
-        width: 140px;
+        width: 104px;
         opacity: 0.9;
+      }
+      .world-map-title {
+        margin-bottom: 6px;
+        font-size: 9px;
+      }
+      #map-coords {
+        font-size: 9px;
+      }
+      #world-map {
+        height: 90px;
+        border-radius: 12px;
+      }
+      .map-legend {
+        margin-top: 6px;
+        gap: 6px;
+        font-size: 8px;
       }
       .world-map-panel.mobile-obscured {
         display: none;
@@ -41,6 +122,43 @@
         bottom: 180px;
         font-size: 13px;
         padding: 10px 16px;
+      }
+      .mobile-controls {
+        left: 10px;
+        right: 10px;
+        bottom: 14px;
+        align-items: end;
+      }
+      .mobile-stick {
+        width: 108px;
+        gap: 6px;
+      }
+      .mobile-stick__base {
+        width: 92px;
+        height: 92px;
+        border-width: 2px;
+      }
+      .mobile-stick__knob {
+        width: 42px;
+        height: 42px;
+      }
+      .mobile-stick__label {
+        font-size: 10px;
+      }
+      .mobile-actions {
+        max-width: 192px;
+        gap: 6px;
+      }
+      .mobile-btn {
+        height: 40px;
+        min-width: 86px;
+        padding: 0 12px;
+        border-radius: 12px;
+        font-size: 11px;
+      }
+      .mobile-moves {
+        width: min(188px, 100%);
+        gap: 6px;
       }
       .match-controls {
         width: calc(100vw - 20px);
@@ -64,4 +182,3 @@
         font-size: 16px;
       }
     }
-

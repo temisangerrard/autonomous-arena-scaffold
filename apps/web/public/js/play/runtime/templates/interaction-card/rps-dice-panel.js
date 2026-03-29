@@ -8,6 +8,16 @@ import {
   DEALER_PICK_TIMEOUT_MS
 } from './helpers.js';
 
+const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+let _diceAnimInterval = null;
+
+function clearDiceAnimInterval() {
+  if (_diceAnimInterval !== null) {
+    clearInterval(_diceAnimInterval);
+    _diceAnimInterval = null;
+  }
+}
+
 export function mountRpsDicePanel(params) {
   const { state, stationUi, station, sendStationInteract, makePlayerSeed, showToast } = params;
   const isRps = station.kind === 'dealer_rps';
@@ -30,8 +40,10 @@ export function mountRpsDicePanel(params) {
 
   stationUi.innerHTML = `
     <div class="game-panel">
-      <div class="game-panel__title">${isRps ? 'Rock Paper Scissors' : 'Dice Duel'}</div>
-      <div class="game-panel__rule">${isRps ? 'Start the round, then throw your move.' : 'Pick the face you think will land.'}</div>
+      <div class="game-header-card">
+        <div class="game-panel__title">${isRps ? 'Rock Paper Scissors' : 'Dice Duel'}</div>
+        <div class="game-panel__rule">${isRps ? 'Start the round, then throw your move.' : 'Pick the face you think will land.'}</div>
+      </div>
       <div class="game-panel__wager-row">
         <label class="game-panel__wager-label" for="station-wager">Wager <span class="game-panel__currency">USDC</span></label>
         <input class="game-panel__wager-input" id="station-wager" type="number" min="0" max="10000" step="1" value="${curWager}" />
@@ -67,7 +79,45 @@ export function mountRpsDicePanel(params) {
     }
   }
 
+  function injectLockAnim() {
+    if (!stageEl || !document.createElement) return;
+    if (stageEl.querySelector?.('.rps-think, .dice-roll')) return;
+    if (isRps) {
+      const el = document.createElement('div');
+      el.className = 'rps-think';
+      el.appendChild?.(document.createElement('span'));
+      el.appendChild?.(document.createElement('span'));
+      el.appendChild?.(document.createElement('span'));
+      stageEl.appendChild?.(el);
+    } else {
+      const el = document.createElement('div');
+      el.className = 'dice-roll';
+      el.id = 'dice-anim';
+      el.textContent = DICE_FACES[0];
+      stageEl.appendChild?.(el);
+      let faceIdx = 0;
+      clearDiceAnimInterval();
+      _diceAnimInterval = setInterval(() => {
+        faceIdx = (faceIdx + 1) % DICE_FACES.length;
+        const animEl = document.getElementById('dice-anim');
+        if (animEl) animEl.textContent = DICE_FACES[faceIdx];
+        else clearDiceAnimInterval();
+      }, 250);
+    }
+    stageEl.style.display = 'flex';
+  }
+
+  function clearLockAnim() {
+    clearDiceAnimInterval();
+    if (!stageEl) return;
+    const rpsEl = stageEl.querySelector?.('.rps-think');
+    if (rpsEl) rpsEl.remove?.();
+    const diceEl = stageEl.querySelector?.('.dice-roll');
+    if (diceEl) diceEl.remove?.();
+  }
+
   function onRpsTimeout() {
+    clearLockAnim();
     clearTimer('dealer:pick');
     state.ui.dealer.state = 'error';
     state.ui.dealer.reasonText = 'No server response. Try again.';
@@ -91,6 +141,7 @@ export function mountRpsDicePanel(params) {
       state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
       setPendingBtn(startBtn, 'Locking in…');
       setGameStatus('Locking in…', 'loading');
+      injectLockAnim();
       startTimer('dealer:preflight', onRpsTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);
     };
   }
@@ -102,6 +153,7 @@ export function mountRpsDicePanel(params) {
     if (!(btn instanceof HTMLButtonElement)) continue;
     btn.onclick = () => {
       if (!sendStationInteract(station, pickAction, { pick, playerSeed: makePlayerSeed() })) return;
+      clearLockAnim();
       clearTimer('dealer:preflight');
       state.ui.dealer.state = 'dealing';
       setPendingBtn(btn, isRps ? `${pick.charAt(0).toUpperCase()}…` : `${pick.replace('d', '')}…`);
@@ -140,11 +192,21 @@ export function updateRpsDiceLive(params) {
     statusEl.className = 'game-panel__status' + (tone ? ` game-panel__status--${tone}` : '');
   }
 
+  function clearLockAnimLive() {
+    clearDiceAnimInterval();
+    if (!stageEl) return;
+    const rpsEl = stageEl.querySelector?.('.rps-think');
+    if (rpsEl) rpsEl.remove?.();
+    const diceEl = stageEl.querySelector?.('.dice-roll');
+    if (diceEl) diceEl.remove?.();
+  }
+
   const ds = state.ui.dealer.state;
   if (ds !== 'preflight') clearTimer('dealer:preflight');
   if (ds !== 'reveal' && statusEl) delete statusEl.dataset.revealKey;
 
   if (ds === 'ready' && dealerStationMatches(station)) {
+    clearLockAnimLive();
     if (startBtn) { startBtn.disabled = false; delete startBtn.dataset.panelState; }
     setAllPicksBtnDisabled(false);
     if (stageEl) stageEl.style.display = 'none';
@@ -156,12 +218,14 @@ export function updateRpsDiceLive(params) {
     if (pickActions) pickActions.style.display = 'none';
     setLiveStatus('Locking in…', 'loading');
   } else if (ds === 'dealing') {
+    clearLockAnimLive();
     if (startBtn) { startBtn.disabled = true; delete startBtn.dataset.panelState; }
     setAllPicksBtnDisabled(true);
     if (stageEl) stageEl.style.display = 'none';
     if (pickActions) pickActions.style.display = 'flex';
     setLiveStatus(isRps ? 'Waiting for result…' : 'Rolling…', 'loading');
   } else if (ds === 'error') {
+    clearLockAnimLive();
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
     if (startBtn) delete startBtn.dataset.panelState;
@@ -173,6 +237,7 @@ export function updateRpsDiceLive(params) {
     if (stageEl) stageEl.style.display = 'flex';
     setLiveStatus(state.ui.dealer.reasonText || 'Something went wrong. Try again.', 'error');
   } else if (ds === 'reveal') {
+    clearLockAnimLive();
     clearTimer('dealer:preflight');
     clearTimer('dealer:pick');
     if (startBtn && startBtn.dataset.panelState !== 'reveal') {

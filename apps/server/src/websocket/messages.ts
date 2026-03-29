@@ -97,13 +97,18 @@ type ChallengeMoveMessage = {
   move: GameMove;
 };
 
+type PvpReadyToggleMessage = {
+  type: 'pvp_ready_toggle';
+};
+
 type ClientMessage =
   | InputMessage
   | StationInteractMessage
   | ChallengeSendMessage
   | ChallengeResponseMessage
   | ChallengeCounterMessage
-  | ChallengeMoveMessage;
+  | ChallengeMoveMessage
+  | PvpReadyToggleMessage;
 
 /**
  * Convert raw WebSocket data to string
@@ -333,6 +338,10 @@ export function parseClientMessage(raw: RawData): ClientMessage | null {
         challengeId: payload.challengeId,
         move: payload.move
       };
+    }
+
+    if (payload.type === 'pvp_ready_toggle') {
+      return { type: 'pvp_ready_toggle' };
     }
 
     return null;

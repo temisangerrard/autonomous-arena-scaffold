@@ -30,6 +30,15 @@ export const HOST_STATION_PROXY_MAP = {
 };
 
 function roleDetails(role) {
+  if (role === 'guide' || role === 'info') {
+    return {
+      title: 'Super Agent',
+      inspect: '"You are not here to guess. You are here to choose a live table and enter clean. Coinflip and RPS sit off the south rail. Dice is straight ahead. Cashier is east of the train. Prediction is on the north rise."',
+      useLabel: 'Route me in',
+      use: '"Start with a live table, not a speech. Coinflip is the cleanest first round. Step to Jade, lock a small wager, and learn the flow before you size up."',
+      routeStationId: 'station_npc_host_3'
+    };
+  }
   if (role === 'cashier') {
     return {
       title: 'Rex',
@@ -49,9 +58,9 @@ function roleDetails(role) {
   if (role === 'rps') {
     return {
       title: 'Axel',
-      inspect: '"Rock beats scissors, paper beats rock — you know the rules. What you don\'t know is that every round is sealed by escrow before either of us sees a result. Pure reads, pure nerve."',
+      inspect: '"Rock, paper, scissors — oldest stalemate in the world. Every outcome is sealed on-chain before you throw, so there\'s no bluffing me and no reading you. It\'s pure commitment. Pick your throw and live with it."',
       useLabel: 'Challenge me',
-      use: '"Hit Play to lock the round, then throw Rock, Paper, or Scissors. Escrow reveals the winner and settles immediately. No takebacks."'
+      use: '"Hit Play to lock the round, then throw Rock, Paper, or Scissors. The escrow reveals the winner and settles instantly. No takebacks, no second-guessing — just the result."'
     };
   }
   if (role === 'dice') {
@@ -78,19 +87,11 @@ function roleDetails(role) {
       use: '"Set your wager and press Deal. I\'ll give you two cards. Hit for more, stand to lock your hand. Dealer plays last — seventeen or higher, I stop. Closest to twenty-one without going over takes it."'
     };
   }
-  if (role === 'info') {
-    return {
-      title: 'Super Agent',
-      inspect: '"You spawn south and walk north into the arena. Dice is straight ahead as you enter. Blackjack is hard left (Vera), Coinflip just left of centre (Jade), RPS just right of centre (Axel). Cashier is north-east past the train (Rex). Prediction markets are far north (Kai)."',
-      useLabel: 'Show me the layout',
-      use: '"Walk north from spawn: Dice dead ahead, Blackjack hard left, Coinflip left, RPS right. Past the train: Cashier to the right, Info guide to the left. Prediction markets far north. Every game runs provably fair escrow on Base."'
-    };
-  }
   return {
     title: 'Dealer',
-    inspect: '"Step up and set your wager. The house is ready when you are."',
-    useLabel: 'Play',
-    use: '"Round locked. Make your move."'
+    inspect: '"Live action is running somewhere on this floor. Walk to a named host and enter a real round there."',
+    useLabel: 'Find live action',
+    use: '"Move to the nearest named host. If the table can take a wager, it will open immediately."'
   };
 }
 

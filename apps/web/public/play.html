@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="base:app_id" content="69a988a7223099cde83059f4">
-  <title>Arena Play</title>
+  <title>AutoBett Arena</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/css/claude-corners.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
   <script src="/runtime-config.js"></script>
   <link rel="stylesheet" href="/css/play/play-shell.css">
 </head>
@@ -33,8 +34,8 @@
         <!-- Step 0: Welcome & what is this -->
         <div class="onboarding__step" data-step="0">
           <div class="onboarding__icon">🎰</div>
-          <h2 class="onboarding__title" id="onboarding-title">Welcome to the Arena</h2>
-          <p class="onboarding__desc">This is a 3D betting arcade where you wager tokens in live rounds. Outcomes settle on-chain and your balance updates immediately.<br><br><strong>Have wallet balance ready before placing wagers.</strong></p>
+          <h2 class="onboarding__title" id="onboarding-title">Welcome to AutoBett</h2>
+          <p class="onboarding__desc">AutoBett is a live betting arena on Base where you enter dealer rounds inside one shared world. Each result settles onchain and your balance updates in the same session.<br><br><strong>Have wallet balance ready before entering a round.</strong></p>
           <div class="onboarding__actions">
             <button class="onboarding__btn onboarding__btn--primary" data-action="next">How does it work?</button>
           </div>
@@ -44,7 +45,7 @@
         <div class="onboarding__step onboarding__step--hidden" data-step="1">
           <div class="onboarding__icon">🚶</div>
           <h2 class="onboarding__title">Find a dealer</h2>
-          <p class="onboarding__desc">Walk toward any character in the arena. On desktop use <strong>WASD</strong> to move. On mobile, use the on-screen joystick.</p>
+          <p class="onboarding__desc">Walk toward any dealer station in the Autonomous Arena. On desktop use <strong>WASD</strong> to move. On mobile, use the on-screen joystick.</p>
           <div class="onboarding__keys">
             <div class="onboarding__key">
               <div class="onboarding__key-btn">W</div>
@@ -63,7 +64,7 @@
               <span class="onboarding__key-label">Right</span>
             </div>
           </div>
-          <p class="onboarding__desc" style="margin-top:12px;margin-bottom:0">Get close and a prompt will appear. Press <strong>E</strong> (or tap it on mobile) to open their station.</p>
+          <p class="onboarding__desc" style="margin-top:12px;margin-bottom:0">Get close and a prompt will appear. Press <strong>E</strong> (or tap it on mobile) to open the station and view the live round panel.</p>
           <div class="onboarding__actions">
             <button class="onboarding__btn onboarding__btn--secondary" data-action="prev">Back</button>
             <button class="onboarding__btn onboarding__btn--primary" data-action="next">Got it</button>
@@ -73,7 +74,7 @@
         <div class="onboarding__step onboarding__step--hidden" data-step="2">
           <div class="onboarding__icon">🎲</div>
           <h2 class="onboarding__title">Place your bet</h2>
-          <p class="onboarding__desc">Inside the station panel, set your wager amount and hit <strong>Play</strong>. A round starts and the dealer locks in their move instantly.</p>
+          <p class="onboarding__desc">Inside the station panel, set your wager amount and hit <strong>Play</strong>. A round starts immediately and the dealer locks in the market state on entry.</p>
           <div class="onboarding__checklist">
             <div class="onboarding__check-item">
               <span class="onboarding__check-num">1</span>
@@ -97,7 +98,7 @@
         <div class="onboarding__step onboarding__step--hidden" data-step="3">
           <div class="onboarding__icon">🏆</div>
           <h2 class="onboarding__title">Collect your winnings</h2>
-          <p class="onboarding__desc">Once both sides are locked in, the result reveals automatically. If you win, your payout is settled to your wallet based on the game mode and stake. If you lose, the round settles on-chain as a loss.<br><br>Your balance is always visible in the top-left corner. The <strong>First steps</strong> guide at the bottom will track your progress.</p>
+          <p class="onboarding__desc">Once both sides are locked in, the result reveals automatically. If you win, your payout settles onchain to your wallet based on the game mode and stake. If you lose, the round settles onchain as a loss.<br><br>Your balance is always visible in the top-left corner. The <strong>First steps</strong> guide at the bottom tracks your progress through the live arena.</p>
           <div class="onboarding__actions">
             <button class="onboarding__btn onboarding__btn--secondary" data-action="prev">Back</button>
             <button class="onboarding__btn onboarding__btn--primary" data-action="start">Enter the Arena</button>
@@ -120,7 +121,7 @@
   <!-- Quickstart Guide -->
   <aside id="quickstart-panel" class="quickstart-panel" aria-label="Getting started guide">
     <div class="quickstart-panel__head">
-      <span class="quickstart-panel__title">Your first game</span>
+      <span class="quickstart-panel__title">Enter your first round</span>
       <button id="quickstart-close" class="quickstart-panel__close" type="button" aria-label="Dismiss guide">×</button>
     </div>
     <ul id="quickstart-list" class="quickstart-list" aria-live="polite"></ul>
@@ -130,15 +131,18 @@
   <header id="hud" role="banner">
     <div class="topbar-left">
       <i class="topbar-avatar" aria-hidden="true"></i>
-      <span id="topbar-name" class="topbar-name">Loading...</span>
-      <div class="topbar-pills">
-        <span id="topbar-wallet" class="topbar-pill wallet" title="Wallet balance">$0.00</span>
+      <div class="topbar-meta">
+        <span id="topbar-name" class="topbar-name">Loading...</span>
+        <div class="topbar-pills">
+          <span id="topbar-wallet" class="topbar-pill wallet" title="Wallet balance">$0.00</span>
+        </div>
       </div>
     </div>
     <div class="topbar-right">
       <span id="topbar-streak" class="topbar-pill streak" title="Win streak">Streak 0</span>
       <span id="topbar-bot" class="topbar-pill bot" title="Bot mode"><i class="topbar-pill__dot" aria-hidden="true"></i>Bot: Auto</span>
-      <button id="topbar-quick-play" class="topbar-pill qp-btn" type="button" aria-label="Quick Play — start a game without walking">&#9889; Play</button>
+      <button id="topbar-lfg" class="topbar-pill topbar-lfg" type="button" aria-label="Toggle Looking For Game — signal readiness for PvP challenge">LFG</button>
+      <button id="topbar-quick-play" class="topbar-pill qp-btn" type="button" aria-label="Quick Play — start a game without walking">&#9889; Enter Round</button>
       <button id="topbar-menu" class="menu-ghost" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="topbar-menu-pop">&#9776;</button>
     </div>
   </header>
@@ -156,7 +160,7 @@
     <div class="player-drawer__head">
       <div class="player-drawer__title-wrap">
         <div class="player-drawer__title">Player</div>
-        <div class="player-drawer__subtitle">Wallet, autoplay, and recent activity</div>
+        <div class="player-drawer__subtitle">Wallet, bot wallet controls, and recent arena activity</div>
       </div>
       <button id="player-drawer-close" class="player-drawer__close" type="button" aria-label="Close player panel">×</button>
     </div>
@@ -177,7 +181,7 @@
     </div>
     <div class="interaction-card__body">
       <div id="interaction-help" class="interaction-help" hidden>
-        Visit nearby dealer stations to start rounds. Press <strong>E</strong> to interact, <strong>Esc</strong> to close panel.
+        Visit nearby dealer stations to start rounds. Press <strong>E</strong> to enter a live panel, <strong>Esc</strong> to close it, and track settlement in your wallet HUD.
       </div>
       <div id="station-ui" class="station-ui" aria-live="polite"></div>
       <div id="interaction-npc-info" class="station-ui" hidden></div>
@@ -230,11 +234,21 @@
   <!-- Quick Play Panel -->
   <div id="quick-play-backdrop" class="qp-backdrop" hidden></div>
   <aside id="quick-play-panel" class="qp-panel" hidden aria-label="Quick play — start a game directly">
+    <button id="quick-play-close" class="qp-panel__close" type="button" aria-label="Close quick play panel">
+      <span class="material-symbols-outlined">close</span>
+    </button>
     <div class="qp-panel__head">
-      <span class="qp-panel__title">Quick Play</span>
-      <button id="quick-play-close" class="qp-panel__close" type="button" aria-label="Close quick play panel">&#215;</button>
+      <span class="qp-badge">Live entry</span>
+      <h2 class="qp-panel__title">QUICK PLAY MENU</h2>
+      <p class="qp-panel__subtitle">Choose a station and enter a live round. Every result settles onchain.</p>
     </div>
     <div id="quick-play-list" class="qp-list"></div>
+  </aside>
+
+  <!-- Session Leaderboard -->
+  <aside id="leaderboard-panel" class="leaderboard-panel" aria-label="Session leaderboard">
+    <div class="leaderboard-panel__title">SESSION</div>
+    <ol id="leaderboard-list" class="leaderboard-list"></ol>
   </aside>
 
   <!-- Toast Container -->

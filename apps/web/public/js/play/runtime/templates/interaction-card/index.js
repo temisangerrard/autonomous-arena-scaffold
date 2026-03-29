@@ -51,7 +51,7 @@ function getStationHelpContent(station) {
   if (station.kind === 'cashier_bank') {
     return 'Cashier lets you <strong>fund</strong>, <strong>withdraw</strong>, or <strong>transfer</strong>. Use small test amounts first.';
   }
-  return 'This station supports local interactions. Press <strong>Inspect</strong> for context or <strong>Use</strong> for the primary action.';
+  return 'This host should always point you to a real next move. Read the cue, then route straight into live action.';
 }
 
 export function renderInteractionCardTemplate(params) {
@@ -84,7 +84,8 @@ export function renderInteractionCardTemplate(params) {
     setStationStatus,
     renderDealerRevealStatus,
     makePlayerSeed,
-    pluginRegistry
+    pluginRegistry,
+    audio = null
   } = params;
 
   let interactionStationRenderKey = String(stateful?.interactionStationRenderKey || '');
@@ -136,7 +137,7 @@ export function renderInteractionCardTemplate(params) {
         interactionHelpToggle?.setAttribute('aria-expanded', 'false');
       } else {
         const helpContent = getStationHelpContent(station);
-        interactionHelp.innerHTML = helpContent || 'Use this station.';
+        interactionHelp.innerHTML = helpContent || 'This host can point you toward a live route.';
       }
     }
 
@@ -164,7 +165,7 @@ export function renderInteractionCardTemplate(params) {
           stationUi.innerHTML = `
             <div class="station-ui__title">${station.displayName || 'Station'}</div>
             <div class="station-ui__meta station-ui__meta--warning">
-              Station unavailable right now. Server station mapping is missing; retry shortly.
+              This host has no live route right now. Move to another named table.
             </div>
           `;
           if (stateful && typeof stateful === 'object') {
@@ -201,7 +202,7 @@ export function renderInteractionCardTemplate(params) {
             mountPredictionPanel: (opts) => mountPredictionPanel({ ...baseParams, ...opts })
           });
         } else {
-          stationUi.innerHTML = `<div class="station-ui__meta">Unknown station.</div>`;
+          stationUi.innerHTML = `<div class="station-ui__meta">This host has no authored interaction yet.</div>`;
         }
       }
 
@@ -212,7 +213,8 @@ export function renderInteractionCardTemplate(params) {
           setPendingBtn,
           clearPendingBtn,
           flashBtn,
-          clearTimer
+          clearTimer,
+          audio
         });
       } else if (station.kind === 'dealer_coinflip') {
         updateCoinflipLive({
@@ -259,6 +261,7 @@ export function renderInteractionCardTemplate(params) {
       showNpcInfoPanel(interactionNpcInfo);
 
       const incoming = challengeController.currentIncomingChallenge();
+      const playerView = String(state.ui?.playerView || 'encounter');
       const outgoingPending = Boolean(state.outgoingChallengeId);
       const targetNearby = state.nearbyIds instanceof Set && state.nearbyIds.has(targetId);
       const canSendBase = state.wsConnected && !state.respondingIncoming && !outgoingPending && targetId !== state.playerId && targetNearby;
@@ -285,6 +288,7 @@ export function renderInteractionCardTemplate(params) {
         ? `${labelFor(incoming.challengerId)} challenged you (${incoming.gameType.toUpperCase()}, ${formatWagerInline(incoming.wager)}).`
         : '';
 
+      const challengeMsg = String(state.playerChallengeMessage || '');
       const playerRenderKey = [
         targetId,
         selectedGame,
@@ -299,54 +303,131 @@ export function renderInteractionCardTemplate(params) {
         incoming?.wager || '',
         outgoingPending ? 'outgoing' : 'idle',
         targetNearby ? 'nearby' : 'far',
-        canSend ? 'send' : 'blocked'
+        canSend ? 'send' : 'blocked',
+        challengeMsg
       ].join('|');
 
       if (interactionPlayerRenderKey !== playerRenderKey) {
         interactionPlayerRenderKey = playerRenderKey;
+        const showApprove = selectedWager > 0 && !approvalModeAuto;
+        const recentMsg = !outgoingPending && !incoming && challengeMsg ? challengeMsg : '';
+        const statusLine = incomingLabel
+          || recentMsg
+          || (targetNearby ? 'Pick a game and send a challenge.' : 'Move closer to challenge.')
+          + (outgoingPending ? ' Challenge already pending.' : '');
+        const approvalMeta = approvalModeAuto
+          ? '<div class="station-ui__meta">Super Agent active — wager approvals handled automatically.</div>'
+          : (selectedWager > 0 ? `<div class="station-ui__meta">${approvalHint}</div>` : '');
+
+        const isTouch = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+        const gameIcons = { rps: '✊', coinflip: '🪙', dice_duel: '🎲' };
+        const gameLabels = { rps: 'RPS', coinflip: 'Coin Flip', dice_duel: 'Dice Duel' };
+        const roleLabel = targetPlayer.role === 'agent' ? 'Bot' : 'Player';
+        const movementLabel = Number(targetPlayer.speed || 0) > 0.2 ? 'Active' : 'Parked';
+        const proximityLabel = targetNearby ? 'In range' : 'Out of range';
+
+        if (!incoming && !outgoingPending && playerView !== 'challenge') {
+          interactionNpcInfo.innerHTML = `
+            <div class="player-encounter-card">
+              <div class="player-encounter-card__head">
+                <div>
+                  <div class="station-ui__title">Encounter</div>
+                  <div class="player-encounter-card__name">${labelFor(targetId)}</div>
+                </div>
+                <div class="player-encounter-card__badges">
+                  <span class="player-encounter-card__badge">${roleLabel}</span>
+                  <span class="player-encounter-card__badge">${movementLabel}</span>
+                  <span class="player-encounter-card__badge ${targetNearby ? 'is-live' : 'is-muted'}">${proximityLabel}</span>
+                </div>
+              </div>
+              <div class="station-ui__meta">
+                ${targetNearby
+                  ? `You are in range of ${labelFor(targetId)}. Open the challenge composer when you are ready to play.`
+                  : `${labelFor(targetId)} moved out of range. Stay locked here or move closer to challenge.`}
+              </div>
+              <div class="station-ui__actions">
+                <button id="player-encounter-challenge" class="btn-lock-in" type="button" ${targetNearby ? '' : 'disabled'}>Open Challenge</button>
+              </div>
+            </div>
+          `;
+
+          const encounterChallengeBtn = document.getElementById('player-encounter-challenge');
+          if (encounterChallengeBtn instanceof HTMLButtonElement) {
+            encounterChallengeBtn.onclick = () => {
+              state.ui.playerView = 'challenge';
+            };
+          }
+          if (stateful && typeof stateful === 'object') {
+            stateful.interactionStationRenderKey = interactionStationRenderKey;
+            stateful.interactionPlayerRenderKey = interactionPlayerRenderKey;
+          }
+          return;
+        }
+
         interactionNpcInfo.innerHTML = `
           <div class="station-ui__title">${labelFor(targetId)}</div>
-          <div class="station-ui__row">
-            <label for="player-challenge-game">Game</label>
-            <select id="player-challenge-game">
-              <option value="rps" ${selectedGame === 'rps' ? 'selected' : ''}>Rock Paper Scissors</option>
-              <option value="coinflip" ${selectedGame === 'coinflip' ? 'selected' : ''}>Coin Flip</option>
-              <option value="dice_duel" ${selectedGame === 'dice_duel' ? 'selected' : ''}>Dice Duel</option>
-            </select>
+
+          ${incoming ? `
+          <div class="challenge-incoming">
+            <div class="challenge-incoming__label">⚡ Incoming challenge</div>
+            <div class="challenge-incoming__desc">
+              ${labelFor(incoming.challengerId)} wants to play
+              <strong>${gameLabels[incoming.gameType] || incoming.gameType.toUpperCase()}</strong>
+              — wager <strong>${formatWagerInline(incoming.wager)}</strong> each
+            </div>
+            <div class="challenge-incoming__actions">
+              <button id="player-challenge-accept" class="btn-accept" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>${isTouch ? 'Accept' : 'Accept (Y)'}</button>
+              <button id="player-challenge-decline" class="btn-decline" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>${isTouch ? 'Decline' : 'Decline (N)'}</button>
+            </div>
           </div>
-          <div class="station-ui__row">
-            <label for="player-challenge-wager">Wager (each, USDC)</label>
-            <input id="player-challenge-wager" type="number" min="0" max="10000" step="1" value="${selectedWager}" />
+          ` : ''}
+
+          ${outgoingPending ? `
+          <div class="challenge-pending-badge">
+            <div class="challenge-pending-badge__dot"></div>
+            Challenge sent — waiting for response…
           </div>
-          ${approvalModeAuto
-            ? '<div class="station-ui__meta">Super Agent Approval Active (Testnet)</div>'
-            : `<div class="station-ui__actions">
-              <button id="player-challenge-approve" class="btn-ghost" type="button" ${(selectedWager > 0 && approvalState !== 'checking') ? '' : 'disabled'}>
-                ${approvalState === 'checking' ? 'Checking...' : approvalCapLabel}
-              </button>
-            </div>`}
+          ` : `
           <div class="station-ui__actions">
-            <button id="player-challenge-send" class="btn-gold" type="button" ${canSend ? '' : 'disabled'}>Send Challenge (C)</button>
+            <button id="player-challenge-back" class="btn-decline" type="button">Back</button>
           </div>
-          ${incoming ? `<div class="station-ui__actions">
-            <button id="player-challenge-accept" class="btn-ghost" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Accept (Y)</button>
-            <button id="player-challenge-decline" class="btn-ghost" type="button" ${!state.respondingIncoming ? '' : 'disabled'}>Decline (N)</button>
-          </div>` : ''}
-          <div class="station-ui__meta">${incomingLabel || `${targetNearby ? 'Pick a game and send a challenge.' : 'Move closer to this player, then send challenge.'} ${outgoingPending ? 'You already have a pending outgoing challenge.' : ''}`}</div>
-          <div class="station-ui__meta">${approvalHint}</div>
+          <div class="challenge-game-picker">
+            <button class="challenge-game-btn ${selectedGame === 'rps' ? 'is-selected' : ''}" data-game="rps" type="button">
+              <span class="challenge-game-btn__icon">${gameIcons.rps}</span>RPS
+            </button>
+            <button class="challenge-game-btn ${selectedGame === 'coinflip' ? 'is-selected' : ''}" data-game="coinflip" type="button">
+              <span class="challenge-game-btn__icon">${gameIcons.coinflip}</span>Coin Flip
+            </button>
+            <button class="challenge-game-btn ${selectedGame === 'dice_duel' ? 'is-selected' : ''}" data-game="dice_duel" type="button">
+              <span class="challenge-game-btn__icon">${gameIcons.dice_duel}</span>Dice Duel
+            </button>
+          </div>
+
+          <div class="challenge-wager-row">
+            <span class="challenge-wager-label">Wager USDC</span>
+            <input id="player-challenge-wager" class="challenge-wager-input" type="number" min="0" max="10000" step="1" value="${selectedWager}" />
+          </div>
+
+          ${showApprove ? `<button id="player-challenge-approve" class="btn-approve-escrow" type="button" ${approvalState !== 'checking' ? '' : 'disabled'}>${approvalState === 'checking' ? 'Checking escrow…' : approvalCapLabel}</button>` : ''}
+
+          <div class="challenge-status ${approvalHint.includes('ready') || selectedWager <= 0 ? 'challenge-status--ok' : (showApprove && !approvalReady ? 'challenge-status--warn' : '')}">${recentMsg || statusLine}</div>
+
+          <button id="player-challenge-send" class="btn-lock-in" type="button" ${canSend ? '' : 'disabled'}>${isTouch ? 'Lock In Challenge' : 'Lock In Challenge (C)'}</button>
+          `}
         `;
 
         const renderedTargetId = targetId;
-        const gameEl = document.getElementById('player-challenge-game');
         const wagerEl = document.getElementById('player-challenge-wager');
         const approveBtn = document.getElementById('player-challenge-approve');
         const sendBtn = document.getElementById('player-challenge-send');
+        const backBtn = document.getElementById('player-challenge-back');
         const acceptBtn = document.getElementById('player-challenge-accept');
         const declineBtn = document.getElementById('player-challenge-decline');
 
+        const lockInLabel = isTouch ? 'Lock In Challenge' : 'Lock In Challenge (C)';
         if (outgoingPending || state.challengeStatus === 'active') {
           clearTimer('challenge:send');
-          clearPendingBtn(sendBtn, 'Send Challenge (C)');
+          clearPendingBtn(sendBtn, lockInLabel);
         }
         if (!state.respondingIncoming) {
           clearTimer('challenge:respond');
@@ -354,11 +435,18 @@ export function renderInteractionCardTemplate(params) {
           clearPendingBtn(declineBtn, 'Decline (N)');
         }
 
-        if (gameEl instanceof HTMLSelectElement) {
-          gameEl.onchange = () => {
-            state.ui.challenge.gameType = normalizedChallengeGameType(gameEl.value);
-          };
-        }
+        // Game picker buttons
+        interactionNpcInfo.querySelectorAll('.challenge-game-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const game = btn.dataset.game;
+            if (!game) return;
+            state.ui.challenge.gameType = normalizedChallengeGameType(game);
+            interactionNpcInfo.querySelectorAll('.challenge-game-btn').forEach((b) => {
+              b.classList.toggle('is-selected', b.dataset.game === game);
+            });
+          });
+        });
+
         if (wagerEl instanceof HTMLInputElement) {
           wagerEl.oninput = () => {
             const wager = normalizedChallengeWager(wagerEl.value, 1);
@@ -386,19 +474,24 @@ export function renderInteractionCardTemplate(params) {
             void ensureEscrowApproval(wager);
           };
         }
+        if (backBtn instanceof HTMLButtonElement) {
+          backBtn.onclick = () => {
+            state.ui.playerView = 'encounter';
+          };
+        }
         if (sendBtn instanceof HTMLButtonElement) {
           sendBtn.onclick = () => {
-            const gameType = gameEl instanceof HTMLSelectElement ? gameEl.value : state.ui.challenge.gameType;
             const wager = wagerEl instanceof HTMLInputElement ? wagerEl.value : state.ui.challenge.wager;
-            setPendingBtn(sendBtn, 'Sending…');
+            const gameType = state.ui.challenge.gameType;
+            setPendingBtn(sendBtn, 'Locking In…');
             startTimer('challenge:send', () => {
-              clearPendingBtn(sendBtn, 'Send Challenge (C)');
+              clearPendingBtn(sendBtn, 'Lock In Challenge (C)');
               showToast('No server response. Try again.', 'error');
             }, 7000);
             const sent = challengeController.sendChallenge(renderedTargetId, gameType, wager);
             if (!sent) {
               clearTimer('challenge:send');
-              clearPendingBtn(sendBtn, 'Send Challenge (C)');
+              clearPendingBtn(sendBtn, 'Lock In Challenge (C)');
             }
           };
         }

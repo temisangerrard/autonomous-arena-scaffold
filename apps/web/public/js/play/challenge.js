@@ -121,7 +121,8 @@ export function createChallengeController(deps) {
   function canUseChallengeHotkeys() {
     if (!state.ui?.interactOpen) return false;
     if (state.ui?.interactionMode !== 'player') return false;
-    return true;
+    if (currentIncomingChallenge()) return true;
+    return String(state.ui?.playerView || 'encounter') === 'challenge';
   }
 
   function computeControlContext() {
@@ -152,7 +153,9 @@ export function createChallengeController(deps) {
     if (inMatch && !isHouseChallenge && active?.gameType === 'rps') return 'active_rps';
     if (inMatch && !isHouseChallenge && active?.gameType === 'coinflip') return 'active_coinflip';
     if (inMatch && !isHouseChallenge && active?.gameType === 'dice_duel') return 'active_dice_duel';
-    if (playerTargetAvailable && !state.outgoingChallengeId) return 'near_player_idle';
+    if (playerTargetAvailable && !state.outgoingChallengeId && String(state.ui?.playerView || 'encounter') === 'challenge') {
+      return 'near_player_idle';
+    }
     return 'idle';
   }
 

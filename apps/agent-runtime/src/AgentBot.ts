@@ -1,6 +1,6 @@
 import { WebSocket, type RawData } from 'ws';
 import { PolicyEngine, type AgentPlayerState, type Personality } from './PolicyEngine.js';
-import { signWsAuthToken, type AutoplayStrategyConfig, type AutoplaySessionState, type AutoplayPauseReason, type GameType } from '@arena/shared';
+import { signWsAuthToken, type AutoplayStrategyConfig, type AutoplaySessionState, type AutoplayPauseReason, type GameType, type BotStrategyPolicy, type WalletReadiness } from '@arena/shared';
 
 type SnapshotPlayer = AgentPlayerState & { role?: 'human' | 'agent' };
 
@@ -31,6 +31,12 @@ export type AgentBehaviorConfig = {
   sessionWinTarget?: number;
   /** Autoplay strategy config — if present, governs autonomous play behavior */
   autoplay?: AutoplayStrategyConfig;
+  /**
+   * Compiled strategy policy — enforces autonomy profile and spend limits.
+   * Derived from natural language or a strategy template via strategyCompiler.
+   * Takes precedence over legacy sessionLossLimit / sessionWinTarget when present.
+   */
+  strategyPolicy?: BotStrategyPolicy;
 };
 
 type AgentBotConfig = {
@@ -110,6 +116,8 @@ export class AgentBot {
 
   /** Wallet balance accessor — injected from runtime so wager calc can read % */
   getWalletBalance: (() => number) | null = null;
+  /** Wallet readiness accessor — injected for owner bots so autonomy follows live wallet readiness. */
+  getWalletReadiness: (() => WalletReadiness | null) | null = null;
 
   constructor(config: AgentBotConfig) {
     this.config = config;
@@ -403,6 +411,19 @@ export class AgentBot {
       return;
     }
 
+    if (!this.canAffordNextWager()) {
+      // Owner bots should fully park offline when their wallet is no longer
+      // ready so they don't linger as active roamers in the world.
+      if (this.config.clientId) {
+        this.stop();
+        return;
+      }
+      // Non-owner roaming bots stay visible in-world, but should not roam as
+      // if they can still initiate play.
+      this.ws.send(JSON.stringify({ type: 'input', moveX: 0, moveZ: 0 }));
+      return;
+    }
+
     const allOthers = [...this.playersById.values()].filter((entry) => entry.id !== this.playerId);
     const scopedOthers = allOthers.filter((entry) => this.isInSameOrAdjacentSection(self, entry));
     const worldOthers = scopedOthers.length > 0 ? scopedOthers : allOthers;
@@ -412,9 +433,11 @@ export class AgentBot {
     // Movement should not hard-swarm humans from far away. Humans only become
     // "interesting" for locomotion when already close enough to plausibly interact.
     const HUMAN_INTEREST_RADIUS = 9.5;
-    const movementHumans = humanOthers.filter(
-      (entry) => Math.hypot(entry.x - self.x, entry.z - self.z) <= HUMAN_INTEREST_RADIUS
-    );
+    const movementHumans = this.config.clientId
+      ? []
+      : humanOthers.filter(
+          (entry) => Math.hypot(entry.x - self.x, entry.z - self.z) <= HUMAN_INTEREST_RADIUS
+        );
     const movementOthers = agentOthers.concat(movementHumans);
 
     let decision = this.policyEngine.decide(
@@ -478,6 +501,9 @@ export class AgentBot {
       case 'percent_wallet': {
         const pct = Math.max(0.01, Math.min(100, ap.walletPercent ?? 5)) / 100;
         const balance = this.getWalletBalance ? this.getWalletBalance() : baseW;
+        if (Number.isFinite(balance) && balance <= 0) {
+          return 0;
+        }
         const computed = Math.floor(balance * pct);
         return Math.max(1, Math.min(maxW, Math.max(computed, baseW)));
       }
@@ -505,7 +531,7 @@ export class AgentBot {
     if (this.config.behavior.mode === 'passive') {
       return;
     }
-    if (!this.config.behavior.challengeEnabled) {
+    if (!this.canInitiateChallenges()) {
       return;
     }
     if (!this.ws || this.ws.readyState !== this.ws.OPEN || !this.playerId) {
@@ -554,6 +580,9 @@ export class AgentBot {
       return;
     }
 
+    if (!this.canAffordNextWager()) {
+      return;
+    }
     const wager = this.computeNextWager();
     const gameType: GameType = this.config.behavior.autoplay
       ? this.pickAutoplayGame()
@@ -563,6 +592,23 @@ export class AgentBot {
     this.stats.challengesSent += 1;
     this.stats.lastChallengeAt = now;
     this.ws.send(JSON.stringify({ type: 'challenge_send', targetId, gameType, wager }));
+  }
+
+  private canAffordNextWager(): boolean {
+    const readiness = this.getWalletReadiness ? this.getWalletReadiness() : null;
+    const readinessStatus = String(readiness?.status || '').trim().toLowerCase();
+    if (readinessStatus && readinessStatus !== 'ready' && readinessStatus !== 'all_checks_passed') {
+      return false;
+    }
+    const wager = this.computeNextWager();
+    if (wager <= 0) {
+      return false;
+    }
+    const walletBalance = this.getWalletBalance ? this.getWalletBalance() : null;
+    if (walletBalance != null && Number.isFinite(walletBalance) && walletBalance < wager) {
+      return false;
+    }
+    return true;
   }
 
   private pickChallengeTarget(): string | null {
@@ -622,9 +668,7 @@ export class AgentBot {
 
     if (record.event === 'created' && challenge && challenge.opponentId === this.playerId) {
       this.stats.challengesReceived += 1;
-      // `challengeEnabled` gates participation. When disabled (e.g. owner is online),
-      // decline incoming challenges so humans control their own sessions.
-      const accept = this.config.behavior.challengeEnabled ? this.shouldAcceptChallenge() : false;
+      const accept = this.canAcceptChallenges() && this.shouldAcceptChallenge();
       setTimeout(() => {
         if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
           return;
@@ -682,6 +726,28 @@ export class AgentBot {
     }
   }
 
+  private canInitiateChallenges(): boolean {
+    if (!this.config.behavior.challengeEnabled) {
+      return false;
+    }
+    const policy = this.config.behavior.strategyPolicy;
+    if (policy) {
+      return policy.mayInitiateChallenges;
+    }
+    return true;
+  }
+
+  private canAcceptChallenges(): boolean {
+    if (!this.config.behavior.challengeEnabled) {
+      return false;
+    }
+    const policy = this.config.behavior.strategyPolicy;
+    if (policy) {
+      return policy.mayAcceptChallenges;
+    }
+    return true;
+  }
+
   private shouldAcceptChallenge(): boolean {
     // Static NPCs are configured as passive. Always accept to keep NPC play reliable.
     if (this.config.behavior.mode === 'passive') {
@@ -698,14 +764,26 @@ export class AgentBot {
 
   private enforceSessionRiskStops(): void {
     const ap = this.config.behavior.autoplay;
-    const lossLimit = Number(ap?.sessionLossLimit ?? this.config.behavior.sessionLossLimit ?? 0);
-    const winTarget = Number(ap?.sessionWinTarget ?? this.config.behavior.sessionWinTarget ?? 0);
+    const policy = this.config.behavior.strategyPolicy;
+
+    // Strategy policy budget takes precedence over legacy limits when present
+    const lossLimit = policy
+      ? policy.sessionBudgetUsdc
+      : Number(ap?.sessionLossLimit ?? this.config.behavior.sessionLossLimit ?? 0);
+    const winTarget = policy
+      ? 0  // policies express budgets, not win targets
+      : Number(ap?.sessionWinTarget ?? this.config.behavior.sessionWinTarget ?? 0);
+
     const hitLossLimit = lossLimit > 0 && this.sessionNetPnl <= -lossLimit;
     const hitWinTarget = winTarget > 0 && this.sessionNetPnl >= winTarget;
-    if (!hitLossLimit && !hitWinTarget) {
+
+    // Check policy expiry
+    const policyExpired = policy?.expiresAt != null && Date.now() > policy.expiresAt;
+
+    if (!hitLossLimit && !hitWinTarget && !policyExpired) {
       return;
     }
-    const reason: AutoplayPauseReason = hitLossLimit ? 'stop_loss_hit' : 'take_profit_hit';
+    const reason: AutoplayPauseReason = policyExpired ? 'stop_loss_hit' : hitLossLimit ? 'stop_loss_hit' : 'take_profit_hit';
     this.config.behavior.challengeEnabled = false;
     this.config.behavior.mode = 'passive';
     if (ap) {

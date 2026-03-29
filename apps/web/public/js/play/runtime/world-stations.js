@@ -12,17 +12,88 @@ export function createWorldStationsController(params) {
   let worldRoot = null;
   let npcHosts = null;
 
+  function guideProfileForRole(role) {
+    switch (String(role || '')) {
+      case 'cashier':
+        return {
+          displayName: 'Cashier Guide',
+          title: 'Cashier Guide',
+          inspect: 'Rex is live on the east rail. Fund, withdraw, or move balance there before you walk back into the action.',
+          useLabel: 'Open cashier',
+          use: 'Opening Rex on the east rail.',
+          roleLabel: 'cashier'
+        };
+      case 'coinflip':
+        return {
+          displayName: 'Coinflip Runner',
+          title: 'Coinflip Runner',
+          inspect: 'Jade is taking coinflip rounds right now. Best first stop if you want one clean decision and instant settlement.',
+          useLabel: 'Open coinflip',
+          use: 'Opening Jade at the coinflip table.',
+          roleLabel: 'coinflip'
+        };
+      case 'rps':
+        return {
+          displayName: 'RPS Runner',
+          title: 'RPS Runner',
+          inspect: 'Axel is live on Rock Paper Scissors. If you want reads instead of luck, step to his table.',
+          useLabel: 'Open RPS',
+          use: 'Opening Axel at the RPS table.',
+          roleLabel: 'RPS'
+        };
+      case 'dice':
+        return {
+          displayName: 'Dice Runner',
+          title: 'Dice Runner',
+          inspect: 'Zara is still rolling on the south line. Pick a face there if you want the fastest swing in the arena.',
+          useLabel: 'Open dice',
+          use: 'Opening Zara at the dice table.',
+          roleLabel: 'dice'
+        };
+      case 'prediction':
+        return {
+          displayName: 'Market Runner',
+          title: 'Market Runner',
+          inspect: 'Kai is posting live prediction rounds on the north rise. If you have a view, that board is where it pays.',
+          useLabel: 'Open markets',
+          use: 'Opening Kai at the live market board.',
+          roleLabel: 'prediction'
+        };
+      case 'blackjack':
+        return {
+          displayName: 'Blackjack Runner',
+          title: 'Blackjack Runner',
+          inspect: 'Vera is live on blackjack. Step there when you want a longer hand and a real dealer read.',
+          useLabel: 'Open blackjack',
+          use: 'Opening Vera at the blackjack table.',
+          roleLabel: 'blackjack'
+        };
+      default:
+        return {
+          displayName: 'Floor Host',
+          title: 'Floor Host',
+          inspect: 'Live hosts are working this section now. Step to a named table and the panel will open with a real round, not filler.',
+          useLabel: 'Find live table',
+          use: 'Routing you to the nearest live host.',
+          roleLabel: 'live host'
+        };
+    }
+  }
+
   function createDegradedBakedInteraction(baked, nearestSameRoleHost, nearestHost) {
     // Prefer a host that matches the baked station's game type so players are
     // routed to a coinflip dealer for coinflip kiosks, RPS dealer for RPS kiosks, etc.
     const routeHost = nearestSameRoleHost || nearestHost;
     const sectionRole = String(baked.hostRole || routeHost?.hostRole || 'info');
-    const destination = routeHost?.displayName || 'nearest live host';
+    const profile = guideProfileForRole(sectionRole);
+    const destination = routeHost?.displayName || 'the nearest live host';
     return {
-      title: `${baked.displayName || 'Section Kiosk'} Terminal`,
-      inspect: `This kiosk provides guidance only in this section. Live ${sectionRole} gameplay is available at ${destination}.`,
-      useLabel: 'Show Route',
-      use: `Walk to ${destination} to open the live station panel and place your wager.`
+      title: profile.title,
+      inspect: `${profile.inspect} ${routeHost ? `${destination} is the live stop for this side of the arena.` : 'No live stop is mapped here yet, so follow the nearest named host.'}`,
+      useLabel: profile.useLabel,
+      use: routeHost ? profile.use : 'Move to the nearest named host to enter a real round.',
+      routeStationId: routeHost?.id || '',
+      routeHostName: destination
     };
   }
 
@@ -86,6 +157,7 @@ export function createWorldStationsController(params) {
         baked.actions = ['interact_open', 'interact_use'];
         baked.interactionTag = `baked_info_${String(baked.hostRole || 'info')}`;
         baked.localInteraction = createDegradedBakedInteraction(baked, nearestSameRoleHost, nearestHost);
+        baked.displayName = baked.localInteraction?.title || guideProfileForRole(baked.hostRole).displayName;
       } else {
         baked.degradedToLocal = false;
       }

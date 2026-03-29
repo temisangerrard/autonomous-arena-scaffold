@@ -31,6 +31,40 @@ export function txExplorerUrl(txHash, chainId = null) {
   return `${txExplorerBase(chainId)}/tx/${normalizedHash}`;
 }
 
+function upperToken(value) {
+  return String(value || '').trim().replace(/^d/i, '').toUpperCase();
+}
+
+export function formatWinningOutcomeLine(params = {}) {
+  const gameType = String(params.gameType || '').trim();
+  if (gameType === 'blackjack') {
+    return '';
+  }
+  if (gameType === 'coinflip') {
+    const winningPick = upperToken(params.coinflipResult);
+    return winningPick ? `Winning pick: ${winningPick}` : '';
+  }
+  if (gameType === 'dice_duel') {
+    const winningRoll = Number(params.diceResult || 0);
+    return Number.isFinite(winningRoll) && winningRoll > 0 ? `Winning roll: ${winningRoll}` : '';
+  }
+  if (gameType === 'rps') {
+    const playerPick = upperToken(params.playerPick);
+    const opponentPick = upperToken(params.opponentPick);
+    if (!playerPick || !opponentPick || playerPick === opponentPick) {
+      return '';
+    }
+    return `Winning throw: ${playerPick === 'ROCK' && opponentPick === 'SCISSORS'
+      ? 'ROCK'
+      : playerPick === 'PAPER' && opponentPick === 'ROCK'
+        ? 'PAPER'
+        : playerPick === 'SCISSORS' && opponentPick === 'PAPER'
+          ? 'SCISSORS'
+          : opponentPick}`;
+  }
+  return '';
+}
+
 export function renderDealerRevealStatus(statusEl, params) {
   if (!statusEl) return;
   const gameType = String(params.gameType || '');
@@ -72,6 +106,11 @@ export function renderDealerRevealStatus(statusEl, params) {
     const icon = COIN_ICONS[toss] ? `${COIN_ICONS[toss]} ` : '';
     const pickLabel = pick ? ` (you picked ${pick})` : '';
     resultLine = `${icon}${toss}${pickLabel} · Round: ${round}`;
+  }
+
+  const winningOutcome = formatWinningOutcomeLine(params);
+  if (winningOutcome) {
+    resultLine = `${winningOutcome} · ${resultLine}`;
   }
 
   statusEl.innerHTML = `${resultLine}${balanceLabel}${txLink}`;

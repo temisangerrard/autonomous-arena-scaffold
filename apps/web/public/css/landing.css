@@ -1,0 +1,778 @@
+/* ============================================
+   AUTONOMOUS ARENA — LANDING PAGE STYLES
+   Self-hosted; no CDN dependency.
+   Uses design tokens from styles.css.
+   ============================================ */
+
+/* ── Animations ── */
+@keyframes portal-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 93, 167, 0.4); transform: translateY(-4px) scale(1); }
+    50% { box-shadow: 0 0 20px 10px rgba(0, 93, 167, 0.12); transform: translateY(-6px) scale(1.02); }
+}
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+@keyframes float-delayed {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+@keyframes fade-up-scroll {
+    0% { opacity: 0; transform: translateY(10px); }
+    10%, 90% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-10px); }
+}
+@keyframes scanner {
+    0% { top: 0%; }
+    100% { top: 100%; }
+}
+@keyframes gold-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+@keyframes status-ping {
+    0% { transform: scale(1); opacity: 1; }
+    75%, 100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes bounce-bar {
+    0%, 100% { transform: scaleY(0.5); }
+    50% { transform: scaleY(1); }
+}
+
+/* ── Imperfect / sketch border helpers ── */
+.land-border {
+    border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+}
+.land-border-sm {
+    border-radius: 120px 10px 110px 10px / 10px 110px 10px 120px;
+}
+.land-shadow {
+    box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.04);
+}
+
+/* ── Nav ── */
+.land-nav {
+    background: var(--bg-primary);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid var(--border-light);
+}
+.land-nav__inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 1536px;
+    margin: 0 auto;
+    padding: 1rem 2rem;
+}
+.land-nav__logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-decoration: none;
+}
+.land-nav__logo span {
+    color: var(--text-primary);
+    transition: color 0.2s ease;
+}
+.land-nav__logo:hover span { color: var(--gold-primary); }
+.land-nav__links {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+}
+.land-nav__links a {
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.02em;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+.land-nav__links a:hover { color: var(--blue-primary); transform: translateY(-2px); }
+.land-nav__links a.active {
+    color: var(--blue-primary);
+    border-bottom: 2px solid var(--blue-primary);
+    padding-bottom: 2px;
+}
+.land-nav__cta {
+    background: var(--blue-primary);
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+}
+.land-nav__cta:hover { transform: translateY(-2px); background: var(--blue-dark); }
+.land-nav__cta:active { transform: scale(0.97); }
+@media (max-width: 768px) { .land-nav__links { display: none; } }
+
+/* ── Main wrapper ── */
+.land-main {
+    max-width: 1536px;
+    margin: 0 auto;
+    padding: 4rem 3rem 6rem;
+}
+@media (max-width: 768px) {
+    .land-main { padding: 2rem 1rem 3rem; }
+    .land-hero { margin-bottom: 4rem; gap: 2rem; }
+    .land-float-card, .land-live-badge { display: none; }
+    .land-float-tag { font-size: 8px; padding: 2px 5px; }
+    .land-hero__frame { aspect-ratio: 4/3; }
+    .land-bento { gap: 1rem; }
+    .land-missions-section { padding: 1.5rem; }
+    .land-missions-grid { gap: 2rem; }
+    .land-missions__title { font-size: 2rem; }
+    .land-arena-section { min-height: auto; padding: 1.5rem; }
+    .land-stats-chip { align-self: auto; }
+}
+
+/* ── Hero ── */
+.land-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    align-items: center;
+    margin-bottom: 8rem;
+}
+@media (min-width: 1024px) {
+    .land-hero { grid-template-columns: 5fr 7fr; }
+}
+.land-hero__content { position: relative; z-index: 10; }
+
+.land-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 1rem;
+    background: var(--bg-tertiary);
+    border-radius: 999px;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(201, 162, 39, 0.3);
+}
+.land-badge__text {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.land-hero__title {
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 0.9;
+    margin-bottom: 2rem;
+    color: var(--text-primary);
+}
+.land-hero__title-live {
+    color: var(--blue-primary);
+    font-style: italic;
+    animation: gold-pulse 2.5s ease-in-out infinite;
+}
+
+.land-hero__desc {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 2.5rem;
+    max-width: 28rem;
+    line-height: 1.65;
+}
+
+.land-hero__ctas {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+@media (min-width: 480px) { .land-hero__ctas { flex-direction: row; } }
+
+.land-cta-primary {
+    display: inline-block;
+    background: var(--blue-primary);
+    color: white;
+    font-size: 1.4rem;
+    font-weight: 800;
+    padding: 1.25rem 3rem;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.3s ease;
+    animation: portal-pulse 3s infinite ease-in-out;
+}
+.land-cta-primary:hover { background: var(--blue-dark); }
+.land-cta-primary:active { transform: scale(0.97); }
+
+.land-cta-secondary {
+    display: inline-block;
+    border: 2px solid var(--border-medium);
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 1.1rem 2.5rem;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.3s ease;
+    background: transparent;
+}
+.land-cta-secondary:hover { background: var(--bg-secondary); transform: translateY(-2px); }
+.land-cta-secondary:active { transform: scale(0.97); }
+
+/* ── Activity feed ── */
+.land-activity {
+    margin-top: 3rem;
+    height: 3rem;
+    overflow: hidden;
+    position: relative;
+}
+.land-activity::before,
+.land-activity::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 1rem;
+    pointer-events: none;
+    z-index: 10;
+}
+.land-activity::before { top: 0; background: linear-gradient(to bottom, var(--bg-primary), transparent); }
+.land-activity::after { bottom: 0; background: linear-gradient(to top, var(--bg-primary), transparent); }
+.land-activity__item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    animation: fade-up-scroll 4s infinite ease-in-out;
+}
+.land-activity__icon {
+    color: var(--blue-primary);
+    font-size: 1.1rem;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.land-activity__gold { color: var(--gold-primary); font-weight: 800; }
+
+/* ── Hero visual ── */
+.land-hero__visual { position: relative; }
+.land-hero__frame {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+@media (min-width: 768px) { .land-hero__frame { aspect-ratio: 16/9; } }
+@media (min-width: 1024px) { .land-hero__frame { aspect-ratio: 1; } }
+
+.land-hero__frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 93, 167, 0.04);
+    opacity: 0;
+    transition: opacity 1s ease;
+    pointer-events: none;
+}
+.land-hero__frame:hover::before { opacity: 1; }
+
+.land-scanner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(0, 93, 167, 0.12);
+    filter: blur(2px);
+    z-index: 20;
+    pointer-events: none;
+    animation: scanner 8s linear infinite;
+}
+.land-arena-svg {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a1c1b;
+}
+
+/* Floating markers on arena */
+.land-marker {
+    position: absolute;
+}
+.land-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--gold-primary);
+    border-radius: 50%;
+}
+.land-dot::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: inherit;
+    border-radius: 50%;
+    animation: status-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.land-float-tag {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(4px);
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 800;
+    border: 1px solid rgba(0,0,0,0.05);
+    color: var(--text-primary);
+    animation: float 6s infinite ease-in-out;
+    white-space: nowrap;
+}
+.land-float-tag--gold {
+    background: var(--gold-primary);
+    color: #1a1c1b;
+    border-color: transparent;
+}
+
+/* Floating personality cards */
+.land-float-card {
+    position: absolute;
+    background: white;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    border: 2px solid rgba(0, 93, 167, 0.2);
+    z-index: 30;
+    animation: float 6s infinite ease-in-out;
+}
+.land-float-card__icon {
+    font-size: 1.875rem;
+    color: var(--blue-primary);
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.land-float-card__label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+}
+.land-live-badge {
+    position: absolute;
+    bottom: 3rem;
+    left: 2rem;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(4px);
+    padding: 0.75rem;
+    border: 1px solid rgba(0,0,0,0.05);
+    z-index: 30;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.land-live-badge__dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: var(--gold-primary);
+    animation: gold-pulse 2s infinite ease-in-out;
+}
+.land-live-badge__text {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* ── Bento grid ── */
+.land-bento {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+@media (min-width: 768px) {
+    .land-bento { grid-template-columns: repeat(12, 1fr); }
+    .land-bento__arena { grid-column: span 8; }
+    .land-bento__legion { grid-column: span 4; }
+    .land-bento__missions { grid-column: span 12; }
+}
+
+/* ── Arena section ── */
+.land-arena-section {
+    background: var(--bg-tertiary);
+    padding: 2rem 2rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 400px;
+    transition: transform 0.5s ease;
+}
+.land-arena-section:hover { transform: translateY(-4px); }
+.land-section-title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+.land-section-desc {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    max-width: 28rem;
+    line-height: 1.6;
+}
+.land-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+.land-chip {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+}
+.land-chip--blue {
+    background: rgba(0, 93, 167, 0.08);
+    color: var(--blue-primary);
+    border-color: rgba(0, 93, 167, 0.15);
+}
+.land-chip--gold {
+    background: rgba(201, 162, 39, 0.1);
+    color: var(--gold-dark);
+    border-color: rgba(201, 162, 39, 0.2);
+}
+.land-stats-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.5rem;
+    background: var(--bg-card);
+    padding: 1.5rem;
+    border: 2px solid rgba(0, 93, 167, 0.1);
+    align-self: flex-end;
+}
+.land-stats-chip__label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-secondary);
+}
+.land-stats-chip__value {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    letter-spacing: -0.04em;
+}
+.land-bars {
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+}
+.land-bar {
+    width: 12px;
+    height: 2rem;
+    background: rgba(0, 93, 167, 0.15);
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    transform-origin: bottom;
+}
+.land-bar__fill {
+    width: 100%;
+    background: var(--blue-primary);
+    border-radius: 999px;
+    animation: bounce-bar 2s infinite;
+}
+.land-bar:nth-child(1) .land-bar__fill { height: 50%; animation-duration: 2s; }
+.land-bar:nth-child(2) .land-bar__fill { height: 75%; animation-duration: 2.5s; }
+.land-bar:nth-child(3) .land-bar__fill { height: 33%; animation-duration: 1.8s; }
+.land-arena-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+
+/* ── Legion section ── */
+.land-legion-section {
+    background: var(--blue-primary);
+    color: white;
+    padding: 2rem 2rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.5s ease;
+}
+.land-legion-section:hover { transform: translateY(-4px); }
+.land-legion__icon {
+    font-size: 3rem;
+    margin-bottom: 1.5rem;
+    display: inline-block;
+    animation: float 6s infinite ease-in-out;
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    color: white;
+}
+.land-legion__title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin-bottom: 1rem;
+    color: white;
+}
+.land-legion__desc {
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.6;
+    margin-bottom: 0;
+}
+.land-legion__bots {
+    margin-top: auto;
+    padding-top: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.land-bot-row {
+    padding: 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(255,255,255,0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s ease;
+    cursor: pointer;
+}
+.land-bot-row--active { background: rgba(255,255,255,0.12); }
+.land-bot-row--idle { background: rgba(255,255,255,0.04); opacity: 0.65; }
+.land-bot-row:hover { background: rgba(255,255,255,0.2); }
+.land-bot-row__name { font-weight: 700; color: white; }
+.land-bot-badge {
+    font-size: 0.7rem;
+    font-weight: 900;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+.land-bot-badge--active {
+    background: var(--gold-primary);
+    color: #1a1c1b;
+    animation: gold-pulse 2s infinite ease-in-out;
+}
+.land-bot-badge--idle {
+    border: 1px solid rgba(255,255,255,0.4);
+    color: white;
+}
+
+/* ── Missions section ── */
+.land-missions-section {
+    background: var(--bg-secondary);
+    padding: 2rem 3rem 3rem;
+    transition: background 0.5s ease;
+}
+.land-missions-section:hover { background: var(--bg-tertiary); }
+.land-missions-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+@media (min-width: 1024px) { .land-missions-grid { grid-template-columns: 1fr 1fr; } }
+.land-missions__title {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+}
+.land-missions__desc {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 2.5rem;
+    max-width: 32rem;
+    line-height: 1.6;
+}
+.land-mission-features { display: flex; flex-direction: column; gap: 1rem; }
+.land-feature-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+}
+.land-feature-icon {
+    width: 3rem;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+.land-feature-row:hover .land-feature-icon { background: rgba(0, 93, 167, 0.1); }
+.land-feature-row--gold:hover .land-feature-icon { background: rgba(201, 162, 39, 0.12); }
+.land-feature-icon .material-symbols-outlined {
+    color: var(--blue-primary);
+    transition: transform 0.2s ease;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.land-feature-row--gold .land-feature-icon .material-symbols-outlined { color: var(--gold-primary); }
+.land-feature-row:hover .land-feature-icon .material-symbols-outlined { transform: scale(1.1); }
+.land-feature-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    transition: color 0.2s ease;
+}
+.land-feature-row:hover .land-feature-name { color: var(--blue-primary); }
+.land-feature-row--gold:hover .land-feature-name { color: var(--gold-dark); }
+.land-feature-sub { font-size: 0.875rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Mission card */
+.land-mission-card {
+    background: var(--bg-card);
+    padding: 2rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.land-mission-item { margin-bottom: 2rem; }
+.land-mission-item:last-child { margin-bottom: 0; }
+.land-mission-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    align-items: center;
+}
+.land-mission-name {
+    font-weight: 700;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-secondary);
+}
+.land-mission-status {
+    font-weight: 900;
+    font-size: 0.7rem;
+    font-style: italic;
+    color: var(--gold-primary);
+    animation: gold-pulse 2s infinite ease-in-out;
+}
+.land-mission-status--ended { color: var(--text-muted); animation: none; }
+.land-progress-track {
+    height: 1.5rem;
+    width: 100%;
+    background: var(--bg-secondary);
+    overflow: hidden;
+    padding: 4px;
+}
+.land-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-primary), var(--blue-primary));
+    transition: width 1s ease;
+}
+.land-progress-fill--ended { background: var(--border-medium); }
+.land-progress-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    padding: 0 0.5rem;
+}
+.land-progress-btn {
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    text-decoration-thickness: 2px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: var(--font-primary);
+    transition: color 0.2s ease;
+}
+.land-progress-btn:hover { color: var(--blue-primary); }
+.land-mission-item--ended { opacity: 0.5; filter: grayscale(1); transition: all 0.5s ease; }
+.land-mission-item--ended:hover { opacity: 1; filter: grayscale(0); }
+
+/* ── Footer ── */
+.land-footer {
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-light);
+}
+.land-footer__inner {
+    max-width: 1536px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+}
+@media (min-width: 768px) { .land-footer__inner { flex-direction: row; } }
+.land-footer__copy {
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.land-footer__links { display: flex; gap: 2rem; align-items: center; }
+.land-footer__links a {
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+.land-footer__links a:hover { color: var(--text-primary); }
+
+/* ── Service status bar ── */
+.land-status-bar {
+    border-top: 1px solid var(--border-light);
+    padding: 0.75rem 2rem;
+    max-width: 1536px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+.land-status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.land-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-medium);
+    display: inline-block;
+    flex-shrink: 0;
+}
+.land-status-dot--online { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+.land-status-dot--offline { background: var(--accent-error); }
+.land-status-dot--loading { background: var(--gold-primary); animation: gold-pulse 1.5s infinite; }

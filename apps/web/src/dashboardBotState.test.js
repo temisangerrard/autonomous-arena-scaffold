@@ -55,6 +55,27 @@ describe('dashboard bot state labels', () => {
     expect(state.statusText).toBe('Bot roaming');
   });
 
+  it('shows low funds when bot wallet readiness is insufficient', () => {
+    const state = deriveDashboardBotState({
+      connected: true,
+      behavior: {
+        autoplay: {
+          enabled: true
+        }
+      },
+      readiness: {
+        status: 'insufficient_usdc'
+      },
+      meta: {
+        controlState: 'bot_active'
+      }
+    });
+
+    expect(state.statusClass).toBe('disconnected');
+    expect(state.statusText).toBe('Low Funds');
+    expect(state.autoplayText).toBe('Needs top up');
+  });
+
   it('formats the modal subtitle with patrol and autoplay state', () => {
     expect(formatDashboardBotSubtitle({
       id: 'agent_profile_3',

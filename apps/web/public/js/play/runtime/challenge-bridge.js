@@ -9,7 +9,9 @@ export function createChallengeBridge(params) {
     showToast,
     addFeedEvent,
     handleChallengeEvent,
-    challengeReasonLabelForMode
+    challengeReasonLabelForMode,
+    audio = null,
+    updateLeaderboard = null
   } = params;
 
   function updateRpsVisibility() {
@@ -33,7 +35,9 @@ export function createChallengeBridge(params) {
       isEscrowApprovalReason,
       showToast,
       addFeedEvent,
-      updateRpsVisibility
+      updateRpsVisibility,
+      audio,
+      updateLeaderboard
     });
   }
 

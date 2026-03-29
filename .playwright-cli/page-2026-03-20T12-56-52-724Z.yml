@@ -1,0 +1,69 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]: Loading World
+  - generic:
+    - generic [ref=e8]:
+      - generic [ref=e9]: Arena Viewer
+      - navigation [ref=e10]:
+        - link "Play Mode" [ref=e11] [cursor=pointer]:
+          - /url: /play?world=mega
+        - link "Agents" [ref=e12] [cursor=pointer]:
+          - /url: /agents
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: W
+        - generic [ref=e18]: World Info
+      - generic [ref=e19]: Mega World
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: "-"
+          - generic [ref=e23]: Objects
+        - generic [ref=e24]:
+          - generic [ref=e25]: "8"
+          - generic [ref=e26]: Districts
+        - generic [ref=e27]:
+          - generic [ref=e28]: "-"
+          - generic [ref=e29]: Materials
+        - generic [ref=e30]:
+          - generic [ref=e31]: "-"
+          - generic [ref=e32]: Size (MB)
+    - generic [ref=e34]:
+      - generic [ref=e35]: Camera
+      - generic [ref=e36]:
+        - generic [ref=e37]: Position
+        - generic [ref=e38]: 0, 8, 14
+      - generic [ref=e39]:
+        - generic [ref=e40]: Distance
+        - generic [ref=e41]: "16.1"
+      - generic [ref=e42]:
+        - generic [ref=e43]: Azimuth
+        - generic [ref=e44]: 0°
+      - generic [ref=e45]:
+        - generic [ref=e46]: Polar
+        - generic [ref=e47]: 60°
+    - generic [ref=e49]:
+      - generic [ref=e50]: Controls
+      - generic [ref=e51]:
+        - generic [ref=e52]: Drag
+        - generic [ref=e53]: Orbit camera
+      - generic [ref=e54]:
+        - generic [ref=e55]: Scroll
+        - generic [ref=e56]: Zoom in/out
+      - generic [ref=e57]:
+        - generic [ref=e58]: Right Drag
+        - generic [ref=e59]: Pan camera
+      - generic [ref=e60]:
+        - generic [ref=e61]: F
+        - generic [ref=e62]: Fullscreen
+      - generic [ref=e63]:
+        - generic [ref=e64]: R
+        - generic [ref=e65]: Reset view
+    - generic [ref=e66]: 60 FPS
+    - generic [ref=e67]:
+      - button "Wireframe" [ref=e68] [cursor=pointer]:
+        - generic [ref=e69]: Wireframe
+      - button "Grid" [ref=e70] [cursor=pointer]:
+        - generic [ref=e71]: Grid
+      - button "Axes" [ref=e72] [cursor=pointer]:
+        - generic [ref=e73]: Axes

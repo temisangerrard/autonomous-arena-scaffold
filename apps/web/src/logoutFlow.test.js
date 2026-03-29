@@ -4,17 +4,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serverPath = path.resolve(__dirname, '../src/server.ts');
+const authRoutesPath = path.resolve(__dirname, '../src/server/routes/auth.ts');
 const playMenuPath = path.resolve(__dirname, '../public/js/play/menu.js');
 const authShellPath = path.resolve(__dirname, '../public/js/auth-shell.js');
 const welcomePath = path.resolve(__dirname, '../public/js/welcome.js');
 
 describe('logout flow', () => {
   it('forces runtime owner presence offline from the logout endpoint before clearing the session', () => {
-    const source = readFileSync(serverPath, 'utf8');
+    const source = readFileSync(authRoutesPath, 'utf8');
 
     expect(source).toContain("if (pathname === '/api/logout' && req.method === 'POST')");
-    expect(source).toContain("await runtimePost(`/owners/${identity.profileId}/presence`, {");
+    expect(source).toContain("await context.runtimePost(`/owners/${identity.profileId}/presence`, { state: 'offline' })");
     expect(source).toContain("state: 'offline'");
   });
 

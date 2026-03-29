@@ -44,8 +44,8 @@ function slideData(ctx, w, h, { header, line1, line2 }) {
   ctx.fillText(String(header).toUpperCase(), 20, 21);
 
   // Line 1 — main content
-  ctx.fillStyle = '#f0e8c8';
-  ctx.font = 'bold 22px "Crimson Text", Georgia, serif';
+  ctx.fillStyle = '#f4f4f2';
+  ctx.font = 'bold 22px "Plus Jakarta Sans", "IBM Plex Mono", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   const trimmed1 = String(line1 || '').slice(0, 48);

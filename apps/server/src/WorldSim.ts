@@ -10,6 +10,7 @@ type PlayerSnapshot = {
   z: number;
   yaw: number;
   speed: number;
+  pvpReady: boolean;
 };
 
 type WorldSnapshot = {
@@ -38,6 +39,7 @@ type PlayerState = {
   vx: number;
   vz: number;
   yaw: number;
+  pvpReady: boolean;
 };
 
 type AabbObstacle = {
@@ -47,7 +49,7 @@ type AabbObstacle = {
   maxZ: number;
 };
 
-const WORLD_BOUND = 120;
+const WORLD_BOUND = 70;
 const ACCEL = 14;
 const DRAG = 8;
 const MAX_SPEED = 5;
@@ -72,17 +74,12 @@ const HUMAN_SPAWNS: Array<{ x: number; z: number }> = [
   { x:  32, z:   0 }, // east approach
   { x:   0, z:  45 }, // near prediction board
 ];
-// Reduced obstacles to allow more exploration of the world.
-// These represent only the core solid structures that should block movement.
+// Only obstacles reachable within WORLD_BOUND=70.
 const STATIC_OBSTACLES: AabbObstacle[] = [
-  // Train body core (smaller than before).
+  // Train body core.
   { minX: -20, maxX: 20, minZ: -8, maxZ: 8 },
-  // Left carriage core.
-  { minX: -80, maxX: -50, minZ: -10, maxZ: 10 },
   // Small building in north-west.
   { minX: -20, maxX: 10, minZ: -60, maxZ: -40 },
-  // Tree trunk in north-east (small).
-  { minX: 80, maxX: 95, minZ: -40, maxZ: -25 }
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -206,7 +203,8 @@ export class WorldSim {
       z: safe.z,
       vx: 0,
       vz: 0,
-      yaw: 0
+      yaw: 0,
+      pvpReady: false
     });
     this.inputs.set(id, { moveX: 0, moveZ: 0 });
   }
@@ -225,6 +223,21 @@ export class WorldSim {
       moveX: clamp(input.moveX, -1, 1),
       moveZ: clamp(input.moveZ, -1, 1)
     });
+  }
+
+  togglePvpReady(id: string): void {
+    const player = this.players.get(id);
+    if (!player) {
+      return;
+    }
+    player.pvpReady = !player.pvpReady;
+  }
+
+  clearPvpReady(id: string): void {
+    const player = this.players.get(id);
+    if (player) {
+      player.pvpReady = false;
+    }
   }
 
   setPlayerPositionForTest(id: string, x: number, z: number): void {
@@ -437,7 +450,8 @@ export class WorldSim {
         y: 1.2,
         z: player.z,
         yaw: player.yaw,
-        speed: Math.hypot(player.vx, player.vz)
+        speed: Math.hypot(player.vx, player.vz),
+        pvpReady: player.pvpReady
       }))
     };
   }

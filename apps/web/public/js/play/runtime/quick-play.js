@@ -1,3 +1,21 @@
+const GAME_ICONS = {
+  rps: 'back_hand',
+  coinflip: 'toll',
+  dice_duel: 'casino',
+  blackjack: 'style',
+  prediction: 'query_stats'
+};
+
+const GAME_DESCRIPTIONS = {
+  rps: 'Throw your move against the dealer. Best of three.',
+  coinflip: 'Call it — heads or tails. 50/50, settled on-chain.',
+  dice_duel: 'Pick a face. High roll takes the pot.',
+  blackjack: 'Beat 21. Beat the dealer. Beat the house.',
+  prediction: 'Open a live BTC/USD prediction round.'
+};
+
+const GAME_ODDS_BADGE = { coinflip: '50/50 ODDS' };
+
 const GAME_START_ACTIONS = {
   rps: 'rps_house_start',
   coinflip: 'coinflip_house_start',
@@ -76,37 +94,66 @@ export function createQuickPlayPanel({ openQuickPlayStation, showToast }) {
   }
 
   function makeCard(station) {
+    const isFeatured = station.gameType === 'coinflip';
+    const isPrediction = station.gameType === 'prediction';
+    const classes = ['qp-card'];
+    if (isFeatured) classes.push('qp-card--featured');
+    else classes.push('qp-card--standard');
+    if (isPrediction) classes.push('qp-card--prediction');
+    if (!station.available) classes.push('qp-card--unavailable');
     const card = document.createElement('div');
-    card.className = 'qp-card' + (station.available ? '' : ' qp-card--unavailable');
+    card.className = classes.join(' ');
 
-    const title = document.createElement('div');
+    // Top row: icon + badge
+    const top = document.createElement('div');
+    top.className = 'qp-card__top';
+
+    const iconBox = document.createElement('div');
+    iconBox.className = isFeatured ? 'qp-card__icon-box qp-card__icon-box--featured' : 'qp-card__icon-box';
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'material-symbols-outlined';
+    iconSpan.textContent = GAME_ICONS[station.gameType] || 'sports_esports';
+    iconBox.appendChild(iconSpan);
+    top.appendChild(iconBox);
+
+    const oddsBadge = GAME_ODDS_BADGE[station.gameType];
+    if (oddsBadge) {
+      const badge = document.createElement('span');
+      badge.className = 'qp-card__badge';
+      badge.textContent = oddsBadge;
+      top.appendChild(badge);
+    }
+    card.appendChild(top);
+
+    // Body: title + description
+    const body = document.createElement('div');
+    body.className = 'qp-card__body';
+
+    const title = document.createElement('h3');
     title.className = 'qp-card__title';
     title.textContent = GAME_LABELS[station.gameType] || station.displayName;
-    card.appendChild(title);
+    body.appendChild(title);
 
+    const desc = document.createElement('p');
+    desc.className = 'qp-card__desc';
+    desc.textContent = GAME_DESCRIPTIONS[station.gameType] || '';
+    body.appendChild(desc);
+    card.appendChild(body);
+
+    // Play button
     const action = GAME_START_ACTIONS[station.gameType];
-    if (station.displayName && station.displayName !== title.textContent) {
-      const subtitle = document.createElement('div');
-      subtitle.className = 'qp-card__meta';
-      subtitle.textContent = station.displayName;
-      card.appendChild(subtitle);
-    }
-
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
-    playBtn.className = 'qp-card__play';
-    playBtn.textContent = station.available
-      ? (station.gameType === 'prediction' ? 'Open Card' : 'Play')
-      : 'Unavailable';
+    playBtn.className = isFeatured ? 'qp-card__play qp-card__play--featured' : 'qp-card__play';
+    playBtn.textContent = !station.available
+      ? 'Unavailable'
+      : (isPrediction ? 'Open Round' : 'Play');
     playBtn.disabled = !station.available;
 
     playBtn.addEventListener('click', () => {
       if (!action) { showToast('Unsupported game type.'); return; }
       const launched = openQuickPlayStation?.(station);
-      if (!launched) {
-        showToast('Station unavailable.');
-        return;
-      }
+      if (!launched) { showToast('Station unavailable.'); return; }
       close();
     });
 
@@ -121,9 +168,12 @@ export function createQuickPlayPanel({ openQuickPlayStation, showToast }) {
       list.textContent = 'No games available right now.';
       return;
     }
+    const grid = document.createElement('div');
+    grid.className = 'qp-bento-grid';
     for (const station of stations) {
-      list.appendChild(makeCard(station));
+      grid.appendChild(makeCard(station));
     }
+    list.appendChild(grid);
   }
 
   btn?.addEventListener('click', () => {

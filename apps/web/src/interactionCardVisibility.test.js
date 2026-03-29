@@ -38,6 +38,14 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('challengeController.sendChallenge(renderedTargetId, gameType, wager)')).toBe(true);
   });
 
+  it('stages player interactions through an encounter view before challenge composition', () => {
+    const source = readSource('index.js');
+    expect(source.includes("const playerView = String(state.ui?.playerView || 'encounter');")).toBe(true);
+    expect(source.includes("state.ui.playerView = 'challenge'")).toBe(true);
+    expect(source.includes("state.ui.playerView = 'encounter'")).toBe(true);
+    expect(source.includes('player-encounter-card')).toBe(true);
+  });
+
   it('clears challenge timeout timers after server state advances', () => {
     const source = readSource('index.js');
     expect(source.includes("if (outgoingPending || state.challengeStatus === 'active')")).toBe(true);
@@ -127,6 +135,11 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Start Round')).toBe(true);
   });
 
+  it('includes a player seed when starting a blackjack hand', () => {
+    const source = readSource('blackjack-panel.js');
+    expect(source.includes("sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })")).toBe(true);
+  });
+
   it('excludes house challenges from the interaction card force-close guard', () => {
     const source = readSource('index.js');
     // Must detect house challenges before deciding to force-close the interaction card
@@ -141,6 +154,14 @@ describe('interaction npc panel visibility', () => {
     expect(source.includes('Game LOSS')).toBe(true);
     expect(source.includes('Game PUSH')).toBe(true);
     expect(source.includes('Refund Failed')).toBe(true);
-    expect(source.includes('Stake Locked')).toBe(true);
+    expect(source.includes('In Progress')).toBe(true);
+  });
+
+  it('preserves saved autoplay state when opening the bot wizard', () => {
+    const source = readFileSync(resolve(__dirname, '../public/js/dashboard.js'), 'utf8');
+    expect(source.includes('botAutoplayEnabled.checked = Boolean(autoplay?.enabled)')).toBe(true);
+    expect(source.includes('botAutoplayFields.hidden = !autoplay?.enabled')).toBe(true);
+    expect(source.includes('botAutoplayEnabled.checked = true')).toBe(false);
+    expect(source.includes('botAutoplayFields.hidden = false')).toBe(false);
   });
 });

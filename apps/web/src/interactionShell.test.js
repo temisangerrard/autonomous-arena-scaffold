@@ -14,6 +14,51 @@ if (!globalThis.HTMLElement) {
 }
 
 describe('interaction shell targeting', () => {
+  it('opens nearby player interactions in encounter view first', () => {
+    const state = {
+      nearbyIds: new Set(['agent_profile_8']),
+      nearbyStationIds: new Set(),
+      ui: {
+        targetId: 'agent_profile_8',
+        interactOpen: false,
+        interactionMode: 'none',
+        playerView: 'challenge',
+        dealer: { state: 'idle', escrowTx: null },
+        world: { stationId: '', detail: '', actionLabel: 'Use' }
+      }
+    };
+    const interactionCard = {
+      classList: makeClassList(),
+      setAttribute: vi.fn(),
+      contains: vi.fn(() => false)
+    };
+
+    const originalDocument = globalThis.document;
+    globalThis.document = {
+      body: { classList: makeClassList() },
+      activeElement: null
+    };
+
+    try {
+      setInteractOpenState({
+        nextOpen: true,
+        state,
+        interactionCard,
+        interactionHelp: null,
+        interactionHelpToggle: null,
+        interactionCardState: { interactionStationRenderKey: '' },
+        closestNearbyStationId: () => '',
+        closestNearbyPlayerId: () => 'agent_profile_8'
+      });
+    } finally {
+      globalThis.document = originalDocument;
+    }
+
+    expect(state.ui.targetId).toBe('agent_profile_8');
+    expect(state.ui.interactionMode).toBe('player');
+    expect(state.ui.playerView).toBe('encounter');
+  });
+
   it('keeps currently targeted nearby station when opening interaction card', () => {
     const state = {
       nearbyIds: new Set(['agent_profile_8']),
@@ -227,6 +272,28 @@ describe('interaction shell targeting', () => {
     expect(interactionCard.classList.toggle).toHaveBeenCalledWith('open', false);
     expect(interactionCard.setAttribute).toHaveBeenCalledWith('aria-hidden', 'true');
   });
+
+  it('uses interact-first prompt copy for nearby players', () => {
+    const interactionPrompt = { innerHTML: '', classList: makeClassList() };
+    const state = {
+      ui: { interactOpen: false, targetId: 'agent_profile_8' },
+      activeChallenge: null
+    };
+
+    renderInteractionPromptLine({
+      state,
+      interactionPrompt,
+      getUiTargetId: () => 'agent_profile_8',
+      setInteractOpen: () => undefined,
+      challengeController: { currentIncomingChallenge: () => null },
+      isStation: () => false,
+      labelFor: () => 'Robin Bot'
+    });
+
+    expect(interactionPrompt.innerHTML).toContain('interact');
+    expect(interactionPrompt.innerHTML).not.toContain('tap to challenge');
+    expect(interactionPrompt.innerHTML).not.toContain('C challenge');
+  });
 });
 
 describe('interaction prompt hints', () => {
@@ -255,5 +322,36 @@ describe('interaction prompt hints', () => {
 
     expect(interactionPrompt.innerHTML).toContain('Vera');
     expect(interactionPrompt.innerHTML).toContain('Rock Paper Scissors');
+  });
+
+  it('uses the guide action label for named world hosts', () => {
+    const interactionPrompt = {
+      innerHTML: '',
+      classList: makeClassList()
+    };
+    const state = {
+      activeChallenge: null,
+      ui: { interactOpen: false },
+      stations: new Map([
+        ['station_npc_host_1', {
+          id: 'station_npc_host_1',
+          kind: 'world_interactable',
+          localInteraction: { title: 'Super Agent', useLabel: 'Route me in' }
+        }]
+      ])
+    };
+
+    renderInteractionPromptLine({
+      state,
+      interactionPrompt,
+      getUiTargetId: () => 'station_npc_host_1',
+      setInteractOpen: () => undefined,
+      challengeController: { currentIncomingChallenge: () => null },
+      isStation: (id) => String(id).startsWith('station_'),
+      labelFor: (id) => String(id)
+    });
+
+    expect(interactionPrompt.innerHTML).toContain('Super Agent');
+    expect(interactionPrompt.innerHTML).toContain('route me in');
   });
 });

@@ -57,6 +57,20 @@ describe('shouldOwnerBotReconnect', () => {
       readinessStatus: 'ready'
     })).toBe(false);
   });
+
+  it('does not reconnect owner bots when wallet readiness is not ready', () => {
+    expect(shouldOwnerBotReconnect({
+      ownerOnline: false,
+      autoplayEnabled: true,
+      readinessStatus: 'insufficient_usdc'
+    })).toBe(false);
+
+    expect(shouldOwnerBotReconnect({
+      ownerOnline: false,
+      autoplayEnabled: true,
+      readinessStatus: 'needs_approval'
+    })).toBe(false);
+  });
 });
 
 describe('ownerAutoplayBehaviorPatch', () => {
