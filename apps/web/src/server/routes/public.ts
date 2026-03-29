@@ -84,7 +84,7 @@ export const handlePublicRoutes: RouteHandler = async (req, res, requestUrl, con
     const worldPath = resolveWorldAssetPath(alias);
     if (!worldPath) {
       const requestedBundle = worldBundleForAssetAlias(alias);
-      const canonicalFilename = worldFilenameForAlias(alias) || worldFilenameForAlias('mega') || 'train_station_mega_world.glb';
+      const canonicalFilename = worldFilenameForAlias(alias) || worldFilenameForAlias('mega') || 'mega-world.glb';
       const normalizedBase = String(context.config.publicWorldAssetBaseUrl || context.config.defaultWorldAssetBaseUrl || '').replace(/\/+$/, '');
       if (!normalizedBase) {
         log.error({ reason: 'local_world_missing_no_fallback', alias, canonicalFilename }, 'world asset missing locally and no fallback base configured');

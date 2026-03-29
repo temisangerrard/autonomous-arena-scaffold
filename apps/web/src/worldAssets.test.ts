@@ -10,14 +10,14 @@ import {
 describe('resolveWorldAssetPath', () => {
   it('maps train-world aliases to mega world file', () => {
     // Mapping should not depend on whether the GLB exists in the repo checkout (CI won't have it).
-    expect(worldFilenameForAlias('train_world')).toBe('train_station_mega_world_clean.glb');
-    expect(worldFilenameForAlias('train-world')).toBe('train_station_mega_world_clean.glb');
-    expect(worldFilenameForAlias('mega.glb')).toBe('train_station_mega_world_clean.glb');
-    expect(worldFilenameForAlias('mega-shell')).toBe('train_station_mega_world_clean.glb');
-    expect(worldFilenameForAlias('mega-world')).toBe('train_station_mega_world_clean.glb');
-    expect(worldFilenameForAlias('base')).toBe('train_station_mega_world_clean.glb');
-    expect(worldFilenameForAlias('plaza')).toBe('train_station_mega_world_clean.glb');
-    expect(worldFilenameForAlias('world')).toBe('train_station_mega_world_clean.glb');
+    expect(worldFilenameForAlias('train_world')).toBe('mega-world.glb');
+    expect(worldFilenameForAlias('train-world')).toBe('mega-world.glb');
+    expect(worldFilenameForAlias('mega.glb')).toBe('mega-world.glb');
+    expect(worldFilenameForAlias('mega-shell')).toBe('mega-world.glb');
+    expect(worldFilenameForAlias('mega-world')).toBe('mega-world.glb');
+    expect(worldFilenameForAlias('base')).toBe('mega-world.glb');
+    expect(worldFilenameForAlias('plaza')).toBe('mega-world.glb');
+    expect(worldFilenameForAlias('world')).toBe('mega-world.glb');
   });
 
   it('returns null for unknown aliases', () => {
@@ -35,7 +35,7 @@ describe('resolveWorldAssetPath', () => {
 
     expect(megaBundle.shell).toMatchObject({
       alias: 'mega-shell',
-      filename: 'train_station_mega_world_clean.glb'
+      filename: 'mega-world.glb'
     });
     expect(megaBundle.zones).toEqual([]);
     expect(megaBundle.decor).toEqual([]);
