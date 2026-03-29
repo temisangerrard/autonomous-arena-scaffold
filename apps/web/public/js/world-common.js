@@ -38,9 +38,14 @@ async function loadWorldManifest() {
 
 function resolveBundleUrl(bundle, worldBaseUrl = '') {
   const normalizedBase = worldBaseUrl ? String(worldBaseUrl).replace(/\/+$/, '') : '';
+  // For CDN/external URLs use the actual filename so R2 can resolve it directly.
+  // For local server requests use the alias — the server handles alias → filename resolution.
+  const assetPath = normalizedBase
+    ? (bundle.filename || `${bundle.alias}.glb`)
+    : `${bundle.alias}.glb`;
   const rawUrl = normalizedBase
-    ? `${normalizedBase}/assets/world/${bundle.alias}.glb`
-    : `/assets/world/${bundle.alias}.glb`;
+    ? `${normalizedBase}/assets/world/${assetPath}`
+    : `/assets/world/${assetPath}`;
   if (!bundle.version) {
     return rawUrl;
   }
