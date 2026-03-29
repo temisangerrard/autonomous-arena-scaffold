@@ -54,7 +54,7 @@ describe('world loader runtime', () => {
       worldRoot: { name: 'shell-root' },
       shellMetrics: { downloadMs: 1, parseMs: 1, totalMs: 2 },
       bundlePlan: { shell: { alias: 'mega-shell' }, zones: [], decor: [] },
-      backgroundLoads: Promise.resolve([])
+      backgroundLoads: null
     });
     await promise;
   });
@@ -122,5 +122,49 @@ describe('world loader runtime', () => {
     expect(setupWorldNpcStations).toHaveBeenCalledTimes(2);
     expect(setWorldRoot).toHaveBeenLastCalledWith(megaRoot);
     expect(addFeedEvent).toHaveBeenCalledWith('system', expect.stringContaining('World streaming complete'));
+  });
+
+  test('does not enter the streaming phase when no deferred bundles exist', async () => {
+    const worldLoading = makeLoadingNode();
+    const worldLoadingBar = { style: { width: '' } };
+    const worldLoadingText = { textContent: '' };
+    const dispatch = vi.fn();
+    const setWorldRoot = vi.fn();
+    const setupWorldNpcStations = vi.fn();
+    const addFeedEvent = vi.fn();
+    const state = { worldAlias: 'mega', playerId: null, worldLoaded: false };
+    const worldRoot = { name: 'world-root' };
+
+    await loadMainWorldRuntime({
+      loadArenaConfig: vi.fn(async () => {}),
+      worldLoading,
+      worldLoadingBar,
+      worldLoadingText,
+      dispatch,
+      loadWorldWithProgress: vi.fn(async () => ({
+        worldRoot,
+        shellRoot: worldRoot,
+        shellMetrics: { downloadMs: 12, parseMs: 8, totalMs: 20 },
+        bundlePlan: {
+          shell: { alias: 'mega-shell' },
+          zones: [],
+          decor: []
+        },
+        backgroundLoads: null
+      })),
+      scene: {},
+      state,
+      getWorldRoot: () => worldRoot,
+      setWorldRoot,
+      setDisconnectedFallbackCamera: vi.fn(),
+      setupWorldNpcStations,
+      addFeedEvent
+    });
+
+    expect(state.worldLoaded).toBe(true);
+    expect(setWorldRoot).toHaveBeenCalledWith(worldRoot);
+    expect(setupWorldNpcStations).toHaveBeenCalledTimes(1);
+    expect(worldLoadingText.textContent).toBe('Entering world…');
+    expect(addFeedEvent).not.toHaveBeenCalledWith('system', expect.stringContaining('World streaming complete'));
   });
 });

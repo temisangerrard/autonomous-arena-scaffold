@@ -12,6 +12,7 @@ const WORLD_FILE_BY_ALIAS: Record<string, string> = {
   train_world: 'train_station_mega_world_clean.glb',
   'train-world': 'train_station_mega_world_clean.glb',
   mega: 'train_station_mega_world_clean.glb',
+  'mega-world': 'train_station_mega_world_clean.glb',
   plaza: 'train_station_mega_world_clean.glb',
   base: 'train_station_mega_world_clean.glb',
   world: 'train_station_mega_world_clean.glb'
@@ -21,6 +22,7 @@ const WORLD_VERSION_BY_ALIAS: Record<string, string> = {
   train_world: '2026-03-28.1',
   'train-world': '2026-03-28.1',
   mega: '2026-03-28.1',
+  'mega-world': '2026-03-28.1',
   plaza: '2026-03-28.1',
   base: '2026-03-28.1',
   world: '2026-03-28.1'
@@ -32,33 +34,33 @@ const WORLD_BUNDLES_BY_ALIAS: Record<string, {
   decor: Array<{ alias: string; filename: string; version: string; kind: 'decor' }>;
 }> = {
   train_world: {
-    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-03-28.1', kind: 'shell' },
-    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'world', replaceWorldRoot: true }],
+    shell: { alias: 'mega-shell', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'shell' },
+    zones: [],
     decor: []
   },
   'train-world': {
-    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-03-28.1', kind: 'shell' },
-    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'world', replaceWorldRoot: true }],
+    shell: { alias: 'mega-shell', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'shell' },
+    zones: [],
     decor: []
   },
   mega: {
-    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-03-28.1', kind: 'shell' },
-    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'world', replaceWorldRoot: true }],
+    shell: { alias: 'mega-shell', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'shell' },
+    zones: [],
     decor: []
   },
   plaza: {
-    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-03-28.1', kind: 'shell' },
-    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'world', replaceWorldRoot: true }],
+    shell: { alias: 'mega-shell', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'shell' },
+    zones: [],
     decor: []
   },
   base: {
-    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-03-28.1', kind: 'shell' },
-    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'world', replaceWorldRoot: true }],
+    shell: { alias: 'mega-shell', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'shell' },
+    zones: [],
     decor: []
   },
   world: {
-    shell: { alias: 'mega-shell', filename: 'train_station_world.glb', version: '2026-03-28.1', kind: 'shell' },
-    zones: [{ alias: 'mega-world', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'world', replaceWorldRoot: true }],
+    shell: { alias: 'mega-shell', filename: 'train_station_mega_world_clean.glb', version: '2026-03-28.1', kind: 'shell' },
+    zones: [],
     decor: []
   }
 };

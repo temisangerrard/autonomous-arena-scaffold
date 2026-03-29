@@ -8,8 +8,8 @@ export const canonicalWorldAssetBaseUrl = 'https://pub-302820e514cd451baaf272a33
 export const defaultWorldAssetSourcePath = path.resolve(process.cwd(), 'train_station_mega_world_clean.glb');
 export const defaultWorldBundlesByAlias = {
   mega: {
-    shell: { alias: 'mega-shell', sourcePath: path.resolve(process.cwd(), 'train_station_world.glb'), kind: 'shell', version: '2026-03-28.1' },
-    zones: [{ alias: 'mega-world', sourcePath: defaultWorldAssetSourcePath, kind: 'world', version: '2026-03-28.1', replaceWorldRoot: true }],
+    shell: { alias: 'mega-shell', sourcePath: defaultWorldAssetSourcePath, kind: 'shell', version: '2026-03-28.1' },
+    zones: [{ alias: 'mega-world', sourcePath: defaultWorldAssetSourcePath, kind: 'world', version: '2026-03-28.1' }],
     decor: []
   }
 };

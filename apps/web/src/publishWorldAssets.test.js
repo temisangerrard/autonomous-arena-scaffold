@@ -50,7 +50,7 @@ describe('publish world assets script', () => {
     expect(statSync(stagedShell).size).toBe(statSync(sourcePath).size);
   });
 
-  it('stages the deferred mega world bundle alias', async () => {
+  it('stages the mega world alias as a compatibility copy of the single-bundle asset', async () => {
     const module = await import(new URL('../../../scripts/publish-world-assets.mjs', import.meta.url).href);
     const { stageWorldAssetPublishDir } = module;
 
