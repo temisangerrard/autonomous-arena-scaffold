@@ -9,14 +9,14 @@ describe('world common', () => {
   test('normalizes legacy world manifests into a shell-first bundle plan', () => {
     const manifest = normalizeWorldManifest({
       filenameByAlias: { mega: 'train_station_mega_world.glb' },
-      versionByAlias: { mega: '2026-02-17.2' }
+      versionByAlias: { mega: '2026-03-28.1' }
     });
 
     const plan = getWorldBundlePlan(manifest, 'mega');
     expect(plan.shell).toMatchObject({
       alias: 'mega-shell',
       filename: 'train_station_mega_world.glb',
-      version: '2026-02-17.2'
+      version: '2026-03-28.1'
     });
     expect(plan.zones).toEqual([]);
     expect(plan.decor).toEqual([]);

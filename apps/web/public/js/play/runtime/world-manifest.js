@@ -1,20 +1,20 @@
 const CANONICAL_WORLD_ALIAS = 'mega';
 const COMPATIBILITY_ALIASES = ['train_world', 'train-world', 'base', 'plaza', 'world'];
 const WORLD_FILENAME_FALLBACK = {
-  train_world: 'train_station_mega_world.glb',
-  'train-world': 'train_station_mega_world.glb',
-  mega: 'train_station_mega_world.glb',
-  plaza: 'train_station_mega_world.glb',
-  base: 'train_station_mega_world.glb',
-  world: 'train_station_mega_world.glb'
+  train_world: 'train_station_mega_world_clean.glb',
+  'train-world': 'train_station_mega_world_clean.glb',
+  mega: 'train_station_mega_world_clean.glb',
+  plaza: 'train_station_mega_world_clean.glb',
+  base: 'train_station_mega_world_clean.glb',
+  world: 'train_station_mega_world_clean.glb'
 };
 const WORLD_VERSION_FALLBACK = {
-  train_world: '2026-02-17.2',
-  'train-world': '2026-02-17.2',
-  mega: '2026-02-17.2',
-  plaza: '2026-02-17.2',
-  base: '2026-02-17.2',
-  world: '2026-02-17.2'
+  train_world: '2026-03-28.1',
+  'train-world': '2026-03-28.1',
+  mega: '2026-03-28.1',
+  plaza: '2026-03-28.1',
+  base: '2026-03-28.1',
+  world: '2026-03-28.1'
 };
 
 function cloneBundle(bundle, fallbackKind = 'shell') {
