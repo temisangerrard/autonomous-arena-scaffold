@@ -69,9 +69,9 @@
 
     .match-controls__actions button {
       border-radius: 12px;
-      border: 1px solid var(--border-gold);
-      background: linear-gradient(160deg, var(--gold-light) 0%, var(--gold-primary) 100%);
-      color: var(--text-primary);
+      border: none;
+      background: var(--blue-primary);
+      color: #fff;
       padding: 14px 12px;
       font: 700 13px/1.1 var(--font-primary);
       letter-spacing: 0.05em;
@@ -80,8 +80,9 @@
       transition: all 0.2s ease;
     }
     .match-controls__actions button:hover {
+      background: var(--blue-dark);
       transform: translateY(-2px);
-      box-shadow: var(--shadow-gold);
+      box-shadow: 0 4px 12px rgba(0, 93, 167, 0.3);
     }
     .match-controls__actions button:focus-visible {
       outline: 2px solid var(--blue-primary);
@@ -118,9 +119,9 @@
     .match-controls__counter button {
       min-height: 42px;
       border-radius: 10px;
-      border: 1px solid var(--border-gold);
-      background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-primary) 100%);
-      color: var(--text-primary);
+      border: none;
+      background: var(--blue-primary);
+      color: #fff;
       padding: 0 16px;
       font: 700 13px/1.1 var(--font-primary);
       letter-spacing: 0.05em;
@@ -129,6 +130,7 @@
       transition: all 0.2s ease;
     }
     .match-controls__counter button:hover {
+      background: var(--blue-dark);
       transform: translateY(-1px);
     }
     .match-controls__counter button:disabled {

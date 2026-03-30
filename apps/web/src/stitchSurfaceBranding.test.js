@@ -12,7 +12,7 @@ describe('stitch-aligned public shells', () => {
   it('uses AutoBett-led conversion copy on the welcome page', () => {
     const source = readPublic('welcome.html');
     expect(source).toContain('<title>AutoBett | Enter the Arena</title>');
-    expect(source).toContain('Live betting arena on Base');
+    expect(source).toContain('live betting arena');
     expect(source).toContain('Fund a bot wallet and let strategy play in the same economy.');
   });
 

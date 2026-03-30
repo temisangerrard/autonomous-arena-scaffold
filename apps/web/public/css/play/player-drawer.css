@@ -124,7 +124,7 @@
   font-family: var(--font-primary);
   font-size: 2.2rem;
   line-height: 1;
-  color: var(--gold-light);
+  color: #fff;
 }
 
 .player-drawer__meta-row,
@@ -160,9 +160,9 @@
 }
 
 .player-drawer__badge--warning {
-  color: var(--gold-light);
-  background: rgba(201, 162, 39, 0.14);
-  border-color: rgba(201, 162, 39, 0.28);
+  color: var(--blue-container);
+  background: rgba(0, 93, 167, 0.14);
+  border-color: rgba(0, 93, 167, 0.28);
 }
 
 .player-drawer__badge--error {
@@ -330,7 +330,7 @@
 
 .player-drawer__activity-amount {
   font: 700 0.84rem/1 var(--font-mono);
-  color: var(--gold-light);
+  color: var(--blue-container);
 }
 
 .player-drawer__activity-title {

@@ -15,10 +15,10 @@
 
     .game-card {
       width: min(92vw, 480px);
-      border-radius: 20px;
+      border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
       background: var(--bg-card);
       border: 1px solid var(--border-light);
-      box-shadow: 0 24px 60px rgba(26, 28, 27, 0.3);
+      box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.08);
       padding: 24px;
       color: var(--text-primary);
       text-align: center;
@@ -54,7 +54,7 @@
     .game-card__timer-fill {
       height: 100%;
       width: 100%;
-      background: linear-gradient(90deg, var(--gold-primary), var(--gold-light));
+      background: linear-gradient(90deg, var(--blue-dark), var(--blue-primary));
       transition: width 0.2s linear;
     }
 

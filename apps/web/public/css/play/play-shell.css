@@ -18,9 +18,9 @@
 
 body {
   background:
-    radial-gradient(circle at top left, rgba(247, 193, 80, 0.16), transparent 28%),
-    radial-gradient(circle at top right, rgba(27, 101, 102, 0.16), transparent 32%),
-    #f7f1e3;
+    radial-gradient(circle at top left, rgba(0, 93, 167, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(0, 93, 167, 0.06), transparent 32%),
+    #f4f4f2;
 }
 
 #hud {
@@ -33,17 +33,17 @@ body {
 }
 
 .topbar-left {
-  background: rgba(255, 250, 241, 0.8);
-  border: 1px solid rgba(122, 105, 60, 0.14);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border-light);
   border-radius: 20px;
-  box-shadow: 0 18px 40px rgba(51, 46, 32, 0.12);
+  box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.08);
   backdrop-filter: blur(18px);
   padding: 10px 16px 10px 10px;
 }
 
 .topbar-avatar {
-  background: linear-gradient(135deg, #775600 0%, #f7c150 100%);
-  border: 1.5px solid rgba(119, 86, 0, 0.16);
+  background: linear-gradient(135deg, var(--blue-dark) 0%, var(--blue-primary) 100%);
+  border: 1.5px solid rgba(0, 93, 167, 0.2);
 }
 
 .topbar-name {
@@ -65,48 +65,48 @@ body {
 }
 
 .topbar-pill.wallet {
-  background: rgba(247, 193, 80, 0.16);
-  border: 1px solid rgba(119, 86, 0, 0.18);
-  color: #6b4b00;
+  background: rgba(0, 93, 167, 0.1);
+  border: 1px solid rgba(0, 93, 167, 0.2);
+  color: var(--blue-dark);
 }
 
 .topbar-pill.streak,
 .topbar-pill.bot,
 .menu-ghost {
-  background: rgba(255, 250, 241, 0.78);
-  border: 1px solid rgba(122, 105, 60, 0.14);
-  color: #514633;
-  box-shadow: 0 18px 40px rgba(51, 46, 32, 0.1);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.06);
   backdrop-filter: blur(18px);
 }
 
 .topbar-pill.bot {
-  color: #0d5d5e;
-  border-color: rgba(13, 93, 94, 0.2);
+  color: var(--blue-primary);
+  border-color: rgba(0, 93, 167, 0.2);
 }
 
 .topbar-pill.bot.manual {
-  color: #775600;
-  border-color: rgba(119, 86, 0, 0.2);
+  color: var(--blue-dark);
+  border-color: rgba(0, 72, 131, 0.2);
 }
 
 @keyframes streakPulse {
-  0%, 100% { text-shadow: 0 0 6px rgba(234,179,8,0.6); }
-  50%       { text-shadow: 0 0 16px rgba(234,179,8,1), 0 0 32px rgba(234,179,8,0.4); }
+  0%, 100% { text-shadow: 0 0 6px rgba(0, 93, 167, 0.6); }
+  50%       { text-shadow: 0 0 16px rgba(0, 93, 167, 1), 0 0 32px rgba(0, 93, 167, 0.4); }
 }
 .streak--pulse {
   animation: streakPulse 1.4s ease-in-out infinite;
 }
 
 .qp-btn {
-  background: linear-gradient(135deg, #775600, #f7c150);
+  background: var(--blue-primary);
   border: none;
-  color: #fff7e4;
-  box-shadow: 0 14px 24px rgba(119, 86, 0, 0.18);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 93, 167, 0.22);
 }
 
 .qp-btn:hover {
-  filter: brightness(1.04);
+  background: var(--blue-dark);
 }
 
 .menu-ghost {
@@ -117,9 +117,9 @@ body {
 
 .menu-pop {
   border-radius: 18px;
-  border: 1px solid rgba(122, 105, 60, 0.14);
-  background: rgba(255, 250, 241, 0.92);
-  box-shadow: 0 22px 52px rgba(51, 46, 32, 0.14);
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.08);
   backdrop-filter: blur(18px);
 }
 
@@ -129,12 +129,10 @@ body {
 }
 
 .onboarding-card {
-  background:
-    radial-gradient(circle at top right, rgba(247, 193, 80, 0.16), transparent 34%),
-    linear-gradient(180deg, rgba(255, 250, 241, 0.98), rgba(245, 238, 224, 0.98));
-  border: 1px solid rgba(122, 105, 60, 0.14);
-  box-shadow: 0 28px 70px rgba(51, 46, 32, 0.18);
-  border-radius: 28px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.08);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
 }
 
 .onboarding__title {
@@ -142,8 +140,8 @@ body {
 }
 
 .onboarding__dot.active {
-  background: #1b6566;
-  box-shadow: 0 0 12px rgba(27, 101, 102, 0.4);
+  background: var(--blue-primary);
+  box-shadow: 0 0 12px rgba(0, 93, 167, 0.4);
 }
 
 .onboarding__btn {
@@ -151,14 +149,14 @@ body {
 }
 
 .onboarding__btn--primary {
-  background: linear-gradient(135deg, #775600, #f7c150);
-  color: #fff7e4;
-  box-shadow: 0 12px 26px rgba(119, 86, 0, 0.22);
+  background: var(--blue-primary);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 93, 167, 0.22);
 }
 
 .onboarding__btn--secondary {
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(122, 105, 60, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border-light);
   color: var(--text-primary);
 }
 
@@ -166,22 +164,20 @@ body {
 .interaction-card,
 .control-hints__content,
 .world-map-panel {
-  border-radius: 24px;
-  border: 1px solid rgba(122, 105, 60, 0.14);
-  box-shadow: 0 22px 54px rgba(51, 46, 32, 0.14);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  border: 1px solid var(--border-light);
+  box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.08);
   backdrop-filter: blur(18px);
 }
 
 .interaction-card {
-  background:
-    radial-gradient(circle at top right, rgba(247, 193, 80, 0.14), transparent 32%),
-    linear-gradient(180deg, rgba(255, 250, 241, 0.96), rgba(245, 238, 224, 0.96));
+  background: var(--bg-card);
   width: min(470px, calc(100vw - 32px));
 }
 
 .interaction-card__head {
   background: transparent;
-  border-bottom: 1px solid rgba(122, 105, 60, 0.12);
+  border-bottom: 1px solid var(--border-light);
   padding: 16px 18px 12px;
 }
 
@@ -191,8 +187,8 @@ body {
 
 .interaction-card__help,
 .interaction-card__close {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(122, 105, 60, 0.16);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border-light);
 }
 
 .interaction-help,
@@ -200,8 +196,8 @@ body {
 .station-ui__meta,
 .npc-speech__bubble {
   border-radius: 18px;
-  border: 1px solid rgba(122, 105, 60, 0.12);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .qp-backdrop {
@@ -210,12 +206,10 @@ body {
 }
 
 .qp-panel {
-  background:
-    radial-gradient(circle at top right, rgba(247, 193, 80, 0.16), transparent 36%),
-    linear-gradient(180deg, rgba(255, 250, 241, 0.98), rgba(245, 238, 224, 0.98));
-  border: 1px solid rgba(122, 105, 60, 0.14);
-  border-radius: 26px;
-  box-shadow: 0 24px 60px rgba(51, 46, 32, 0.18);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  box-shadow: 8px 8px 0px 0px rgba(26, 28, 27, 0.08);
 }
 
 .qp-panel__head {
@@ -223,7 +217,7 @@ body {
   gap: 0.4rem;
   align-items: start;
   justify-content: start;
-  border-bottom: 1px solid rgba(122, 105, 60, 0.1);
+  border-bottom: 1px solid var(--border-light);
   padding: 18px 18px 14px;
 }
 
@@ -233,8 +227,8 @@ body {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(27, 101, 102, 0.12);
-  color: #1b6566;
+  background: rgba(0, 93, 167, 0.1);
+  color: var(--blue-primary);
   font: 700 0.68rem/1 var(--font-primary);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -254,24 +248,23 @@ body {
 }
 
 .qp-card {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(122, 105, 60, 0.12);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
   border-radius: 18px;
 }
 
 .qp-card__play {
   border-radius: 14px;
-  background: linear-gradient(135deg, #775600, #f7c150);
-  color: #fff7e4;
-  box-shadow: 0 14px 28px rgba(119, 86, 0, 0.18);
+  background: var(--blue-primary);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 93, 167, 0.22);
 }
 
 .player-drawer {
   background:
-    radial-gradient(circle at top right, rgba(247, 193, 80, 0.14), transparent 34%),
-    radial-gradient(circle at top left, rgba(27, 101, 102, 0.14), transparent 30%),
-    linear-gradient(180deg, rgba(40, 36, 27, 0.98), rgba(22, 19, 14, 0.98));
-  border-top: 1px solid rgba(247, 193, 80, 0.16);
+    radial-gradient(circle at top right, rgba(0, 93, 167, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(0, 30, 70, 0.98), rgba(0, 18, 48, 0.98));
+  border-top: 1px solid rgba(0, 93, 167, 0.3);
 }
 
 .player-drawer__title {
@@ -306,7 +299,7 @@ body {
   bottom: 80px;
   right: 16px;
   width: 200px;
-  background: rgba(14,12,10,0.88);
+  background: rgba(0, 18, 48, 0.92);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px;
   padding: 8px 10px;
