@@ -26,11 +26,11 @@
       border-color: var(--accent-success);
     }
     .challenge-panel.incoming {
-      border-color: var(--gold-primary);
+      border-color: var(--blue-primary);
       animation: pulse-border 1.5s ease-in-out infinite;
     }
     @keyframes pulse-border {
-      0%, 100% { border-color: var(--gold-primary); }
+      0%, 100% { border-color: var(--blue-primary); }
       50% { border-color: var(--blue-light); }
     }
 
