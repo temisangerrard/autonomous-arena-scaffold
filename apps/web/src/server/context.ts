@@ -21,6 +21,24 @@ import type {
   ServerContext
 } from './types.js';
 
+// Dev-only auth bypass. Never active when NODE_ENV=production, even if env var is set.
+const DEV_IDENTITY: IdentityRecord | null =
+  process.env.DEV_BYPASS_AUTH === 'true' && process.env.NODE_ENV !== 'production'
+    ? {
+        sub: 'dev-bypass',
+        email: 'dev@local',
+        name: 'Dev Player',
+        picture: '',
+        role: 'player' as const,
+        profileId: 'dev-player',
+        walletId: null,
+        username: 'dev',
+        displayName: 'Dev Player',
+        createdAt: 0,
+        lastLoginAt: 0
+      }
+    : null;
+
 function mapFirebaseAuthError(message: string): { reason: string; status: number } {
   const normalized = String(message || '').trim().toUpperCase();
   if (!normalized) return { reason: 'firebase_auth_failed', status: 502 };
@@ -203,6 +221,7 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
   }
 
   async function getIdentityFromReq(req: import('node:http').IncomingMessage): Promise<IdentityRecord | null> {
+    if (DEV_IDENTITY) return DEV_IDENTITY;
     const session = await extractSession(req);
     if (!session) return null;
     return sessionStore.getIdentity(session.sub);
@@ -246,6 +265,7 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
     req: import('node:http').IncomingMessage,
     roles: Role[]
   ): Promise<{ ok: true; identity: IdentityRecord } | { ok: false }> {
+    if (DEV_IDENTITY && roles.includes(DEV_IDENTITY.role)) return { ok: true, identity: DEV_IDENTITY };
     const identity = await getIdentityFromReq(req);
     if (!identity) return { ok: false };
     await reconcileIdentityLink(identity).catch(() => undefined);
