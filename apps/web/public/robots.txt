@@ -1,0 +1,8 @@
+# Arena Play — autobett.xyz
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin-chief.html
+Disallow: /admin-markets-lab.html
+
+Sitemap: https://autobett.xyz/sitemap.xml
