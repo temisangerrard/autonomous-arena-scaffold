@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.55.0",
     "@arena/shared": "0.1.0",
     "google-auth-library": "^9.15.1",
     "pg": "^8.13.1",

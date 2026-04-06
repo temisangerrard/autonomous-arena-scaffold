@@ -7,6 +7,7 @@ import { handleChiefRoutes } from './server/routes/chief.js';
 import { handleAuthRoutes } from './server/routes/auth.js';
 import { handlePlayerRoutes } from './server/routes/player.js';
 import { handleAdminRoutes } from './server/routes/admin.js';
+import { handleContentStudioRoutes } from './server/routes/contentStudio.js';
 import { handlePublicRoutes } from './server/routes/public.js';
 
 const config = loadServerConfig();
@@ -18,6 +19,7 @@ const handlers = [
   handleAuthRoutes,
   handlePlayerRoutes,
   handleAdminRoutes,
+  handleContentStudioRoutes,
   handlePublicRoutes
 ];
 

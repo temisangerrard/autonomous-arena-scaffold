@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Studio — Autonomous Arena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --surface2: #18181f;
+      --border: #2a2a3a;
+      --accent: #7c5cfc;
+      --accent2: #a78bfa;
+      --accent-glow: rgba(124, 92, 252, 0.15);
+      --green: #22c55e;
+      --text: #e8e8f0;
+      --muted: #6b6b80;
+      --error: #f87171;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Layout */
+    .shell {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), #c084fc);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .logo h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .logo p {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* Controls */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    select, textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    select:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+      max-height: 200px;
+      line-height: 1.5;
+    }
+
+    /* Content type checkboxes */
+    .content-types {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .content-type-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 6px 8px;
+      border-radius: 6px;
+      transition: background 0.1s;
+    }
+
+    .content-type-item:hover {
+      background: var(--surface2);
+    }
+
+    .content-type-item input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .content-type-item span {
+      font-size: 12px;
+      color: var(--text);
+      user-select: none;
+    }
+
+    .content-type-item small {
+      display: block;
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+
+    /* Generate button */
+    .btn-generate {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-generate:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .btn-generate:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-generate .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .btn-generate.loading .spinner { display: block; }
+    .btn-generate.loading .btn-label { display: none; }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Main content area */
+    .main {
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      min-width: 0;
+    }
+
+    .main-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .main-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .main-header p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: var(--accent-glow);
+      color: var(--accent2);
+      border: 1px solid var(--accent);
+      white-space: nowrap;
+    }
+
+    /* Error/status messages */
+    .status-msg {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      display: none;
+    }
+
+    .status-msg.error {
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      color: var(--error);
+      display: block;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-height: 300px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .empty-state .icon {
+      font-size: 48px;
+      opacity: 0.4;
+    }
+
+    .empty-state p {
+      font-size: 14px;
+      max-width: 300px;
+    }
+
+    /* Platform filter tabs */
+    .platform-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab.active, .tab:hover {
+      border-color: var(--accent);
+      color: var(--accent2);
+      background: var(--accent-glow);
+    }
+
+    /* Content cards grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-glow), 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-platform-icon {
+      font-size: 18px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .card-platform {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .card-duration {
+      font-size: 10px;
+      color: var(--muted);
+      background: var(--surface);
+      padding: 2px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .card-body {
+      padding: 16px;
+    }
+
+    .card-content {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .card-hashtags {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .hashtag {
+      font-size: 11px;
+      color: var(--accent2);
+      background: var(--accent-glow);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .card-footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn-small {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-small:hover {
+      border-color: var(--accent);
+      color: var(--accent2);
+    }
+
+    .btn-small.copied {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* Skeleton loader */
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 16px;
+    }
+
+    .skeleton-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .skeleton-header {
+      height: 46px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .skeleton-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .skeleton-line {
+      height: 12px;
+      background: var(--surface2);
+      border-radius: 4px;
+    }
+
+    .skeleton-line:nth-child(1) { width: 100%; }
+    .skeleton-line:nth-child(2) { width: 90%; }
+    .skeleton-line:nth-child(3) { width: 95%; }
+    .skeleton-line:nth-child(4) { width: 75%; }
+    .skeleton-footer {
+      height: 38px;
+      background: var(--surface2);
+      border-top: 1px solid var(--border);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: relative;
+        height: auto;
+      }
+      .main {
+        padding: 16px;
+      }
+      .cards-grid, .skeleton-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar controls -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">✦</div>
+      <div>
+        <h1>Content Studio</h1>
+        <p>Viral content generator</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Product Context</div>
+      <div class="control-group">
+        <label for="product-context">Describe your product</label>
+        <textarea id="product-context" placeholder="Leave blank to use Autonomous Arena defaults..."></textarea>
+        <small style="color:var(--muted);font-size:11px">Pre-loaded with arena context. Edit to customize for a specific campaign angle.</small>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Tone</div>
+      <div class="control-group">
+        <label for="tone-select">Content tone</label>
+        <select id="tone-select">
+          <option value="hype">🔥 Hype — FOMO &amp; excitement</option>
+          <option value="educational">📚 Educational — explain the value</option>
+          <option value="challenge">⚔️ Challenge — dare the audience</option>
+          <option value="behind_the_scenes">👀 Behind the Scenes — insider look</option>
+          <option value="curiosity">🧠 Curiosity — cliffhanger style</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Target Audience</div>
+      <div class="control-group">
+        <label for="audience-select">Who are you targeting?</label>
+        <select id="audience-select">
+          <option value="crypto_native">🔷 Crypto Native — knows Base &amp; DeFi</option>
+          <option value="gamer">🎮 Gamer — loves competition &amp; winning</option>
+          <option value="defi_user">💰 DeFi User — passive income focus</option>
+          <option value="general">🌍 General — no crypto knowledge</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Content Types</div>
+      <div class="content-types" id="content-types">
+        <label class="content-type-item">
+          <input type="checkbox" value="tiktok_hook" checked>
+          <div>
+            <span>TikTok Hook</span>
+            <small>3-sec scroll stopper</small>
+          </div>
+        </label>
+        <label class="content-type-item">
+          <input type="checkbox" value="tiktok_script" checked>
+          <div>
+            <span>Short Video Script</span>
+            <small>30-60 sec TikTok/Reels/Shorts</small>
+          </div>
+        </label>
+        <label class="content-type-item">
+          <input type="checkbox" value="caption" checked>
+          <div>
+            <span>Caption</span>
+            <small>Instagram / TikTok post caption</small>
+          </div>
+        </label>
+        <label class="content-type-item">
+          <input type="checkbox" value="twitter_thread">
+          <div>
+            <span>Twitter Thread</span>
+            <small>6-8 tweet viral thread</small>
+          </div>
+        </label>
+        <label class="content-type-item">
+          <input type="checkbox" value="video_concept">
+          <div>
+            <span>Video Concept</span>
+            <small>Campaign idea brief</small>
+          </div>
+        </label>
+        <label class="content-type-item">
+          <input type="checkbox" value="cta_variations">
+          <div>
+            <span>CTA Variations</span>
+            <small>5 different call-to-actions</small>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <button class="btn-generate" id="btn-generate" type="button">
+      <div class="spinner"></div>
+      <span class="btn-label">✦ Generate Content</span>
+    </button>
+
+    <div class="sidebar-footer">
+      Powered by Claude Opus 4.6 with adaptive thinking.<br>
+      Content is AI-generated — review before publishing.
+    </div>
+  </aside>
+
+  <!-- Main results area -->
+  <main class="main">
+    <div class="main-header">
+      <div>
+        <h2>Generated Content</h2>
+        <p id="results-meta">Choose your options and click Generate.</p>
+      </div>
+      <div id="badge-container"></div>
+    </div>
+
+    <div id="status-msg" class="status-msg"></div>
+
+    <div id="platform-tabs" class="platform-tabs" style="display:none"></div>
+
+    <div id="results-area">
+      <div class="empty-state">
+        <div class="icon">✦</div>
+        <p>Your viral content will appear here. Configure tone, audience, and content types, then click Generate.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const PLATFORM_ICONS = {
+    TikTok: '📱',
+    Instagram: '📸',
+    Twitter: '🐦',
+    YouTube: '▶️',
+    Universal: '🌐',
+    default: '✦'
+  };
+
+  let allPieces = [];
+  let activeFilter = 'all';
+
+  const btn = document.getElementById('btn-generate');
+  const resultsArea = document.getElementById('results-area');
+  const resultsMeta = document.getElementById('results-meta');
+  const statusMsg = document.getElementById('status-msg');
+  const platformTabsEl = document.getElementById('platform-tabs');
+  const badgeContainer = document.getElementById('badge-container');
+
+  function setLoading(loading) {
+    btn.disabled = loading;
+    btn.classList.toggle('loading', loading);
+    if (loading) {
+      showSkeletons();
+      statusMsg.className = 'status-msg';
+      statusMsg.textContent = '';
+    }
+  }
+
+  function showSkeletons() {
+    const count = getCheckedTypes().length || 3;
+    platformTabsEl.style.display = 'none';
+    badgeContainer.innerHTML = '';
+    resultsArea.innerHTML = `<div class="skeleton-grid">${Array.from({length: count}, () => `
+      <div class="skeleton-card">
+        <div class="skeleton-header"></div>
+        <div class="skeleton-body">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+        </div>
+        <div class="skeleton-footer"></div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  function getCheckedTypes() {
+    return [...document.querySelectorAll('#content-types input[type="checkbox"]:checked')]
+      .map(el => el.value);
+  }
+
+  async function generate() {
+    const contentTypes = getCheckedTypes();
+    if (!contentTypes.length) {
+      showError('Select at least one content type.');
+      return;
+    }
+
+    setLoading(true);
+    resultsMeta.textContent = 'Generating with Claude Opus 4.6...';
+
+    const productContext = document.getElementById('product-context').value.trim();
+    const tone = document.getElementById('tone-select').value;
+    const audience = document.getElementById('audience-select').value;
+
+    try {
+      const res = await fetch('/api/content-studio/generate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ productContext: productContext || undefined, tone, audience, contentTypes })
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Generation failed');
+      }
+
+      allPieces = data.pieces || [];
+      renderResults();
+    } catch (err) {
+      showError(err.message || 'Failed to generate content. Check your ANTHROPIC_API_KEY.');
+      resultsArea.innerHTML = `<div class="empty-state"><div class="icon">⚠</div><p>${escHtml(err.message)}</p></div>`;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function renderResults() {
+    if (!allPieces.length) {
+      resultsMeta.textContent = 'No content generated.';
+      resultsArea.innerHTML = '<div class="empty-state"><div class="icon">?</div><p>No pieces returned. Try again.</p></div>';
+      return;
+    }
+
+    // Build platform filter
+    const platforms = ['all', ...new Set(allPieces.map(p => p.platform).filter(Boolean))];
+    platformTabsEl.style.display = 'flex';
+    platformTabsEl.innerHTML = platforms.map(p => `
+      <button class="tab${p === activeFilter ? ' active' : ''}" data-platform="${p}">
+        ${p === 'all' ? 'All' : `${PLATFORM_ICONS[p] || '✦'} ${p}`}
+      </button>`).join('');
+
+    badgeContainer.innerHTML = `<span class="badge">${allPieces.length} pieces generated</span>`;
+    resultsMeta.textContent = `${allPieces.length} content pieces ready to use`;
+
+    filterAndRender();
+  }
+
+  function filterAndRender() {
+    const filtered = activeFilter === 'all'
+      ? allPieces
+      : allPieces.filter(p => p.platform === activeFilter);
+
+    resultsArea.innerHTML = `<div class="cards-grid">${filtered.map(renderCard).join('')}</div>`;
+
+    // Attach copy handlers
+    resultsArea.querySelectorAll('[data-copy-idx]').forEach(btn => {
+      btn.addEventListener('click', () => copyContent(parseInt(btn.dataset.copyIdx, 10), btn));
+    });
+  }
+
+  function renderCard(piece, idx) {
+    const icon = PLATFORM_ICONS[piece.platform] || PLATFORM_ICONS.default;
+    const hashtags = (piece.hashtags || []).map(h =>
+      `<span class="hashtag">${escHtml(h.startsWith('#') ? h : '#' + h)}</span>`
+    ).join('');
+
+    return `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-meta">
+          <span class="card-platform-icon">${icon}</span>
+          <div>
+            <div class="card-title">${escHtml(piece.title || piece.type)}</div>
+            <div class="card-platform">${escHtml(piece.platform || '')}</div>
+          </div>
+        </div>
+        ${piece.duration ? `<span class="card-duration">${escHtml(piece.duration)}</span>` : ''}
+      </div>
+      <div class="card-body">
+        <div class="card-content">${escHtml(piece.content || '')}</div>
+        ${hashtags ? `<div class="card-hashtags">${hashtags}</div>` : ''}
+      </div>
+      <div class="card-footer">
+        <button class="btn-small" data-copy-idx="${idx}">
+          <span>📋</span> Copy
+        </button>
+        <button class="btn-small" onclick="copyHashtags(${idx}, this)">
+          <span>#</span> Copy Tags
+        </button>
+      </div>
+    </div>`;
+  }
+
+  function copyContent(idx, btn) {
+    const piece = allPieces[idx];
+    if (!piece) return;
+    const text = [piece.content, '', (piece.hashtags || []).join(' ')].join('\n').trim();
+    navigator.clipboard.writeText(text).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = '<span>✓</span> Copied!';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<span>📋</span> Copy';
+      }, 2000);
+    });
+  }
+
+  function copyHashtags(idx, btn) {
+    const piece = allPieces[idx];
+    if (!piece) return;
+    const text = (piece.hashtags || []).map(h => h.startsWith('#') ? h : '#' + h).join(' ');
+    navigator.clipboard.writeText(text).then(() => {
+      btn.classList.add('copied');
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<span>#</span> Copy Tags';
+      }, 2000);
+    });
+  }
+
+  function showError(msg) {
+    statusMsg.className = 'status-msg error';
+    statusMsg.textContent = msg;
+  }
+
+  function escHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Events
+  btn.addEventListener('click', generate);
+
+  platformTabsEl.addEventListener('click', e => {
+    const tab = e.target.closest('[data-platform]');
+    if (!tab) return;
+    activeFilter = tab.dataset.platform;
+    platformTabsEl.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    filterAndRender();
+  });
+
+  // Load default product context
+  fetch('/api/content-studio/context')
+    .then(r => r.json())
+    .then(data => {
+      const ta = document.getElementById('product-context');
+      if (ta && !ta.value) {
+        ta.placeholder = 'Autonomous Arena pre-loaded — edit to customize.';
+      }
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

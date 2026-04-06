@@ -720,6 +720,9 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
     if (pathname === '/viewer') {
       return path.join(publicDir, 'viewer.html');
     }
+    if (pathname === '/content-studio') {
+      return path.join(publicDir, 'content-studio.html');
+    }
     return null;
   }
 
