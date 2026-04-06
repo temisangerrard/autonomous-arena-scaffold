@@ -117,7 +117,7 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy arena-server
-        run: flyctl deploy --app arena-server-broken-haze-6531 --config fly.server.toml --remote-only --wait-timeout 300
+        run: flyctl deploy --app arena-server-fresh-02240816 --config fly.server.toml --remote-only --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -138,7 +138,7 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy arena-agent-runtime
-        run: flyctl deploy --app arena-agent-runtime --config fly.agent-runtime.toml --remote-only --wait-timeout 300
+        run: flyctl deploy --app arena-runtime-fresh-02240816 --config fly.agent-runtime.toml --remote-only --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -159,6 +159,6 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy arena-web
-        run: flyctl deploy --app arena-web --config fly.web.toml --remote-only --wait-timeout 300
+        run: flyctl deploy --app arena-web-api-fresh-02240816 --config fly.web.toml --remote-only --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
