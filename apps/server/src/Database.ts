@@ -1154,6 +1154,73 @@ export class Database {
     }
   }
 
+  // ─── Arena Metrics ──────────────────────────────────────
+
+  async getArenaMetrics(windowHours = 24): Promise<{
+    gamesPlayed: number;
+    uniquePlayers: number;
+    usdcVolume: number;
+    agentWinRate: number;
+    windowHours: number;
+    generatedAt: number;
+  }> {
+    const safeWindow = Math.max(1, Math.min(720, Number(windowHours || 24)));
+    const generatedAt = Date.now();
+
+    if (!this.pool) {
+      return { gamesPlayed: 0, uniquePlayers: 0, usdcVolume: 0, agentWinRate: 0, windowHours: safeWindow, generatedAt };
+    }
+
+    try {
+      const result = await this.pool.query(
+        `SELECT
+           COUNT(*)::int AS games_played,
+           COUNT(DISTINCT challenger_id) + COUNT(DISTINCT opponent_id) AS participant_pairs,
+           COALESCE(SUM(wager), 0) AS usdc_volume,
+           COUNT(CASE WHEN winner_id LIKE 'agent_%' THEN 1 END)::int AS agent_wins,
+           COUNT(CASE WHEN winner_id IS NOT NULL THEN 1 END)::int AS decided_games,
+           array_agg(DISTINCT challenger_id) || array_agg(DISTINCT opponent_id) AS all_participant_ids
+         FROM challenges
+         WHERE status = 'resolved'
+           AND created_at >= NOW() - ($1 || ' hours')::interval`,
+        [String(safeWindow)]
+      );
+
+      const row = result.rows[0];
+      const gamesPlayed = Number(row?.games_played ?? 0);
+      const usdcVolume = Number(row?.usdc_volume ?? 0);
+      const agentWins = Number(row?.agent_wins ?? 0);
+      const decidedGames = Number(row?.decided_games ?? 0);
+      const agentWinRate = decidedGames > 0 ? Math.round((agentWins / decidedGames) * 100) / 100 : 0;
+
+      // Count unique players from a separate query to avoid double-counting
+      const uniqueResult = await this.pool.query(
+        `SELECT COUNT(DISTINCT player_id)::int AS unique_players
+         FROM (
+           SELECT challenger_id AS player_id FROM challenges
+           WHERE status = 'resolved'
+             AND created_at >= NOW() - ($1 || ' hours')::interval
+             AND challenger_id NOT LIKE 'agent_%'
+             AND challenger_id != 'system_house'
+           UNION
+           SELECT opponent_id AS player_id FROM challenges
+           WHERE status = 'resolved'
+             AND created_at >= NOW() - ($1 || ' hours')::interval
+             AND opponent_id NOT LIKE 'agent_%'
+             AND opponent_id != 'system_house'
+         ) AS players`,
+        [String(safeWindow)]
+      );
+
+      const uniquePlayers = Number(uniqueResult.rows[0]?.unique_players ?? 0);
+
+      return { gamesPlayed, uniquePlayers, usdcVolume, agentWinRate, windowHours: safeWindow, generatedAt };
+    } catch (err) {
+      log.error({ err }, 'failed to compute arena metrics');
+      return { gamesPlayed: 0, uniquePlayers: 0, usdcVolume: 0, agentWinRate: 0, windowHours: safeWindow, generatedAt };
+    }
+  }
+
   // ─── Leaderboard ────────────────────────────────────────
 
   async getLeaderboard(params: {

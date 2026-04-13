@@ -45,6 +45,82 @@ async function withServer<T>(ctx: RouteContext, run: (baseUrl: string) => Promis
   }
 }
 
+describe('GET /api/arena-metrics', () => {
+  it('returns zero metrics when database has no data', async () => {
+    const ctx = makeRouteContext('tok');
+    (ctx.database as unknown as { getArenaMetrics: (w: number) => Promise<Record<string, unknown>> }).getArenaMetrics =
+      async () => ({ gamesPlayed: 0, uniquePlayers: 0, usdcVolume: 0, agentWinRate: 0, windowHours: 24, generatedAt: Date.now() });
+
+    await withServer(ctx, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/arena-metrics`);
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.ok).toBe(true);
+      expect(payload.gamesPlayed).toBe(0);
+      expect(payload.uniquePlayers).toBe(0);
+      expect(payload.usdcVolume).toBe(0);
+      expect(payload.agentWinRate).toBe(0);
+      expect(payload.windowHours).toBe(24);
+      expect(typeof payload.generatedAt).toBe('number');
+    });
+  });
+
+  it('returns metrics from the database', async () => {
+    const ctx = makeRouteContext('tok');
+    (ctx.database as unknown as { getArenaMetrics: (w: number) => Promise<Record<string, unknown>> }).getArenaMetrics =
+      async (windowHours: number) => ({
+        gamesPlayed: 142,
+        uniquePlayers: 37,
+        usdcVolume: 284.5,
+        agentWinRate: 0.53,
+        windowHours,
+        generatedAt: 1712500000000
+      });
+
+    await withServer(ctx, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/arena-metrics`);
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.ok).toBe(true);
+      expect(payload.gamesPlayed).toBe(142);
+      expect(payload.uniquePlayers).toBe(37);
+      expect(payload.usdcVolume).toBe(284.5);
+      expect(payload.agentWinRate).toBe(0.53);
+      expect(payload.windowHours).toBe(24);
+    });
+  });
+
+  it('respects the windowHours query parameter', async () => {
+    const ctx = makeRouteContext('tok');
+    let capturedWindow = 0;
+    (ctx.database as unknown as { getArenaMetrics: (w: number) => Promise<Record<string, unknown>> }).getArenaMetrics =
+      async (windowHours: number) => {
+        capturedWindow = windowHours;
+        return { gamesPlayed: 0, uniquePlayers: 0, usdcVolume: 0, agentWinRate: 0, windowHours, generatedAt: Date.now() };
+      };
+
+    await withServer(ctx, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/arena-metrics?windowHours=48`);
+      expect(response.status).toBe(200);
+      expect(capturedWindow).toBe(48);
+    });
+  });
+
+  it('is accessible without authentication', async () => {
+    const ctx = makeRouteContext('secret');
+    (ctx.database as unknown as { getArenaMetrics: (w: number) => Promise<Record<string, unknown>> }).getArenaMetrics =
+      async () => ({ gamesPlayed: 1, uniquePlayers: 1, usdcVolume: 2, agentWinRate: 1, windowHours: 24, generatedAt: Date.now() });
+
+    await withServer(ctx, async (baseUrl) => {
+      // No x-internal-token header
+      const response = await fetch(`${baseUrl}/api/arena-metrics`);
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.ok).toBe(true);
+    });
+  });
+});
+
 describe('internal route authorization', () => {
   it('rejects /migrations/status when internal token is missing', async () => {
     await withServer(makeRouteContext(''), async (baseUrl) => {
