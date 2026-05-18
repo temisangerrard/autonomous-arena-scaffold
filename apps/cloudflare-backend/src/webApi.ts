@@ -1,4 +1,5 @@
 import { buildPlayerShell } from '../../../apps/web/src/playerShell.js';
+import { handleRuntimeRequest } from './runtimeState.js';
 
 type D1First<T = Record<string, unknown>> = Promise<T | null>;
 type D1PreparedStatement = {
@@ -335,7 +336,8 @@ async function firebaseLookupIdToken(env: WebApiEnv, idToken: string) {
 
 async function runtimeFetch<T>(request: Request, env: WebApiEnv, path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const origin = normalizeOrigin(new URL(request.url).origin);
-  const response = await fetch(`${origin}/runtime${path}`, {
+  const url = `${origin}/runtime${path}`;
+  const internalRequest = new Request(url, {
     method: init?.method || 'GET',
     headers: {
       ...(env.INTERNAL_SERVICE_TOKEN ? { 'x-internal-token': env.INTERNAL_SERVICE_TOKEN } : {}),
@@ -343,6 +345,8 @@ async function runtimeFetch<T>(request: Request, env: WebApiEnv, path: string, i
     },
     body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
+  const response = await handleRuntimeRequest(internalRequest, env as any, new URL(url).pathname);
+  if (!response) throw new Error('runtime_not_found');
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload == null) {
     throw new Error(`runtime_${response.status}`);
