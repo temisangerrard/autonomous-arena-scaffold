@@ -952,6 +952,25 @@ export function createStationRouter(ctx: StationRouterContext) {
     stationById,
     clearPlayer,
     clearExpired,
-    handleStationInteract
+    handleStationInteract,
+    async handleStationInteractWithReply(
+      playerId: string,
+      payload: StationInteractMessage,
+      reply: (message: object) => void
+    ): Promise<boolean> {
+      const originalSendTo = ctx.sendTo;
+      ctx.sendTo = (targetPlayerId, message) => {
+        if (targetPlayerId === playerId) {
+          reply(message);
+          return;
+        }
+        originalSendTo(targetPlayerId, message);
+      };
+      try {
+        return await handleStationInteract(playerId, payload);
+      } finally {
+        ctx.sendTo = originalSendTo;
+      }
+    }
   };
 }

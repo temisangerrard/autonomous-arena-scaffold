@@ -25,6 +25,21 @@ export type RouteContext = {
   marketService?: MarketService | null;
   /** Lazy getter for station list — set after stationRouter is initialized */
   getStations?: () => SnapshotStation[];
+  handleStationInteractWithReply?: (
+    playerId: string,
+    payload: {
+      stationId: string;
+      action: string;
+      wager?: number;
+      pick?: string;
+      side?: 'yes' | 'no';
+      marketId?: string;
+      playerSeed?: string;
+      quickPlay?: boolean;
+    },
+    meta: { walletId?: string | null; displayName?: string | null },
+    reply: (message: object) => void
+  ) => Promise<boolean>;
 };
 
 /**
@@ -192,6 +207,80 @@ function handleStationsPlayable(
     }));
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({ ok: true, stations: playable, count: playable.length }));
+}
+
+async function handleStationsInteract(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: RouteContext
+): Promise<void> {
+  if (req.method !== 'POST') {
+    res.statusCode = 405;
+    res.end('Method Not Allowed');
+    return;
+  }
+  if (!isInternalAuthorized(req, ctx.internalToken)) {
+    res.statusCode = 401;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'unauthorized_internal' }));
+    return;
+  }
+  if (typeof ctx.handleStationInteractWithReply !== 'function') {
+    res.statusCode = 503;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'stations_interact_unavailable' }));
+    return;
+  }
+
+  const body = await readJsonBody<{
+    playerId?: string;
+    walletId?: string | null;
+    displayName?: string | null;
+    payload?: {
+      stationId?: string;
+      action?: string;
+      wager?: number;
+      pick?: string;
+      side?: 'yes' | 'no';
+      marketId?: string;
+      playerSeed?: string;
+      quickPlay?: boolean;
+    };
+  }>(req);
+  const playerId = String(body?.playerId ?? '').trim();
+  const stationId = String(body?.payload?.stationId ?? '').trim();
+  const action = String(body?.payload?.action ?? '').trim();
+  if (!playerId || !stationId || !action) {
+    res.statusCode = 400;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: false, reason: 'player_station_action_required' }));
+    return;
+  }
+
+  let message: object | null = null;
+  const handled = await ctx.handleStationInteractWithReply(
+    playerId,
+    {
+      stationId,
+      action,
+      wager: Number(body?.payload?.wager ?? 0),
+      pick: body?.payload?.pick ? String(body.payload.pick) : undefined,
+      side: body?.payload?.side,
+      marketId: body?.payload?.marketId ? String(body.payload.marketId) : undefined,
+      playerSeed: body?.payload?.playerSeed ? String(body.payload.playerSeed) : undefined,
+      quickPlay: body?.payload?.quickPlay === true
+    },
+    {
+      walletId: body?.walletId ? String(body.walletId) : null,
+      displayName: body?.displayName ? String(body.displayName) : null
+    },
+    (nextMessage) => {
+      message = nextMessage;
+    }
+  );
+
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ ok: handled, message }));
 }
 
 /**
@@ -655,6 +744,11 @@ export function createRouter(ctx: RouteContext) {
 
     if (req.url === '/stations/playable') {
       handleStationsPlayable(req, res, ctx);
+      return;
+    }
+
+    if (req.url === '/stations/interact') {
+      await handleStationsInteract(req, res, ctx);
       return;
     }
 

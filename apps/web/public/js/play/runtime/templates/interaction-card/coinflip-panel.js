@@ -93,9 +93,9 @@ export function mountCoinflipPanel(params) {
     if (el) el.remove?.();
   }
 
-  function sendStart() {
+  async function sendStart() {
     const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
-    if (!sendStationInteract(station, 'coinflip_house_start', { wager })) return;
+    if (!await sendStationInteract(station, 'coinflip_house_start', { wager })) return;
     state.ui.dealer.state = 'preflight';
     state.ui.dealer.wager = wager;
     setPendingBtn(startBtn, 'Locking in…');
@@ -105,8 +105,8 @@ export function mountCoinflipPanel(params) {
     startTimer('dealer:preflight', onCoinflipTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);
   }
 
-  function sendPick(pick) {
-    if (!sendStationInteract(station, 'coinflip_house_pick', { pick, playerSeed: makePlayerSeed() })) return;
+  async function sendPick(pick) {
+    if (!await sendStationInteract(station, 'coinflip_house_pick', { pick, playerSeed: makePlayerSeed() })) return;
     clearTimer('dealer:preflight');
     state.ui.dealer.state = 'dealing';
     setPicksLocked(true);
@@ -114,9 +114,9 @@ export function mountCoinflipPanel(params) {
     startTimer('dealer:pick', onCoinflipTimeout, DEALER_PICK_TIMEOUT_MS);
   }
 
-  if (startBtn) startBtn.onclick = () => sendStart();
-  if (headsBtn) headsBtn.onclick = () => { setPendingBtn(headsBtn, 'Heads…'); sendPick('heads'); };
-  if (tailsBtn) tailsBtn.onclick = () => { setPendingBtn(tailsBtn, 'Tails…'); sendPick('tails'); };
+  if (startBtn) startBtn.onclick = () => { void sendStart(); };
+  if (headsBtn) headsBtn.onclick = () => { setPendingBtn(headsBtn, 'Heads…'); void sendPick('heads'); };
+  if (tailsBtn) tailsBtn.onclick = () => { setPendingBtn(tailsBtn, 'Tails…'); void sendPick('tails'); };
 }
 
 export function updateCoinflipLive(params) {

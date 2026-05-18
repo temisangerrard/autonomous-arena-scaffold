@@ -469,10 +469,6 @@ export async function createSessionStore(params: {
   webStateFile: string;
 }): Promise<SessionStore> {
   const redisUrl = params.redisUrl.trim();
-  if (params.isProduction && !redisUrl) {
-    throw new Error('REDIS_URL is required in production for web session persistence');
-  }
-
   if (redisUrl) {
     const store = new RedisStore(redisUrl);
     await store.init();

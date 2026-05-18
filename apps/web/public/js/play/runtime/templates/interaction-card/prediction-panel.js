@@ -308,12 +308,12 @@ export function mountPredictionPanel(params) {
     previewEl.title = question;
   }
 
-  function dispatchPrediction(action, extra = {}) {
+  async function dispatchPrediction(action, extra = {}) {
     if (!routeStation) {
       showToast('Prediction dealer is unavailable right now.');
       return false;
     }
-    return sendStationInteract(routeStation, action, extra);
+    return await sendStationInteract(routeStation, action, extra);
   }
 
   function validatePredictionOrder() {
@@ -347,12 +347,12 @@ export function mountPredictionPanel(params) {
     if (btcNoBtn) { btcNoBtn.disabled = false; btcNoBtn.classList.remove('is-pending'); }
   }
 
-  function submitPredictionOrder(side) {
+  async function submitPredictionOrder(side) {
     const failure = validatePredictionOrder();
     if (failure) {
       if (isAutoRefreshablePredictionFailure(failure)) {
         state.ui.prediction.state = 'list';
-        dispatchPrediction('prediction_markets_open');
+        void dispatchPrediction('prediction_markets_open');
       }
       state.ui.prediction.state = 'error';
       state.ui.prediction.lastReason = 'prediction_precheck_failed';
@@ -386,7 +386,7 @@ export function mountPredictionPanel(params) {
     }, 7000);
 
     const action = side === 'yes' ? 'prediction_market_buy_yes' : 'prediction_market_buy_no';
-    const sent = dispatchPrediction(action, { marketId, stake: currentStake() });
+    const sent = await dispatchPrediction(action, { marketId, stake: currentStake() });
     if (!sent) {
       clearTimer('prediction:buy');
       clearPredictionBuyBtns();
@@ -398,8 +398,8 @@ export function mountPredictionPanel(params) {
   if (tab24hBtn) tab24hBtn.onclick = () => setSelectedRail('btc_24h');
   if (roundCurrentBtn) roundCurrentBtn.onclick = () => setSelectedRound('current');
   if (roundNextBtn) roundNextBtn.onclick = () => setSelectedRound('next');
-  if (btcYesBtn) btcYesBtn.onclick = () => submitPredictionOrder('yes');
-  if (btcNoBtn) btcNoBtn.onclick = () => submitPredictionOrder('no');
+  if (btcYesBtn) btcYesBtn.onclick = () => { void submitPredictionOrder('yes'); };
+  if (btcNoBtn) btcNoBtn.onclick = () => { void submitPredictionOrder('no'); };
 
   if (!state.ui?.prediction?.selectedRail) state.ui.prediction.selectedRail = 'btc_5m';
   if (!state.ui?.prediction?.selectedRound) state.ui.prediction.selectedRound = 'current';
@@ -407,7 +407,7 @@ export function mountPredictionPanel(params) {
 
   if (!Array.isArray(state.ui.prediction.markets) || state.ui.prediction.markets.length === 0) {
     state.ui.prediction.state = 'requesting';
-    dispatchPrediction('prediction_markets_open');
+    void dispatchPrediction('prediction_markets_open');
   } else if (!selectedBtcMarket()) {
     state.ui.prediction.lastReason = 'prediction_no_live_btc_market';
     state.ui.prediction.lastReasonText = 'No BTC market is available for this rail and round.';

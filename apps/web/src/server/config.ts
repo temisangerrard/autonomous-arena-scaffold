@@ -66,6 +66,7 @@ export function loadServerConfig(): ServerConfig {
     serverBase: process.env.WEB_API_BASE_URL ?? 'http://localhost:4000',
     runtimeBase: process.env.WEB_AGENT_RUNTIME_BASE_URL ?? 'http://localhost:4100',
     publicGameWsUrl: process.env.WEB_GAME_WS_URL ?? '',
+    realtimeEnabled: String(process.env.REALTIME_MULTIPLAYER_ENABLED ?? 'false').trim().toLowerCase() === 'true',
     publicWorldAssetBaseUrl: process.env.PUBLIC_WORLD_ASSET_BASE_URL ?? '',
     defaultWorldAssetBaseUrl: 'https://pub-302820e514cd451baaf272a33bd70765.r2.dev',
     allowedAuthOrigins: buildAllowedOrigins(process.env.ALLOWED_AUTH_ORIGINS, [
@@ -141,16 +142,8 @@ export function validateServerConfig(config: ServerConfig): void {
     log.fatal('ADMIN_PASSWORD is too short for production (min 8 characters). Refusing to start.');
     process.exit(1);
   }
-  if (config.isProduction && !config.wsAuthSecret) {
-    log.fatal('GAME_WS_AUTH_SECRET must be set in production to prevent unauthenticated /ws access. Refusing to start.');
-    process.exit(1);
-  }
   if (config.isProduction && !config.internalToken) {
     log.fatal('INTERNAL_SERVICE_TOKEN must be set in production for runtime admin proxy + presence APIs. Refusing to start.');
-    process.exit(1);
-  }
-  if (config.isProduction && !config.redisUrl) {
-    log.fatal('REDIS_URL must be set in production for auth session persistence. Refusing to start.');
     process.exit(1);
   }
   if (config.isProduction && (config.adminEmails?.size ?? 0) === 0) {
@@ -161,4 +154,3 @@ export function validateServerConfig(config: ServerConfig): void {
     log.warn('ADMIN_EMAILS is empty. No configured admin email can access /admin or /users.');
   }
 }
-

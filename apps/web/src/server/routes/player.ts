@@ -558,6 +558,35 @@ export const handlePlayerRoutes: RouteHandler = async (req, res, requestUrl, con
     return true;
   }
 
+  if (pathname === '/api/game/stations/interact' && req.method === 'POST') {
+    const auth = await context.requireRole(req, ['player', 'admin']);
+    if (!auth.ok) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return true;
+    }
+    const identity = auth.identity;
+    if (!identity.profileId || !identity.walletId) {
+      sendJson(res, { ok: false, reason: 'profile_or_wallet_missing' }, 404);
+      return true;
+    }
+    const body = await readJsonBody<Record<string, unknown>>(req);
+    if (!body) {
+      sendJson(res, { ok: false, reason: 'invalid_json' }, 400);
+      return true;
+    }
+    try {
+      sendJson(res, await context.serverPost('/stations/interact', {
+        playerId: `u_${identity.profileId}`,
+        walletId: identity.walletId,
+        displayName: identity.displayName || identity.name || identity.username || identity.profileId,
+        payload: body
+      }));
+    } catch {
+      sendJson(res, { ok: false, reason: 'station_interact_failed' }, 503);
+    }
+    return true;
+  }
+
   if (pathname === '/api/chief/v1/chat' && req.method === 'POST') {
     const auth = await context.requireRole(req, ['player', 'admin']);
     if (!auth.ok) {

@@ -212,9 +212,10 @@ export function validateProductionStartup(env: NodeJS.ProcessEnv): StartupValida
     errors.push('INTERNAL_SERVICE_TOKEN must be set in production for internal service authentication.');
   }
 
-  // Critical: Redis URL must be set for distributed multiplayer
+  // Redis-backed distributed multiplayer is legacy. It is optional for the
+  // active HTTP-first product path.
   if (!env.REDIS_URL?.trim()) {
-    errors.push('REDIS_URL must be set in production for distributed presence/multiplayer.');
+    warnings.push('REDIS_URL is not set. Legacy distributed presence/multiplayer features will remain disabled.');
   }
 
   // Critical: Database URL must be set

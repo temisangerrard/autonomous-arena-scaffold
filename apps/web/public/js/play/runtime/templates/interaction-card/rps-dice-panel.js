@@ -134,8 +134,9 @@ export function mountRpsDicePanel(params) {
 
   if (startBtn) {
     startBtn.onclick = () => {
+      void (async () => {
       const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
-      if (!sendStationInteract(station, startAction, { wager })) return;
+      if (!await sendStationInteract(station, startAction, { wager })) return;
       state.ui.dealer.state = 'preflight';
       state.ui.dealer.wager = wager;
       state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
@@ -143,6 +144,7 @@ export function mountRpsDicePanel(params) {
       setGameStatus('Locking in…', 'loading');
       injectLockAnim();
       startTimer('dealer:preflight', onRpsTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);
+      })();
     };
   }
 
@@ -152,7 +154,8 @@ export function mountRpsDicePanel(params) {
     const btn = document.getElementById(btnId);
     if (!(btn instanceof HTMLButtonElement)) continue;
     btn.onclick = () => {
-      if (!sendStationInteract(station, pickAction, { pick, playerSeed: makePlayerSeed() })) return;
+      void (async () => {
+      if (!await sendStationInteract(station, pickAction, { pick, playerSeed: makePlayerSeed() })) return;
       clearLockAnim();
       clearTimer('dealer:preflight');
       state.ui.dealer.state = 'dealing';
@@ -160,6 +163,7 @@ export function mountRpsDicePanel(params) {
       setAllPicksLocked(true);
       setGameStatus(`You picked ${isRps ? pick : pick.replace('d', '')} — rolling…`, 'loading');
       startTimer('dealer:pick', onRpsTimeout, DEALER_PICK_TIMEOUT_MS);
+      })();
     };
   }
 }

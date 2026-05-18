@@ -57,6 +57,7 @@ export const handlePublicRoutes: RouteHandler = async (req, res, requestUrl, con
       firebaseProjectId: context.config.firebaseProjectId ?? '',
       cdpProjectId: context.config.cdpProjectId ?? '',
       localAuthEnabled: Boolean(context.config.localAuthEnabled),
+      realtimeEnabled: Boolean(context.config.realtimeEnabled),
       gameWsUrl: context.config.publicGameWsUrl ?? '',
       worldAssetBaseUrl: effectiveWorldAssetBaseUrl,
       escrowApprovalPolicy: {
@@ -143,4 +144,3 @@ export const handlePublicRoutes: RouteHandler = async (req, res, requestUrl, con
 
   return false;
 };
-

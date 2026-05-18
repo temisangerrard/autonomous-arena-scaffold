@@ -103,9 +103,9 @@ export function mountBlackjackPanel(params) {
     showToast?.('Station timed out. Retry.', 'error');
   }
 
-  function sendDeal() {
+  async function sendDeal() {
     const wager = Math.max(0, Math.min(10000, Number(wagerEl?.value || 0)));
-    if (!sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })) return;
+    if (!await sendStationInteract(station, 'blackjack_start', { wager, playerSeed: makePlayerSeed() })) return;
     state.ui.dealer.state = 'preflight';
     state.ui.dealer.wager = wager;
     if (wagerEl) wagerEl.disabled = true;
@@ -116,25 +116,25 @@ export function mountBlackjackPanel(params) {
     startTimer('dealer:preflight', onTimeout, DEALER_PREFLIGHT_TIMEOUT_MS);
   }
 
-  function sendHit() {
-    if (!sendStationInteract(station, 'blackjack_hit', {})) return;
+  async function sendHit() {
+    if (!await sendStationInteract(station, 'blackjack_hit', {})) return;
     state.ui.dealer.state = 'dealing';
     setActionsLocked(true);
     setStatus('Drawing card…', 'loading');
     startTimer('dealer:pick', onTimeout, DEALER_PICK_TIMEOUT_MS);
   }
 
-  function sendStand() {
-    if (!sendStationInteract(station, 'blackjack_stand', {})) return;
+  async function sendStand() {
+    if (!await sendStationInteract(station, 'blackjack_stand', {})) return;
     state.ui.dealer.state = 'dealing';
     setActionsLocked(true);
     setStatus('Dealer drawing…', 'loading');
     startTimer('dealer:pick', onTimeout, DEALER_PICK_TIMEOUT_MS);
   }
 
-  if (dealBtn) dealBtn.onclick = () => sendDeal();
-  if (hitBtn) hitBtn.onclick = () => { setPendingBtn(hitBtn, 'HIT…'); sendHit(); };
-  if (standBtn) standBtn.onclick = () => { setPendingBtn(standBtn, 'STAND…'); sendStand(); };
+  if (dealBtn) dealBtn.onclick = () => { void sendDeal(); };
+  if (hitBtn) hitBtn.onclick = () => { setPendingBtn(hitBtn, 'HIT…'); void sendHit(); };
+  if (standBtn) standBtn.onclick = () => { setPendingBtn(standBtn, 'STAND…'); void sendStand(); };
 }
 
 export function updateBlackjackLive(params) {
