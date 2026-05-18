@@ -8,7 +8,6 @@
   "vars": {
     "WEB_UPSTREAM": "",
     "SERVER_UPSTREAM": "https://arena-server-broken-haze-6531.fly.dev",
-    "FIREBASE_WEB_API_KEY": "",
     "FIREBASE_AUTH_DOMAIN": "junipalee.firebaseapp.com",
     "FIREBASE_PROJECT_ID": "junipalee",
     "FIREBASE_GOOGLE_AUTH_ENABLED": "true",
