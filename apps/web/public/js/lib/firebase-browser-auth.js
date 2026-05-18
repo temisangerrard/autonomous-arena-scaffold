@@ -48,9 +48,18 @@ export async function authenticateFirebaseEmail(config, options) {
   const { authMod, auth } = await getFirebaseBrowserClient(config);
   let credential;
   if (mode === 'signup') {
-    credential = await authMod.createUserWithEmailAndPassword(auth, email, password);
-    if (displayName.trim()) {
-      await authMod.updateProfile(credential.user, { displayName: displayName.trim() });
+    try {
+      credential = await authMod.createUserWithEmailAndPassword(auth, email, password);
+      if (displayName.trim()) {
+        await authMod.updateProfile(credential.user, { displayName: displayName.trim() });
+      }
+    } catch (err) {
+      if (err?.code === 'auth/email-already-in-use') {
+        // Account already exists — sign in instead of surfacing a confusing error
+        credential = await authMod.signInWithEmailAndPassword(auth, email, password);
+      } else {
+        throw err;
+      }
     }
   } else {
     credential = await authMod.signInWithEmailAndPassword(auth, email, password);

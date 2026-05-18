@@ -258,7 +258,7 @@ export class MarketService {
       log.warn({ CHAINLINK_MARKETS_ENABLED, CHAINLINK_BTC_USD_FEED }, 'chainlink_btc_usd: disabled or feed address missing');
       return null;
     }
-    const rpcUrl = String(process.env.CHAIN_RPC_URL || process.env.BASE_RPC_URL || 'https://mainnet.base.org').trim();
+    const rpcUrl = (process.env.CHAIN_RPC_URL || process.env.BASE_RPC_URL || '').trim();
     if (!rpcUrl) {
       log.warn('chainlink_btc_usd: CHAIN_RPC_URL is not set — set to https://mainnet.base.org for Base');
       return null;
