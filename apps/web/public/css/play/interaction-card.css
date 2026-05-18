@@ -1049,9 +1049,9 @@
     }
 
     .challenge-status--warn {
-      background: var(--gold-pale);
-      border-color: rgba(201, 162, 39, 0.3);
-      color: var(--gold-dark);
+      background: rgba(0, 93, 167, 0.08);
+      border-color: rgba(0, 93, 167, 0.25);
+      color: var(--blue-dark);
     }
 
     .challenge-status--ok {
@@ -1140,9 +1140,9 @@
       width: 100%;
       height: 38px;
       border-radius: 10px;
-      border: 1px solid var(--border-gold);
-      background: var(--gold-pale);
-      color: var(--gold-dark);
+      border: 1px solid var(--border-medium);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
       font: 600 12px/1 var(--font-primary);
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -1150,7 +1150,7 @@
       transition: all 0.15s ease;
     }
     .btn-approve-escrow:hover:not(:disabled) {
-      background: var(--gold-light);
+      background: var(--bg-tertiary);
     }
     .btn-approve-escrow:disabled { opacity: 0.45; cursor: not-allowed; }
 

@@ -513,15 +513,8 @@ function togglePvpReady() {
     if (audioInitialized) return;
     audioInitialized = true;
     audioController.init();
-    // Load ambient loop from public assets (file must be placed there by build/content pipeline).
-    audioController.loadAmbientLoop('/assets/audio/arena-ambient.ogg').catch(() => {});
-    audioController.loadSfx('win', '/assets/audio/sfx-win.ogg').catch(() => {});
-    audioController.loadSfx('resolve', '/assets/audio/sfx-resolve.ogg').catch(() => {});
-    audioController.loadSfx('loss', '/assets/audio/sfx-loss.ogg').catch(() => {});
-    audioController.loadSfx('challenge_incoming', '/assets/audio/sfx-challenge-incoming.ogg').catch(() => {});
-    audioController.loadSfx('card_deal', '/assets/audio/sfx-card-deal.ogg').catch(() => {});
-    audioController.loadSfx('card_bust', '/assets/audio/sfx-card-bust.ogg').catch(() => {});
-    audioController.loadSfx('bigwin', '/assets/audio/sfx-bigwin.ogg').catch(() => {});
+    // Audio assets are not yet bundled; loadSfx/loadAmbientLoop calls will be restored
+    // once the asset files are placed in public/assets/audio/.
   }
   ['keydown', 'pointerdown', 'touchstart'].forEach((ev) => {
     window.addEventListener(ev, initAudioOnce, { once: true, passive: true });
