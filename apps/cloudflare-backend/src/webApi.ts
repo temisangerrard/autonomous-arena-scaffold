@@ -1242,6 +1242,29 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
       return payload ? json(payload) : json({ ok: false, reason: 'server_unavailable' }, 503);
     }
 
+    const runtimePostRoute = request.method === 'POST' && (
+      subpath === '/profiles/create'
+      || subpath === '/agents/reconcile'
+      || subpath === '/house/config'
+      || subpath === '/house/refill'
+      || subpath === '/house/transfer'
+      || subpath === '/wallets/onchain/prepare-escrow'
+      || subpath === '/capabilities/wallet'
+      || subpath === '/secrets/openrouter'
+      || subpath === '/super-agent/config'
+      || subpath === '/super-agent/ethskills/sync'
+      || subpath === '/super-agent/delegate/apply'
+      || /^\/agents\/[^/]+\/config$/.test(subpath)
+      || /^\/wallets\/[^/]+\/(fund|withdraw|transfer|export-key)$/.test(subpath)
+    );
+    if (runtimePostRoute) {
+      const payload = await runtimeFetch(request, env, subpath, {
+        method: 'POST',
+        body: await request.json().catch(() => ({})),
+      }).catch(() => null);
+      return payload ? json(payload) : json({ ok: false, reason: 'runtime_unavailable' }, 503);
+    }
+
     if (request.method === 'GET') {
       return json({ ok: false, reason: 'admin_proxy_not_allowed' }, 404);
     }

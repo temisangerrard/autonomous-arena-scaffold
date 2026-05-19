@@ -138,9 +138,9 @@ const el = {
 };
 
 const QUICK_TOOLS = {
-  default: ['status', 'reconcile bots to 8', 'check sponsor gas', 'sync markets'],
-  fleet: ['reconcile bots to 8', 'apply delegation'],
-  treasury: ['check sponsor gas', 'refill 2'],
+  default: ['status', 'reconcile agents to 8', 'check payout signer', 'sync markets'],
+  fleet: ['reconcile agents to 8', 'apply delegation'],
+  treasury: ['check payout signer', 'refill 2'],
   markets: ['sync markets'],
   users: ['logout user profile_1', 'teleport user profile_1 section 3', 'credit user profile_1 10']
 };
@@ -249,7 +249,7 @@ function formatMarketDate(ms) {
 
 function formatAdminChainLabel(chainIdLike) {
   const chainId = Number(chainIdLike ?? NaN);
-  if (chainId === 8453) return '8453 (Base Mainnet)';
+  if (chainId === 8453) return '8453 (Settlement network)';
   if (Number.isFinite(chainId) && chainId > 0) return `${chainId} (unsupported for admin balances)`;
   return '-';
 }
@@ -334,7 +334,7 @@ function marketsRenderTable() {
         <span class="markets-price no">N ${noPrice}</span>
       </div>
       <div class="markets-actions">
-        <button type="button" data-action="toggle" data-market-id="${escapeHtml(id)}" class="${active ? 'btn-deactivate' : 'btn-activate'}">${active ? 'Deactivate' : 'Activate'}</button>
+        <button type="button" data-action="toggle" data-market-id="${escapeHtml(id)}" class="${active ? 'btn-deactivate' : 'btn-activate'}">${active ? 'Pause' : 'Activate'}</button>
       </div>
     </div>`;
   }).join('');
@@ -362,7 +362,7 @@ function marketsRenderDetail(market) {
     <div class="markets-detail-controls">
       <label>Max Wager <input id="market-max-wager" type="number" min="1" max="100000" step="1" value="${Math.max(1, Number(market.maxWager || 100))}" /></label>
       <label>Spread (bps) <input id="market-spread-bps" type="number" min="0" max="10000" step="1" value="${Math.max(0, Number(market.houseSpreadBps || 300))}" /></label>
-      <button id="market-save-config" type="button" data-market-id="${escapeHtml(id)}">Save config</button>
+      <button id="market-save-config" type="button" data-market-id="${escapeHtml(id)}">Save market</button>
     </div>
   `;
 }
@@ -525,7 +525,7 @@ function renderTools() {
     group.innerHTML = cmds.map((cmd) => `<button type="button" data-cmd="${escapeHtml(cmd)}">${escapeHtml(cmd)}</button>`).join('');
   }
   if (el.superChips) {
-    const superCmds = ['status', 'why are games not starting?', 'rebalance bots', 'show disconnected bots', 'apply delegation', 'optimize challenge flow'];
+    const superCmds = ['status', 'why are games not starting?', 'rebalance agents', 'show disconnected agents', 'apply delegation', 'optimize challenge flow'];
     el.superChips.innerHTML = superCmds.map((cmd) => `<button type="button" class="chip" data-cmd="${escapeHtml(cmd)}">${escapeHtml(cmd)}</button>`).join('');
   }
 }
@@ -552,11 +552,11 @@ function renderOverview() {
   const status = state.latestStatus || {};
   const houseBalance = Number(status?.house?.wallet?.balance || 0);
   const kpis = [
-    ['Configured bots', toNumber(status.configuredBotCount, 0)],
-    ['Connected bots', toNumber(status.connectedBotCount, 0)],
-    ['Background bots', toNumber(status.backgroundBotCount, 0)],
+    ['Configured agents', toNumber(status.configuredBotCount, 0)],
+    ['Connected agents', toNumber(status.connectedBotCount, 0)],
+    ['Arena agents', toNumber(status.backgroundBotCount, 0)],
     ['Profiles', toNumber(status.profiles?.length || 0, 0)],
-    ['OpenRouter', status.openRouterConfigured ? 'Yes' : 'No'],
+    ['AI key', status.openRouterConfigured ? 'Saved' : 'Not saved'],
     ['House balance', houseBalance.toFixed(2)]
   ];
 
@@ -567,27 +567,29 @@ function renderOverview() {
   }
 
   if (el.runtimeSnapshot) {
-    const snapshot = {
-      configuredBotCount: status.configuredBotCount,
-      connectedBotCount: status.connectedBotCount,
-      backgroundBotCount: status.backgroundBotCount,
-      profileBotCount: status.profileBotCount,
-      profileCount: status.profiles?.length || 0,
-      superAgent: status.superAgent,
-      house: status.house,
-      superAgentStatus: state.latestSuperStatus || null
-    };
-    el.runtimeSnapshot.textContent = JSON.stringify(snapshot, null, 2);
+    const superAgent = status.superAgent || {};
+    const house = status.house || {};
+    const lines = [
+      `Agents configured: ${toNumber(status.configuredBotCount, 0)}`,
+      `Agents online: ${toNumber(status.connectedBotCount, 0)}`,
+      `Arena agents: ${toNumber(status.backgroundBotCount, 0)}`,
+      `Player agents: ${toNumber(status.profileBotCount, 0)}`,
+      `Profiles: ${toNumber(status.profiles?.length || 0, 0)}`,
+      `Ops agent mode: ${superAgent.mode || 'balanced'}`,
+      `Auto-challenge: ${superAgent.challengeEnabled ? 'On' : 'Off'}`,
+      `House balance: ${Number(house.wallet?.balance || 0).toFixed(2)}`
+    ];
+    el.runtimeSnapshot.textContent = lines.join('\n');
   }
 
   if (el.overviewIncidents) {
     const lines = [];
     const disconnected = status.disconnectedBotIds || [];
     if (disconnected.length > 0) {
-      lines.push(`Disconnected bots (${disconnected.length}): ${disconnected.join(', ')}`);
+      lines.push(`Disconnected agents (${disconnected.length}): ${disconnected.join(', ')}`);
     }
     if (Array.isArray(status.lastBotWsErrorAt) && status.lastBotWsErrorAt.length > 0) {
-      lines.push(`Bot WS errors: ${JSON.stringify(status.lastBotWsErrorAt)}`);
+      lines.push(`Agent websocket errors: ${JSON.stringify(status.lastBotWsErrorAt)}`);
     }
     const recentChallenges = (state.latestChallenges || []).slice(-6).reverse().map(formatChallengeLine);
     if (recentChallenges.length > 0) {
@@ -642,19 +644,19 @@ function renderProfiles() {
     row.innerHTML = `
       <td>
         <div>${escapeHtml(profile.displayName || profile.id || '-')}</div>
-        <div style="color:var(--text-muted);font-size:11px;">${escapeHtml(profile.id || '-')} · @${escapeHtml(profile.username || '-')}</div>
+        <div class="mono users-meta">${escapeHtml(profile.id || '-')} · @${escapeHtml(profile.username || '-')}</div>
       </td>
       <td>
         <div class="mono">${escapeHtml(profile.wallet?.id || profile.walletId || 'n/a')}</div>
-        <div class="mono" style="color:var(--text-muted);font-size:11px;">${escapeHtml(profile.wallet?.address || 'n/a')}</div>
+        <div class="mono users-meta">${escapeHtml(profile.wallet?.address || 'n/a')}</div>
       </td>
       <td>${Number(profile.wallet?.balance || 0).toFixed(2)}</td>
       <td>${escapeHtml((profile.ownedBotIds || []).join(', '))}</td>
       <td>
         <div class="btn-row">
-          <button data-action="fund" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="10">+10</button>
-          <button data-action="withdraw" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="5">-5</button>
-          ${canExportKey ? `<button data-action="export" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-profile-id="${escapeHtml(profile.id || '')}">Export key</button>` : ''}
+          <button data-action="fund" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="10">Add 10</button>
+          <button data-action="withdraw" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="5">Remove 5</button>
+          ${canExportKey ? `<button data-action="export" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-profile-id="${escapeHtml(profile.id || '')}">Reveal key</button>` : ''}
         </div>
       </td>
     `;
@@ -676,20 +678,28 @@ function renderBots() {
       <td>${escapeHtml(meta.ownerProfileId || 'system')}</td>
       <td>${escapeHtml(meta.duty || 'n/a')}</td>
       <td>${typeof meta.patrolSection === 'number' ? `S${meta.patrolSection + 1}` : '—'}</td>
-      <td>${bot.connected ? 'yes' : 'no'}</td>
+      <td><span class="badge"><span class="dot ${bot.connected ? 'online' : 'offline'}"></span>${bot.connected ? 'Online' : 'Offline'}</span></td>
       <td>
         <select data-bot-id="${escapeHtml(bot.id || '')}" data-field="personality">
-          ${['aggressive', 'conservative', 'social'].map((value) => `<option value="${value}" ${bot.behavior?.personality === value ? 'selected' : ''}>${value}</option>`).join('')}
+          ${[
+            ['aggressive', 'Aggressive'],
+            ['conservative', 'Conservative'],
+            ['social', 'Social']
+          ].map(([value, label]) => `<option value="${value}" ${bot.behavior?.personality === value ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
       </td>
       <td>
         <select data-bot-id="${escapeHtml(bot.id || '')}" data-field="targetPreference">
-          ${['human_only', 'human_first', 'any'].map((value) => `<option value="${value}" ${bot.behavior?.targetPreference === value ? 'selected' : ''}>${value}</option>`).join('')}
+          ${[
+            ['human_only', 'Players only'],
+            ['human_first', 'Players first'],
+            ['any', 'Anyone']
+          ].map(([value, label]) => `<option value="${value}" ${bot.behavior?.targetPreference === value ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
       </td>
       <td><input data-bot-id="${escapeHtml(bot.id || '')}" data-field="challengeCooldownMs" type="number" min="1200" max="120000" value="${toNumber(bot.behavior?.challengeCooldownMs, 2600)}"></td>
       <td><input data-bot-id="${escapeHtml(bot.id || '')}" data-field="managedBySuperAgent" type="checkbox" ${meta.managedBySuperAgent ? 'checked' : ''}></td>
-      <td><button data-action="save-bot" data-bot-id="${escapeHtml(bot.id || '')}">Save</button></td>
+      <td><button data-action="save-bot" data-bot-id="${escapeHtml(bot.id || '')}">Save agent</button></td>
     `;
     el.botsBody.appendChild(row);
   }
@@ -772,9 +782,9 @@ function renderTreasuryAssets() {
       <td>${Number.isFinite(ethBal) ? ethBal.toFixed(6) : '-'}</td>
       <td>
         <div class="btn-row">
-          <button data-action="treasury-fund" data-wallet-id="${escapeHtml(walletId)}">+10</button>
-          <button data-action="treasury-withdraw" data-wallet-id="${escapeHtml(walletId)}">-5</button>
-          ${canExportKey ? `<button data-action="treasury-export" data-wallet-id="${escapeHtml(walletId)}" data-profile-id="${escapeHtml(owner)}">Export</button>` : ''}
+          <button data-action="treasury-fund" data-wallet-id="${escapeHtml(walletId)}">Add 10</button>
+          <button data-action="treasury-withdraw" data-wallet-id="${escapeHtml(walletId)}">Remove 5</button>
+          ${canExportKey ? `<button data-action="treasury-export" data-wallet-id="${escapeHtml(walletId)}" data-profile-id="${escapeHtml(owner)}">Reveal key</button>` : ''}
         </div>
       </td>
     `;
@@ -829,23 +839,23 @@ function renderUsers() {
       <td>
         <div class="users-ops">
           <select data-field="teleport-section">
-            <option value="">Teleport: section…</option>
+            <option value="">Choose section...</option>
             <option value="0">S1</option><option value="1">S2</option><option value="2">S3</option><option value="3">S4</option>
             <option value="4">S5</option><option value="5">S6</option><option value="6">S7</option><option value="7">S8</option>
           </select>
-          <button type="button" data-action="teleport-section">Teleport To Section</button>
+          <button type="button" data-action="teleport-section">Move to section</button>
           <div class="users-pair-grid">
             <input data-field="teleport-x" type="number" step="0.5" placeholder="x">
             <input data-field="teleport-z" type="number" step="0.5" placeholder="z">
           </div>
-          <button type="button" data-action="teleport-coords">Teleport To Coords</button>
+          <button type="button" data-action="teleport-coords">Move to coordinates</button>
           <div class="users-pair-grid">
-            <select data-field="wallet-direction"><option value="credit">Credit</option><option value="debit">Debit</option></select>
+            <select data-field="wallet-direction"><option value="credit">Add balance</option><option value="debit">Remove balance</option></select>
             <input data-field="wallet-amount" type="number" min="0" step="0.01" placeholder="amount">
           </div>
           <input data-field="wallet-reason" type="text" placeholder="reason (optional)">
-          <button type="button" class="primary" data-action="wallet-adjust">Adjust Wallet</button>
-          <button type="button" data-action="force-logout">Force Logout</button>
+          <button type="button" class="primary" data-action="wallet-adjust">Apply balance change</button>
+          <button type="button" data-action="force-logout">Sign player out</button>
         </div>
       </td>
     `;
@@ -1116,11 +1126,11 @@ function bindSuperActions() {
 
   el.saveOpenrouterBtn?.addEventListener('click', async () => {
     try {
-      await apiPost('/api/admin/runtime/secrets/openrouter', { apiKey: String(el.openrouterKeyInput?.value || '').trim() });
+      const result = await apiPost('/api/admin/runtime/secrets/openrouter', { apiKey: String(el.openrouterKeyInput?.value || '').trim() });
       if (el.openrouterKeyInput) el.openrouterKeyInput.value = '';
-      addActivity('write', 'Updated OpenRouter secret');
+      addActivity('write', result.saved ? 'Updated AI model key' : 'Checked AI model key settings');
       await refreshAll({ silent: true });
-      setStatus('OpenRouter key saved.');
+      setStatus(result.saved ? 'AI model key saved.' : 'AI model keys are managed in Cloudflare secrets.');
     } catch (error) {
       setStatus(`Failed: ${String(error?.message || error)}`);
     }
@@ -1128,12 +1138,12 @@ function bindSuperActions() {
 
   el.syncEthskillsBtn?.addEventListener('click', async () => {
     try {
-      appendSuperLog('system: syncing ETHSkills...');
+      appendSuperLog('system: syncing agent skills...');
       await apiPost('/api/admin/runtime/super-agent/ethskills/sync', {});
-      appendSuperLog('system: ETHSkills sync complete.');
-      addActivity('write', 'Synced ETHSkills');
+      appendSuperLog('system: Agent skills sync complete.');
+      addActivity('write', 'Synced agent skills');
       await refreshAll({ silent: true });
-      setStatus('ETHSkills sync complete.');
+      setStatus('Agent skills sync complete.');
     } catch (error) {
       setStatus(`Failed: ${String(error?.message || error)}`);
     }
@@ -1152,12 +1162,12 @@ function bindSuperActions() {
 
   const handleBgCountApply = async () => {
     const count = Number(el.bgCountInput?.value || 0);
-    if (!window.confirm(`Reconcile background bots to ${count}?`)) return;
+    if (!window.confirm(`Set arena agents to ${count}?`)) return;
     try {
       await apiPost('/api/admin/runtime/agents/reconcile', { count });
-      addActivity('write', `Reconciled background bot count to ${count}`);
+      addActivity('write', `Set arena agent count to ${count}`);
       await refreshAll({ silent: true });
-      setStatus('Background bot count applied.');
+      setStatus('Arena agent count applied.');
     } catch (error) {
       setStatus(`Failed: ${String(error?.message || error)}`);
     }
@@ -1593,10 +1603,10 @@ function bindMarketsActions() {
       if (!marketId) return;
       const market = marketsState.markets.find((entry) => String(entry.id || '') === marketId) || null;
       if (!market) return;
-      setStatus(`${market.active ? 'Deactivating' : 'Activating'} ${marketId}...`);
+      setStatus(`${market.active ? 'Pausing' : 'Activating'} ${marketId}...`);
       try {
         await marketsSetActive(marketId, !market.active);
-        setStatus(`Market ${!market.active ? 'activated' : 'deactivated'}: ${marketId}`);
+        setStatus(`Market ${!market.active ? 'activated' : 'paused'}: ${marketId}`);
       } catch (error) {
         setStatus(`Market toggle failed: ${String(error?.message || error)}`);
       }

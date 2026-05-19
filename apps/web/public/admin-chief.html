@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="base:app_id" content="69a988a7223099cde83059f4">
-  <title>Admin — Ops Command</title>
+  <title>AutoBett Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600;1,700&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/css/claude-corners.css">
   <link rel="stylesheet" href="/css/admin-chief.css">
@@ -16,28 +17,32 @@
 <body>
   <div class="chief-shell">
     <aside class="chief-rail">
-      <h1>Admin</h1>
-      <p class="muted">Operations control</p>
+      <a href="/" class="chief-brand">AutoBett <span>Arena</span></a>
+      <p class="muted">Admin control room</p>
       <nav>
-        <button class="rail-btn active" data-view="overview">Overview</button>
-        <button class="rail-btn" data-view="arena">Arena</button>
-        <button class="rail-btn" data-view="treasury">Treasury</button>
-        <button class="rail-btn" data-view="markets">Markets</button>
-        <button class="rail-btn" data-view="users">Users</button>
-        <button class="rail-btn" data-view="ops">Operations</button>
-        <button class="rail-btn" data-view="activity">Activity</button>
+        <button class="rail-btn active" data-view="overview"><span class="material-symbols-outlined">dashboard</span>Overview</button>
+        <button class="rail-btn" data-view="arena"><span class="material-symbols-outlined">stadia_controller</span>Arena</button>
+        <button class="rail-btn" data-view="treasury"><span class="material-symbols-outlined">account_balance_wallet</span>Treasury</button>
+        <button class="rail-btn" data-view="markets"><span class="material-symbols-outlined">query_stats</span>Markets</button>
+        <button class="rail-btn" data-view="users"><span class="material-symbols-outlined">groups</span>Players</button>
+        <button class="rail-btn" data-view="ops"><span class="material-symbols-outlined">terminal</span>Ops Agent</button>
+        <button class="rail-btn" data-view="activity"><span class="material-symbols-outlined">history</span>Activity</button>
       </nav>
-      <div class="rail-section-label">Quick Links</div>
+      <div class="rail-section-label">Shortcuts</div>
       <div class="rail-links">
         <a href="/admin/markets-lab">Markets Lab</a>
-        <a href="/users">Users Utility</a>
+        <a href="/users">Player Utility</a>
+        <a href="/dashboard">Player Dashboard</a>
       </div>
     </aside>
 
     <main class="chief-main">
       <header class="topbar">
-        <div id="status-line">Loading admin workspace...</div>
-        <button id="refresh" type="button">Refresh</button>
+        <div>
+          <div class="topbar-eyebrow">Live admin workspace</div>
+          <div id="status-line">Loading admin data...</div>
+        </div>
+        <button id="refresh" type="button" class="primary"><span class="material-symbols-outlined">refresh</span>Refresh</button>
       </header>
 
       <section class="views">
@@ -45,39 +50,45 @@
         <!-- OVERVIEW -->
         <article class="view active" id="view-overview">
           <div class="view-header">
-            <h3>Overview</h3>
+            <div>
+              <p class="view-kicker">Command center</p>
+              <h3>Overview</h3>
+            </div>
           </div>
           <div id="overview-kpis" class="kpi-grid"></div>
           <div class="split split--mt">
             <div class="panel-card">
-              <h4>Runtime Snapshot</h4>
+              <h4>Operations health</h4>
               <pre id="runtime-snapshot">Loading...</pre>
             </div>
             <div class="panel-card">
-              <h4>Recent Activity &amp; Alerts</h4>
+              <h4>Recent alerts</h4>
               <pre id="overview-incidents">Loading...</pre>
             </div>
           </div>
         </article>
 
-        <!-- ARENA — profiles + bots + challenges -->
+        <!-- Arena profiles, agents, and challenges -->
         <article class="view" id="view-arena">
           <div class="view-header">
-            <h3>Arena</h3>
+            <div>
+              <p class="view-kicker">Players and agents</p>
+              <h3>Arena</h3>
+            </div>
             <div class="view-actions">
-              <button id="apply-bg-count" type="button">Reconcile Bot Count</button>
+              <button id="apply-bg-count" type="button"><span class="material-symbols-outlined">sync</span>Set agent count</button>
             </div>
           </div>
           <div class="split">
             <div class="panel-card">
-              <h4>Create Profile Bundle</h4>
+              <h4>Create player and agent</h4>
               <div class="form-row">
                 <div>
                   <label class="form-label" for="new-username">Username</label>
                   <input id="new-username" type="text" placeholder="temi">
                 </div>
                 <div>
-                  <label class="form-label" for="new-display-name">Display Name</label>
+                  <label class="form-label" for="new-display-name">Display name</label>
                   <input id="new-display-name" type="text" placeholder="Temisan">
                 </div>
               </div>
@@ -91,27 +102,27 @@
                   </select>
                 </div>
                 <div>
-                  <label class="form-label" for="new-target">Target Preference</label>
+                  <label class="form-label" for="new-target">Challenge target</label>
                   <select id="new-target">
-                    <option value="human_only">human_only</option>
-                    <option value="human_first">human_first</option>
-                    <option value="any">any</option>
+                    <option value="human_only">Players only</option>
+                    <option value="human_first">Players first</option>
+                    <option value="any">Anyone</option>
                   </select>
                 </div>
               </div>
               <div class="btn-row">
-                <button id="create-profile" type="button" class="primary">Create Profile</button>
+                <button id="create-profile" type="button" class="primary">Create player</button>
               </div>
             </div>
             <div class="panel-card">
-              <h4>Background Bots</h4>
+              <h4>Arena agents</h4>
               <div class="form-row form-row--end">
                 <div>
-                  <label class="form-label" for="bg-count">Target Count</label>
+                  <label class="form-label" for="bg-count">Target count</label>
                   <input id="bg-count" type="number" min="0" max="120" value="8">
                 </div>
                 <div class="form-cell--end">
-                  <button id="apply-bg-count-inline" type="button" class="primary btn-full">Apply</button>
+                  <button id="apply-bg-count-inline" type="button" class="primary btn-full">Apply count</button>
                 </div>
               </div>
               <div class="chips chips--mt" data-tool-group="fleet"></div>
@@ -122,14 +133,14 @@
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Profile</th><th>Wallet</th><th>Balance</th><th>Bots</th><th>Actions</th></tr>
+                  <tr><th>Profile</th><th>Wallet</th><th>Balance</th><th>Agents</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="profiles-body"></tbody>
               </table>
             </div>
           </div>
           <div class="view-section">
-            <h4 class="section-label">Bots</h4>
+            <h4 class="section-label">Agents</h4>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -146,22 +157,27 @@
 
         <!-- TREASURY -->
         <article class="view" id="view-treasury">
-          <div class="view-header"><h3>Treasury</h3></div>
+          <div class="view-header">
+            <div>
+              <p class="view-kicker">Funds, payouts, and recovery</p>
+              <h3>Treasury</h3>
+            </div>
+          </div>
           <div class="mode-switch treasury-modes" role="tablist" aria-label="Treasury sections">
-            <button type="button" class="mode-btn active" data-treasury-mode="wallet">Wallet Ops</button>
-            <button type="button" class="mode-btn" data-treasury-mode="contract">Contract Ops</button>
-            <button type="button" class="mode-btn" data-treasury-mode="risk">Risk &amp; Recovery</button>
+            <button type="button" class="mode-btn active" data-treasury-mode="wallet">Arena balances</button>
+            <button type="button" class="mode-btn" data-treasury-mode="contract">Settlement treasury</button>
+            <button type="button" class="mode-btn" data-treasury-mode="risk">Risk and recovery</button>
           </div>
           <section class="treasury-panel is-active" data-treasury-panel="wallet">
             <div class="panel-card panel-card--mb">
-              <h4>House Funds</h4>
+              <h4>House funds</h4>
               <div class="form-row">
                 <div>
-                  <label class="form-label">Visible House Funds</label>
+                  <label class="form-label">Visible house funds</label>
                   <input id="house-funds-total" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label">Historical Treasury Outflows</label>
+                  <label class="form-label">Historical payouts</label>
                   <input id="house-funds-outflows" type="text" readonly value="-">
                 </div>
               </div>
@@ -182,50 +198,50 @@
             </div>
             <div class="split">
               <div class="panel-card">
-                <h4>House Policy</h4>
+              <h4>House balance policy</h4>
                 <div class="form-row">
                   <div>
-                    <label class="form-label">House Wallet</label>
+                    <label class="form-label">House wallet</label>
                     <input id="house-wallet-id" type="text" readonly value="-">
                   </div>
                   <div>
-                    <label class="form-label">House Balance</label>
+                    <label class="form-label">House balance</label>
                     <input id="house-balance" type="text" readonly value="-">
                   </div>
                 </div>
                 <div class="form-row form-row-3">
                   <div>
-                    <label class="form-label" for="house-npc-floor">NPC Floor</label>
+                    <label class="form-label" for="house-npc-floor">Dealer minimum</label>
                     <input id="house-npc-floor" type="number" min="0" step="1" value="40">
                   </div>
                   <div>
-                    <label class="form-label" for="house-npc-topup">NPC Topup</label>
+                    <label class="form-label" for="house-npc-topup">Dealer top-up</label>
                     <input id="house-npc-topup" type="number" min="0" step="1" value="20">
                   </div>
                   <div>
-                    <label class="form-label" for="house-super-floor">Agent Floor</label>
+                    <label class="form-label" for="house-super-floor">Agent minimum</label>
                     <input id="house-super-floor" type="number" min="0" step="1" value="120">
                   </div>
                 </div>
                 <div class="btn-row">
-                  <button id="house-apply" type="button" class="primary">Apply House Policy</button>
+                  <button id="house-apply" type="button" class="primary">Save policy</button>
                 </div>
                 <div class="chips chips--mt" data-tool-group="treasury"></div>
               </div>
               <div class="panel-card">
-                <h4>Refill / Transfer</h4>
+                <h4>Move house balance</h4>
                 <div class="form-row">
                   <div>
-                    <label class="form-label" for="house-refill-amount">Refill Amount</label>
+                    <label class="form-label" for="house-refill-amount">Refill amount</label>
                     <input id="house-refill-amount" type="number" min="1" step="1" value="200">
                   </div>
                   <div class="form-cell--end">
-                    <button id="house-refill" type="button" class="btn-full">Refill House</button>
+                    <button id="house-refill" type="button" class="btn-full">Refill house</button>
                   </div>
                 </div>
                 <div class="form-row">
                   <div>
-                    <label class="form-label" for="house-transfer-wallet">To Wallet ID</label>
+                    <label class="form-label" for="house-transfer-wallet">Recipient wallet ID</label>
                     <input id="house-transfer-wallet" type="text" placeholder="wallet_123">
                   </div>
                   <div>
@@ -234,25 +250,25 @@
                   </div>
                 </div>
                 <div class="btn-row">
-                  <button id="house-transfer" type="button">Transfer</button>
+                  <button id="house-transfer" type="button">Send balance</button>
                 </div>
               </div>
             </div>
             <div class="view-section">
-              <h4 class="section-label">Controlled Wallets</h4>
+              <h4 class="section-label">Controlled balances</h4>
               <div class="treasury-wallets-toolbar">
                 <label class="checkbox-label">
                   <input id="treasury-show-system-wallets" type="checkbox" checked>
-                  Show system wallets
+                  Show system balances
                 </label>
               </div>
               <div class="split">
                 <div class="panel-card">
-                  <h4>Treasury Action Center</h4>
-                  <p class="panel-note panel-note--mb">Operate only wallets you control from this runtime. Choose source wallet first.</p>
+                  <h4>Balance action center</h4>
+                  <p class="panel-note panel-note--mb">Choose a source, amount, and destination. External payouts ask for confirmation before sending.</p>
                   <div class="form-row">
                     <div>
-                      <label class="form-label" for="treasury-action-source">Source Wallet</label>
+                      <label class="form-label" for="treasury-action-source">Source balance</label>
                       <select id="treasury-action-source"></select>
                     </div>
                     <div>
@@ -262,23 +278,23 @@
                   </div>
                   <div class="form-row">
                     <div>
-                      <label class="form-label" for="treasury-transfer-target">Internal Transfer To</label>
+                      <label class="form-label" for="treasury-transfer-target">Send inside arena to</label>
                       <select id="treasury-transfer-target"></select>
                     </div>
                     <div class="form-cell--end">
-                      <button id="treasury-transfer-run" type="button">Transfer Internal</button>
+                      <button id="treasury-transfer-run" type="button">Send internally</button>
                     </div>
                   </div>
                   <div class="form-row">
                     <div>
-                      <label class="form-label" for="treasury-external-address">External Payout Address (paste)</label>
+                      <label class="form-label" for="treasury-external-address">External payout address</label>
                       <input id="treasury-external-address" type="text" placeholder="0x...">
                     </div>
                     <div class="form-cell--end">
-                      <button id="treasury-external-withdraw-run" type="button" class="primary">Withdraw To External</button>
+                      <button id="treasury-external-withdraw-run" type="button" class="primary">Send payout</button>
                     </div>
                   </div>
-                  <pre id="treasury-action-result">Select source wallet and run an action.</pre>
+                  <pre id="treasury-action-result">Choose a source balance and run an action.</pre>
                 </div>
                 <div class="table-wrap">
                   <table>
@@ -296,10 +312,10 @@
 
           <section class="treasury-panel" data-treasury-panel="contract">
             <div class="view-section">
-              <h4 class="section-label">Onchain Contracts</h4>
+              <h4 class="section-label">Settlement treasury</h4>
               <div class="form-row form-row-3">
                 <div>
-                  <label class="form-label">Chain</label>
+                  <label class="form-label">Network</label>
                   <input id="onchain-chain-id" type="text" readonly value="-">
                 </div>
                 <div>
@@ -307,72 +323,72 @@
                   <input id="onchain-token-address" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label">Escrow Contract</label>
+                  <label class="form-label">Settlement contract</label>
                   <input id="onchain-escrow-address" type="text" readonly value="-">
                 </div>
               </div>
               <div class="form-row form-row-3">
                 <div>
-                  <label class="form-label">Escrow ETH</label>
+                  <label class="form-label">Contract gas</label>
                   <input id="onchain-escrow-eth" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label">Sponsor Wallet</label>
+                  <label class="form-label">Signer account</label>
                   <input id="onchain-sponsor-address" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label">Sponsor ETH</label>
+                  <label class="form-label">Signer gas</label>
                   <input id="onchain-sponsor-eth" type="text" readonly value="-">
                 </div>
               </div>
               <div class="form-row form-row-3">
                 <div>
-                  <label class="form-label">House Treasury (USDC)</label>
+                  <label class="form-label">Available winnings pool</label>
                   <input id="onchain-house-treasury" type="text" readonly value="-">
                 </div>
                 <div>
-                  <label class="form-label" for="onchain-treasury-withdraw-amount">Withdraw Amount</label>
+                  <label class="form-label" for="onchain-treasury-withdraw-amount">Payout amount</label>
                   <input id="onchain-treasury-withdraw-amount" type="number" min="0.01" step="0.01" value="1">
                 </div>
                 <div>
-                  <label class="form-label" for="onchain-treasury-withdraw-recipient">Withdraw Recipient</label>
+                  <label class="form-label" for="onchain-treasury-withdraw-recipient">Payout recipient</label>
                   <input id="onchain-treasury-withdraw-recipient" type="text" placeholder="0x...">
                 </div>
               </div>
               <div class="btn-row">
-                <button id="onchain-treasury-withdraw-run" type="button">Withdraw Treasury</button>
+                <button id="onchain-treasury-withdraw-run" type="button" class="primary">Send winnings</button>
               </div>
-              <pre id="onchain-treasury-withdraw-result">No treasury withdrawal yet.</pre>
+              <pre id="onchain-treasury-withdraw-result">No winnings payout yet.</pre>
               <div class="form-row">
                 <div>
-                  <label class="form-label" for="onchain-prepare-wallets">Prepare Escrow Wallet IDs (comma-separated)</label>
+                  <label class="form-label" for="onchain-prepare-wallets">Prepare wallet IDs</label>
                   <input id="onchain-prepare-wallets" type="text" placeholder="wallet_2,wallet_9">
                 </div>
                 <div>
-                  <label class="form-label" for="onchain-prepare-amount">Wager Amount</label>
+                  <label class="form-label" for="onchain-prepare-amount">Wager amount</label>
                   <input id="onchain-prepare-amount" type="number" min="0.01" step="0.01" value="1">
                 </div>
                 <div class="form-cell--end">
-                  <button id="onchain-prepare-run" type="button" class="primary btn-full">Prepare Escrow</button>
+                  <button id="onchain-prepare-run" type="button" class="btn-full">Prepare players</button>
                 </div>
               </div>
-              <pre id="onchain-prepare-result">No prepare run yet.</pre>
+              <pre id="onchain-prepare-result">No player preparation run yet.</pre>
             </div>
           </section>
 
           <section class="treasury-panel" data-treasury-panel="risk">
             <div class="split">
               <div class="panel-card">
-                <h4>Transfer Ledger</h4>
+                <h4>Transfer ledger</h4>
                 <pre id="house-ledger">Loading house ledger...</pre>
               </div>
               <div class="panel-card">
-                <h4>Risk Notes</h4>
+                <h4>Recovery notes</h4>
                 <p class="panel-note">
-                  Sponsor failures usually come from low sponsor ETH, stale Base RPC config, or missing wallet prep before placing wagers.
+                  Failed payouts usually come from low signer gas, stale network configuration, or wallets that were not prepared before a wager.
                 </p>
                 <p class="panel-note">
-                  Use this section for audit/recovery while wallet and contract operations stay in their dedicated tabs.
+                  Keep wallet moves, settlement payouts, and recovery checks separate so each action has a clear audit trail.
                 </p>
               </div>
             </div>
@@ -382,15 +398,18 @@
         <!-- MARKETS -->
         <article class="view" id="view-markets">
           <div class="view-header">
-            <h3>Markets</h3>
+            <div>
+              <p class="view-kicker">Prediction markets</p>
+              <h3>Markets</h3>
+            </div>
             <div class="view-actions">
-              <a class="lab-link" href="/admin/markets-lab">Markets Lab →</a>
+              <a class="lab-link" href="/admin/markets-lab">Open Markets Lab</a>
             </div>
           </div>
-          <p class="panel-note panel-note--mb">Player station check and quote testing are in Markets Lab. Use the controls below to activate/deactivate.</p>
+          <p class="panel-note panel-note--mb">Control which prediction markets players can enter, refresh live rails, and tune max wager or spread.</p>
           <div class="markets-toolbar">
             <span id="markets-sync-status">—</span>
-            <button id="markets-sync-btn" type="button">⚡ Force Create BTC Markets</button>
+            <button id="markets-sync-btn" type="button" class="primary">Refresh prediction markets</button>
           </div>
           <div class="markets-filter">
             <select id="markets-filter-status">
@@ -406,7 +425,12 @@
 
         <!-- USERS -->
         <article class="view" id="view-users">
-          <div class="view-header"><h3>Users</h3></div>
+          <div class="view-header">
+            <div>
+              <p class="view-kicker">Player support</p>
+              <h3>Players</h3>
+            </div>
+          </div>
           <div class="users-toolbar">
             <div class="kpi-inline"><span class="label">Total</span><span id="users-count-total" class="value">0</span></div>
             <div class="kpi-inline"><span class="label">Online</span><span id="users-count-online" class="value">0</span></div>
@@ -425,95 +449,100 @@
 
         <!-- OPS — command + super agent -->
         <article class="view" id="view-ops">
-          <div class="view-header"><h3>Operations</h3></div>
+          <div class="view-header">
+            <div>
+              <p class="view-kicker">Operator tools</p>
+              <h3>Ops Agent</h3>
+            </div>
+          </div>
           <div class="ops-panel">
             <div class="panel-card">
-              <h4>Run Command</h4>
-              <textarea id="command-input" rows="3" placeholder="status | reconcile bots to 8 | check sponsor gas | sync markets"></textarea>
+              <h4>Run command</h4>
+              <textarea id="command-input" rows="3" placeholder="status | reconcile agents to 8 | check payout signer | sync markets"></textarea>
               <div class="cmd-actions">
-                <button id="command-run" type="button" class="primary">Run</button>
-                <button id="command-status" type="button">Quick Status</button>
-                <button id="command-confirm" type="button" hidden>Confirm Pending Action</button>
+                <button id="command-run" type="button" class="primary">Run command</button>
+                <button id="command-status" type="button">Status</button>
+                <button id="command-confirm" type="button" hidden>Confirm action</button>
               </div>
               <pre id="command-reply">Ready.</pre>
             </div>
 
             <div class="panel-card">
-              <h4>Execution Graph</h4>
+              <h4>Execution steps</h4>
               <ul id="graph-steps" class="steps"></ul>
             </div>
 
             <div class="split">
               <div class="panel-card">
-                <h4>Agent Configuration</h4>
+                <h4>Agent policy</h4>
                 <div class="form-row">
                   <div>
-                    <label class="form-label" for="super-id">Agent ID</label>
+                    <label class="form-label" for="super-id">Ops agent ID</label>
                     <input id="super-id" type="text" value="agent_1">
                   </div>
                   <div>
                     <label class="form-label" for="super-mode">Mode</label>
                     <select id="super-mode">
-                      <option value="balanced">balanced</option>
-                      <option value="hunter">hunter</option>
-                      <option value="defensive">defensive</option>
+                      <option value="balanced">Balanced</option>
+                      <option value="hunter">Aggressive</option>
+                      <option value="defensive">Defensive</option>
                     </select>
                   </div>
                 </div>
                 <div class="form-row form-row-3">
                   <div>
-                    <label class="form-label" for="super-cooldown">Cooldown (ms)</label>
+                    <label class="form-label" for="super-cooldown">Challenge cooldown (ms)</label>
                     <input id="super-cooldown" type="number" min="1200" max="120000" value="9000">
                   </div>
                   <div>
-                    <label class="form-label" for="super-target">Target</label>
+                    <label class="form-label" for="super-target">Target rule</label>
                     <select id="super-target">
-                      <option value="human_only">human_only</option>
-                      <option value="human_first">human_first</option>
-                      <option value="any">any</option>
+                      <option value="human_only">Players only</option>
+                      <option value="human_first">Players first</option>
+                      <option value="any">Anyone</option>
                     </select>
                   </div>
                   <div class="form-cell--end">
                     <label class="form-check-label">
-                      <input id="super-challenge-enabled" type="checkbox" checked> Challenges On
+                      <input id="super-challenge-enabled" type="checkbox" checked> Allow challenges
                     </label>
                   </div>
                 </div>
                 <div class="form-row">
                   <div>
                     <label class="form-check-label">
-                      <input id="wallet-enabled" type="checkbox"> Wallet Skills
+                      <input id="wallet-enabled" type="checkbox"> Balance tools enabled
                     </label>
                   </div>
                 </div>
                 <div class="form-row">
                   <div>
-                    <label class="form-label" for="wallet-skills">Wallet Skills (comma-sep)</label>
+                    <label class="form-label" for="wallet-skills">Allowed balance tools</label>
                     <input id="wallet-skills" type="text" placeholder="skill1,skill2">
                   </div>
                   <div>
-                    <label class="form-label" for="openrouter-key">OpenRouter API Key</label>
-                    <input id="openrouter-key" type="password" placeholder="sk-or-v1-...">
+                    <label class="form-label" for="openrouter-key">AI model key</label>
+                    <input id="openrouter-key" type="password" placeholder="Paste model provider key">
                   </div>
                 </div>
                 <div class="btn-row">
-                  <button id="save-super" type="button" class="primary">Apply Config</button>
-                  <button id="save-wallet" type="button">Wallet Policy</button>
-                  <button id="save-openrouter" type="button">Save OpenRouter Key</button>
+                  <button id="save-super" type="button" class="primary">Save agent policy</button>
+                  <button id="save-wallet" type="button">Save balance policy</button>
+                  <button id="save-openrouter" type="button">Save model key</button>
                 </div>
                 <div class="btn-row btn-row--mt">
-                  <button id="sync-ethskills" type="button">Sync ETHSkills</button>
-                  <button id="apply-delegation" type="button">Run Delegation</button>
+                  <button id="sync-ethskills" type="button">Sync skills</button>
+                  <button id="apply-delegation" type="button">Apply delegation</button>
                 </div>
               </div>
               <div class="panel-card">
-                <h4>Agent Console</h4>
+                <h4>Agent console</h4>
                 <div id="super-chips" class="chips chips--mt"></div>
                 <label class="form-label" for="super-chat-input">Command</label>
-                <textarea id="super-chat-input" rows="5" placeholder="status | why are games not starting? | rebalance bots"></textarea>
+                <textarea id="super-chat-input" rows="5" placeholder="status | why are games not starting? | rebalance agents"></textarea>
                 <div class="btn-row">
                   <button id="super-chat-send" type="button" class="primary">Send</button>
-                  <button id="super-chat-status" type="button">Quick Status</button>
+                  <button id="super-chat-status" type="button">Status</button>
                 </div>
                 <pre id="super-chat-log">Ops Agent ready.</pre>
               </div>
@@ -523,7 +552,12 @@
 
         <!-- ACTIVITY -->
         <article class="view" id="view-activity">
-          <div class="view-header"><h3>Activity</h3></div>
+          <div class="view-header">
+            <div>
+              <p class="view-kicker">Audit trail</p>
+              <h3>Activity</h3>
+            </div>
+          </div>
           <ul id="activity-list" class="activity-list"></ul>
         </article>
 
