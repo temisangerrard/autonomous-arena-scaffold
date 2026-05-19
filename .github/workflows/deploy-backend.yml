@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy arena-server
-        run: flyctl deploy --app arena-server-fresh-02240816 --config fly.server.toml --remote-only --wait-timeout 300
+        run: flyctl deploy --app arena-server-broken-haze-6531 --config fly.server.toml --remote-only --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
