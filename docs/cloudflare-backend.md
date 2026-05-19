@@ -13,6 +13,30 @@ The Worker becomes the single backend origin Netlify points to:
 
 This keeps the frontend on Netlify while moving runtime-owned state and bot scheduling onto Cloudflare.
 
+## Existing user continuity migration
+
+The Worker now includes a one-shot continuity backfill path for importing legacy auth mappings into Cloudflare D1.
+
+Expected source format:
+
+- a legacy `WEB_STATE_FILE` export such as `output/web-auth-state.json`
+- or any JSON document containing `identities` and optional `sessions` in the same shape
+
+Run a dry run first:
+
+- `npm run migrate:cf:users -- --source /absolute/path/to/web-auth-state.json`
+
+Apply the migration to remote D1:
+
+- `npm run migrate:cf:users -- --source /absolute/path/to/web-auth-state.json --apply`
+
+Optional flags:
+
+- `--include-sessions` to import unexpired legacy sessions
+- `--local` to target the local Wrangler D1 database instead of remote
+- `--database <name>` to override the default `arena-runtime-state`
+- `--config <path>` to override the default Wrangler config path
+
 ## Local dev
 
 1. Copy `apps/cloudflare-backend/.dev.vars.example` to `apps/cloudflare-backend/.dev.vars`.
