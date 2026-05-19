@@ -14,7 +14,7 @@
     "FIREBASE_CLIENT_AUTH_ENABLED": "true",
     "EMAIL_AUTH_ENABLED": "true",
     "GOOGLE_AUTH_ENABLED": "false",
-    "REALTIME_ENABLED": "false",
+    "REALTIME_ENABLED": "true",
     "PUBLIC_GAME_WS_URL": "",
     "PUBLIC_WORLD_ASSET_BASE_URL": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
     "DEFAULT_WORLD_ASSET_BASE_URL": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
