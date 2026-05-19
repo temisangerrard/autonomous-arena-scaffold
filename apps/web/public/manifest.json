@@ -1,7 +1,7 @@
 {
   "name": "Autonomous Arena",
   "short_name": "Arena",
-  "description": "3D browser arena with autonomous agents and onchain betting",
+  "description": "3D browser arena with prediction markets, live games, and autonomous agents",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a1a2e",

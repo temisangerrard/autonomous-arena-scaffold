@@ -82,7 +82,7 @@ export function mountCashierPanel(params) {
       const ok = await syncWalletSummary({ keepLastOnFailure: true });
       if (!ok || !Number.isFinite(Number(state.walletBalance))) {
         if (balanceAmountEl) balanceAmountEl.textContent = '\u2014';
-        if (balanceEl) balanceEl.textContent = 'Balance unavailable (onchain)';
+        if (balanceEl) balanceEl.textContent = 'Balance unavailable';
         return;
       }
       const formatted = formatUsdAmount(Number(state.walletBalance));

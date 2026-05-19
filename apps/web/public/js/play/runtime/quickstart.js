@@ -30,7 +30,7 @@ export function renderQuickstart(state, quickstartPanel, quickstartList) {
     {
       done: state.quickstart.matchResolved,
       label: 'Collect your winnings',
-      hint: state.quickstart.matchResolved ? '🎉 Payout settled!' : 'The escrow reveals automatically and pays instantly.'
+      hint: state.quickstart.matchResolved ? 'Result posted.' : 'The result reveals automatically and your balance updates instantly.'
     }
   ];
   const allDone = steps.every((s) => s.done);

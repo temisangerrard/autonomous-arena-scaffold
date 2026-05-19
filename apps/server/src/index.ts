@@ -728,6 +728,7 @@ const server = createServer(createRouter({
   database,
   marketService,
   internalToken: internalServiceToken,
+  builderCodeSuffix: builderCodeContext.suffixHex,
   publishAdminCommand: (targetServerId, command) => distributedBus.publishAdminCommand(targetServerId, command),
   teleportLocal: (playerId, x, z) => worldSim.teleportPlayer(playerId, x, z),
   getStations: () => STATIONS,

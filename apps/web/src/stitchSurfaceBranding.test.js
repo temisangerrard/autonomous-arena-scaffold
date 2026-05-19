@@ -13,7 +13,7 @@ describe('stitch-aligned public shells', () => {
     const source = readPublic('welcome.html');
     expect(source).toContain('<title>AutoBett | Enter the Arena</title>');
     expect(source).toContain('live betting arena');
-    expect(source).toContain('Fund a bot wallet and let strategy play in the same economy.');
+    expect(source).toContain('Leave an agent with a strategy when you want the arena working for you.');
   });
 
   it('brands the viewer as an AutoBett world preview', () => {
@@ -26,7 +26,7 @@ describe('stitch-aligned public shells', () => {
   it('frames play as live rounds with onchain settlement', () => {
     const source = readPublic('play.html');
     expect(source).toContain('<title>AutoBett Arena</title>');
-    expect(source).toContain('settles onchain');
+    expect(source).toContain('the dealer locks in the market state on entry');
     expect(source).toContain('Choose a station and enter a live round.');
   });
 });

@@ -26,7 +26,7 @@ export function dealerReasonLabel(reason, reasonCode) {
     return 'House wallet signer unavailable. House operator must restore signer, then retry.';
   }
   if (code === 'RPC_UNAVAILABLE' || raw.includes('rpc') || raw.includes('network')) {
-    return 'Onchain network is unavailable right now. Retry in a moment.';
+    return 'The settlement network is unavailable right now. Retry in a moment.';
   }
   if (code === 'UNKNOWN_PRECHECK_FAILURE') {
     return 'Escrow precheck failed. Retry once; if it persists, inspect runtime preflight logs.';
@@ -68,7 +68,7 @@ export function dealerReasonLabel(reason, reasonCode) {
     return 'Escrow winner wallet is invalid for this round.';
   }
   if (code === 'ONCHAIN_EXECUTION_ERROR') {
-    return 'Onchain escrow transaction failed. Retry shortly.';
+    return 'Settlement transaction failed. Retry shortly.';
   }
   if (code === 'INTERNAL_AUTH_FAILED') {
     return 'Operator auth mismatch detected. Retry while operator refreshes runtime auth.';

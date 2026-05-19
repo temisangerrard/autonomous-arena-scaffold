@@ -407,9 +407,9 @@ function renderContext() {
   if (walletBalance) walletBalance.textContent = hasOnchainBalance ? Number(tokenBalance).toFixed(4) : '—';
   if (walletBalanceNote) {
     if (!onchainMode) {
-      walletBalanceNote.textContent = 'USDC · Base mainnet';
+      walletBalanceNote.textContent = 'Arena balance';
     } else if (isBaseMainnet) {
-      walletBalanceNote.textContent = `${tokenSymbol} · Base mainnet`;
+      walletBalanceNote.textContent = `${tokenSymbol} balance`;
     } else {
       walletBalanceNote.textContent = tokenSymbol;
     }
@@ -427,7 +427,7 @@ function renderContext() {
         gasLabel.textContent = !gasSponsored && isBaseMainnet ? 'Gas (you pay):' : 'Gas:';
       }
       gasIndicator.title = !gasSponsored && isBaseMainnet
-        ? 'Base mainnet trades require ETH gas in this wallet. The app does not sponsor gas on mainnet.'
+        ? 'Some live trades require network gas in this account. The app does not sponsor gas for this mode.'
         : '';
     } else {
       gasIndicator.style.display = 'none';
@@ -539,7 +539,7 @@ function renderEscrowHistory(entries, errorMessage = '') {
   }
   if (visibleEntries.length === 0) {
     const filterLabel = activityFilter === 'onchain'
-      ? 'onchain'
+      ? 'transfer'
       : activityFilter === 'escrow'
         ? 'escrow'
         : activityFilter === 'markets'
@@ -567,7 +567,7 @@ function renderEscrowHistory(entries, errorMessage = '') {
         const nativeValueEth = String(entry?.nativeValueEth || '').trim();
         const emoji = direction === 'in' ? '↗' : direction === 'out' ? '↘' : '↔';
         const signClass = direction === 'in' ? 'positive' : direction === 'out' ? 'negative' : '';
-        const label = direction === 'in' ? 'Onchain receive' : direction === 'out' ? 'Onchain send' : 'Onchain transfer';
+        const label = direction === 'in' ? 'Receive' : direction === 'out' ? 'Send' : 'Transfer';
         const trail = [`method ${methodLabel}`, nativeValueEth ? `${nativeValueEth} ETH` : ''].filter(Boolean).join(' · ');
         return `<div class="tx-item">
           <div class="tx-icon ${direction === 'in' ? 'in' : 'out'}">${emoji}</div>

@@ -16,6 +16,7 @@ export type RuntimeEnv = {
   STATE_DB?: D1DatabaseLike;
   SERVER_UPSTREAM?: string;
   INTERNAL_SERVICE_TOKEN?: string;
+  OPENROUTER_API_KEY?: string;
 };
 
 type RuntimeProfile = {
@@ -169,6 +170,11 @@ const MIGRATIONS = [
     bot_counter INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS runtime_admin_settings (
+    setting_key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
   `INSERT OR IGNORE INTO runtime_counters (singleton, profile_counter, wallet_counter, bot_counter, updated_at)
    VALUES ('runtime', 1, 1, 1, 0)`,
 ];
@@ -277,6 +283,15 @@ async function first<T>(db: D1DatabaseLike, sql: string, values: unknown[] = [])
 
 async function run(db: D1DatabaseLike, sql: string, values: unknown[] = []): Promise<void> {
   await db.prepare(sql).bind(...values).run();
+}
+
+async function readSetting<T>(db: D1DatabaseLike, key: string, fallback: T): Promise<T> {
+  const row = await first<Record<string, unknown>>(db, 'SELECT value_json FROM runtime_admin_settings WHERE setting_key = ?', [key]);
+  return safeJsonParse(row?.value_json, fallback);
+}
+
+async function writeSetting(db: D1DatabaseLike, key: string, value: unknown): Promise<void> {
+  await run(db, 'INSERT OR REPLACE INTO runtime_admin_settings (setting_key, value_json, updated_at) VALUES (?, ?, ?)', [key, JSON.stringify(value), Date.now()]);
 }
 
 async function nextCounter(db: D1DatabaseLike, field: 'profile_counter' | 'wallet_counter' | 'bot_counter'): Promise<number> {
@@ -788,7 +803,14 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
   const routePath = pathname.replace(/^\/runtime/, '') || '/';
 
   if (routePath === '/status') {
-    const profiles = await all<Record<string, unknown>>(db, 'SELECT profile_id, wallet_id FROM runtime_profiles ORDER BY profile_id');
+    const profileRows = await all<Record<string, unknown>>(db, 'SELECT profile_id, wallet_id FROM runtime_profiles ORDER BY profile_id');
+    const profiles = [];
+    for (const row of profileRows) {
+      const profile = await getProfile(db, asStr(row.profile_id));
+      if (!profile) continue;
+      const wallet = await getWallet(db, profile.walletId);
+      profiles.push({ ...profile, wallet: walletSummary(wallet) });
+    }
     const botRows = await all<Record<string, unknown>>(db, 'SELECT bot_id FROM runtime_owner_bots ORDER BY bot_id');
     const bots = [];
     for (const row of botRows) {
@@ -814,15 +836,37 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
         },
       });
     }
+    const house = await ensureHouseProfile(db);
+    const superAgent = await readSetting(db, 'super_agent', {
+      id: 'agent_1',
+      mode: 'balanced',
+      challengeEnabled: false,
+      defaultChallengeCooldownMs: 9000,
+      workerTargetPreference: 'human_first',
+    });
+    const walletPolicy = await readSetting(db, 'wallet_policy', {
+      enabled: true,
+      allowedSkills: ['fund', 'withdraw', 'transfer'],
+    });
     return json({
       ok: true,
+      configuredBotCount: bots.length,
       connectedBotCount: 0,
+      backgroundBotCount: bots.filter((entry) => entry.meta.ownerProfileId === 'system_house').length,
+      profileBotCount: bots.filter((entry) => entry.meta.ownerProfileId !== 'system_house').length,
       disconnectedBotIds: bots.map((entry) => entry.id),
+      profiles,
+      house: { wallet: walletSummary(house.wallet) },
       bots,
       wallets: profiles.map((entry) => ({
-        id: asStr(entry.wallet_id),
-        ownerProfileId: asStr(entry.profile_id),
+        id: entry.walletId,
+        ownerProfileId: entry.id,
       })),
+      openRouterConfigured: Boolean(String(env.OPENROUTER_API_KEY || '').trim()),
+      superAgent: {
+        ...superAgent,
+        walletPolicy,
+      },
     });
   }
 
@@ -846,6 +890,18 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
       externalSubject: subject,
       email: typeof body?.email === 'string' ? body.email : undefined,
       displayName: typeof body?.displayName === 'string' ? body.displayName : undefined,
+      personality: body?.personality === 'aggressive' || body?.personality === 'conservative' || body?.personality === 'social' ? body.personality : undefined,
+      targetPreference: body?.targetPreference === 'human_only' || body?.targetPreference === 'human_first' || body?.targetPreference === 'any' ? body.targetPreference : undefined,
+    }));
+  }
+
+  if (routePath === '/profiles/create' && request.method === 'POST') {
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const username = String(body?.username || '').trim();
+    const displayName = String(body?.displayName || username || 'Arena Player').trim();
+    return json(await createProfileProvision(db, {
+      externalSubject: `admin:${username || displayName}:${Date.now()}`,
+      displayName,
       personality: body?.personality === 'aggressive' || body?.personality === 'conservative' || body?.personality === 'social' ? body.personality : undefined,
       targetPreference: body?.targetPreference === 'human_only' || body?.targetPreference === 'human_first' || body?.targetPreference === 'any' ? body.targetPreference : undefined,
     }));
@@ -1026,6 +1082,115 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
         wallet: walletSummary(house.wallet),
       },
     });
+  }
+
+  if (routePath === '/house/config' && request.method === 'POST') {
+    const house = await ensureHouseProfile(db);
+    return json({ ok: true, house: { wallet: walletSummary(house.wallet) }, saved: false, mode: 'cloudflare_runtime' });
+  }
+
+  if (routePath === '/house/refill' && request.method === 'POST') {
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const amount = Math.max(0, asNum(body?.amount));
+    if (amount <= 0) return json({ ok: false, reason: 'invalid_amount' }, 400);
+    const house = await ensureHouseProfile(db);
+    house.wallet.balance += amount;
+    house.wallet.dailyTxCount += 1;
+    house.wallet.lastTxAt = Date.now();
+    await run(db, 'UPDATE runtime_wallets SET balance = ?, daily_tx_count = ?, last_tx_at = ?, updated_at = ? WHERE wallet_id = ?', [house.wallet.balance, house.wallet.dailyTxCount, house.wallet.lastTxAt, Date.now(), house.wallet.id]);
+    return json({ ok: true, mode: 'runtime', house: { wallet: walletSummary(house.wallet) } });
+  }
+
+  if (routePath === '/house/transfer' && request.method === 'POST') {
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const toWalletId = String(body?.toWalletId || '').trim();
+    const amount = Math.max(0, asNum(body?.amount));
+    if (!toWalletId || amount <= 0) return json({ ok: false, reason: 'target_and_amount_required' }, 400);
+    const house = await ensureHouseProfile(db);
+    const targetWallet = await getWallet(db, toWalletId);
+    if (!targetWallet) return json({ ok: false, reason: 'target_wallet_not_found' }, 404);
+    if (house.wallet.balance < amount) return json({ ok: false, reason: 'insufficient_balance' }, 400);
+    house.wallet.balance -= amount;
+    targetWallet.balance += amount;
+    house.wallet.dailyTxCount += 1;
+    targetWallet.dailyTxCount += 1;
+    house.wallet.lastTxAt = Date.now();
+    targetWallet.lastTxAt = Date.now();
+    await run(db, 'UPDATE runtime_wallets SET balance = ?, daily_tx_count = ?, last_tx_at = ?, updated_at = ? WHERE wallet_id = ?', [house.wallet.balance, house.wallet.dailyTxCount, house.wallet.lastTxAt, Date.now(), house.wallet.id]);
+    await run(db, 'UPDATE runtime_wallets SET balance = ?, daily_tx_count = ?, last_tx_at = ?, updated_at = ? WHERE wallet_id = ?', [targetWallet.balance, targetWallet.dailyTxCount, targetWallet.lastTxAt, Date.now(), targetWallet.id]);
+    return json({ ok: true, mode: 'runtime', source: walletSummary(house.wallet), target: walletSummary(targetWallet) });
+  }
+
+  if (routePath === '/agents/reconcile' && request.method === 'POST') {
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const count = Math.max(0, Math.min(120, Math.floor(asNum(body?.count))));
+    const house = await ensureHouseProfile(db);
+    const existingRows = await all<Record<string, unknown>>(db, 'SELECT bot_id FROM runtime_owner_bots WHERE owner_profile_id = ? ORDER BY bot_id', ['system_house']);
+    for (let index = existingRows.length; index < count; index += 1) {
+      const behavior = defaultBehavior();
+      behavior.mode = 'active';
+      behavior.challengeEnabled = true;
+      behavior.targetPreference = 'human_first';
+      const record: RuntimeBotRecord = {
+        id: `agent_bg_${index + 1}`,
+        ownerProfileId: 'system_house',
+        displayName: `Arena Agent ${index + 1}`,
+        createdAt: Date.now(),
+        managedBySuperAgent: true,
+        autoplayEnabled: true,
+        duty: 'house',
+        patrolSection: index % 8,
+        walletId: house.wallet.id,
+      };
+      await persistBot(db, record, behavior, defaultAutoplaySession(behavior));
+    }
+    if (existingRows.length > count) {
+      const remove = existingRows.slice(count).map((entry) => asStr(entry.bot_id)).filter(Boolean);
+      for (const botId of remove) {
+        await run(db, 'DELETE FROM runtime_owner_bots WHERE bot_id = ?', [botId]);
+      }
+    }
+    return json({ ok: true, count });
+  }
+
+  if (routePath === '/super-agent/config' && request.method === 'POST') {
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const config = {
+      id: String(body?.id || 'agent_1').trim() || 'agent_1',
+      mode: ['balanced', 'aggressive', 'conservative'].includes(String(body?.mode || '')) ? String(body?.mode) : 'balanced',
+      challengeEnabled: Boolean(body?.challengeEnabled),
+      defaultChallengeCooldownMs: Math.max(1200, Math.min(120000, Math.floor(asNum(body?.defaultChallengeCooldownMs, 9000)))),
+      workerTargetPreference: body?.workerTargetPreference === 'human_only' || body?.workerTargetPreference === 'human_first' || body?.workerTargetPreference === 'any'
+        ? body.workerTargetPreference
+        : 'human_first',
+    };
+    await writeSetting(db, 'super_agent', config);
+    return json({ ok: true, saved: true, superAgent: config });
+  }
+
+  if (routePath === '/capabilities/wallet' && request.method === 'POST') {
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const skills = Array.isArray(body?.skills)
+      ? body.skills.map((value) => String(value || '').trim()).filter(Boolean)
+      : [];
+    const policy = {
+      enabled: Boolean(body?.enabled),
+      allowedSkills: skills.length > 0 ? skills : ['fund', 'withdraw', 'transfer'],
+    };
+    await writeSetting(db, 'wallet_policy', policy);
+    return json({ ok: true, saved: true, walletPolicy: policy });
+  }
+
+  if (routePath === '/secrets/openrouter' && request.method === 'POST') {
+    return json({ ok: true, saved: false, reason: 'model_keys_are_managed_in_cloudflare_secrets' });
+  }
+
+  if (routePath === '/super-agent/ethskills/sync' && request.method === 'POST') {
+    return json({ ok: true, refreshed: 0, skills: [] });
+  }
+
+  if (routePath === '/super-agent/delegate/apply' && request.method === 'POST') {
+    return json({ ok: true, applied: false, mode: 'cloudflare_runtime_stub' });
   }
 
   const agentConfigMatch = routePath.match(/^\/agents\/([^/]+)\/config$/);
