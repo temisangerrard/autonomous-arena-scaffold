@@ -76,6 +76,7 @@ import { createArenaConfigRuntime } from './network/arena-config.js';
 import { createQuickPlayPanel, launchQuickPlayStation } from './quick-play.js';
 import { connectSocketRuntime } from './network/socket-runtime.js';
 import { createRetryScheduler } from './network/retry-scheduler.js';
+import { applyServerPayload } from './network/server-payload.js';
 import { renderInteractionCardTemplate } from './templates/interaction-card/index.js';
 import { createRuntimeStore } from './store.js';
 import { createCoinbaseWalletApprovalClient } from '../../lib/coinbase-wallet.js';
@@ -337,7 +338,7 @@ const { syncEscrowApprovalPolicy } = escrowPolicy;
 syncEscrowApprovalPolicy();
 
 const presence = createPresence({ queryParams });
-presence.installOfflineBeacon();
+let presenceBeaconInstalled = false;
 
 const cameraController = createCameraController({ THREE, camera, state });
 
@@ -406,7 +407,36 @@ const stationInteractions = createStationInteractionsController({
   state,
   showToast,
   getSocket: () => socket,
-  resolveStationIdForSend
+  resolveStationIdForSend,
+  postStationInteract: async (payload) => {
+    try {
+      const response = await fetch('/api/game/stations/interact', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          ...buildSessionHeaders()
+        },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.ok || !body?.message) {
+        showToast('Dealer request failed. Please retry.', 'warning');
+        return false;
+      }
+      applyServerPayload({
+        payload: body.message,
+        state,
+        showToast,
+        dealerReasonLabel,
+        resolveIncomingStationId
+      });
+      return true;
+    } catch {
+      showToast('Arena request failed. Please retry.', 'warning');
+      return false;
+    }
+  }
 });
 const {
   sendStationInteract,
@@ -721,7 +751,25 @@ createQuickPlayPanel({
   showToast
 });
 
-void connectSocket();
+async function initializeTransport() {
+  const cfg = await loadArenaConfig().catch(() => null);
+  const realtimeEnabled = Boolean(cfg?.realtimeEnabled);
+  if (realtimeEnabled) {
+    if (!presenceBeaconInstalled) {
+      presence.installOfflineBeacon();
+      presenceBeaconInstalled = true;
+    }
+    await connectSocket();
+    return;
+  }
+  dispatch({ type: 'WS_CONNECTION_SET', connected: true });
+  state.challengeMessage = 'Single-player arena mode.';
+  addFeedEvent('system', 'Realtime roaming is disabled. Station play is running over HTTP.');
+  startWalletSyncScheduler();
+  void syncWalletSummary({ keepLastOnFailure: true });
+}
+
+void initializeTransport();
 startRuntimeLifecycle({
   documentRef: document,
   state,

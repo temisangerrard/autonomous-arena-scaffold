@@ -730,7 +730,27 @@ const server = createServer(createRouter({
   internalToken: internalServiceToken,
   publishAdminCommand: (targetServerId, command) => distributedBus.publishAdminCommand(targetServerId, command),
   teleportLocal: (playerId, x, z) => worldSim.teleportPlayer(playerId, x, z),
-  getStations: () => STATIONS
+  getStations: () => STATIONS,
+  handleStationInteractWithReply: async (playerId, payload, meta, reply) => {
+    const walletId = String(meta.walletId || '').trim();
+    const previousMeta = metaByPlayer.get(playerId);
+    if (!previousMeta && walletId) {
+      metaByPlayer.set(playerId, {
+        role: 'human',
+        displayName: String(meta.displayName || playerId),
+        walletId,
+        actorClass: 'human',
+        ownerProfileId: null
+      });
+    }
+    try {
+      return await stationRouter.handleStationInteractWithReply(playerId, payload as never, reply);
+    } finally {
+      if (!previousMeta && walletId) {
+        metaByPlayer.delete(playerId);
+      }
+    }
+  }
 }));
 
 server.on('upgrade', (request, socket, head) => {
@@ -1794,19 +1814,19 @@ function safeParseChallenge(raw: string): {
 
 void (async () => {
   if (process.env.NODE_ENV === 'production') {
-    if (!config.redisUrl) {
-      log.fatal('REDIS_URL must be set in production for global presence/multiplayer. Refusing to start.');
-      process.exit(1);
-    }
     if (!internalServiceToken) {
       log.fatal('INTERNAL_SERVICE_TOKEN must be set in production for admin ops. Refusing to start.');
       process.exit(1);
     }
   }
   await database.connect(config.databaseUrl);
-  await presenceStore.connect(config.redisUrl);
-  await distributedChallengeStore.connect(config.redisUrl);
-  await distributedBus.connect(config.redisUrl);
+  if (config.redisUrl?.trim()) {
+    await presenceStore.connect(config.redisUrl);
+    await distributedChallengeStore.connect(config.redisUrl);
+    await distributedBus.connect(config.redisUrl);
+  } else {
+    log.warn('REDIS_URL is not configured. Legacy distributed presence and challenge sync are disabled.');
+  }
   await marketService.refreshMarketOutcomes()
     .catch((err) => {
       log.warn({ err }, 'chainlink market bootstrap failed');

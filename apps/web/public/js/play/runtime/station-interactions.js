@@ -3,15 +3,11 @@ export function createStationInteractionsController(params) {
     state,
     showToast,
     getSocket,
-    resolveStationIdForSend
+    resolveStationIdForSend,
+    postStationInteract
   } = params;
 
-  function sendStationInteract(station, action, extra = {}) {
-    const socket = getSocket();
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      showToast('Arena link is down. Reconnect, then step back to a live host.');
-      return false;
-    }
+  async function sendStationInteract(station, action, extra = {}) {
     if (station?.source === 'host' && station?.proxyMissing) {
       showToast('That host is off the floor right now. Step to another named table.');
       return false;
@@ -32,16 +28,27 @@ export function createStationInteractionsController(params) {
         state?.ui?.dealer?.quickPlayEnabled === true
         && String(state?.ui?.dealer?.quickPlayStationId || '') === resolvedStationId
       );
-    socket.send(
-      JSON.stringify({
-        type: 'station_interact',
-        stationId: resolvedStationId,
-        action,
-        ...extra,
-        ...(extra.quickPlay === true || autoQuickPlay ? { quickPlay: true } : {})
-      })
-    );
-    return true;
+    const payload = {
+      stationId: resolvedStationId,
+      action,
+      ...extra,
+      ...(extra.quickPlay === true || autoQuickPlay ? { quickPlay: true } : {})
+    };
+    const socket = getSocket();
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          type: 'station_interact',
+          ...payload
+        })
+      );
+      return true;
+    }
+    if (typeof postStationInteract === 'function') {
+      return await postStationInteract(payload);
+    }
+    showToast('Arena link is down. Reconnect, then step back to a live host.');
+    return false;
   }
 
   function renderGuideStationDetail(station, mode) {

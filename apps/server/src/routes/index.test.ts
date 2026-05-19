@@ -145,6 +145,68 @@ describe('internal route authorization', () => {
     });
   });
 
+  it('handles internal station interactions over HTTP without websocket transport', async () => {
+    const internalToken = 'test_internal_token';
+    const ctx = makeRouteContext(internalToken);
+    const handleStationInteractWithReply = async (
+      playerId: string,
+      payload: { stationId: string; action: string; quickPlay?: boolean },
+      meta: { walletId?: string | null; displayName?: string | null },
+      reply: (message: object) => void
+    ) => {
+      expect(playerId).toBe('u_profile_3');
+      expect(meta.walletId).toBe('wallet_37');
+      expect(payload.stationId).toBe('dealer_coinflip_a');
+      expect(payload.action).toBe('coinflip_house_start');
+      reply({
+        type: 'station_ui',
+        stationId: payload.stationId,
+        view: {
+          ok: true,
+          state: 'dealer_ready',
+          reasonText: 'Call heads or tails.'
+        }
+      });
+      return true;
+    };
+    ctx.getStations = () => ([
+      {
+        id: 'dealer_coinflip_a',
+        displayName: 'Coinflip',
+        kind: 'dealer_coinflip',
+        x: 0,
+        z: 0
+      }
+    ] as never);
+    ctx.handleStationInteractWithReply = handleStationInteractWithReply as never;
+
+    await withServer(ctx, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/stations/interact`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-internal-token': internalToken
+        },
+        body: JSON.stringify({
+          playerId: 'u_profile_3',
+          walletId: 'wallet_37',
+          displayName: 'Temisan',
+          payload: {
+            stationId: 'dealer_coinflip_a',
+            action: 'coinflip_house_start',
+            wager: 2,
+            quickPlay: true
+          }
+        })
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.ok).toBe(true);
+      expect(body.message?.type).toBe('station_ui');
+      expect(body.message?.view?.state).toBe('dealer_ready');
+    });
+  });
+
   it('returns market positions by walletId when playerId is unavailable', async () => {
     const internalToken = 'test_internal_token';
     const ctx = makeRouteContext(internalToken);

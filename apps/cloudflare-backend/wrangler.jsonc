@@ -1,0 +1,36 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "arena-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-21",
+  "workers_dev": true,
+  "preview_urls": true,
+  "vars": {
+    "WEB_UPSTREAM": "",
+    "SERVER_UPSTREAM": "https://arena-server-broken-haze-6531.fly.dev",
+    "FIREBASE_AUTH_DOMAIN": "junipalee.firebaseapp.com",
+    "FIREBASE_PROJECT_ID": "junipalee",
+    "FIREBASE_GOOGLE_AUTH_ENABLED": "true",
+    "FIREBASE_CLIENT_AUTH_ENABLED": "true",
+    "EMAIL_AUTH_ENABLED": "true",
+    "GOOGLE_AUTH_ENABLED": "false",
+    "REALTIME_ENABLED": "false",
+    "PUBLIC_GAME_WS_URL": "",
+    "PUBLIC_WORLD_ASSET_BASE_URL": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
+    "DEFAULT_WORLD_ASSET_BASE_URL": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
+    "COOKIE_NAME": "arena_sid"
+  },
+  "d1_databases": [
+    {
+      "binding": "STATE_DB",
+      "database_name": "arena-runtime-state",
+      "database_id": "bd7d2aef-d7d6-4fe9-a330-7f3d350c664e"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/1 * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -66,6 +66,10 @@ loadEnvFromFile();
 
 const port = Number(process.env.PORT ?? 4100);
 const wsBaseUrl = process.env.GAME_WS_URL ?? 'ws://localhost:4000/ws';
+const botTransportMode = String(process.env.BOT_TRANSPORT_MODE ?? 'scheduled').trim().toLowerCase() === 'ws'
+  ? 'ws'
+  : 'scheduled';
+const scheduledBotTickMs = Math.max(1500, Number(process.env.BOT_SCHEDULED_TICK_MS ?? 5000));
 const personalities: Personality[] = ['aggressive', 'conservative', 'social'];
 const wsAuthSecret = process.env.GAME_WS_AUTH_SECRET?.trim() || '';
 const builderCodeContext = resolveBuilderCodeContext(process.env);
@@ -92,6 +96,33 @@ try {
 if (!wsBaseUrlValid) {
   console.warn(`[agent-runtime] Invalid GAME_WS_URL "${wsBaseUrl}". Expected ws:// or wss:// URL. Bot connectivity will fail until fixed.`);
 }
+
+function resolveGameServerBaseUrl(): string {
+  const explicit = String(process.env.GAME_SERVER_HTTP_URL || '').trim();
+  if (explicit) {
+    return explicit.replace(/\/+$/, '');
+  }
+  try {
+    const parsed = new URL(wsBaseUrl);
+    const protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:';
+    parsed.protocol = protocol;
+    if (parsed.pathname.endsWith('/ws')) {
+      parsed.pathname = parsed.pathname.slice(0, -3) || '/';
+    }
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+}
+
+const gameServerBaseUrl = resolveGameServerBaseUrl();
+
+type PlayableStationSummary = {
+  id: string;
+  displayName?: string;
+  gameType: string;
+  available?: boolean;
+};
 
 const superAgentConfig: SuperAgentConfig = createDefaultSuperAgentConfig(
   process.env.GRAND_AGENT_ID ?? 'agent_1'
@@ -657,8 +688,205 @@ function createBot(id: string, displayName: string, behavior: AgentBehaviorConfi
       mainnetGasSponsorEnabled
     });
   };
-  bot.start();
+  if (botTransportMode === 'ws') {
+    bot.start();
+  }
   return bot;
+}
+
+function ensureBotTransportActive(bot: AgentBot | undefined): void {
+  if (botTransportMode === 'ws') {
+    bot?.ensureActive();
+  }
+}
+
+function stopBotTransport(bot: AgentBot | undefined): void {
+  bot?.stop();
+}
+
+function actorIdForBot(record: BotRecord): string {
+  return record.ownerProfileId ? `u_${record.ownerProfileId}` : record.id;
+}
+
+function chooseScheduledMove(botId: string, gameType: string): string {
+  const bucket = Math.floor(Date.now() / 1000);
+  const seed = Math.abs(hashString(`${botId}:${bucket}`));
+  if (gameType === 'coinflip') {
+    return seed % 2 === 0 ? 'heads' : 'tails';
+  }
+  if (gameType === 'dice_duel') {
+    return `d${(seed % 6) + 1}`;
+  }
+  const rpsMoves = ['rock', 'paper', 'scissors'];
+  return rpsMoves[seed % rpsMoves.length] ?? 'rock';
+}
+
+async function fetchPlayableStations(): Promise<PlayableStationSummary[]> {
+  if (!gameServerBaseUrl) {
+    return [];
+  }
+  const response = await fetch(`${gameServerBaseUrl}/stations/playable`);
+  if (!response.ok) {
+    throw new Error(`stations_playable_http_${response.status}`);
+  }
+  const payload = await response.json().catch(() => ({})) as {
+    ok?: boolean;
+    stations?: PlayableStationSummary[];
+  };
+  if (!payload?.ok || !Array.isArray(payload.stations)) {
+    throw new Error('stations_playable_invalid');
+  }
+  return payload.stations.filter((station) => station && station.available !== false);
+}
+
+async function postScheduledStationInteract(body: {
+  playerId: string;
+  walletId: string | null;
+  displayName: string;
+  payload: Record<string, unknown>;
+}): Promise<{ ok: boolean; message?: Record<string, unknown> }> {
+  if (!gameServerBaseUrl || !internalToken) {
+    return { ok: false };
+  }
+  const response = await fetch(`${gameServerBaseUrl}/stations/interact`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-internal-token': internalToken
+    },
+    body: JSON.stringify(body)
+  });
+  const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: Record<string, unknown> };
+  if (!response.ok || !payload?.ok) {
+    return { ok: false, message: payload?.message };
+  }
+  return { ok: true, message: payload.message };
+}
+
+function resolveScheduledOutcome(
+  message: Record<string, unknown> | undefined,
+  actorId: string
+): 'won' | 'lost' | 'push' | null {
+  const view = message?.view;
+  if (!view || typeof view !== 'object') {
+    return null;
+  }
+  const typedView = view as Record<string, unknown>;
+  const winnerId = String(typedView.winnerId || '').trim();
+  const payoutDelta = Number(typedView.payoutDelta || 0);
+  if (payoutDelta > 0 || winnerId === actorId) {
+    return 'won';
+  }
+  if (payoutDelta < 0 || (winnerId && winnerId !== actorId)) {
+    return 'lost';
+  }
+  if (Number.isFinite(payoutDelta)) {
+    return 'push';
+  }
+  return null;
+}
+
+const scheduledBotRunsInFlight = new Set<string>();
+let scheduledBotTickInFlight = false;
+let scheduledBotLastErrorAt = 0;
+
+async function runScheduledBotTick(): Promise<void> {
+  if (botTransportMode !== 'scheduled') {
+    return;
+  }
+  if (!gameServerBaseUrl || !internalToken) {
+    return;
+  }
+  if (scheduledBotTickInFlight) {
+    return;
+  }
+  scheduledBotTickInFlight = true;
+  try {
+    const stations = await fetchPlayableStations();
+    const stationByGameType = new Map(
+      stations
+        .filter((station) => typeof station?.gameType === 'string' && typeof station?.id === 'string')
+        .map((station) => [station.gameType, station] as const)
+    );
+    const startActionByGame = {
+      coinflip: 'coinflip_house_start',
+      rps: 'rps_house_start',
+      dice_duel: 'dice_duel_start'
+    } as const;
+    const pickActionByGame = {
+      coinflip: 'coinflip_house_pick',
+      rps: 'rps_house_pick',
+      dice_duel: 'dice_duel_pick'
+    } as const;
+
+    for (const [botId, bot] of bots.entries()) {
+      const record = botRegistry.get(botId);
+      if (!record || scheduledBotRunsInFlight.has(botId)) {
+        continue;
+      }
+      if (record.ownerProfileId && ownerPresence.has(record.ownerProfileId)) {
+        continue;
+      }
+      const plan = bot.getScheduledAutoplayPlan();
+      if (!plan) {
+        continue;
+      }
+      if (plan.gameType !== 'coinflip' && plan.gameType !== 'rps' && plan.gameType !== 'dice_duel') {
+        continue;
+      }
+      const station = stationByGameType.get(plan.gameType);
+      if (!station?.id) {
+        continue;
+      }
+
+      scheduledBotRunsInFlight.add(botId);
+      try {
+        const actorId = actorIdForBot(record);
+        const displayName = String(record.displayName || bot.getStatus().id).trim() || bot.getStatus().id;
+        const started = await postScheduledStationInteract({
+          playerId: actorId,
+          walletId: record.walletId ?? null,
+          displayName,
+          payload: {
+            stationId: station.id,
+            action: startActionByGame[plan.gameType],
+            wager: plan.wager
+          }
+        });
+        if (!started.ok) {
+          continue;
+        }
+
+        const resolved = await postScheduledStationInteract({
+          playerId: actorId,
+          walletId: record.walletId ?? null,
+          displayName,
+          payload: {
+            stationId: station.id,
+            action: pickActionByGame[plan.gameType],
+            pick: chooseScheduledMove(botId, plan.gameType),
+            playerSeed: newPrivateKey().slice(2, 18)
+          }
+        });
+        if (!resolved.ok || !resolved.message) {
+          continue;
+        }
+        const outcome = resolveScheduledOutcome(resolved.message, actorId);
+        if (outcome) {
+          bot.recordScheduledGameOutcome(outcome, plan.wager);
+        }
+      } finally {
+        scheduledBotRunsInFlight.delete(botId);
+      }
+    }
+  } catch (error) {
+    if (Date.now() - scheduledBotLastErrorAt > 30_000) {
+      scheduledBotLastErrorAt = Date.now();
+      console.warn('[agent-runtime] scheduled bot tick failed', String((error as Error)?.message || error));
+    }
+  } finally {
+    scheduledBotTickInFlight = false;
+  }
 }
 
 function registerBot(id: string, behavior: AgentBehaviorConfig, record: BotRecord): void {
@@ -758,19 +986,19 @@ function applySuperAgentDelegation(): void {
         })
       });
       if (!record.autoplayEnabled) {
-        bot?.stop();
+        stopBotTransport(bot);
         continue;
       }
       if (record.ownerProfileId && ownerPresence.has(record.ownerProfileId)) {
-        bot?.stop();
+        stopBotTransport(bot);
       } else if (shouldOwnerBotReconnect({
         ownerOnline: false,
         autoplayEnabled: Boolean(record.autoplayEnabled),
         readinessStatus: bot?.getWalletReadiness?.()?.status ?? null
       })) {
-        bot?.ensureActive();
+        ensureBotTransportActive(bot);
       } else {
-        bot?.stop();
+        stopBotTransport(bot);
       }
       continue;
     }
@@ -782,7 +1010,7 @@ function applySuperAgentDelegation(): void {
       ...directive.patch,
       challengeEnabled: directive.patch.challengeEnabled ?? dutyBaseline.challengeEnabled
     });
-    bots.get(directive.botId)?.ensureActive();
+    ensureBotTransportActive(bots.get(directive.botId));
   }
 
   // superAgentConfig is still used for delegation/policy, but the super agent does not spawn in-world.
@@ -1005,7 +1233,14 @@ function walletSummary(wallet: WalletRecord | null) {
 
 function runtimeStatus() {
   const statuses = botStatuses();
-  const diagnostics = buildBotConnectionDiagnostics(statuses);
+  const diagnostics = botTransportMode === 'ws'
+    ? buildBotConnectionDiagnostics(statuses)
+    : {
+        disconnectedBotIds: [] as string[],
+        lastWsErrorAt: null,
+        lastWsCloseById: {} as Record<string, { code?: number; reason?: string; at: number }>,
+        wsAuthMismatchLikely: false
+      };
   const house = houseBankWallet();
   const ownerPresenceSnapshot = [...ownerPresence.entries()].map(([profileId, record]) => ({
     profileId,
@@ -1025,6 +1260,7 @@ function runtimeStatus() {
     wsAuthMismatchLikely: diagnostics.wsAuthMismatchLikely,
     backgroundBotCount: backgroundBotIds.size,
     profileBotCount: statuses.filter((bot) => bot.meta?.ownerProfileId).length,
+    botTransportMode,
     escrowLockCount: escrowLocks.size,
     recentEscrowSettlements: escrowSettlements.slice(-20),
     wsBaseUrl,
@@ -1942,7 +2178,7 @@ function restoreOwnerPresence(profileId: string): void {
       autoplayEnabled: Boolean(meta.autoplayEnabled),
       readinessStatus: bot.getWalletReadiness?.()?.status ?? null
     })) {
-      bot.ensureActive();
+      ensureBotTransportActive(bot);
     }
   }
   ownerPresence.delete(profileId);
@@ -2729,6 +2965,10 @@ const autosave = setInterval(() => {
   void persistRuntimeState().catch(() => undefined);
 }, 10000);
 autosave.unref();
+const scheduledBotTimer = setInterval(() => {
+  void runScheduledBotTick();
+}, scheduledBotTickMs);
+scheduledBotTimer.unref();
 process.on('SIGINT', () => {
   void persistRuntimeState().finally(() => process.exit(0));
 });
@@ -2737,6 +2977,9 @@ process.on('SIGTERM', () => {
 });
 
 const startupBotConnectivityCheck = setTimeout(() => {
+  if (botTransportMode !== 'ws') {
+    return;
+  }
   const status = runtimeStatus();
   if (status.disconnectedBotIds.length > 0) {
     console.warn(`[agent-runtime] ${status.disconnectedBotIds.length} bot(s) disconnected after startup: ${status.disconnectedBotIds.join(', ')}`);

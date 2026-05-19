@@ -110,6 +110,7 @@ export type ServerConfig = {
   serverBase?: string;
   runtimeBase?: string;
   publicGameWsUrl?: string;
+  realtimeEnabled?: boolean;
   publicWorldAssetBaseUrl?: string;
   defaultWorldAssetBaseUrl?: string;
   allowedAuthOrigins: Set<string>;
@@ -207,4 +208,3 @@ export type RouteHandler = (
   requestUrl: URL,
   context: ServerContext
 ) => Promise<boolean>;
-

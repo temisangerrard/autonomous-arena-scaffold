@@ -47,6 +47,7 @@ export function mountWorldPanel(params) {
   const detailEl = document.getElementById('world-interaction-detail');
   if (useBtn) {
     useBtn.onclick = () => {
+      void (async () => {
       if (renderGuideStationDetail(station, 'use')) {
         if (String(localInteraction.routeStationId || '').trim()) {
           setPendingBtn(useBtn, 'Opening…');
@@ -64,7 +65,7 @@ export function mountWorldPanel(params) {
         clearPendingBtn(useBtn, actionLabel);
         params.showToast?.('No server response. Try again.', 'error');
       }, 4000);
-      const sent = sendStationInteract(station, 'interact_use', {
+      const sent = await sendStationInteract(station, 'interact_use', {
         interactionTag: String(station.interactionTag || '')
       });
       if (!sent) {
@@ -75,6 +76,7 @@ export function mountWorldPanel(params) {
       if (detailEl) {
         detailEl.textContent = 'Opening live route...';
       }
+      })();
     };
   }
   if (state.ui.world.stationId !== station.id) {

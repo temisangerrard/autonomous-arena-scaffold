@@ -69,6 +69,13 @@ export type AgentBotStatus = {
   autoplaySession: AutoplaySessionState | null;
 };
 
+export type ScheduledAutoplayPlan = {
+  gameType: GameType;
+  wager: number;
+};
+
+type ScheduledGameOutcome = 'won' | 'lost' | 'push';
+
 export class AgentBot {
   private readonly config: AgentBotConfig;
   private readonly policyEngine = new PolicyEngine();
@@ -190,6 +197,63 @@ export class AgentBot {
 
   getAutoplaySession(): AutoplaySessionState {
     return { ...this.autoplaySession };
+  }
+
+  getScheduledAutoplayPlan(): ScheduledAutoplayPlan | null {
+    if (this.config.behavior.mode === 'passive') {
+      return null;
+    }
+    if (!this.canInitiateChallenges()) {
+      return null;
+    }
+    if (!this.canAffordNextWager()) {
+      return null;
+    }
+
+    const now = Date.now();
+    const cooldownMs = this.config.behavior.autoplay?.cooldownMs ?? this.config.behavior.challengeCooldownMs;
+    if (this.config.behavior.autoplay) {
+      if (this.autoplaySession.pauseReason !== null) {
+        if (
+          this.autoplaySession.pauseReason === 'cooling_down'
+          && this.autoplaySession.lastGameAt !== null
+          && now - this.autoplaySession.lastGameAt >= cooldownMs
+        ) {
+          this.autoplaySession.pauseReason = null;
+          this.autoplaySession.pausedAt = null;
+        } else {
+          return null;
+        }
+      }
+    }
+
+    const wager = this.computeNextWager();
+    if (wager <= 0) {
+      return null;
+    }
+    return {
+      gameType: this.config.behavior.autoplay
+        ? this.pickAutoplayGame()
+        : (this.config.behavior.personality === 'conservative' ? 'coinflip' : 'rps'),
+      wager
+    };
+  }
+
+  recordScheduledGameResult(won: boolean, wager: number): void {
+    this.recordScheduledGameOutcome(won ? 'won' : 'lost', wager);
+  }
+
+  recordScheduledGameOutcome(outcome: ScheduledGameOutcome, wager: number): void {
+    if (outcome === 'won') {
+      this.stats.challengesWon += 1;
+      this.sessionNetPnl += wager;
+    } else if (outcome === 'lost') {
+      this.stats.challengesLost += 1;
+      this.sessionNetPnl -= wager;
+    }
+    this.stats.lastChallengeAt = Date.now();
+    this.updateAutoplayWagerAfterOutcome(outcome, wager);
+    this.enforceSessionRiskStops();
   }
 
   restoreAutoplaySession(session: Partial<AutoplaySessionState>): void {
@@ -793,19 +857,23 @@ export class AgentBot {
   }
 
   private updateAutoplayWagerAfterResult(won: boolean, wager: number): void {
+    this.updateAutoplayWagerAfterOutcome(won ? 'won' : 'lost', wager);
+  }
+
+  private updateAutoplayWagerAfterOutcome(outcome: ScheduledGameOutcome, wager: number): void {
     const ap = this.config.behavior.autoplay;
     if (!ap) return;
 
     void wager;
     this.autoplaySession.lastGameAt = Date.now();
 
-    if (won) {
+    if (outcome === 'won') {
       this.autoplaySession.consecutiveLosses = 0;
       // Reset to base wager on win for martingale
       if (ap.wagerMode === 'martingale') {
         this.autoplaySession.currentWager = ap.baseWager;
       }
-    } else {
+    } else if (outcome === 'lost') {
       this.autoplaySession.consecutiveLosses += 1;
       // Progress martingale wager on loss
       if (ap.wagerMode === 'martingale') {
@@ -813,6 +881,8 @@ export class AgentBot {
         const next = Math.round(this.autoplaySession.currentWager * mult);
         this.autoplaySession.currentWager = Math.min(ap.maxWager, Math.max(ap.baseWager, next));
       }
+    } else {
+      this.autoplaySession.consecutiveLosses = 0;
     }
 
     this.autoplaySession.sessionNetPnl = this.sessionNetPnl;
