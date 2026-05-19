@@ -6,7 +6,7 @@
   "workers_dev": true,
   "preview_urls": true,
   "vars": {
-    "WEB_UPSTREAM": "https://arena-web.fly.dev",
+    "WEB_UPSTREAM": "",
     "SERVER_UPSTREAM": "https://arena-server-broken-haze-6531.fly.dev",
     "FIREBASE_AUTH_DOMAIN": "junipalee.firebaseapp.com",
     "FIREBASE_PROJECT_ID": "junipalee",
