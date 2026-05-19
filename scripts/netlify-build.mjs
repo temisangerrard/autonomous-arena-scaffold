@@ -92,6 +92,7 @@ const redirects = [
   '/admin/markets-lab /admin-markets-lab.html 200',
   '/admin-markets-lab /admin-markets-lab.html 200',
   '/users     /users.html     200',
+  '/skill     /skill.html     200',
   ''
 ].join('\n');
 
