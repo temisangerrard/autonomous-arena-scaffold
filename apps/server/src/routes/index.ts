@@ -564,6 +564,16 @@ export function createRouter(ctx: RouteContext) {
       return;
     }
 
+    // Public arena metrics endpoint (games played, unique players, USDC volume, agent win rate)
+    if (req.url?.startsWith('/api/arena-metrics')) {
+      const windowHours = Math.max(1, Math.min(720, Number(parsed.searchParams.get('windowHours') ?? 24)));
+      const metricsData = await ctx.database.getArenaMetrics(windowHours);
+      res.setHeader('content-type', 'application/json');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.end(JSON.stringify({ ok: true, ...metricsData }));
+      return;
+    }
+
     // Leaderboard endpoint
     if (req.url?.startsWith('/leaderboard')) {
       const limit = Math.max(1, Math.min(100, Number(parsed.searchParams.get('limit') ?? 10)));
