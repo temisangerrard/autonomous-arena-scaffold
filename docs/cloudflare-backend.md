@@ -55,6 +55,7 @@ Optional flags:
    - `WEB_UPSTREAM`
    - `SERVER_UPSTREAM`
    - `INTERNAL_SERVICE_TOKEN`
+   - `GAME_WS_AUTH_SECRET` must match the game server's `GAME_WS_AUTH_SECRET`; otherwise signed-in players can load web auth but the game websocket rejects them.
 6. Run `npm run deploy:cf`.
 
 ## Netlify integration

@@ -76,6 +76,7 @@ export type WebApiEnv = {
   PUBLIC_GAME_WS_URL?: string;
   PUBLIC_WORLD_ASSET_BASE_URL?: string;
   DEFAULT_WORLD_ASSET_BASE_URL?: string;
+  GAME_WS_AUTH_SECRET?: string;
   ALLOWED_AUTH_ORIGINS?: string;
   ADMIN_EMAILS?: string;
   COOKIE_NAME?: string;
@@ -124,6 +125,55 @@ function asNum(value: unknown, fallback = 0): number {
 
 function asStr(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  let raw = '';
+  for (const byte of bytes) raw += String.fromCharCode(byte);
+  return btoa(raw).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function base64UrlEncodeText(value: string): string {
+  return base64UrlEncode(new TextEncoder().encode(value));
+}
+
+async function hmacSha256(secret: string, payload: string): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  return new Uint8Array(signature);
+}
+
+async function wsAuthForIdentity(env: WebApiEnv, identity: IdentityRecord): Promise<string | null> {
+  const secret = String(env.GAME_WS_AUTH_SECRET || '').trim();
+  if (!secret || !identity.profileId || !identity.walletId) return null;
+  const now = Date.now();
+  const payload = {
+    v: 1,
+    role: 'human',
+    clientId: identity.profileId,
+    walletId: identity.walletId,
+    iat: now,
+    exp: now + 1000 * 60,
+  };
+  const payloadB64 = base64UrlEncodeText(JSON.stringify(payload));
+  const sigB64 = base64UrlEncode(await hmacSha256(secret, payloadB64));
+  return `${payloadB64}.${sigB64}`;
+}
+
+function publicGameWsUrl(env: WebApiEnv): string {
+  const explicit = String(env.PUBLIC_GAME_WS_URL || '').trim();
+  if (explicit) return explicit;
+  const serverOrigin = normalizeOrigin(env.SERVER_UPSTREAM);
+  if (!serverOrigin) return '';
+  if (serverOrigin.startsWith('https://')) return `wss://${serverOrigin.slice('https://'.length)}/ws`;
+  if (serverOrigin.startsWith('http://')) return `ws://${serverOrigin.slice('http://'.length)}/ws`;
+  return '';
 }
 
 function normalizeOrigin(value: string | undefined): string {
@@ -639,7 +689,7 @@ function authConfigPayload(env: WebApiEnv) {
     cdpProjectId: String(env.CDP_PROJECT_ID || '').trim(),
     localAuthEnabled: false,
     realtimeEnabled: String(env.REALTIME_ENABLED || 'false').toLowerCase() === 'true',
-    gameWsUrl: String(env.PUBLIC_GAME_WS_URL || '').trim(),
+    gameWsUrl: publicGameWsUrl(env),
     worldAssetBaseUrl: String(env.PUBLIC_WORLD_ASSET_BASE_URL || env.DEFAULT_WORLD_ASSET_BASE_URL || '').trim(),
     escrowApprovalPolicy: {
       chainId: null,
@@ -847,7 +897,7 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
       profile,
       bots,
       bot: { id: ownerBot?.id ?? null, connected: typeof ownerBot?.connected === 'boolean' ? ownerBot.connected : null },
-      wsAuth: null,
+      wsAuth: await wsAuthForIdentity(env, identity),
     });
   }
 
