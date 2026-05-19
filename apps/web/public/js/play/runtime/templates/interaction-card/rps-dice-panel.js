@@ -80,7 +80,7 @@ export function mountRpsDicePanel(params) {
   }
 
   function injectLockAnim() {
-    if (!stageEl || !document.createElement) return;
+    if (!stageEl || typeof document === 'undefined' || !document.createElement) return;
     if (stageEl.querySelector?.('.rps-think, .dice-roll')) return;
     if (isRps) {
       const el = document.createElement('div');

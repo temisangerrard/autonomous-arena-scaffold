@@ -79,7 +79,7 @@ export function mountCoinflipPanel(params) {
   }
 
   function injectCoinAnim() {
-    if (stageEl && document.createElement && !stageEl.querySelector?.('.coin-spin')) {
+    if (stageEl && typeof document !== 'undefined' && document.createElement && !stageEl.querySelector?.('.coin-spin')) {
       const el = document.createElement('div');
       el.className = 'coin-spin';
       el.textContent = '🪙';

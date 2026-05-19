@@ -22,8 +22,9 @@
     "@openzeppelin/contracts": "^5.2.0",
     "dotenv": "^16.6.1",
     "hardhat": "^2.24.1",
-    "yocto-queue": "^0.1.0",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2",
     "typescript": "^5.7.3",
-    "ts-node": "^10.9.2"
+    "yocto-queue": "^0.1.0"
   }
 }

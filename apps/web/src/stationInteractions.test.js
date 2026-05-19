@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createStationInteractionsController } from '../public/js/play/runtime/station-interactions.js';
 
 describe('station interactions controller', () => {
-  it('marks host stations as quick-play interactions when routing to live dealer stations', () => {
+  it('marks host stations as quick-play interactions when routing to live dealer stations', async () => {
     const send = vi.fn();
     const controller = createStationInteractionsController({
       state: {},
@@ -14,7 +14,7 @@ describe('station interactions controller', () => {
       resolveStationIdForSend: () => 'station_dealer_coinflip_a'
     });
 
-    const sent = controller.sendStationInteract({
+    const sent = await controller.sendStationInteract({
       id: 'station_npc_host_3',
       source: 'host',
       kind: 'dealer_coinflip',
@@ -31,7 +31,7 @@ describe('station interactions controller', () => {
     }));
   });
 
-  it('preserves explicit quick-play requests for direct station launches', () => {
+  it('preserves explicit quick-play requests for direct station launches', async () => {
     const send = vi.fn();
     const controller = createStationInteractionsController({
       state: {},
@@ -43,7 +43,7 @@ describe('station interactions controller', () => {
       resolveStationIdForSend: () => 'station_dealer_rps_a'
     });
 
-    const sent = controller.sendStationInteract('station_dealer_rps_a', 'rps_house_start', {
+    const sent = await controller.sendStationInteract('station_dealer_rps_a', 'rps_house_start', {
       wager: 3,
       quickPlay: true
     });

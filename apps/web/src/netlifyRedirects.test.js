@@ -9,10 +9,11 @@ const redirectsPath = path.resolve(__dirname, '../public/_redirects');
 describe('netlify redirects', () => {
   it('routes quick-play station discovery and station interactions through the unified backend without websocket proxies', () => {
     const redirects = readFileSync(redirectsPath, 'utf8');
-    const quickPlayLine = '/api/game/stations/playable https://arena-backend.example.com/api/game/stations/playable 200';
-    const stationInteractLine = '/api/game/stations/interact https://arena-backend.example.com/api/game/stations/interact 200';
-    const genericApiLine = '/api/*        https://arena-backend.example.com/api/:splat       200';
-    const runtimeLine = '/runtime/*    https://arena-backend.example.com/runtime/:splat   200';
+    const backendOrigin = 'https://arena-backend.peppera.workers.dev';
+    const quickPlayLine = `/api/game/stations/playable ${backendOrigin}/api/game/stations/playable 200`;
+    const stationInteractLine = `/api/game/stations/interact ${backendOrigin}/api/game/stations/interact 200`;
+    const genericApiLine = `/api/*        ${backendOrigin}/api/:splat       200`;
+    const runtimeLine = `/runtime/*    ${backendOrigin}/runtime/:splat   200`;
     const worldAssetLine = '/assets/world/* https://pub-302820e514cd451baaf272a33bd70765.r2.dev/assets/world/:splat 200';
 
     expect(redirects).toContain(quickPlayLine);
