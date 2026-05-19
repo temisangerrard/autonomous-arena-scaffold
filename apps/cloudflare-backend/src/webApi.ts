@@ -1201,7 +1201,8 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
       return payload ? json(payload) : json({ ok: false, reason: 'runtime_unavailable' }, 503);
     }
     if (subpath === '/onchain/status' && request.method === 'GET') {
-      return json({ ok: true, configured: false, chainId: null, tokenSymbol: 'USDC', mode: 'cloudflare_runtime_stub' });
+      const payload = await serverFetch(env, '/admin/onchain/status').catch(() => null);
+      return payload ? json(payload) : json({ ok: false, reason: 'server_unavailable' }, 503);
     }
     if (subpath === '/super-agent/status' && request.method === 'GET') {
       const payload = await runtimeFetch<RuntimeStatusPayload>(request, env, '/status').catch(() => null);
@@ -1230,6 +1231,14 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
       const payload = await serverFetch(env, path, request.method === 'POST'
         ? { method: 'POST', body: await request.json().catch(() => ({})) }
         : undefined).catch(() => null);
+      return payload ? json(payload) : json({ ok: false, reason: 'server_unavailable' }, 503);
+    }
+
+    if (subpath === '/house/treasury/withdraw' && request.method === 'POST') {
+      const payload = await serverFetch(env, '/admin/house/treasury/withdraw', {
+        method: 'POST',
+        body: await request.json().catch(() => ({})),
+      }).catch(() => null);
       return payload ? json(payload) : json({ ok: false, reason: 'server_unavailable' }, 503);
     }
 

@@ -27,7 +27,7 @@ export function createWorldStationsController(params) {
         return {
           displayName: 'Coinflip Runner',
           title: 'Coinflip Runner',
-          inspect: 'Jade is taking coinflip rounds right now. Best first stop if you want one clean decision and instant settlement.',
+          inspect: 'Jade is taking coinflip rounds right now. Best first stop if you want one clean decision and a fast result.',
           useLabel: 'Open coinflip',
           use: 'Opening Jade at the coinflip table.',
           roleLabel: 'coinflip'

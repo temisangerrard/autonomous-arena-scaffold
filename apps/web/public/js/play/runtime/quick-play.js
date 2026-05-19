@@ -8,7 +8,7 @@ const GAME_ICONS = {
 
 const GAME_DESCRIPTIONS = {
   rps: 'Throw your move against the dealer. Best of three.',
-  coinflip: 'Call it — heads or tails. 50/50, settled on-chain.',
+  coinflip: 'Call it: heads or tails. 50/50, instant result.',
   dice_duel: 'Pick a face. High roll takes the pot.',
   blackjack: 'Beat 21. Beat the dealer. Beat the house.',
   prediction: 'Open a live BTC/USD prediction round.'

@@ -78,7 +78,7 @@ export function renderDealerRevealStatus(statusEl, params) {
   const txHash = String(params.txHash || '').trim();
   const txUrl = txExplorerUrl(txHash, params.chainId);
   const txLink = txUrl
-    ? ` · <a class="tx-link" href="${txUrl}" target="_blank" rel="noreferrer noopener">View onchain</a>`
+    ? ` · <a class="tx-link" href="${txUrl}" target="_blank" rel="noreferrer noopener">View transaction</a>`
     : '';
 
   let resultLine = '';

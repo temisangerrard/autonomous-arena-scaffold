@@ -12,6 +12,8 @@ import type { AdminCommand } from '../DistributedBus.js';
 import { handleMetricsEndpoint, handleMetricsJsonEndpoint } from '../metrics.js';
 import type { MarketService } from '../markets/MarketService.js';
 import type { SnapshotStation } from '@arena/shared';
+import { Contract, Wallet, JsonRpcProvider, formatUnits, getAddress, isAddress, parseUnits } from 'ethers';
+import { sendContractCallWithBuilderCode } from '../lib/builderCode.js';
 
 export type RouteContext = {
   serverInstanceId: string;
@@ -23,6 +25,7 @@ export type RouteContext = {
   publishAdminCommand: (serverId: string, command: AdminCommand) => Promise<void>;
   teleportLocal: (playerId: string, x: number, z: number) => boolean;
   marketService?: MarketService | null;
+  builderCodeSuffix?: string;
   /** Lazy getter for station list — set after stationRouter is initialized */
   getStations?: () => SnapshotStation[];
   handleStationInteractWithReply?: (
@@ -61,6 +64,40 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
   res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
   res.setHeader('access-control-allow-headers', 'content-type,x-internal-token');
 }
+
+function sendJson(res: ServerResponse, payload: unknown, status = 200): void {
+  res.statusCode = status;
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify(payload));
+}
+
+function contractEnv() {
+  return {
+    rpcUrl: process.env.BASE_RPC_URL?.trim() || process.env.CHAIN_RPC_URL?.trim() || '',
+    poolAddress: process.env.ESCROW_CONTRACT_ADDRESS?.trim() || '',
+    tokenAddress: process.env.ESCROW_TOKEN_ADDRESS?.trim() || '',
+    tokenDecimals: Number(process.env.ESCROW_TOKEN_DECIMALS || 6),
+    adminPrivateKey: process.env.DEPLOYER_PRIVATE_KEY?.trim() || process.env.ESCROW_RESOLVER_PRIVATE_KEY?.trim() || '',
+    withdrawTreasuryAddress: process.env.WITHDRAW_TREASURY_ADDRESS?.trim() || ''
+  };
+}
+
+type PoolTreasuryApi = Contract & {
+  houseTreasury: () => Promise<bigint>;
+  DEFAULT_ADMIN_ROLE: () => Promise<string>;
+  RESOLVER_ROLE: () => Promise<string>;
+  hasRole: (role: string, address: string) => Promise<boolean>;
+};
+
+type PoolTreasuryWriterApi = Contract & {
+  houseTreasury: () => Promise<bigint>;
+};
+
+type TokenBalanceApi = Contract & {
+  balanceOf: (address: string) => Promise<bigint>;
+  symbol: () => Promise<string>;
+  decimals: () => Promise<bigint | number>;
+};
 
 /**
  * Get allowed CORS origins from environment
@@ -519,6 +556,134 @@ async function handleAdminMarkets(
   res.end(JSON.stringify({ ok: false, reason: 'not_found' }));
 }
 
+async function handleAdminOnchain(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: RouteContext,
+  parsed: URL
+): Promise<void> {
+  if (!isInternalAuthorized(req, ctx.internalToken)) {
+    sendJson(res, { ok: false, reason: 'unauthorized_internal' }, 401);
+    return;
+  }
+
+  const env = contractEnv();
+  const configured = Boolean(env.rpcUrl && env.poolAddress && env.tokenAddress);
+  if (parsed.pathname === '/admin/onchain/status' && req.method === 'GET') {
+    if (!configured) {
+      sendJson(res, { ok: true, configured: false, reason: 'onchain_not_configured' });
+      return;
+    }
+    try {
+      const provider = new JsonRpcProvider(env.rpcUrl);
+      const pool = new Contract(
+        env.poolAddress,
+        [
+          'function houseTreasury() view returns (uint256)',
+          'function DEFAULT_ADMIN_ROLE() view returns (bytes32)',
+          'function RESOLVER_ROLE() view returns (bytes32)',
+          'function hasRole(bytes32,address) view returns (bool)'
+        ],
+        provider
+      ) as PoolTreasuryApi;
+      const token = new Contract(
+        env.tokenAddress,
+        [
+          'function balanceOf(address) view returns (uint256)',
+          'function symbol() view returns (string)',
+          'function decimals() view returns (uint8)'
+        ],
+        provider
+      ) as TokenBalanceApi;
+      const adminAddress = env.adminPrivateKey ? new Wallet(env.adminPrivateKey).address : null;
+      const [network, tokenDecimals, tokenSymbol, houseTreasuryRaw, escrowBalanceRaw, defaultRole, resolverRole] = await Promise.all([
+        provider.getNetwork(),
+        token.decimals().catch(() => env.tokenDecimals),
+        token.symbol().catch(() => 'TOKEN'),
+        pool.houseTreasury(),
+        token.balanceOf(env.poolAddress),
+        pool.DEFAULT_ADMIN_ROLE(),
+        pool.RESOLVER_ROLE()
+      ]);
+      const decimals = Number(tokenDecimals);
+      const [signerIsAdmin, signerIsResolver] = adminAddress
+        ? await Promise.all([pool.hasRole(defaultRole, adminAddress), pool.hasRole(resolverRole, adminAddress)])
+        : [false, false];
+      sendJson(res, {
+        ok: true,
+        configured: true,
+        chainId: Number(network.chainId),
+        tokenAddress: env.tokenAddress,
+        escrowAddress: env.poolAddress,
+        tokenDecimals: decimals,
+        tokenSymbol,
+        signerAddress: adminAddress,
+        signerIsAdmin,
+        signerIsResolver,
+        withdrawTreasuryAddress: env.withdrawTreasuryAddress || null,
+        escrowBalance: formatUnits(escrowBalanceRaw, decimals),
+        houseTreasury: formatUnits(houseTreasuryRaw, decimals)
+      });
+    } catch (error) {
+      sendJson(res, { ok: false, configured: true, reason: String((error as Error).message || 'onchain_status_failed').slice(0, 220) }, 503);
+    }
+    return;
+  }
+
+  if (parsed.pathname === '/admin/house/treasury/withdraw' && req.method === 'POST') {
+    if (!configured || !env.adminPrivateKey) {
+      sendJson(res, { ok: false, reason: 'treasury_admin_signer_unavailable' }, 400);
+      return;
+    }
+    const body = await readJsonBody<{ recipient?: string; amount?: number }>(req);
+    const fallbackRecipient = env.withdrawTreasuryAddress;
+    const recipientRaw = String(body?.recipient || fallbackRecipient || '').trim();
+    const amount = Math.max(0, Number(body?.amount || 0));
+    if (!recipientRaw || !isAddress(recipientRaw)) {
+      sendJson(res, { ok: false, reason: 'invalid_recipient' }, 400);
+      return;
+    }
+    if (amount <= 0) {
+      sendJson(res, { ok: false, reason: 'invalid_amount' }, 400);
+      return;
+    }
+    try {
+      const provider = new JsonRpcProvider(env.rpcUrl);
+      const adminSigner = new Wallet(env.adminPrivateKey, provider);
+      const pool = new Contract(
+        env.poolAddress,
+        [
+          'function houseTreasury() view returns (uint256)',
+          'function withdrawTreasury(address recipient, uint256 amount)'
+        ],
+        adminSigner
+      ) as PoolTreasuryWriterApi;
+      const value = parseUnits(String(amount), env.tokenDecimals);
+      const tx = await sendContractCallWithBuilderCode(
+        pool,
+        adminSigner,
+        'withdrawTreasury',
+        [getAddress(recipientRaw), value],
+        ctx.builderCodeSuffix || '0x'
+      );
+      await tx.wait();
+      const treasuryAfter = await pool.houseTreasury().catch(() => null);
+      sendJson(res, {
+        ok: true,
+        txHash: tx.hash ?? null,
+        recipient: getAddress(recipientRaw),
+        amount,
+        houseTreasury: treasuryAfter == null ? null : formatUnits(treasuryAfter, env.tokenDecimals)
+      });
+    } catch (error) {
+      sendJson(res, { ok: false, reason: String((error as Error).message || 'treasury_withdraw_failed').slice(0, 220) }, 400);
+    }
+    return;
+  }
+
+  sendJson(res, { ok: false, reason: 'not_found' }, 404);
+}
+
 /**
  * Main HTTP request router
  */
@@ -749,6 +914,11 @@ export function createRouter(ctx: RouteContext) {
 
     if (req.url?.startsWith('/admin/markets')) {
       await handleAdminMarkets(req, res, ctx, parsed);
+      return;
+    }
+
+    if (req.url?.startsWith('/admin/onchain') || req.url?.startsWith('/admin/house/treasury')) {
+      await handleAdminOnchain(req, res, ctx, parsed);
       return;
     }
 

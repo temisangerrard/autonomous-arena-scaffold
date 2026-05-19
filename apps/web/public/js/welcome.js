@@ -200,7 +200,7 @@ function renderSignedOut() {
   ctaRoot.innerHTML = `
     <div class="auth-card">
       <p class="auth-card__heading">Enter AutoBett</p>
-      <p class="auth-card__label">Sign in to enter live dealer rounds, track onchain settlement, and manage your bot wallet.</p>
+      <p class="auth-card__label">Sign in to enter live dealer rounds, track your results, and manage the agent you leave in the arena.</p>
 
       ${emailEnabled ? `
         <div class="auth-tabs" role="tablist">

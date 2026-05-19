@@ -42,31 +42,31 @@ function roleDetails(role) {
   if (role === 'cashier') {
     return {
       title: 'Rex',
-      inspect: '"All transactions, no conversation. I handle your USDC — deposits, withdrawals, player transfers. Your balance is live on-chain. What you see is what you actually have."',
+      inspect: '"All action, no speeches. I handle deposits, withdrawals, and player transfers. Your arena balance is live, and what you see is what you have."',
       useLabel: 'Check balance',
-      use: '"Balance loaded. Fund to top up, withdraw to pull out, or transfer to another player\'s wallet. Keep a few USDC in reserve — the dealers don\'t extend credit."'
+      use: '"Balance loaded. Deposit to top up, withdraw to pull out, or transfer to another player. Keep a little in reserve; the dealers don\'t extend credit."'
     };
   }
   if (role === 'coinflip') {
     return {
       title: 'Coinflip',
-      inspect: '"Heads or tails — oldest game in the world, fairest one in this Arena. The outcome\'s committed on-chain before you even pick a side. No way to rig it. Not even for me."',
+      inspect: '"Heads or tails; oldest game in the world, fastest table in this Arena. The outcome locks before you pick a side. No way to rig it. Not even for me."',
       useLabel: 'Let\'s play',
-      use: '"Set your wager and hit Play. Once the round locks, pick Heads or Tails. Win and it goes straight to your wallet."'
+      use: '"Set your wager and hit Play. Once the round locks, pick Heads or Tails. Win and your balance updates."'
     };
   }
   if (role === 'rps') {
     return {
       title: 'Axel',
-      inspect: '"Rock, paper, scissors — oldest stalemate in the world. Every outcome is sealed on-chain before you throw, so there\'s no bluffing me and no reading you. It\'s pure commitment. Pick your throw and live with it."',
+      inspect: '"Rock, paper, scissors; oldest stalemate in the world. The outcome locks before you throw, so there is no bluffing me and no reading you. Pick your throw and live with it."',
       useLabel: 'Challenge me',
-      use: '"Hit Play to lock the round, then throw Rock, Paper, or Scissors. The escrow reveals the winner and settles instantly. No takebacks, no second-guessing — just the result."'
+      use: '"Hit Play to lock the round, then throw Rock, Paper, or Scissors. The winner reveals instantly. No takebacks, no second-guessing; just the result."'
     };
   }
   if (role === 'dice') {
     return {
       title: 'Zara',
-      inspect: '"Six faces, one pick — the seed\'s randomised on-chain so neither of us knows the result until it lands. I\'ve been running this table longer than most players have been in the Arena."',
+      inspect: '"Six faces, one pick; neither of us knows the result until it lands. I\'ve been running this table longer than most players have been in the Arena."',
       useLabel: 'Roll with me',
       use: '"Start the round, pick a number from 1 to 6. If the die lands on your number, the pot\'s yours. Start with a small wager until you get the rhythm."'
     };
@@ -76,13 +76,13 @@ function roleDetails(role) {
       title: 'Kai',
       inspect: '"I trade outcomes, not cards. My markets are live yes/no questions on real events. Quote a side, check the price, decide if you believe in it. That\'s the whole game."',
       useLabel: 'Browse markets',
-      use: '"Refresh the market list, pick a question you have a view on, request a quote, then buy YES or NO. Resolved markets settle automatically and winnings land in your wallet."'
+      use: '"Refresh the market list, pick a question you have a view on, request a quote, then buy YES or NO. Resolved markets update automatically and winnings land in your balance."'
     };
   }
   if (role === 'blackjack') {
     return {
       title: 'Vera',
-      inspect: '"Twenty-one. You beat the dealer, not the other players. I deal from a provably fair deck — seeds committed on-chain before the first card hits the table. Hit when you need it, stand when you don\'t."',
+      inspect: '"Twenty-one. You beat the dealer, not the other players. I deal from a locked deck before the first card hits the table. Hit when you need it, stand when you don\'t."',
       useLabel: 'Deal me in',
       use: '"Set your wager and press Deal. I\'ll give you two cards. Hit for more, stand to lock your hand. Dealer plays last — seventeen or higher, I stop. Closest to twenty-one without going over takes it."'
     };
