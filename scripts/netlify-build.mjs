@@ -34,11 +34,11 @@ function mustUrl(label, value) {
 
 const backendOrigin = mustUrl(
   'ARENA_BACKEND_ORIGIN',
-  env('ARENA_BACKEND_ORIGIN', env('ARENA_WEB_API_ORIGIN', 'https://arena-backend.example.com'))
+  env('ARENA_BACKEND_ORIGIN', env('ARENA_WEB_API_ORIGIN', 'https://arena-backend.peppera.workers.dev'))
 );
 const runtimeOrigin = mustUrl(
   'ARENA_RUNTIME_ORIGIN',
-  env('ARENA_RUNTIME_ORIGIN', 'https://arena-agent-runtime.fly.dev')
+  env('ARENA_RUNTIME_ORIGIN', 'https://arena-backend.peppera.workers.dev')
 );
 const worldAssetBaseUrl = mustUrl(
   'PUBLIC_WORLD_ASSET_BASE_URL',

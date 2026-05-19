@@ -1,0 +1,114 @@
+name: Deploy Backend (Fly.io)
+
+# Deploys arena-server (station game) and arena-agent-runtime to Fly.io.
+# The web/auth API layer is handled by the Cloudflare Worker — only the
+# stateful game server and agent-runtime still run on Fly.
+#
+# Required secret: FLY_API_TOKEN
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/server/**"
+      - "apps/agent-runtime/**"
+      - "packages/shared/**"
+      - "package.json"
+      - "package-lock.json"
+      - "Dockerfile.server"
+      - "Dockerfile.agent-runtime"
+      - "fly.server.toml"
+      - "fly.agent-runtime.toml"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_server:
+        description: "Deploy arena-server"
+        required: true
+        default: "true"
+        type: boolean
+      deploy_runtime:
+        description: "Deploy arena-agent-runtime"
+        required: true
+        default: "true"
+        type: boolean
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      can_deploy: ${{ steps.check.outputs.can_deploy }}
+    steps:
+      - name: Check Fly token
+        id: check
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -n "$FLY_API_TOKEN" ]; then
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping Fly deploy: FLY_API_TOKEN secret is not set."
+          fi
+
+  changes:
+    needs: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      runtime: ${{ steps.filter.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            server:
+              - 'apps/server/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'Dockerfile.server'
+              - 'fly.server.toml'
+            runtime:
+              - 'apps/agent-runtime/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'Dockerfile.agent-runtime'
+              - 'fly.agent-runtime.toml'
+
+  deploy-server:
+    needs: [preflight, changes]
+    if: |
+      needs.preflight.outputs.can_deploy == 'true' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_server == 'true') ||
+        (github.event_name != 'workflow_dispatch' && needs.changes.outputs.server == 'true')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy arena-server
+        run: flyctl deploy --app arena-server-fresh-02240816 --config fly.server.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-runtime:
+    needs: [preflight, changes]
+    if: |
+      needs.preflight.outputs.can_deploy == 'true' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_runtime == 'true') ||
+        (github.event_name != 'workflow_dispatch' && needs.changes.outputs.runtime == 'true')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy arena-agent-runtime
+        run: flyctl deploy --app arena-runtime-fresh-02240816 --config fly.agent-runtime.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
