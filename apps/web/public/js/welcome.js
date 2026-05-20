@@ -31,18 +31,19 @@ function requestedAuthMode() {
 
 function requestedNextPath() {
   const raw = String(new URLSearchParams(window.location.search).get('next') || '').trim();
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
-    return '/dashboard';
+  if (raw && raw.startsWith('/') && !raw.startsWith('//')) {
+    try {
+      const parsed = new URL(raw, window.location.origin);
+      if (parsed.origin === window.location.origin) {
+        return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/dashboard';
+      }
+    } catch { /* fall through */ }
   }
-  try {
-    const parsed = new URL(raw, window.location.origin);
-    if (parsed.origin !== window.location.origin) {
-      return '/dashboard';
-    }
-    return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/dashboard';
-  } catch {
-    return '/dashboard';
+  const mountNext = String(ctaRoot?.dataset?.next || '').trim();
+  if (mountNext && mountNext.startsWith('/') && !mountNext.startsWith('//')) {
+    return mountNext;
   }
+  return '/dashboard';
 }
 
 function setStoredUser(user) {
