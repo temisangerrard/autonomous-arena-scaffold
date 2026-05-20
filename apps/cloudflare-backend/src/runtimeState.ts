@@ -1481,22 +1481,33 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
     return json({ ok: true, mode: 'runtime', wallet: walletSummary(wallet) });
   }
 
+  // GET /wallets — returns all wallet addresses so the game server can resolve
+  // player addresses for onchain operations. Called by EscrowAdapter.walletAddressById.
+  if (routePath === '/wallets' && request.method === 'GET') {
+    if (!assertInternal(request, env)) return json({ ok: false, reason: 'unauthorized_internal' }, 401);
+    const rows = await all<Record<string, unknown>>(db, 'SELECT wallet_id, address FROM runtime_wallets ORDER BY wallet_id');
+    return json({ wallets: rows.map((row) => ({ id: asStr(row.wallet_id), address: asStr(row.address) })) });
+  }
+
   if (routePath === '/wallets/onchain/prepare-escrow' && request.method === 'POST') {
+    if (!assertInternal(request, env)) return json({ ok: false, reason: 'unauthorized_internal' }, 401);
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     const walletIds = Array.isArray(body?.walletIds) ? body?.walletIds.map((entry) => String(entry || '').trim()).filter(Boolean) : [];
     const amount = Math.max(0, asNum(body?.amount));
+    // Validate wallets exist in D1 and have non-zero balance. The actual onchain
+    // approval (ERC20 allowance) is handled by the resolver signer on the game server.
+    const results = await Promise.all(walletIds.map(async (walletId) => {
+      const wallet = await getWallet(db, walletId);
+      if (!wallet) return { walletId, ok: false, reason: 'wallet_not_found' };
+      if (amount > 0 && wallet.balance < amount) return { walletId, ok: false, reason: 'insufficient_balance', balance: wallet.balance };
+      return { walletId, ok: true, address: wallet.address, balance: wallet.balance };
+    }));
+    const failed = results.filter((r) => !r.ok);
     return json({
-      ok: false,
-      configured: false,
-      reason: 'onchain_runtime_unconfigured',
+      ok: failed.length === 0,
+      reason: failed[0]?.reason ?? null,
       tokenDecimals: 6,
-      results: walletIds.map((walletId) => ({
-        walletId,
-        ok: amount <= 0,
-        source: 'cloudflare_runtime',
-        status: amount <= 0 ? 'ready' : 'not_ready',
-        reason: amount <= 0 ? undefined : 'onchain_runtime_unconfigured',
-      })),
+      results,
     });
   }
 
