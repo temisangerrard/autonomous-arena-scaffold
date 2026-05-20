@@ -142,12 +142,9 @@ export function createRuntimeUpdate(params) {
       }
     }
 
-    renderWorldMapPanel({
-      state,
-      worldMapCanvas,
-      mapCoords,
-      worldBound
-    });
+    if (typeof renderWorldMapPanel === 'function') {
+      renderWorldMapPanel({ state, worldMapCanvas, mapCoords, worldBound });
+    }
     renderInteractionPromptLine({
       state,
       interactionPrompt,
