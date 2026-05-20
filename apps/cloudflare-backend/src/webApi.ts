@@ -106,6 +106,16 @@ const WEB_MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_web_sessions_sub ON web_sessions(sub)`,
   `CREATE INDEX IF NOT EXISTS idx_web_identities_email ON web_identities(email)`,
+  `CREATE TABLE IF NOT EXISTS chief_confirmations (
+    token TEXT PRIMARY KEY,
+    owner_sub TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    intent TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    plans_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_chief_confirmations_expires ON chief_confirmations(expires_at)`,
 ];
 
 let webSchemaReady: Promise<void> | null = null;
@@ -1179,6 +1189,7 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
     const qwenBaseUrl = String(env.QWEN_BASE_URL || 'https://coding-intl.dashscope.aliyuncs.com/v1').replace(/\/+$/, '');
     const qwenApiKey = String(env.QWEN_API_KEY || '');
     const chief = createCloudflareChief(
+      db!,
       qwenBaseUrl,
       qwenApiKey,
       (path, init) => runtimeFetch(request, env, path, init)
