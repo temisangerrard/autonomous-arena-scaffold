@@ -29,6 +29,22 @@ function requestedAuthMode() {
   return mode === 'signup' ? 'signup' : 'login';
 }
 
+function requestedNextPath() {
+  const raw = String(new URLSearchParams(window.location.search).get('next') || '').trim();
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
+    return '/dashboard';
+  }
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    if (parsed.origin !== window.location.origin) {
+      return '/dashboard';
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/dashboard';
+  } catch {
+    return '/dashboard';
+  }
+}
+
 function setStoredUser(user) {
   if (user) {
     localStorage.setItem(AUTH_KEY, JSON.stringify(user));
@@ -157,7 +173,7 @@ async function logout() {
 }
 
 function continueTarget() {
-  return '/dashboard';
+  return requestedNextPath();
 }
 
 function renderSignedIn(user) {
@@ -335,7 +351,7 @@ async function handleEmailAuth(mode) {
           body: JSON.stringify({ email, password, mode })
         });
     setStoredUser(result.user || null);
-    window.location.href = result.redirectTo || '/dashboard';
+    window.location.href = requestedNextPath() || result.redirectTo || '/dashboard';
   } catch (error) {
     showAuthError(authErrorMessage(error));
   }
@@ -356,7 +372,7 @@ async function handleGoogleFirebaseAuth() {
       body: JSON.stringify({ idToken })
     });
     setStoredUser(result.user || null);
-    window.location.href = result.redirectTo || '/dashboard';
+    window.location.href = requestedNextPath() || result.redirectTo || '/dashboard';
   } catch (error) {
     showAuthError(authErrorMessage(error));
   }
@@ -371,7 +387,7 @@ async function handleGoogleCredential(credential) {
       body: JSON.stringify({ credential })
     });
     setStoredUser(result.user || null);
-    window.location.href = result.redirectTo || '/dashboard';
+    window.location.href = requestedNextPath() || result.redirectTo || '/dashboard';
   } catch (error) {
     showAuthError(authErrorMessage(error));
   }
@@ -428,7 +444,7 @@ adminLoginBtn?.addEventListener('click', async () => {
       body: JSON.stringify({ username, password })
     });
     setStoredUser(result.user || null);
-    window.location.href = result.redirectTo || '/dashboard';
+    window.location.href = requestedNextPath() || result.redirectTo || '/dashboard';
   } catch (error) {
     if (adminStatus) {
       adminStatus.textContent = `Login failed: ${String(error.message || error)}`;
