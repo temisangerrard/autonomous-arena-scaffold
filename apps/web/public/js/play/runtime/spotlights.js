@@ -7,7 +7,7 @@ export function createRuntimeSpotlights(params) {
   const matchSpotlight = new THREE.Mesh(
     new THREE.RingGeometry(2.4, 3.2, 40),
     new THREE.MeshStandardMaterial({
-      color: 0xd7b24d,
+      color: 0x2f8f5e,
       transparent: true,
       opacity: 0.78,
       side: THREE.DoubleSide,

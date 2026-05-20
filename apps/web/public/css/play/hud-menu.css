@@ -113,16 +113,6 @@
       border-color: rgba(0, 93, 167, 0.35);
       color: var(--blue-primary);
     }
-    .topbar-pill.logout-btn {
-      border: 1px solid rgba(185, 28, 28, 0.22);
-      background: rgba(255, 255, 255, 0.92);
-      color: #9f1d1d;
-      box-shadow: var(--shadow-md);
-      cursor: pointer;
-    }
-    .topbar-pill.logout-btn:hover {
-      background: rgba(254, 242, 242, 0.96);
-    }
     .topbar-pill__dot {
       width: 7px;
       height: 7px;

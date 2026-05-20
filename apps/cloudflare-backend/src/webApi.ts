@@ -366,6 +366,11 @@ async function firebaseLookupIdToken(env: WebApiEnv, idToken: string) {
       return { ok: false as const, reason: mapped.reason, status: mapped.status };
     }
     const user = Array.isArray(payload.users) ? payload.users[0] as Record<string, unknown> : null;
+    const providerIds = Array.isArray(user?.providerUserInfo)
+      ? (user.providerUserInfo as Record<string, unknown>[])
+          .map((provider) => String(provider?.providerId || '').trim())
+          .filter(Boolean)
+      : [];
     const localId = String(user?.localId || '').trim();
     const email = String(user?.email || '').trim().toLowerCase();
     if (!localId || !email) return { ok: false as const, reason: 'firebase_invalid_payload', status: 502 };
@@ -377,6 +382,7 @@ async function firebaseLookupIdToken(env: WebApiEnv, idToken: string) {
         displayName: String(user?.displayName || '').trim() || undefined,
         picture: String(user?.photoUrl || '').trim() || undefined,
         emailVerified: String(user?.emailVerified ?? '').toLowerCase() === 'true',
+        providerIds,
       },
     };
   } catch {
@@ -810,7 +816,8 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
     if (!idToken) return json({ ok: false, reason: 'id_token_required' }, 400);
     const lookup = await firebaseLookupIdToken(env, idToken);
     if (!lookup.ok) return json({ ok: false, reason: lookup.reason }, lookup.status);
-    if (!lookup.result.emailVerified) return json({ ok: false, reason: 'email_not_verified' }, 401);
+    const passwordProvider = lookup.result.providerIds.includes('password');
+    if (!lookup.result.emailVerified && !passwordProvider) return json({ ok: false, reason: 'email_not_verified' }, 401);
     const token = lookup.result;
     const now = Date.now();
     const subjects = resolveAuthSubjects({ provider: 'firebase', firebaseLocalId: token.localId });

@@ -12,7 +12,7 @@ const ROTATE_INTERVAL_MS = 6000;
 function slideNone(ctx, w, h) {
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = 'rgba(215,178,77,0.5)';
+  ctx.fillStyle = 'rgba(47,143,94,0.5)';
   ctx.font = 'bold 18px "IBM Plex Mono", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -23,21 +23,21 @@ function slideData(ctx, w, h, { header, line1, line2 }) {
   // Background gradient
   const grad = ctx.createLinearGradient(0, 0, 0, h);
   grad.addColorStop(0, '#111118');
-  grad.addColorStop(1, '#1e1a08');
+  grad.addColorStop(1, '#0f2419');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
   // Gold border strip at top
-  ctx.fillStyle = '#d7b24d';
+  ctx.fillStyle = '#2f8f5e';
   ctx.fillRect(0, 0, w, 3);
   ctx.fillRect(0, h - 3, w, 3);
 
   // Header chip
-  ctx.fillStyle = 'rgba(215,178,77,0.18)';
+  ctx.fillStyle = 'rgba(47,143,94,0.18)';
   ctx.beginPath();
   ctx.roundRect(12, 10, 180, 22, 4);
   ctx.fill();
-  ctx.fillStyle = '#d7b24d';
+  ctx.fillStyle = '#2f8f5e';
   ctx.font = 'bold 11px "IBM Plex Mono", monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';

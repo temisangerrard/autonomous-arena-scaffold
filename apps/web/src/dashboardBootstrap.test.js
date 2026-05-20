@@ -16,13 +16,13 @@ describe('dashboard warm bootstrap flow', () => {
     expect(source).toContain('renderContext();');
   });
 
-  it('shows local bot modal save feedback instead of relying only on the page status line', () => {
+  it('shows local agent modal save feedback instead of relying only on the page status line', () => {
     const source = readFileSync(dashboardPath, 'utf8');
 
     expect(source).toContain("const botModalStatus = document.getElementById('bot-modal-status');");
     expect(source).toContain("botSave.textContent = 'Saving...';");
-    expect(source).toContain("setBotModalStatus('Bot saved.', 'success');");
-    expect(source).toContain("setBotModalStatus(`Bot save failed: ${String(error.message || error)}`, 'error');");
+    expect(source).toContain("setBotModalStatus('Agent saved.', 'success');");
+    expect(source).toContain("setBotModalStatus(`Agent save failed: ${String(error.message || error)}`, 'error');");
   });
 
   it('wires the dashboard agent session controls to the Cloudflare backend API', () => {

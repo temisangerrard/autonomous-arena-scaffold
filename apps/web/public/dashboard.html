@@ -14,7 +14,7 @@
   <style>
     :root {
       --dash-ink:     #1a1c1b;
-      --dash-gold:    #c9a227;
+      --dash-gold:    #2f8f5e;
       --dash-edge:    rgba(0, 93, 167, 0.2);
       --dash-panel:   #ffffff;
       --dash-muted:   #717783;
@@ -118,8 +118,8 @@
     .sidebar-balance {
       margin: 0 0 14px;
       border-radius: 10px;
-      border: 1px solid rgba(201, 162, 39, 0.3);
-      background: rgba(201, 162, 39, 0.08);
+      border: 1px solid rgba(47, 143, 94, 0.28);
+      background: rgba(47, 143, 94, 0.08);
       padding: 8px 10px;
     }
 
@@ -202,6 +202,23 @@
     }
 
     .btn-enter:hover { background: #004883; transform: translateY(-1px); }
+
+    .sidebar-logout {
+      width: 100%;
+      min-height: 38px;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      color: #c1c7d3;
+      font: 600 13px/1 var(--dash-serif);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .sidebar-logout:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+    }
 
     /* ── Content ─────────────────────────────── */
     .dashboard-content {
@@ -478,9 +495,9 @@
 
     .wager-box {
       border-radius: 8px;
-      border: 1px solid rgba(201, 162, 39, 0.3);
-      background: rgba(201, 162, 39, 0.07);
-      color: #a68523;
+      border: 1px solid rgba(47, 143, 94, 0.3);
+      background: rgba(47, 143, 94, 0.07);
+      color: #236b47;
       padding: 7px 10px;
       font: 400 12px/1.3 var(--dash-mono);
     }
@@ -497,7 +514,7 @@
       vertical-align: middle;
     }
     .readiness-badge--ready { color: #2d7a3a; border-color: rgba(45,122,58,0.4); background: rgba(45,122,58,0.08); }
-    .readiness-badge--warning { color: #8a6200; border-color: rgba(198,152,49,0.45); background: rgba(198,152,49,0.08); }
+    .readiness-badge--warning { color: #5b5f19; border-color: rgba(47,143,94,0.45); background: rgba(47,143,94,0.08); }
     .readiness-badge--error { color: #992b2b; border-color: rgba(153,43,43,0.4); background: rgba(153,43,43,0.07); }
     .readiness-badge--muted { color: #888; border-color: rgba(136,136,136,0.3); background: rgba(136,136,136,0.07); }
 
@@ -549,9 +566,9 @@
     }
 
     .chief-badge.thinking {
-      background: rgba(198, 152, 49, 0.14);
-      color: #d4bc82;
-      border-color: rgba(198, 152, 49, 0.3);
+      background: rgba(47, 143, 94, 0.14);
+      color: #9ad4b4;
+      border-color: rgba(47, 143, 94, 0.3);
     }
 
     /* ── Command palette ─────────────────────── */
@@ -589,9 +606,9 @@
 
     .chief-chip {
       border-radius: 6px;
-      border: 1px solid rgba(198, 152, 49, 0.2);
-      background: rgba(198, 152, 49, 0.06);
-      color: #c8a868;
+      border: 1px solid rgba(47, 143, 94, 0.2);
+      background: rgba(47, 143, 94, 0.06);
+      color: #9ad4b4;
       min-height: 28px;
       padding: 0 10px;
       font: 400 12px/1 var(--dash-serif);
@@ -600,9 +617,9 @@
     }
 
     .chief-chip:hover {
-      border-color: rgba(198, 152, 49, 0.5);
-      background: rgba(198, 152, 49, 0.12);
-      color: #e8d09a;
+      border-color: rgba(47, 143, 94, 0.5);
+      background: rgba(47, 143, 94, 0.12);
+      color: #c9f0d8;
     }
 
     /* ── Input row ────────────────────────────── */
@@ -617,7 +634,7 @@
     .chief-textarea {
       background: rgba(0, 0, 0, 0.25) !important;
       color: #e0d2b6 !important;
-      border-color: rgba(198, 152, 49, 0.18) !important;
+      border-color: rgba(47, 143, 94, 0.18) !important;
       resize: none;
     }
 
@@ -643,15 +660,15 @@
       gap: 12px;
       margin-bottom: 12px;
       padding: 12px 14px;
-      background: rgba(198, 152, 49, 0.08);
-      border: 1px solid rgba(198, 152, 49, 0.3);
+      background: rgba(47, 143, 94, 0.08);
+      border: 1px solid rgba(47, 143, 94, 0.3);
       border-radius: 8px;
     }
 
     .chief-confirm-prompt__text {
       margin: 0;
       font: 400 13px/1.4 var(--dash-serif);
-      color: #d4bc82;
+      color: #9ad4b4;
     }
 
     .chief-details {
@@ -709,8 +726,8 @@
     }
 
     .chief-action-status--planned {
-      background: rgba(198, 152, 49, 0.14);
-      color: #d4bc82;
+      background: rgba(47, 143, 94, 0.14);
+      color: #9ad4b4;
     }
 
     .chief-action-status--blocked,
@@ -722,7 +739,7 @@
     /* ── Wallet ──────────────────────────────── */
     .wallet-hero {
       background: var(--dash-panel-soft);
-      border-color: rgba(201, 162, 39, 0.22);
+      border-color: rgba(47, 143, 94, 0.2);
     }
 
     .wallet-hero h2 { color: var(--dash-ink); }
@@ -739,10 +756,10 @@
       box-shadow: 0 0 0 2px rgba(0, 93, 167, 0.1);
     }
 
-    /* Gold balance block — the one place we keep the arena gold feel */
+    /* Wallet balance block */
     .balance-block {
-      background: linear-gradient(135deg, rgba(201,162,39,0.07) 0%, rgba(201,162,39,0.03) 100%);
-      border: 1px solid rgba(201,162,39,0.2);
+      background: linear-gradient(135deg, rgba(47,143,94,0.07) 0%, rgba(0,93,167,0.03) 100%);
+      border: 1px solid rgba(47,143,94,0.2);
       border-radius: 12px;
       padding: 16px 18px;
       margin-bottom: 14px;
@@ -754,12 +771,12 @@
       flex-wrap: wrap;
       margin: 0 0 14px;
       padding-bottom: 14px;
-      border-bottom: 1px solid rgba(201, 162, 39, 0.16);
+      border-bottom: 1px solid rgba(47, 143, 94, 0.16);
     }
 
     .wallet-tab {
       border-radius: 999px;
-      border: 1px solid rgba(201, 162, 39, 0.28);
+      border: 1px solid rgba(47, 143, 94, 0.28);
       color: var(--dash-muted);
       background: transparent;
       padding: 6px 14px;
@@ -770,9 +787,9 @@
     }
 
     .wallet-tab:hover {
-      border-color: rgba(201, 162, 39, 0.5);
+      border-color: rgba(47, 143, 94, 0.5);
       color: var(--dash-ink);
-      background: rgba(201, 162, 39, 0.05);
+      background: rgba(47, 143, 94, 0.05);
     }
 
     .wallet-tab.active {
@@ -780,7 +797,7 @@
       color: #fff;
       border-color: transparent;
       font-weight: 700;
-      box-shadow: 0 2px 8px rgba(201, 162, 39, 0.25);
+      box-shadow: 0 2px 8px rgba(47, 143, 94, 0.22);
     }
 
     .wallet-pane { display: none; }
@@ -811,7 +828,7 @@
       width: 100%;
       max-width: 320px;
       height: 2px;
-      background: linear-gradient(90deg, rgba(201, 162, 39, 0.6) 0%, transparent 100%);
+      background: linear-gradient(90deg, rgba(47, 143, 94, 0.6) 0%, transparent 100%);
       border-radius: 2px;
     }
 
@@ -824,7 +841,7 @@
 
     .wallet-ids {
       padding-top: 12px;
-      border-top: 1px solid rgba(201, 162, 39, 0.18);
+      border-top: 1px solid rgba(47, 143, 94, 0.18);
     }
 
     .wallet-id-row {
@@ -902,13 +919,13 @@
       transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
     .activity-filter:hover {
-      border-color: rgba(201, 162, 39, 0.4);
+      border-color: rgba(47, 143, 94, 0.4);
       color: var(--dash-ink);
     }
     .activity-filter.active {
-      border-color: rgba(201, 162, 39, 0.5);
+      border-color: rgba(47, 143, 94, 0.5);
       color: var(--dash-ink);
-      background: rgba(201, 162, 39, 0.1);
+      background: rgba(47, 143, 94, 0.1);
       font-weight: 600;
     }
 
@@ -930,7 +947,7 @@
     .tx-item--win  { border-left: 3px solid rgba(47, 143, 94, 0.45); padding-left: 10px; }
     .tx-item--loss { border-left: 3px solid rgba(186, 26, 26, 0.38); padding-left: 10px; }
     .tx-item--push { border-left: 3px solid rgba(113, 119, 131, 0.35); padding-left: 10px; }
-    .tx-item--locked { border-left: 3px solid rgba(201, 162, 39, 0.4); padding-left: 10px; }
+    .tx-item--locked { border-left: 3px solid rgba(47, 143, 94, 0.4); padding-left: 10px; }
     .tx-item--refund { border-left: 3px solid rgba(59, 130, 246, 0.38); padding-left: 10px; }
 
     .tx-icon {
@@ -983,7 +1000,7 @@
     .outcome-badge--win    { background: rgba(47,143,94,0.12);   color: #2f8f5e;  border: 1px solid rgba(47,143,94,0.3); }
     .outcome-badge--loss   { background: rgba(186,26,26,0.1);    color: #ba1a1a;  border: 1px solid rgba(186,26,26,0.28); }
     .outcome-badge--push   { background: rgba(113,119,131,0.1);  color: #4f5560;  border: 1px solid rgba(113,119,131,0.25); }
-    .outcome-badge--locked { background: rgba(201,162,39,0.1);   color: #8a6010;  border: 1px solid rgba(201,162,39,0.3); }
+    .outcome-badge--locked { background: rgba(47,143,94,0.1);   color: #236b47;  border: 1px solid rgba(47,143,94,0.3); }
     .outcome-badge--refund { background: rgba(59,130,246,0.1);   color: #1d4ed8;  border: 1px solid rgba(59,130,246,0.25); }
     .outcome-badge--failed { background: rgba(186,26,26,0.1);    color: #ba1a1a;  border: 1px solid rgba(186,26,26,0.28); }
 
@@ -1015,7 +1032,7 @@
     /* ── Escrow empty state ──────────────────── */
     .escrow-empty {
       padding: 20px 14px;
-      border: 1px dashed rgba(198, 152, 49, 0.28);
+      border: 1px dashed rgba(47, 143, 94, 0.28);
       border-radius: 10px;
       text-align: center;
       color: var(--dash-muted);
@@ -1032,10 +1049,10 @@
     .escrow-empty a {
       margin-top: 10px;
       display: inline-block;
-      color: #8a6a1d;
+      color: #236b47;
       font: 400 13px/1 var(--dash-serif);
       text-decoration: none;
-      border-bottom: 1px solid rgba(138, 106, 29, 0.32);
+      border-bottom: 1px solid rgba(47, 143, 94, 0.32);
     }
 
     /* ── Danger Zone ─────────────────────────── */
@@ -1091,7 +1108,7 @@
     }
 
     .modal-close {
-      border: 1px solid rgba(198, 152, 49, 0.38);
+      border: 1px solid rgba(47, 143, 94, 0.38);
       background: transparent;
       color: var(--dash-muted);
       border-radius: 6px;
@@ -1124,7 +1141,7 @@
       width: 26px;
       height: 26px;
       border-radius: 50%;
-      border: 2px solid rgba(198, 152, 49, 0.3);
+      border: 2px solid rgba(47, 143, 94, 0.3);
       background: transparent;
       display: flex;
       align-items: center;
@@ -1136,8 +1153,8 @@
 
     .wizard-step.active .wizard-step__dot {
       border-color: var(--dash-gold);
-      background: rgba(198, 152, 49, 0.12);
-      color: #8a6010;
+      background: rgba(47, 143, 94, 0.12);
+      color: #236b47;
     }
 
     .wizard-step.done .wizard-step__dot {
@@ -1154,7 +1171,7 @@
     }
 
     .wizard-step.active .wizard-step__label {
-      color: #8a6010;
+      color: #236b47;
       font-weight: 600;
     }
 
@@ -1163,7 +1180,7 @@
     .wizard-connector {
       flex: 1;
       height: 1px;
-      background: rgba(198, 152, 49, 0.22);
+      background: rgba(47, 143, 94, 0.22);
       margin: 0 8px;
       margin-bottom: 16px;
     }
@@ -1183,7 +1200,7 @@
 
     .personality-card {
       background: transparent;
-      border: 2px solid rgba(198, 152, 49, 0.28);
+      border: 2px solid rgba(47, 143, 94, 0.28);
       border-radius: 12px;
       padding: 14px 10px;
       cursor: pointer;
@@ -1196,15 +1213,15 @@
     }
 
     .personality-card:hover {
-      border-color: rgba(198, 152, 49, 0.55);
-      background: rgba(198, 152, 49, 0.04);
+      border-color: rgba(47, 143, 94, 0.55);
+      background: rgba(47, 143, 94, 0.04);
     }
 
     .personality-card.selected,
     .personality-card[aria-pressed="true"] {
       border-color: var(--dash-gold);
-      background: rgba(198, 152, 49, 0.08);
-      box-shadow: 0 0 0 1px rgba(198, 152, 49, 0.28), 0 4px 16px rgba(198, 152, 49, 0.1);
+      background: rgba(47, 143, 94, 0.08);
+      box-shadow: 0 0 0 1px rgba(47, 143, 94, 0.28), 0 4px 16px rgba(47, 143, 94, 0.1);
     }
 
     .personality-card__avatar {
@@ -1233,7 +1250,7 @@
     /* ── Mode Toggle Strip ───────────────────── */
     .toggle-strip {
       display: flex;
-      border: 1px solid rgba(198, 152, 49, 0.38);
+      border: 1px solid rgba(47, 143, 94, 0.38);
       border-radius: 8px;
       overflow: hidden;
     }
@@ -1249,10 +1266,10 @@
       transition: background 0.14s, color 0.14s;
     }
 
-    .toggle-pill:not(:last-child) { border-right: 1px solid rgba(198, 152, 49, 0.28); }
+    .toggle-pill:not(:last-child) { border-right: 1px solid rgba(47, 143, 94, 0.28); }
 
     .toggle-pill.active {
-      background: rgba(198, 152, 49, 0.12);
+      background: rgba(47, 143, 94, 0.12);
       color: var(--dash-ink);
     }
 
@@ -1266,7 +1283,7 @@
 
     /* ── Advanced Section ─────────────────────── */
     #bot-advanced {
-      border: 1px solid rgba(198, 152, 49, 0.22);
+      border: 1px solid rgba(47, 143, 94, 0.22);
       border-radius: 8px;
       overflow: hidden;
     }
@@ -1280,7 +1297,7 @@
       cursor: pointer;
       font: 600 13px/1 var(--dash-serif);
       color: var(--dash-muted);
-      background: rgba(198, 152, 49, 0.04);
+      background: rgba(47, 143, 94, 0.04);
       user-select: none;
     }
 
@@ -1296,7 +1313,7 @@
 
     .advanced-body {
       padding: 14px;
-      border-top: 1px solid rgba(198, 152, 49, 0.18);
+      border-top: 1px solid rgba(47, 143, 94, 0.18);
     }
 
     /* ── Review List ───────────────────────────── */
@@ -1329,7 +1346,7 @@
       gap: 8px;
       margin-top: 18px;
       padding-top: 14px;
-      border-top: 1px solid rgba(198, 152, 49, 0.18);
+      border-top: 1px solid rgba(47, 143, 94, 0.18);
     }
 
     .wizard-footer .btn-ghost { margin-right: auto; }
@@ -1418,6 +1435,10 @@
         <button type="button" data-view="settings"><span>Settings</span></button>
         <button type="button" data-view="super"><span>Agent</span></button>
       </nav>
+
+      <div class="sidebar-actions">
+        <button id="dashboard-logout" class="sidebar-logout" type="button">Sign out</button>
+      </div>
     </aside>
 
     <section class="dashboard-content">
@@ -1445,7 +1466,7 @@
           </article>
 
           <article class="panel" style="margin-bottom:14px;">
-            <h2>Agent Strategy</h2>
+            <h2>Your agent</h2>
             <div id="bot-list" class="bot-grid"></div>
           </article>
 
@@ -1612,7 +1633,7 @@
             <div class="chief-head">
               <div>
                 <h2 class="chief-title">Chief of Staff</h2>
-                <p class="chief-desc">Natural language control for your bot and wallet. Ask anything.</p>
+                <p class="chief-desc">Natural language control for your agent and wallet. Ask anything.</p>
               </div>
               <span class="chief-badge" id="chief-badge">Ready</span>
             </div>
@@ -1626,7 +1647,7 @@
                 </div>
               </div>
               <div class="chief-cmd-group">
-                <span class="chief-cmd-label">Bot</span>
+                <span class="chief-cmd-label">Agent</span>
                 <div class="chief-chips">
                   <button type="button" class="chief-chip" data-chief-cmd="set personality aggressive">Aggressive</button>
                   <button type="button" class="chief-chip" data-chief-cmd="set personality conservative">Conservative</button>
@@ -1681,13 +1702,13 @@
     </section>
   </main>
 
-  <!-- Bot Edit Modal – Wizard -->
+  <!-- Agent Edit Modal - Wizard -->
   <div id="bot-modal" class="modal-backdrop" aria-hidden="true">
     <div class="modal modal--wizard" role="dialog" aria-modal="true" aria-labelledby="bot-modal-title">
 
       <!-- Header -->
       <div class="modal-head">
-        <h3 id="bot-modal-title">Configure Bot</h3>
+        <h3 id="bot-modal-title">Configure agent</h3>
         <button id="bot-modal-close" class="modal-close" type="button">Close</button>
       </div>
       <p id="bot-modal-sub" class="muted" style="margin:0 0 16px;font-style:italic;"></p>
@@ -1712,7 +1733,7 @@
 
       <!-- Step 1 · Personality -->
       <div class="wizard-pane" id="bot-wizard-step-1">
-        <p class="wizard-pane__hint">Choose how your bot behaves in the arena.</p>
+        <p class="wizard-pane__hint">Choose how your agent behaves in the arena.</p>
 
         <div class="personality-cards" role="radiogroup" aria-label="Personality">
           <button class="personality-card" data-personality="aggressive" type="button" aria-pressed="false">
@@ -1845,7 +1866,7 @@
       <div class="wizard-footer">
         <button id="bot-wizard-back" class="btn-ghost" type="button" style="display:none;">← Back</button>
         <button id="bot-wizard-next" class="btn-dark" type="button">Next →</button>
-        <button id="bot-save" class="btn-gold" type="button" style="display:none;">Save Bot</button>
+        <button id="bot-save" class="btn-gold" type="button" style="display:none;">Save agent</button>
       </div>
       <div id="bot-modal-status" class="wizard-status" aria-live="polite"></div>
 
