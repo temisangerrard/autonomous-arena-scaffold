@@ -1104,6 +1104,30 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
     return payload ? json(payload) : json({ ok: false, reason: 'wallet_readiness_unavailable' }, 503);
   }
 
+  const botSessionMatch = pathname.match(/^\/api\/player\/bots\/([^/]+)\/session(?:\/(deploy|pause|stop|logs))?$/);
+  if (botSessionMatch && (request.method === 'GET' || request.method === 'POST')) {
+    const auth = await requireRole(db, request, env, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId) return json({ ok: false, reason: 'unauthorized' }, 401);
+    const botId = botSessionMatch[1] || '';
+    const action = botSessionMatch[2] || '';
+    const runtimeStatus = await runtimeFetch<RuntimeStatusPayload>(request, env, '/status').catch(() => ({ bots: [] }));
+    const ownerBot = (runtimeStatus.bots ?? []).find((entry) => entry.id === botId && entry.meta?.ownerProfileId === auth.identity.profileId);
+    if (!ownerBot) return json({ ok: false, reason: 'bot_not_owned' }, 403);
+    if (action === 'logs' && request.method === 'GET') {
+      const payload = await runtimeFetch(request, env, `/agents/${botId}/session/logs`).catch(() => null);
+      return payload ? json(payload) : json({ ok: false, reason: 'agent_session_unavailable' }, 503);
+    }
+    if (!action && request.method === 'GET') {
+      const payload = await runtimeFetch(request, env, `/agents/${botId}/session`).catch(() => null);
+      return payload ? json(payload) : json({ ok: false, reason: 'agent_session_unavailable' }, 503);
+    }
+    if (['deploy', 'pause', 'stop'].includes(action) && request.method === 'POST') {
+      const body = action === 'deploy' ? await request.json().catch(() => null) : {};
+      const payload = await runtimeFetch(request, env, `/agents/${botId}/session/${action}`, { method: 'POST', body: body || {} }).catch(() => null);
+      return payload ? json(payload) : json({ ok: false, reason: 'agent_session_update_failed' }, 400);
+    }
+  }
+
   const botConfigMatch = pathname.match(/^\/api\/player\/bots\/([^/]+)\/config$/);
   if (botConfigMatch && request.method === 'POST') {
     const auth = await requireRole(db, request, env, ['player', 'admin']);
