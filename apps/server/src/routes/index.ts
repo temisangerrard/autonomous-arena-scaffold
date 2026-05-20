@@ -34,6 +34,7 @@ export type RouteContext = {
       stationId: string;
       action: string;
       wager?: number;
+      stake?: number;
       pick?: string;
       side?: 'yes' | 'no';
       marketId?: string;
@@ -277,6 +278,7 @@ async function handleStationsInteract(
       stationId?: string;
       action?: string;
       wager?: number;
+      stake?: number;
       pick?: string;
       side?: 'yes' | 'no';
       marketId?: string;
@@ -301,6 +303,7 @@ async function handleStationsInteract(
       stationId,
       action,
       wager: Number(body?.payload?.wager ?? 0),
+      stake: Number(body?.payload?.stake ?? body?.payload?.wager ?? 0),
       pick: body?.payload?.pick ? String(body.payload.pick) : undefined,
       side: body?.payload?.side,
       marketId: body?.payload?.marketId ? String(body.payload.marketId) : undefined,

@@ -105,6 +105,8 @@ let playerShellRefreshInFlight = null;
 const WALLET_SUMMARY_BACKOFF_KEY = 'dashboard_wallet_summary';
 /** @type {Map<string, {status: string, reason: string, gasSponsored: boolean}>} */
 const botReadinessCache = new Map();
+/** @type {Map<string, {session: object | null, logs: object[]}>} */
+const agentSessionCache = new Map();
 
 // Autoplay wizard refs
 const botAutoplayEnabled = document.getElementById('bot-autoplay-enabled');
@@ -140,6 +142,47 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatUsdc(value) {
+  const num = Number(value || 0);
+  return `${num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })} USDC`;
+}
+
+function formatAgentDuration(ms) {
+  const totalSeconds = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  }
+  return `${minutes}m ${seconds}s`;
+}
+
+function agentSessionLabel(session) {
+  if (!session) return 'Ready to deploy';
+  const status = String(session.status || 'stopped');
+  const state = String(session.state || 'idle').replace(/_/g, ' ');
+  if (status === 'running') return `Running: ${state}`;
+  if (status === 'paused') return `Paused: ${state}`;
+  return `Stopped: ${state}`;
+}
+
+function renderAgentLogs(logs = []) {
+  const entries = Array.isArray(logs) ? logs.slice(0, 4) : [];
+  if (entries.length === 0) {
+    return '<p class="muted" style="margin:10px 0 0;">No decisions logged yet.</p>';
+  }
+  return `<div class="agent-log" style="display:grid;gap:6px;margin-top:10px;">${entries.map((entry) => {
+    const at = Number(entry.at || 0);
+    const time = at ? new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now';
+    return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">
+      <span>${escapeHtml(entry.message || entry.eventType || 'Decision logged')}</span>
+      <span class="muted">${escapeHtml(time)}</span>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function setStatus(text) {
@@ -338,7 +381,7 @@ function renderBotCards() {
   }
 
   if (bots.length === 0) {
-    botList.innerHTML = '<article class="panel"><p class="muted" style="margin:0;">No owner bot found yet.</p></article>';
+    botList.innerHTML = '<article class="panel"><p class="muted" style="margin:0;">No player agent found yet.</p></article>';
     return;
   }
 
@@ -346,24 +389,42 @@ function renderBotCards() {
     .map((bot) => {
       const section = bot.meta?.patrolSection;
       const personality = String(bot.behavior?.personality || 'social');
-      const target = String(bot.behavior?.targetPreference || 'human_first').replace(/_/g, ' ');
-      const cooldown = Number(bot.behavior?.challengeCooldownMs || 2600);
       const badgeClass = statusClassForBot(bot);
       const badgeText = statusTextForBot(bot);
-      const autoplayPill = isAutoplayEnabled(bot) ? 'Autoplay on' : 'Autoplay off';
       const botWalletId = String(bot.walletId || playerCtx?.profile?.wallet?.id || playerCtx?.profile?.walletId || '-');
       const botWalletAddress = String(bot.walletAddress || playerCtx?.profile?.wallet?.address || '-');
       const readiness = botReadinessCache.get(bot.id);
       const readinessBadge = readiness
         ? `<span class="readiness-badge readiness-badge--${readinessClass(readiness.status)}">${readinessLabel(readiness.status)}</span>`
         : '';
+      const agentState = agentSessionCache.get(bot.id) || { session: null, logs: [] };
+      const session = agentState.session || null;
+      const logs = Array.isArray(agentState.logs) ? agentState.logs : [];
+      const sessionRunning = String(session?.status || '') === 'running';
+      const sessionPaused = String(session?.status || '') === 'paused';
+      const pnl = Number(session?.sessionPnl || 0);
+      const rounds = Number(session?.roundsPlayed || 0);
+      const wins = Number(session?.wins || 0);
+      const losses = Number(session?.losses || 0);
+      const winRate = rounds > 0 ? `${Math.round((wins / rounds) * 100)}%` : '-';
+      const remainingMs = session?.endsAt ? Math.max(0, Number(session.endsAt) - Date.now()) : 0;
+      const allowedGames = Array.isArray(session?.allowedGames) && session.allowedGames.length > 0
+        ? session.allowedGames.map((game) => String(game).replace(/_/g, ' ')).join(', ')
+        : 'Coinflip, Dice Duel, RPS, BTC Up/Down';
+      const sessionActions = sessionRunning
+        ? `<button class="btn-ghost" type="button" data-agent-action="pause-agent" data-bot-id="${escapeHtml(bot.id)}">Pause</button>
+           <button class="btn-ghost" type="button" data-agent-action="stop-agent" data-bot-id="${escapeHtml(bot.id)}">Stop</button>`
+        : sessionPaused
+          ? `<button class="btn-gold" type="button" data-agent-action="deploy-agent" data-bot-id="${escapeHtml(bot.id)}">Deploy Agent</button>
+             <button class="btn-ghost" type="button" data-agent-action="stop-agent" data-bot-id="${escapeHtml(bot.id)}">Stop</button>`
+          : `<button class="btn-gold" type="button" data-agent-action="deploy-agent" data-bot-id="${escapeHtml(bot.id)}">Deploy Agent</button>`;
 
-      return `<article class="bot-card" data-bot-id="${escapeHtml(bot.id)}" data-action="edit-bot">
+      return `<article class="bot-card" data-bot-id="${escapeHtml(bot.id)}">
         <div class="bot-card__head">
           <i class="bot-avatar personality-${escapeHtml(personality)}"></i>
           <div>
-            <h3 class="bot-name">${escapeHtml(bot.meta?.displayName || bot.id)}</h3>
-            <p class="bot-sub">${escapeHtml(bot.id)} · S${section ?? '-'} · wallet ${escapeHtml(botWalletId)}</p>
+            <h3 class="bot-name">${escapeHtml(bot.meta?.displayName || 'Arena Agent')}</h3>
+            <p class="bot-sub">${escapeHtml(bot.id)} · patrol S${section ?? '-'} · wallet ${escapeHtml(botWalletId)}</p>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
             <span class="badge ${badgeClass}">${badgeText}</span>
@@ -371,12 +432,18 @@ function renderBotCards() {
           </div>
         </div>
         <div class="pill-row">
-          <span class="pill">${escapeHtml(personality)}</span>
-          <span class="pill">${escapeHtml(target)}</span>
-          <span class="pill">${cooldown}ms</span>
-          <span class="pill">${escapeHtml(autoplayPill)}</span>
+          <span class="pill">${escapeHtml(agentSessionLabel(session))}</span>
+          <span class="pill">Away mode only</span>
+          <span class="pill">${escapeHtml(allowedGames)}</span>
         </div>
-        <div class="wager-box">Wager Range: ${Number(bot.behavior?.baseWager || 1)} to ${Number(bot.behavior?.maxWager || 3)}<br><span class="mono">${escapeHtml(botWalletAddress)}</span></div>
+        <div class="wager-box">
+          <strong>Session</strong>: ${session ? `${formatUsdc(session.maxWager)} max stake · ${formatUsdc(session.stopLoss)} stop loss${session.takeProfit ? ` · ${formatUsdc(session.takeProfit)} take profit` : ''}` : 'Deploy an agent to play while you are away.'}<br>
+          <strong>Performance</strong>: ${formatUsdc(pnl)} P&amp;L · ${rounds} rounds · ${wins}W/${losses}L · ${winRate} win rate${sessionRunning ? ` · ${formatAgentDuration(remainingMs)} left` : ''}<br>
+          <span class="mono">${escapeHtml(botWalletAddress)}</span>
+        </div>
+        ${session?.lastAction ? `<p class="muted" style="margin:10px 0 0;">Last action: ${escapeHtml(session.lastAction)}</p>` : ''}
+        ${renderAgentLogs(logs)}
+        <div class="actions" style="margin-top:12px;gap:8px;">${sessionActions}</div>
       </article>`;
     })
     .join('');
@@ -815,9 +882,14 @@ async function refreshContext() {
     const bots = Array.isArray(playerCtx?.bots) ? playerCtx.bots : [];
     if (bots.length > 0) {
       Promise.allSettled(
-        bots.map((bot) =>
-          api(`/api/player/bots/${encodeURIComponent(bot.id)}/wallet`)
-            .then((r) => {
+        bots.map((bot) => {
+          const botId = encodeURIComponent(bot.id);
+          return Promise.allSettled([
+            api(`/api/player/bots/${botId}/wallet`),
+            api(`/api/player/bots/${botId}/session`)
+          ]).then(([walletResult, sessionResult]) => {
+            if (walletResult.status === 'fulfilled') {
+              const r = walletResult.value;
               if (r?.readiness) {
                 botReadinessCache.set(bot.id, r.readiness);
                 if (playerShellCtx?.bot?.id === bot.id) {
@@ -829,9 +901,15 @@ async function refreshContext() {
                   saveStoredPlayerShell(getRequestStorage(), playerShellCtx);
                 }
               }
-            })
-            .catch(() => {})
-        )
+            }
+            if (sessionResult.status === 'fulfilled') {
+              agentSessionCache.set(bot.id, {
+                session: sessionResult.value?.session || null,
+                logs: Array.isArray(sessionResult.value?.logs) ? sessionResult.value.logs : []
+              });
+            }
+          });
+        })
       ).then(() => renderBotCards());
     }
   })();
@@ -1201,9 +1279,59 @@ botModeStrip?.addEventListener('click', (event) => {
 
 // Bot creation intentionally disabled.
 
-botList?.addEventListener('click', (event) => {
+async function deployAgentSession(botId) {
+  return api(`/api/player/bots/${encodeURIComponent(botId)}/session/deploy`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      objective: 'steady_play',
+      allowedGames: ['coinflip', 'dice_duel', 'rps', 'btc_up_down'],
+      maxWager: 0.5,
+      stopLoss: 2,
+      takeProfit: 5,
+      sessionLengthMinutes: 60
+    })
+  });
+}
+
+async function updateAgentSession(botId, action) {
+  const endpoint = action === 'pause-agent' ? 'pause' : 'stop';
+  return api(`/api/player/bots/${encodeURIComponent(botId)}/session/${endpoint}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({})
+  });
+}
+
+botList?.addEventListener('click', async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const actionButton = target.closest('[data-agent-action]');
+  if (actionButton instanceof HTMLElement) {
+    const botId = String(actionButton.getAttribute('data-bot-id') || '').trim();
+    const action = String(actionButton.getAttribute('data-agent-action') || '').trim();
+    if (!botId) {
+      return;
+    }
+    try {
+      actionButton.setAttribute('disabled', 'disabled');
+      if (action === 'deploy-agent') {
+        setStatus(`Deploying ${botId} for away play...`);
+        await deployAgentSession(botId);
+        setStatus('Agent deployed. It will enter games only while you are away.');
+      } else if (action === 'pause-agent' || action === 'stop-agent') {
+        setStatus(`${action === 'pause-agent' ? 'Pausing' : 'Stopping'} ${botId}...`);
+        await updateAgentSession(botId, action);
+        setStatus(`Agent ${action === 'pause-agent' ? 'paused' : 'stopped'}.`);
+      }
+      await refreshContext();
+    } catch (error) {
+      setStatus(`Agent update failed: ${String(error.message || error)}`);
+    } finally {
+      actionButton.removeAttribute('disabled');
+    }
     return;
   }
   const card = target.closest('[data-action="edit-bot"]');

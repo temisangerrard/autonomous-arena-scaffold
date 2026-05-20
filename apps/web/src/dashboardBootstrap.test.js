@@ -24,4 +24,13 @@ describe('dashboard warm bootstrap flow', () => {
     expect(source).toContain("setBotModalStatus('Bot saved.', 'success');");
     expect(source).toContain("setBotModalStatus(`Bot save failed: ${String(error.message || error)}`, 'error');");
   });
+
+  it('wires the dashboard agent session controls to the Cloudflare backend API', () => {
+    const source = readFileSync(dashboardPath, 'utf8');
+
+    expect(source).toContain('/session/deploy');
+    expect(source).toContain("action === 'pause-agent' ? 'pause' : 'stop'");
+    expect(source).toContain('Away mode only');
+    expect(source).toContain("'btc_up_down'");
+  });
 });

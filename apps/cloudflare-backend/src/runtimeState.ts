@@ -106,8 +106,49 @@ type PlayableStation = {
   available?: boolean;
 };
 
+type AgentAllowedGame = 'rps' | 'coinflip' | 'dice_duel' | 'btc_up_down';
+type AgentSessionStatus = 'running' | 'paused' | 'stopped';
+type AgentSessionState =
+  | 'idle'
+  | 'entering'
+  | 'playing'
+  | 'cooling_down'
+  | 'paused'
+  | 'stopped_take_profit'
+  | 'stopped_stop_loss'
+  | 'stopped_no_funds'
+  | 'stopped_time'
+  | 'stopped_manual';
+
+type AgentSession = {
+  id: string;
+  botId: string;
+  ownerProfileId: string;
+  walletId: string;
+  status: AgentSessionStatus;
+  state: AgentSessionState;
+  objective: string;
+  allowedGames: AgentAllowedGame[];
+  maxWagerMicroUsdc: number;
+  stopLossMicroUsdc: number;
+  takeProfitMicroUsdc: number | null;
+  sessionLengthMs: number;
+  startedAt: number;
+  endsAt: number;
+  pausedAt: number | null;
+  stoppedAt: number | null;
+  sessionPnlMicroUsdc: number;
+  roundsPlayed: number;
+  wins: number;
+  losses: number;
+  lastAction: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
 const USER_SEED_BALANCE = 0;
 const HOUSE_SEED_BALANCE = 0;
+const USDC_MICRO = 1_000_000;
 
 const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS runtime_profiles (
@@ -163,6 +204,43 @@ const MIGRATIONS = [
     source TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS agent_sessions (
+    session_id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL,
+    owner_profile_id TEXT NOT NULL,
+    wallet_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    objective TEXT NOT NULL,
+    allowed_games_json TEXT NOT NULL,
+    max_wager_micro_usdc INTEGER NOT NULL,
+    stop_loss_micro_usdc INTEGER NOT NULL,
+    take_profit_micro_usdc INTEGER,
+    session_length_ms INTEGER NOT NULL,
+    started_at INTEGER NOT NULL,
+    ends_at INTEGER NOT NULL,
+    paused_at INTEGER,
+    stopped_at INTEGER,
+    state TEXT NOT NULL,
+    session_pnl_micro_usdc INTEGER NOT NULL,
+    rounds_played INTEGER NOT NULL,
+    wins INTEGER NOT NULL,
+    losses INTEGER NOT NULL,
+    last_action TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_agent_sessions_bot_status ON agent_sessions(bot_id, status, updated_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS agent_decision_logs (
+    log_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    owner_profile_id TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    meta_json TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_agent_decision_logs_session_at ON agent_decision_logs(session_id, at DESC)`,
   `CREATE TABLE IF NOT EXISTS runtime_counters (
     singleton TEXT PRIMARY KEY,
     profile_counter INTEGER NOT NULL,
@@ -215,6 +293,16 @@ function asNum(value: unknown, fallback = 0): number {
 
 function asStr(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function usdcToMicro(value: unknown, fallback = 0): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(0, Math.round(num * USDC_MICRO));
+}
+
+function microToUsdc(value: number): number {
+  return Number((Math.round(value) / USDC_MICRO).toFixed(6));
 }
 
 function safeJsonParse<T>(value: unknown, fallback: T): T {
@@ -352,6 +440,176 @@ function defaultAutoplaySession(behavior: RuntimeBotBehavior): AutoplaySessionSt
     pausedAt: null,
     lastGameAt: null,
   };
+}
+
+function normalizeAllowedGames(value: unknown, fallback: AgentAllowedGame[] = ['coinflip', 'dice_duel', 'rps', 'btc_up_down']): AgentAllowedGame[] {
+  const raw = Array.isArray(value) ? value : fallback;
+  const allowed = raw
+    .map((entry) => String(entry || '').trim())
+    .filter((entry): entry is AgentAllowedGame => ['rps', 'coinflip', 'dice_duel', 'btc_up_down'].includes(entry));
+  return allowed.length > 0 ? [...new Set(allowed)] : fallback;
+}
+
+function agentSessionFromRow(row: Record<string, unknown>): AgentSession {
+  return {
+    id: asStr(row.session_id),
+    botId: asStr(row.bot_id),
+    ownerProfileId: asStr(row.owner_profile_id),
+    walletId: asStr(row.wallet_id),
+    status: ['running', 'paused', 'stopped'].includes(asStr(row.status)) ? asStr(row.status) as AgentSessionStatus : 'stopped',
+    state: asStr(row.state, 'idle') as AgentSessionState,
+    objective: asStr(row.objective, 'steady_play'),
+    allowedGames: normalizeAllowedGames(safeJsonParse(row.allowed_games_json, [])),
+    maxWagerMicroUsdc: Math.max(0, Math.floor(asNum(row.max_wager_micro_usdc))),
+    stopLossMicroUsdc: Math.max(0, Math.floor(asNum(row.stop_loss_micro_usdc))),
+    takeProfitMicroUsdc: row.take_profit_micro_usdc == null ? null : Math.max(0, Math.floor(asNum(row.take_profit_micro_usdc))),
+    sessionLengthMs: Math.max(60_000, Math.floor(asNum(row.session_length_ms, 60 * 60_000))),
+    startedAt: asNum(row.started_at),
+    endsAt: asNum(row.ends_at),
+    pausedAt: row.paused_at == null ? null : asNum(row.paused_at),
+    stoppedAt: row.stopped_at == null ? null : asNum(row.stopped_at),
+    sessionPnlMicroUsdc: Math.floor(asNum(row.session_pnl_micro_usdc)),
+    roundsPlayed: Math.max(0, Math.floor(asNum(row.rounds_played))),
+    wins: Math.max(0, Math.floor(asNum(row.wins))),
+    losses: Math.max(0, Math.floor(asNum(row.losses))),
+    lastAction: asStr(row.last_action),
+    createdAt: asNum(row.created_at),
+    updatedAt: asNum(row.updated_at),
+  };
+}
+
+function serializeAgentSession(session: AgentSession | null) {
+  if (!session) return null;
+  return {
+    id: session.id,
+    botId: session.botId,
+    ownerProfileId: session.ownerProfileId,
+    walletId: session.walletId,
+    status: session.status,
+    state: session.state,
+    objective: session.objective,
+    allowedGames: session.allowedGames,
+    maxWager: microToUsdc(session.maxWagerMicroUsdc),
+    stopLoss: microToUsdc(session.stopLossMicroUsdc),
+    takeProfit: session.takeProfitMicroUsdc == null ? null : microToUsdc(session.takeProfitMicroUsdc),
+    sessionLengthMs: session.sessionLengthMs,
+    startedAt: session.startedAt,
+    endsAt: session.endsAt,
+    pausedAt: session.pausedAt,
+    stoppedAt: session.stoppedAt,
+    sessionPnl: microToUsdc(session.sessionPnlMicroUsdc),
+    roundsPlayed: session.roundsPlayed,
+    wins: session.wins,
+    losses: session.losses,
+    lastAction: session.lastAction,
+    updatedAt: session.updatedAt,
+  };
+}
+
+async function getLatestAgentSession(db: D1DatabaseLike, botId: string): Promise<AgentSession | null> {
+  const row = await first<Record<string, unknown>>(db, 'SELECT * FROM agent_sessions WHERE bot_id = ? ORDER BY updated_at DESC LIMIT 1', [botId]);
+  return row ? agentSessionFromRow(row) : null;
+}
+
+async function getRunningAgentSession(db: D1DatabaseLike, botId: string): Promise<AgentSession | null> {
+  const row = await first<Record<string, unknown>>(db, 'SELECT * FROM agent_sessions WHERE bot_id = ? AND status = ? ORDER BY updated_at DESC LIMIT 1', [botId, 'running']);
+  return row ? agentSessionFromRow(row) : null;
+}
+
+async function persistAgentSession(db: D1DatabaseLike, session: AgentSession): Promise<void> {
+  session.updatedAt = Date.now();
+  await run(
+    db,
+    `INSERT OR REPLACE INTO agent_sessions (
+      session_id, bot_id, owner_profile_id, wallet_id, status, objective, allowed_games_json,
+      max_wager_micro_usdc, stop_loss_micro_usdc, take_profit_micro_usdc, session_length_ms,
+      started_at, ends_at, paused_at, stopped_at, state, session_pnl_micro_usdc,
+      rounds_played, wins, losses, last_action, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      session.id,
+      session.botId,
+      session.ownerProfileId,
+      session.walletId,
+      session.status,
+      session.objective,
+      JSON.stringify(session.allowedGames),
+      session.maxWagerMicroUsdc,
+      session.stopLossMicroUsdc,
+      session.takeProfitMicroUsdc,
+      session.sessionLengthMs,
+      session.startedAt,
+      session.endsAt,
+      session.pausedAt,
+      session.stoppedAt,
+      session.state,
+      session.sessionPnlMicroUsdc,
+      session.roundsPlayed,
+      session.wins,
+      session.losses,
+      session.lastAction,
+      session.createdAt,
+      session.updatedAt,
+    ],
+  );
+}
+
+async function writeAgentLog(db: D1DatabaseLike, session: AgentSession, eventType: string, message: string, meta: Record<string, unknown> = {}): Promise<void> {
+  const now = Date.now();
+  session.lastAction = message;
+  await run(
+    db,
+    'INSERT INTO agent_decision_logs (log_id, session_id, bot_id, owner_profile_id, at, event_type, message, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [`log_${now}_${crypto.randomUUID().slice(0, 8)}`, session.id, session.botId, session.ownerProfileId, now, eventType, message, JSON.stringify(meta)],
+  );
+}
+
+async function agentDecisionLogs(db: D1DatabaseLike, sessionId: string, limit = 20) {
+  const rows = await all<Record<string, unknown>>(
+    db,
+    'SELECT at, event_type, message, meta_json FROM agent_decision_logs WHERE session_id = ? ORDER BY at DESC LIMIT ?',
+    [sessionId, Math.max(1, Math.min(100, Math.floor(limit)))],
+  );
+  return rows.map((row) => ({
+    at: asNum(row.at),
+    eventType: asStr(row.event_type),
+    message: asStr(row.message),
+    meta: safeJsonParse(row.meta_json, {}),
+  }));
+}
+
+async function createAgentSession(db: D1DatabaseLike, bot: { record: RuntimeBotRecord; behavior: RuntimeBotBehavior }, body: Record<string, unknown> | null): Promise<AgentSession> {
+  const now = Date.now();
+  const sessionMinutes = Math.max(1, Math.min(24 * 60, asNum(body?.sessionLengthMinutes, 60)));
+  const session: AgentSession = {
+    id: `agent_session_${now}_${crypto.randomUUID().slice(0, 8)}`,
+    botId: bot.record.id,
+    ownerProfileId: bot.record.ownerProfileId,
+    walletId: bot.record.walletId || '',
+    status: 'running',
+    state: 'idle',
+    objective: String(body?.objective || 'steady_play').trim() || 'steady_play',
+    allowedGames: normalizeAllowedGames(body?.allowedGames),
+    maxWagerMicroUsdc: Math.max(1, usdcToMicro(body?.maxWager, usdcToMicro(0.5))),
+    stopLossMicroUsdc: Math.max(1, usdcToMicro(body?.stopLoss, usdcToMicro(2))),
+    takeProfitMicroUsdc: body?.takeProfit == null || body?.takeProfit === '' ? null : Math.max(1, usdcToMicro(body.takeProfit)),
+    sessionLengthMs: Math.floor(sessionMinutes * 60_000),
+    startedAt: now,
+    endsAt: now + Math.floor(sessionMinutes * 60_000),
+    pausedAt: null,
+    stoppedAt: null,
+    sessionPnlMicroUsdc: 0,
+    roundsPlayed: 0,
+    wins: 0,
+    losses: 0,
+    lastAction: 'Agent deployed for away play.',
+    createdAt: now,
+    updatedAt: now,
+  };
+  await persistAgentSession(db, session);
+  await writeAgentLog(db, session, 'deployed', 'Agent deployed for away play.', { allowedGames: session.allowedGames });
+  await persistAgentSession(db, session);
+  return session;
 }
 
 async function ensureHouseProfile(db: D1DatabaseLike): Promise<{ profile: RuntimeProfile; wallet: RuntimeWallet }> {
@@ -692,6 +950,119 @@ function updateAutoplaySession(session: AutoplaySessionState, behavior: RuntimeB
   return next;
 }
 
+async function stopAgentSession(db: D1DatabaseLike, session: AgentSession, state: AgentSessionState, message: string): Promise<void> {
+  session.status = 'stopped';
+  session.state = state;
+  session.stoppedAt = Date.now();
+  await writeAgentLog(db, session, 'stopped', message, { state });
+  await persistAgentSession(db, session);
+}
+
+function shouldRunAgentSession(
+  session: AgentSession,
+  wallet: RuntimeWallet | null,
+  stationByGameType: Map<PlayableStation['gameType'], PlayableStation>,
+): { ok: true; gameType: AgentAllowedGame; wagerMicroUsdc: number } | { ok: false; reason: string; state?: AgentSessionState; message?: string } {
+  if (session.status !== 'running') return { ok: false, reason: 'not_running' };
+  if (Date.now() >= session.endsAt) return { ok: false, reason: 'time_limit', state: 'stopped_time', message: 'Session ended at its time limit.' };
+  if (!wallet || usdcToMicro(wallet.balance) < session.maxWagerMicroUsdc) {
+    return { ok: false, reason: 'insufficient_funds', state: 'stopped_no_funds', message: 'Wallet balance is below the session max stake.' };
+  }
+  if (session.sessionPnlMicroUsdc <= -session.stopLossMicroUsdc) {
+    return { ok: false, reason: 'stop_loss', state: 'stopped_stop_loss', message: 'Stop loss reached.' };
+  }
+  if (session.takeProfitMicroUsdc != null && session.sessionPnlMicroUsdc >= session.takeProfitMicroUsdc) {
+    return { ok: false, reason: 'take_profit', state: 'stopped_take_profit', message: 'Take profit reached.' };
+  }
+  const playable = session.allowedGames.filter((game) => {
+    const stationType = game === 'btc_up_down' ? 'prediction' : game;
+    return Boolean(stationByGameType.get(stationType));
+  });
+  if (playable.length === 0) return { ok: false, reason: 'no_playable_games' };
+  const index = (Math.floor(Date.now() / 30_000) + Math.abs(hashString(session.id))) % playable.length;
+  return { ok: true, gameType: playable[index] ?? 'coinflip', wagerMicroUsdc: session.maxWagerMicroUsdc };
+}
+
+function updateAgentSessionOutcome(session: AgentSession, outcome: 'won' | 'lost' | 'push', wagerMicroUsdc: number): void {
+  session.roundsPlayed += 1;
+  if (outcome === 'won') {
+    session.wins += 1;
+    session.sessionPnlMicroUsdc += wagerMicroUsdc;
+  } else if (outcome === 'lost') {
+    session.losses += 1;
+    session.sessionPnlMicroUsdc -= wagerMicroUsdc;
+  }
+  session.state = 'cooling_down';
+}
+
+function stationMessageView(message: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  const view = message?.view;
+  return view && typeof view === 'object' ? view as Record<string, unknown> : null;
+}
+
+function chooseBtcMarket(view: Record<string, unknown> | null): Record<string, unknown> | null {
+  const markets = Array.isArray(view?.markets) ? view.markets as Record<string, unknown>[] : [];
+  return markets.find((market) => {
+    const status = String(market.status || '').toLowerCase();
+    const oracle = String(market.oracleSource || market.category || market.slug || '').toLowerCase();
+    return (status === 'active' || status === 'open') && oracle.includes('btc');
+  }) ?? null;
+}
+
+function chooseBtcSide(market: Record<string, unknown>): 'yes' | 'no' {
+  const current = Number(market.currentSpotPrice ?? market.currentValue ?? market.currentPrice ?? 0);
+  const lock = Number(market.lockPrice ?? market.lockValue ?? 0);
+  if (Number.isFinite(current) && Number.isFinite(lock) && current !== lock) return current >= lock ? 'yes' : 'no';
+  const yesPrice = Number(market.yesPrice ?? 0.5);
+  const noPrice = Number(market.noPrice ?? 0.5);
+  return yesPrice <= noPrice ? 'yes' : 'no';
+}
+
+async function runScheduledPredictionEntry(env: RuntimeEnv, db: D1DatabaseLike, bot: { record: RuntimeBotRecord }, session: AgentSession, station: PlayableStation, wagerMicroUsdc: number): Promise<void> {
+  const actorId = `u_${bot.record.ownerProfileId}`;
+  const opened = await postScheduledStationInteract(env, {
+    playerId: actorId,
+    walletId: bot.record.walletId,
+    displayName: bot.record.displayName || bot.record.id,
+    payload: { stationId: station.id, action: 'prediction_markets_open' },
+  });
+  const market = chooseBtcMarket(stationMessageView(opened.message));
+  if (!opened.ok || !market) {
+    await writeAgentLog(db, session, 'skipped', 'No active BTC market was available.', { stationId: station.id });
+    await persistAgentSession(db, session);
+    return;
+  }
+  const marketId = String(market.marketId || market.id || '').trim();
+  if (!marketId) {
+    await writeAgentLog(db, session, 'skipped', 'BTC market did not include an id.', { stationId: station.id });
+    await persistAgentSession(db, session);
+    return;
+  }
+  const side = chooseBtcSide(market);
+  session.state = 'entering';
+  await writeAgentLog(db, session, 'entering', `Entering BTC ${side === 'yes' ? 'Up' : 'Down'} market.`, { marketId, stake: microToUsdc(wagerMicroUsdc) });
+  const placed = await postScheduledStationInteract(env, {
+    playerId: actorId,
+    walletId: bot.record.walletId,
+    displayName: bot.record.displayName || bot.record.id,
+    payload: {
+      stationId: station.id,
+      action: side === 'yes' ? 'prediction_market_buy_yes' : 'prediction_market_buy_no',
+      marketId,
+      stake: microToUsdc(wagerMicroUsdc),
+    },
+  });
+  session.state = placed.ok ? 'cooling_down' : 'idle';
+  await writeAgentLog(
+    db,
+    session,
+    placed.ok ? 'entered' : 'entry_failed',
+    placed.ok ? `Entered BTC ${side === 'yes' ? 'Up' : 'Down'} for ${microToUsdc(wagerMicroUsdc)} USDC.` : 'BTC market entry failed.',
+    { marketId, side, stake: microToUsdc(wagerMicroUsdc) },
+  );
+  await persistAgentSession(db, session);
+}
+
 function resolveScheduledOutcome(message: Record<string, unknown> | undefined, actorId: string): 'won' | 'lost' | 'push' | null {
   const view = message?.view;
   if (!view || typeof view !== 'object') return null;
@@ -752,38 +1123,80 @@ async function runScheduledBots(env: RuntimeEnv): Promise<void> {
     const presence = await first<Record<string, unknown>>(db, 'SELECT until_ms FROM runtime_owner_presence WHERE profile_id = ?', [bot.record.ownerProfileId]);
     if (presence && asNum(presence.until_ms) > Date.now()) continue;
     const wallet = bot.record.walletId ? await getWallet(db, bot.record.walletId) : null;
-    const plan = shouldRunBot(bot.behavior, bot.autoplaySession, wallet);
-    if (!plan.ok || !plan.gameType) continue;
-    const station = stationByGameType.get(plan.gameType);
+    let gameType: 'rps' | 'coinflip' | 'dice_duel';
+    let wager = 0;
+    let agentSession: AgentSession | null = null;
+    let wagerMicroUsdc = 0;
+
+    if (bot.record.ownerProfileId !== 'system_house') {
+      agentSession = await getRunningAgentSession(db, bot.record.id);
+      if (!agentSession) continue;
+      const plan = shouldRunAgentSession(agentSession, wallet, stationByGameType);
+      if (!plan.ok) {
+        if (plan.state && plan.message) await stopAgentSession(db, agentSession, plan.state, plan.message);
+        continue;
+      }
+      if (plan.gameType === 'btc_up_down') {
+        const predictionStation = stationByGameType.get('prediction');
+        if (predictionStation?.id) await runScheduledPredictionEntry(env, db, bot, agentSession, predictionStation, plan.wagerMicroUsdc);
+        continue;
+      }
+      gameType = plan.gameType;
+      wagerMicroUsdc = plan.wagerMicroUsdc;
+      wager = microToUsdc(wagerMicroUsdc);
+    } else {
+      const plan = shouldRunBot(bot.behavior, bot.autoplaySession, wallet);
+      if (!plan.ok || !plan.gameType) continue;
+      gameType = plan.gameType;
+      wager = plan.wager;
+      wagerMicroUsdc = usdcToMicro(wager);
+    }
+
+    const station = stationByGameType.get(gameType);
     if (!station?.id) continue;
     const actorId = `u_${bot.record.ownerProfileId}`;
+    if (agentSession) {
+      agentSession.state = 'entering';
+      await writeAgentLog(db, agentSession, 'entering', `Entering ${gameType.replace(/_/g, ' ')} for ${wager} USDC.`, { gameType, wager });
+      await persistAgentSession(db, agentSession);
+    }
     const started = await postScheduledStationInteract(env, {
       playerId: actorId,
       walletId: bot.record.walletId,
       displayName: bot.record.displayName || bot.record.id,
       payload: {
         stationId: station.id,
-        action: startActionByGame[plan.gameType],
-        wager: plan.wager,
+        action: startActionByGame[gameType],
+        wager,
       },
     });
     if (!started.ok) continue;
+    if (agentSession) {
+      agentSession.state = 'playing';
+      await persistAgentSession(db, agentSession);
+    }
     const resolved = await postScheduledStationInteract(env, {
       playerId: actorId,
       walletId: bot.record.walletId,
       displayName: bot.record.displayName || bot.record.id,
       payload: {
         stationId: station.id,
-        action: pickActionByGame[plan.gameType],
-        pick: chooseScheduledMove(bot.record.id, plan.gameType),
+        action: pickActionByGame[gameType],
+        pick: chooseScheduledMove(bot.record.id, gameType),
         playerSeed: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
       },
     });
     if (!resolved.ok) continue;
     const outcome = resolveScheduledOutcome(resolved.message ?? undefined, actorId);
     if (outcome) {
-      const nextSession = updateAutoplaySession(bot.autoplaySession, bot.behavior, outcome, plan.wager);
-      await persistBot(db, bot.record, bot.behavior, nextSession);
+      if (agentSession) {
+        updateAgentSessionOutcome(agentSession, outcome, wagerMicroUsdc);
+        await writeAgentLog(db, agentSession, 'resolved', `${gameType.replace(/_/g, ' ')} ${outcome}.`, { gameType, wager, outcome });
+        await persistAgentSession(db, agentSession);
+      } else {
+        const nextSession = updateAutoplaySession(bot.autoplaySession, bot.behavior, outcome, wager);
+        await persistBot(db, bot.record, bot.behavior, nextSession);
+      }
     }
   }
 }
@@ -1252,6 +1665,60 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
     if (!bot || !bot.record.walletId) return json({ ok: false, reason: 'bot_wallet_not_found' }, 404);
     const wallet = await getWallet(db, bot.record.walletId);
     return json({ ok: true, botId: bot.record.id, wallet: walletSummary(wallet), readiness: computeReadiness(wallet, bot.behavior) });
+  }
+
+  const agentSessionLogsMatch = routePath.match(/^\/agents\/([^/]+)\/session\/logs$/);
+  if (agentSessionLogsMatch && request.method === 'GET') {
+    const session = await getLatestAgentSession(db, agentSessionLogsMatch[1] || '');
+    if (!session) return json({ ok: true, session: null, logs: [] });
+    return json({ ok: true, session: serializeAgentSession(session), logs: await agentDecisionLogs(db, session.id) });
+  }
+
+  const agentSessionMatch = routePath.match(/^\/agents\/([^/]+)\/session(?:\/(deploy|pause|stop))?$/);
+  if (agentSessionMatch) {
+    const botId = agentSessionMatch[1] || '';
+    const action = agentSessionMatch[2] || '';
+    const bot = await getBot(db, botId);
+    if (!bot) return json({ ok: false, reason: 'bot_not_found' }, 404);
+    if (!action && request.method === 'GET') {
+      const session = await getLatestAgentSession(db, botId);
+      return json({ ok: true, session: serializeAgentSession(session), logs: session ? await agentDecisionLogs(db, session.id) : [] });
+    }
+    if (action === 'deploy' && request.method === 'POST') {
+      const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+      const running = await getRunningAgentSession(db, botId);
+      if (running) {
+        running.status = 'stopped';
+        running.state = 'stopped_manual';
+        running.stoppedAt = Date.now();
+        await writeAgentLog(db, running, 'stopped', 'Replaced by a new deployed agent session.');
+        await persistAgentSession(db, running);
+      }
+      bot.record.autoplayEnabled = true;
+      bot.behavior.mode = 'active';
+      if (bot.behavior.autoplay) bot.behavior.autoplay.enabled = true;
+      await persistBot(db, bot.record, bot.behavior, bot.autoplaySession);
+      const session = await createAgentSession(db, bot, body);
+      return json({ ok: true, session: serializeAgentSession(session), logs: await agentDecisionLogs(db, session.id) });
+    }
+    const session = await getRunningAgentSession(db, botId);
+    if (!session) return json({ ok: false, reason: 'agent_session_not_running' }, 404);
+    if (action === 'pause' && request.method === 'POST') {
+      session.status = 'paused';
+      session.state = 'paused';
+      session.pausedAt = Date.now();
+      await writeAgentLog(db, session, 'paused', 'Agent paused by owner.');
+      await persistAgentSession(db, session);
+      return json({ ok: true, session: serializeAgentSession(session), logs: await agentDecisionLogs(db, session.id) });
+    }
+    if (action === 'stop' && request.method === 'POST') {
+      session.status = 'stopped';
+      session.state = 'stopped_manual';
+      session.stoppedAt = Date.now();
+      await writeAgentLog(db, session, 'stopped', 'Agent stopped by owner.');
+      await persistAgentSession(db, session);
+      return json({ ok: true, session: serializeAgentSession(session), logs: await agentDecisionLogs(db, session.id) });
+    }
   }
 
   const ownerPresenceMatch = routePath.match(/^\/owners\/([^/]+)\/presence$/);

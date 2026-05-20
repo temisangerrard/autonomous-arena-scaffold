@@ -549,6 +549,41 @@ export const handlePlayerRoutes: RouteHandler = async (req, res, requestUrl, con
     return true;
   }
 
+  const botSessionMatch = pathname.match(/^\/api\/player\/bots\/([^/]+)\/session(?:\/(deploy|pause|stop|logs))?$/);
+  if (botSessionMatch && (req.method === 'GET' || req.method === 'POST')) {
+    const auth = await context.requireRole(req, ['player', 'admin']);
+    if (!auth.ok || !auth.identity.profileId) {
+      sendJson(res, { ok: false, reason: 'unauthorized' }, 401);
+      return true;
+    }
+    const botId = botSessionMatch[1];
+    const action = botSessionMatch[2] || '';
+    const runtimeStatus = await context.runtimeGet<RuntimeStatusPayload>('/status').catch(() => ({ bots: [] }));
+    const ownerBot = (runtimeStatus.bots ?? []).find((entry) => entry.id === botId && entry.meta?.ownerProfileId === auth.identity.profileId);
+    if (!ownerBot) {
+      sendJson(res, { ok: false, reason: 'bot_not_owned' }, 403);
+      return true;
+    }
+    try {
+      if (action === 'logs' && req.method === 'GET') {
+        sendJson(res, await context.runtimeGet(`/agents/${botId}/session/logs`));
+        return true;
+      }
+      if (!action && req.method === 'GET') {
+        sendJson(res, await context.runtimeGet(`/agents/${botId}/session`));
+        return true;
+      }
+      if (['deploy', 'pause', 'stop'].includes(action) && req.method === 'POST') {
+        const body = action === 'deploy' ? await readJsonBody<Record<string, unknown>>(req) : {};
+        sendJson(res, await context.runtimePost(`/agents/${botId}/session/${action}`, body || {}));
+        return true;
+      }
+    } catch {
+      sendJson(res, { ok: false, reason: 'agent_session_unavailable' }, 503);
+      return true;
+    }
+  }
+
   if (pathname === '/api/game/stations/playable' && req.method === 'GET') {
     try {
       sendJson(res, await context.serverGet('/stations/playable'));
