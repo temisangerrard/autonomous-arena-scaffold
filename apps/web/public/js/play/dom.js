@@ -7,7 +7,6 @@ export function getDom() {
     topbarStreak: document.getElementById('topbar-streak'),
     topbarBot: document.getElementById('topbar-bot'),
     topbarLfg: document.getElementById('topbar-lfg'),
-    topbarLogout: document.getElementById('topbar-logout'),
     topbarMenu: document.getElementById('topbar-menu'),
     topbarMenuPop: document.getElementById('topbar-menu-pop'),
     menuDashboard: document.getElementById('menu-dashboard'),

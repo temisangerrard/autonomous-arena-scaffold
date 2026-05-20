@@ -158,7 +158,7 @@
     background: var(--bg-tertiary);
     border-radius: 999px;
     margin-bottom: 1.5rem;
-    border: 1px solid rgba(201, 162, 39, 0.3);
+    border: 1px solid rgba(47, 143, 94, 0.3);
 }
 .land-badge__text {
     font-size: 0.7rem;
@@ -457,9 +457,9 @@
     border-color: rgba(0, 93, 167, 0.15);
 }
 .land-chip--gold {
-    background: rgba(201, 162, 39, 0.1);
+    background: rgba(47, 143, 94, 0.1);
     color: var(--gold-dark);
-    border-color: rgba(201, 162, 39, 0.2);
+    border-color: rgba(47, 143, 94, 0.2);
 }
 .land-stats-chip {
     display: inline-flex;
@@ -629,7 +629,7 @@
     transition: background 0.2s ease;
 }
 .land-feature-row:hover .land-feature-icon { background: rgba(0, 93, 167, 0.1); }
-.land-feature-row--gold:hover .land-feature-icon { background: rgba(201, 162, 39, 0.12); }
+.land-feature-row--gold:hover .land-feature-icon { background: rgba(47, 143, 94, 0.12); }
 .land-feature-icon .material-symbols-outlined {
     color: var(--blue-primary);
     transition: transform 0.2s ease;

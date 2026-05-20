@@ -180,7 +180,7 @@ export const handleAuthRoutes: RouteHandler = async (req, res, requestUrl, conte
       sendJson(res, { ok: false, reason: lookup.reason }, lookup.status);
       return true;
     }
-    if (!lookup.result.emailVerified) {
+    if (!lookup.result.emailVerified && lookup.result.signInProvider !== 'password') {
       sendJson(res, { ok: false, reason: 'email_not_verified' }, 401);
       return true;
     }
@@ -348,4 +348,3 @@ export const handleAuthRoutes: RouteHandler = async (req, res, requestUrl, conte
 
   return false;
 };
-

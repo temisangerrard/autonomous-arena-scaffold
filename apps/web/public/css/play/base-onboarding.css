@@ -10,7 +10,7 @@
       --ui-success: #22c55e;
       --ui-error: #ef4444;
       --ui-info: #3b82f6;
-      --ui-warning: #f59e0b;
+      --ui-warning: #2976c7;
     }
     .canvas-shell { position: fixed; inset: 0; }
     #scene { width: 100vw; height: 100vh; display: block; }

@@ -17,6 +17,7 @@ import {
 
 const statusLine = document.getElementById('dashboard-status');
 const playLink = document.getElementById('dashboard-enter-play');
+const dashboardLogout = document.getElementById('dashboard-logout');
 
 const meEmail = document.getElementById('me-email');
 const meRole = document.getElementById('me-role');
@@ -59,7 +60,7 @@ const botModeStrip = document.getElementById('bot-mode-strip');
 const botWizardBack = document.getElementById('bot-wizard-back');
 const botWizardNext = document.getElementById('bot-wizard-next');
 const botReviewList = document.getElementById('bot-review-list');
-// Bot creation is intentionally disabled: one player == one character bot.
+// Agent creation is intentionally disabled: one player == one character agent.
 const createBot = null;
 
 // Chief of Staff
@@ -338,7 +339,7 @@ function renderBotCards() {
   }
 
   if (bots.length === 0) {
-    botList.innerHTML = '<article class="panel"><p class="muted" style="margin:0;">No owner bot found yet.</p></article>';
+    botList.innerHTML = '<article class="panel"><p class="muted" style="margin:0;">No player agent found yet.</p></article>';
     return;
   }
 
@@ -696,7 +697,7 @@ function renderEscrowHistory(entries, errorMessage = '') {
         source === 'house_station'
           ? 'House station'
           : source === 'owner_bot_autoplay'
-            ? 'Bot autoplay'
+            ? 'Agent autoplay'
             : source === 'player_pvp'
               ? 'Player PvP'
               : 'Arena';
@@ -934,7 +935,7 @@ function openBotModal(botId) {
     const readiness = botReadinessCache.get(bot.id);
     botModalSub.textContent = formatDashboardBotSubtitle(readiness ? { ...bot, readiness } : bot);
   }
-  // Populate fields from bot state
+  // Populate fields from agent state
   setWizardPersonality(bot.behavior.personality || 'social');
   setWizardMode(bot.behavior.mode || 'active');
   if (botTarget) botTarget.value = bot.behavior.targetPreference || 'human_first';
@@ -1093,12 +1094,12 @@ walletTransfer?.addEventListener('click', async () => {
 });
 
 botSave?.addEventListener('click', async () => {
-  const previousLabel = botSave?.textContent || 'Save Bot';
+  const previousLabel = botSave?.textContent || 'Save agent';
   try {
     const botId = selectedBotId || playerCtx?.bots?.[0]?.id;
     if (!botId) {
-      setBotModalStatus('No bot selected.', 'error');
-      setStatus('No bot selected.');
+      setBotModalStatus('No agent selected.', 'error');
+      setStatus('No agent selected.');
       return;
     }
     const cooldown = Math.max(1200, Number(botCooldown?.value || 2600));
@@ -1141,7 +1142,7 @@ botSave?.addEventListener('click', async () => {
       })
     });
     await refreshContext();
-    setBotModalStatus('Bot saved.', 'success');
+    setBotModalStatus('Agent saved.', 'success');
     if (botSave) {
       botSave.textContent = 'Saved';
     }
@@ -1152,8 +1153,8 @@ botSave?.addEventListener('click', async () => {
       }
     }, 700);
   } catch (error) {
-    setBotModalStatus(`Bot save failed: ${String(error.message || error)}`, 'error');
-    setStatus(`Bot save failed: ${String(error.message || error)}`);
+    setBotModalStatus(`Agent save failed: ${String(error.message || error)}`, 'error');
+    setStatus(`Agent save failed: ${String(error.message || error)}`);
   } finally {
     window.setTimeout(() => {
       if (botSave) {
@@ -1199,7 +1200,7 @@ botModeStrip?.addEventListener('click', (event) => {
   }
 });
 
-// Bot creation intentionally disabled.
+// Agent creation intentionally disabled.
 
 botList?.addEventListener('click', (event) => {
   const target = event.target;
@@ -1435,6 +1436,37 @@ for (const button of activityFilterButtons) {
     renderEscrowHistory(activityEntries);
   });
 }
+
+dashboardLogout?.addEventListener('click', async () => {
+  setStatus('Signing out...');
+  try {
+    await fetch('/api/player/presence', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 'offline' })
+    });
+  } catch {
+    // best effort
+  }
+  try {
+    await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: '{}'
+    });
+  } catch {
+    // best effort
+  }
+  try {
+    localStorage.removeItem('arena_auth_user');
+    localStorage.removeItem('arena_ws_auth');
+  } catch {
+    // best effort
+  }
+  window.location.href = '/welcome';
+});
 
 (async function init() {
   try {
