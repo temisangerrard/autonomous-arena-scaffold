@@ -374,7 +374,9 @@ export class EscrowAdapter {
       return cached.address;
     }
     try {
-      const response = await fetch(`${this.runtimeBaseUrl}/wallets`);
+      const response = await fetch(`${this.runtimeBaseUrl}/wallets`, {
+        headers: this.internalToken ? { 'x-internal-token': this.internalToken } : {}
+      });
       if (!response.ok) return null;
       const payload = (await response.json()) as { wallets?: Array<{ id?: string; address?: string }> };
       const now = Date.now();
