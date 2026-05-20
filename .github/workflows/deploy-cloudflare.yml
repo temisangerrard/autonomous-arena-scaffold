@@ -63,10 +63,12 @@ jobs:
         run: npx wrangler deploy --minify
 
       - name: Set QWEN_API_KEY secret
-        if: ${{ secrets.QWEN_API_KEY != '' }}
         working-directory: apps/cloudflare-backend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
-        run: echo "$QWEN_API_KEY" | npx wrangler secret put QWEN_API_KEY
+        run: |
+          if [ -n "$QWEN_API_KEY" ]; then
+            echo "$QWEN_API_KEY" | npx wrangler secret put QWEN_API_KEY
+          fi
