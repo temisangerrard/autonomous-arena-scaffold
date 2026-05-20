@@ -76,7 +76,7 @@ export type FirebaseLookupResult = {
   displayName?: string;
   picture?: string;
   emailVerified: boolean;
-  providerIds: string[];
+  signInProvider: string;
 };
 
 export type FirebaseGoogleExchangeResult = {

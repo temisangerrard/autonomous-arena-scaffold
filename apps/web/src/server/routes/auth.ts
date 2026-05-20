@@ -180,8 +180,7 @@ export const handleAuthRoutes: RouteHandler = async (req, res, requestUrl, conte
       sendJson(res, { ok: false, reason: lookup.reason }, lookup.status);
       return true;
     }
-    const passwordProvider = lookup.result.providerIds.includes('password');
-    if (!lookup.result.emailVerified && !passwordProvider) {
+    if (!lookup.result.emailVerified && lookup.result.signInProvider !== 'password') {
       sendJson(res, { ok: false, reason: 'email_not_verified' }, 401);
       return true;
     }

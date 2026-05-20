@@ -514,14 +514,16 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
         return { ok: false, reason: mapped.reason, status: mapped.status };
       }
       const user = Array.isArray(payload.users) ? payload.users[0] : null;
-      const providerIds = Array.isArray(user?.providerUserInfo)
-        ? user.providerUserInfo
-            .map((provider: any) => String(provider?.providerId || '').trim())
-            .filter(Boolean)
-        : [];
       const localId = String(user?.localId || '').trim();
       const email = String(user?.email || '').trim().toLowerCase();
       if (!localId || !email) return { ok: false, reason: 'firebase_invalid_payload', status: 502 };
+      let signInProvider = 'unknown';
+      try {
+        const jwtPayload = JSON.parse(Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString());
+        if (typeof jwtPayload?.firebase?.sign_in_provider === 'string') {
+          signInProvider = jwtPayload.firebase.sign_in_provider;
+        }
+      } catch { /* leave as unknown */ }
       return {
         ok: true,
         result: {
@@ -530,7 +532,7 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
           displayName: String(user?.displayName || '').trim() || undefined,
           picture: String(user?.photoUrl || '').trim() || undefined,
           emailVerified: String(user?.emailVerified ?? '').toLowerCase() === 'true',
-          providerIds
+          signInProvider
         }
       };
     } catch {
