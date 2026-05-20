@@ -33,7 +33,7 @@ export function mountBlackjackPanel(params) {
   const { state, stationUi, station, sendStationInteract, makePlayerSeed, showToast } = params;
 
   state.ui.dealer.gameType = 'blackjack';
-  const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)));
+  const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager ?? 0)));
   stationUi.innerHTML = `
     <div class="game-panel">
       <div class="game-header-card">

@@ -25,7 +25,7 @@ export function mountRpsDicePanel(params) {
   state.ui.dealer.gameType = isRps ? 'rps' : 'dice_duel';
   const startAction = isRps ? 'rps_house_start' : 'dice_duel_start';
   const pickAction = isRps ? 'rps_house_pick' : 'dice_duel_pick';
-  const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager || 1)));
+  const curWager = Math.max(0, Math.min(10000, Number(state.ui.dealer.wager ?? 0)));
 
   const pickButtonsHtml = isRps
     ? `<button id="station-house-r" class="game-panel__pick-btn" data-pick="rock" type="button"><span class="game-panel__pick-icon">🪨</span><span class="game-panel__pick-label">Rock</span></button>

@@ -30,6 +30,7 @@
       </nav>
       <div class="rail-section-label">Quick links</div>
       <div class="rail-links">
+        <a href="/admin/markets-lab" target="_blank">Markets Lab</a>
         <a href="/play?world=mega" target="_blank">Live arena</a>
         <a href="/dashboard" target="_blank">Player view</a>
       </div>
@@ -132,7 +133,7 @@
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Profile</th><th>Wallet</th><th>Balance</th><th>Agents</th><th>Actions</th></tr>
+                  <tr><th>Profile</th><th>Wallet</th><th>Internal ledger</th><th>Agents</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="profiles-body"></tbody>
               </table>
@@ -197,14 +198,14 @@
             </div>
             <div class="split">
               <div class="panel-card">
-              <h4>House balance policy</h4>
+              <h4>Internal ledger policy</h4>
                 <div class="form-row">
                   <div>
                     <label class="form-label">House wallet</label>
                     <input id="house-wallet-id" type="text" readonly value="-">
                   </div>
                   <div>
-                    <label class="form-label">House balance</label>
+                    <label class="form-label">Internal ledger</label>
                     <input id="house-balance" type="text" readonly value="-">
                   </div>
                 </div>
@@ -228,7 +229,7 @@
                 <div class="chips chips--mt" data-tool-group="treasury"></div>
               </div>
               <div class="panel-card">
-                <h4>Move house balance</h4>
+                <h4>Move internal ledger</h4>
                 <div class="form-row">
                   <div>
                     <label class="form-label" for="house-refill-amount">Refill amount</label>
@@ -254,7 +255,7 @@
               </div>
             </div>
             <div class="view-section">
-              <h4 class="section-label">Controlled balances</h4>
+              <h4 class="section-label">Wallet balances</h4>
               <div class="treasury-wallets-toolbar">
                 <label class="checkbox-label">
                   <input id="treasury-show-system-wallets" type="checkbox" checked>
@@ -264,10 +265,10 @@
               <div class="split">
                 <div class="panel-card">
                   <h4>Balance action center</h4>
-                  <p class="panel-note panel-note--mb">Choose a source, amount, and destination. External payouts ask for confirmation before sending.</p>
+                  <p class="panel-note panel-note--mb">Use on-chain balances for payouts. Internal ledger actions are operational only and are not USDC.</p>
                   <div class="form-row">
                     <div>
-                      <label class="form-label" for="treasury-action-source">Source balance</label>
+                      <label class="form-label" for="treasury-action-source">Source wallet</label>
                       <select id="treasury-action-source"></select>
                     </div>
                     <div>
@@ -299,7 +300,7 @@
                   <table>
                     <thead>
                       <tr>
-                        <th>Wallet</th><th>Owner</th><th>Address</th><th>Runtime</th><th>Token</th><th>ETH</th><th>Actions</th>
+                        <th>Wallet</th><th>Owner</th><th>Address</th><th>Internal ledger</th><th>USDC</th><th>ETH</th><th>Actions</th>
                       </tr>
                     </thead>
                     <tbody id="treasury-wallets-body"></tbody>

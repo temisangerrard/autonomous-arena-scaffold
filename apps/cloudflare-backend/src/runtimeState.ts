@@ -106,8 +106,8 @@ type PlayableStation = {
   available?: boolean;
 };
 
-const USER_SEED_BALANCE = 20;
-const HOUSE_SEED_BALANCE = 500;
+const USER_SEED_BALANCE = 0;
+const HOUSE_SEED_BALANCE = 0;
 
 const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS runtime_profiles (
@@ -995,10 +995,10 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
         tokenDecimals: 6,
         address: wallet.address,
         nativeBalanceEth: null,
-        tokenBalance: wallet.balance.toFixed(2),
+        tokenBalance: null,
         synced: false,
         gasSponsored: false,
-        gasPolicyReason: 'cloudflare_runtime_wallet',
+        gasPolicyReason: 'onchain_wallet_unavailable',
       },
     });
   }
@@ -1066,11 +1066,19 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
   if (routePath === '/wallets/onchain/prepare-escrow' && request.method === 'POST') {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     const walletIds = Array.isArray(body?.walletIds) ? body?.walletIds.map((entry) => String(entry || '').trim()).filter(Boolean) : [];
+    const amount = Math.max(0, asNum(body?.amount));
     return json({
-      ok: true,
+      ok: false,
       configured: false,
+      reason: 'onchain_runtime_unconfigured',
       tokenDecimals: 6,
-      results: walletIds.map((walletId) => ({ walletId, ok: true, source: 'cloudflare_runtime', status: 'ready' })),
+      results: walletIds.map((walletId) => ({
+        walletId,
+        ok: amount <= 0,
+        source: 'cloudflare_runtime',
+        status: amount <= 0 ? 'ready' : 'not_ready',
+        reason: amount <= 0 ? undefined : 'onchain_runtime_unconfigured',
+      })),
     });
   }
 

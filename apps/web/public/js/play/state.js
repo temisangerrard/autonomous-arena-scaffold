@@ -68,7 +68,7 @@ export function createInitialState() {
       playerView: 'encounter',
       challenge: {
         gameType: 'rps',
-        wager: 1,
+        wager: 0,
         approvalState: 'idle',
         approvalMessage: '',
         approvalWager: 0
@@ -79,7 +79,7 @@ export function createInitialState() {
         state: 'idle',
         quickPlayEnabled: false,
         quickPlayStationId: '',
-        wager: 1,
+        wager: 0,
         commitHash: '',
         method: '',
         challengeId: '',

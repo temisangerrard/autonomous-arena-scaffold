@@ -266,7 +266,7 @@ export function renderInteractionCardTemplate(params) {
       const targetNearby = state.nearbyIds instanceof Set && state.nearbyIds.has(targetId);
       const canSendBase = state.wsConnected && !state.respondingIncoming && !outgoingPending && targetId !== state.playerId && targetNearby;
       const selectedGame = normalizedChallengeGameType(state.ui?.challenge?.gameType || 'rps');
-      const selectedWager = normalizedChallengeWager(state.ui?.challenge?.wager ?? 1, 1);
+      const selectedWager = normalizedChallengeWager(state.ui?.challenge?.wager ?? 0, 0);
       const approvalMode = String(state.escrowApproval?.mode || 'manual');
       const approvalModeAuto = approvalMode === 'auto';
       const approvalState = String(state.ui?.challenge?.approvalState || 'idle');

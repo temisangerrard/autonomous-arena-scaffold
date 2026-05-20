@@ -4,235 +4,93 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="base:app_id" content="69a988a7223099cde83059f4">
-  <title>Admin Markets Lab</title>
+  <title>Markets Lab — AutoBett Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600;1,700&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/css/claude-corners.css">
+  <link rel="stylesheet" href="/css/admin-chief.css">
   <script src="/runtime-config.js"></script>
   <style>
-    :root {
-      --ink: #2c2010;
-      --gold: #c69831;
-      --edge: rgba(198, 152, 49, 0.3);
-      --panel: rgba(253, 248, 237, 0.96);
-      --muted: #6e5a35;
-      --good: #2f8f5e;
-      --bad: #b44d3c;
-      --warn: #ad7a24;
-      --mono: 'JetBrains Mono', monospace;
-      --serif: 'Crimson Text', Georgia, serif;
-      --display: 'Cormorant Garamond', 'Crimson Text', Georgia, serif;
-    }
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: radial-gradient(circle at 12% 8%, #fff9ee 0%, #f6efdf 48%, #efe4cc 100%);
-      color: var(--ink);
-      font-family: var(--serif);
-      font-size: 15px;
-      line-height: 1.5;
-    }
-    .page {
-      max-width: 1240px;
+    .lab-wrap {
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 22px;
+      padding: 18px;
       display: grid;
       gap: 14px;
     }
-    .head {
-      border: 1px solid var(--edge);
-      border-radius: 14px;
-      background: var(--panel);
-      padding: 16px 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+
+    .lab-wrap input:not([type=checkbox]),
+    .lab-wrap select {
+      min-height: 40px;
+      border-radius: 8px;
+      border: 1px solid var(--admin-line);
+      background: #fff;
+      color: var(--admin-ink);
+      padding: 9px 10px;
+      font: 600 13px/1.35 var(--font-primary, 'Plus Jakarta Sans', system-ui, sans-serif);
+      outline: none;
+      transition-property: border-color, box-shadow;
+      transition-duration: 0.16s;
     }
-    h1 {
-      margin: 0;
-      font: italic 700 30px/1 var(--display);
-      letter-spacing: 0.01em;
+
+    .lab-wrap input:not([type=checkbox]):focus,
+    .lab-wrap select:focus {
+      border-color: rgba(0, 93, 167, 0.55);
+      box-shadow: 0 0 0 3px rgba(0, 93, 167, 0.12);
     }
-    .sub {
-      margin: 6px 0 0;
-      color: var(--muted);
-      font: italic 400 14px/1.5 var(--serif);
-      max-width: 860px;
-    }
-    .status {
-      border: 1px solid var(--edge);
-      background: var(--panel);
-      border-radius: 10px;
-      padding: 8px 12px;
-      font: 12px/1.4 var(--mono);
-      color: var(--muted);
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .kpi {
-      border: 1px solid var(--edge);
-      border-left: 3px solid var(--gold);
-      border-radius: 10px;
-      background: var(--panel);
-      padding: 12px;
-    }
-    .kpi .label {
-      font: 500 11px/1.2 var(--mono);
-      text-transform: uppercase;
-      color: var(--muted);
-      letter-spacing: 0.04em;
-    }
-    .kpi .value {
-      margin-top: 5px;
-      font: italic 700 26px/1 var(--display);
-      color: var(--ink);
-    }
-    .panel {
-      border: 1px solid var(--edge);
-      border-radius: 12px;
-      background: var(--panel);
-      padding: 14px;
-      display: grid;
-      gap: 12px;
-    }
-    .panel-heading {
-      margin: 0;
-      font: italic 600 18px/1 var(--display);
-      color: var(--ink);
-    }
-    .row {
+
+    .badge.live { border-color: rgba(74, 124, 89, 0.4); color: var(--admin-good); background: rgba(74, 124, 89, 0.08); }
+    .badge.off  { border-color: rgba(186, 26, 26, 0.35); color: var(--admin-bad); background: rgba(186, 26, 26, 0.07); }
+    .badge.warn { border-color: rgba(184, 134, 11, 0.4); color: var(--admin-warn); background: rgba(184, 134, 11, 0.08); }
+
+    .price-yes { color: var(--admin-good); font: 500 12px/1 var(--font-mono, 'JetBrains Mono', monospace); }
+    .price-no  { color: var(--admin-bad);  font: 500 12px/1 var(--font-mono, 'JetBrains Mono', monospace); }
+    .mono      { font: 500 12px/1.4 var(--font-mono, 'JetBrains Mono', monospace); }
+
+    .question-text { font-weight: 600; font-size: 13px; color: var(--admin-ink); }
+    .id-text { font: 400 10px/1.4 var(--font-mono, 'JetBrains Mono', monospace); color: var(--admin-faint); margin-top: 2px; }
+
+    .lab-row {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-      align-items: center;
-    }
-    input, select {
-      border-radius: 8px;
-      border: 1px solid var(--edge);
-      background: rgba(255, 253, 248, 0.95);
-      color: var(--ink);
-      padding: 7px 10px;
-      font: 13px/1.3 var(--serif);
-      min-width: 110px;
-    }
-    input:focus, select:focus {
-      outline: none;
-      border-color: rgba(198, 152, 49, 0.6);
-      box-shadow: 0 0 0 2px rgba(198, 152, 49, 0.12);
-    }
-    .btn {
-      border: 1px solid rgba(198, 152, 49, 0.45);
-      border-radius: 8px;
-      background: rgba(255, 253, 248, 0.95);
-      color: var(--ink);
-      padding: 7px 12px;
-      font: 500 11px/1 var(--mono);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.15s;
-    }
-    .btn:hover { background: rgba(253, 248, 225, 0.95); }
-    .btn-gold {
-      background: linear-gradient(125deg, rgba(219, 170, 68, 0.9), rgba(184, 132, 30, 0.9));
-      color: #241a08;
-      border-color: #a97920;
-    }
-    .btn-gold:hover { filter: brightness(1.06); }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    th, td {
-      border-bottom: 1px solid rgba(198, 152, 49, 0.18);
-      padding: 9px 8px;
-      text-align: left;
-      vertical-align: middle;
-    }
-    th {
-      text-transform: uppercase;
-      font: 500 11px/1.2 var(--mono);
-      color: var(--muted);
-      letter-spacing: 0.04em;
-    }
-    td .question-text {
-      font-style: italic;
-      font-size: 14px;
-      color: var(--ink);
-    }
-    td .id-text {
-      font: 400 10px/1.4 var(--mono);
-      color: var(--muted);
-      margin-top: 2px;
-    }
-    .table-wrap {
-      overflow: auto;
-      max-height: 360px;
-      border: 1px solid var(--edge);
-      border-radius: 10px;
-      background: rgba(255, 253, 248, 0.95);
-    }
-    .badge {
-      border: 1px solid var(--edge);
-      border-radius: 999px;
-      padding: 3px 8px;
-      font: 500 11px/1 var(--mono);
-      white-space: nowrap;
-      display: inline-block;
-    }
-    .badge.live { border-color: rgba(47, 143, 94, 0.5); color: var(--good); background: rgba(47, 143, 94, 0.08); }
-    .badge.off  { border-color: rgba(180, 77, 60, 0.4);  color: var(--bad);  background: rgba(180, 77, 60, 0.07); }
-    .badge.warn { border-color: rgba(173, 122, 36, 0.45); color: var(--warn); background: rgba(173, 122, 36, 0.08); }
-    .price-yes { color: var(--good); font-family: var(--mono); font-size: 12px; }
-    .price-no  { color: var(--bad);  font-family: var(--mono); font-size: 12px; }
-    .mono { font-family: var(--mono); font-size: 12px; }
-    @media (max-width: 980px) {
-      .grid { grid-template-columns: repeat(3, 1fr); }
-    }
-    @media (max-width: 680px) {
-      .grid { grid-template-columns: 1fr 1fr; }
+      align-items: flex-end;
     }
   </style>
 </head>
 <body>
-  <main class="page">
-    <header class="head">
+  <div class="lab-wrap">
+
+    <header class="topbar">
       <div>
-        <h1>Markets Lab</h1>
-        <p class="sub">Player station check, market activation, and quote simulation.</p>
+        <div class="topbar-eyebrow">Admin / Markets Lab</div>
+        <div id="status" style="color:var(--admin-muted);font:600 13px/1.35 'Plus Jakarta Sans',system-ui,sans-serif;">Loading markets lab...</div>
       </div>
-      <div class="row">
-        <a class="btn" href="/admin">Back To Admin</a>
-        <button id="refresh-all" class="btn btn-gold" type="button">Refresh</button>
+      <div style="display:flex;gap:8px;">
+        <a href="/admin" style="min-height:40px;border:1px solid var(--admin-line-strong);color:var(--admin-ink);background:#fff;border-radius:8px;padding:9px 14px;font:700 13px/1 'Plus Jakarta Sans',system-ui,sans-serif;display:inline-flex;align-items:center;text-decoration:none;">← Admin</a>
+        <button id="refresh-all" type="button" class="primary">Refresh</button>
       </div>
     </header>
 
-    <section id="status" class="status">Loading markets lab...</section>
-
-    <!-- E2E Station Test — what the player actually sees -->
-    <section class="panel" id="e2e-panel">
-      <div class="row">
-        <h2 class="panel-heading">Player Station Check</h2>
-        <span class="badge live">Live Server Call</span>
-        <button id="e2e-refresh" class="btn btn-gold" type="button">Run Check</button>
+    <!-- Player Station Check -->
+    <section class="panel-card" id="e2e-panel">
+      <div class="view-header" style="margin-bottom:10px;">
+        <div>
+          <p class="view-kicker">What players see</p>
+          <h3 style="font-size:18px;margin:0;">Player Station Check</h3>
+        </div>
+        <div class="view-actions">
+          <button id="e2e-refresh" type="button" class="primary">Run Check</button>
+        </div>
       </div>
-      <div id="e2e-status" class="status">Checking what a player sees when they open the prediction station...</div>
+      <pre id="e2e-status">Checking what a player sees when they open the prediction station...</pre>
 
       <div id="e2e-player-markets" hidden>
-        <div class="row" style="margin-bottom:6px;">
-          <span class="mono" style="font-size:11px; color:var(--muted);">WHAT PLAYER SEES — listActiveMarketsForPlayer()</span>
-          <span id="e2e-market-count" class="badge off">0 markets</span>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 8px;">
+          <span class="mono" style="color:var(--admin-faint);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;">Markets visible to player — listActiveMarketsForPlayer()</span>
+          <span id="e2e-market-count" class="badge">0 markets</span>
         </div>
         <div class="table-wrap">
           <table>
@@ -252,34 +110,37 @@
       </div>
 
       <div id="e2e-no-markets" hidden>
-        <div class="status" style="border-color:#d99f91; color:#7a261b;">
-          No markets returned for player — station shows nothing. Check: are Chainlink BTC markets active with closeAt &gt; now? Click ⚡ Force Create BTC Markets to regenerate slots.
-        </div>
-        <div id="e2e-diagnosis" class="status" style="margin-top:6px;"></div>
+        <pre style="border-color:var(--admin-bad);color:var(--admin-bad);margin-top:10px;">No markets returned for player — station shows nothing. Check: are Chainlink BTC markets active with closeAt &gt; now? Use Force Create BTC Markets below to regenerate slots.</pre>
+        <pre id="e2e-diagnosis" style="margin-top:6px;"></pre>
       </div>
 
       <div id="e2e-quote-result" hidden>
-        <div class="row" style="margin-bottom:6px;">
-          <span class="mono" style="font-size:11px; color:var(--muted);">QUOTE RESULT</span>
-          <button id="e2e-quote-close" class="btn" type="button">Close</button>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
+          <span class="mono" style="color:var(--admin-faint);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;">Quote result</span>
+          <button id="e2e-quote-close" type="button">Close</button>
         </div>
-        <pre id="e2e-quote-body" class="status" style="white-space:pre-wrap; font:12px/1.5 var(--mono);"></pre>
+        <pre id="e2e-quote-body" style="white-space:pre-wrap;"></pre>
       </div>
     </section>
 
     <!-- KPIs -->
-    <section class="grid" id="ops-kpis">
+    <div class="kpi-grid" id="ops-kpis">
       <article class="kpi"><div class="label">Enabled Markets</div><div class="value" id="kpi-enabled">—</div></article>
       <article class="kpi"><div class="label">Active Markets</div><div class="value" id="kpi-active">—</div></article>
       <article class="kpi"><div class="label">Both-Sides Liquidity</div><div class="value" id="kpi-both">—</div></article>
       <article class="kpi"><div class="label">Refund-Only Risk</div><div class="value" id="kpi-risk">—</div></article>
-    </section>
+    </div>
 
-    <!-- Enabled in-app -->
-    <section class="panel" id="ops-enabled-markets">
-      <div class="row">
-        <h2 class="panel-heading">Enabled In-App</h2>
-        <button id="refresh-chainlink" class="btn" type="button" style="background:#2f8f5e;color:#fff;border-color:#2f8f5e">⚡ Force Create BTC Markets</button>
+    <!-- Enabled In-App -->
+    <section class="panel-card" id="ops-enabled-markets">
+      <div class="view-header" style="margin-bottom:10px;">
+        <div>
+          <p class="view-kicker">Market activation</p>
+          <h3 style="font-size:18px;margin:0;">Enabled In-App</h3>
+        </div>
+        <div class="view-actions">
+          <button id="refresh-chainlink" type="button" class="primary">Force Create BTC Markets</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -296,15 +157,19 @@
       </div>
     </section>
 
-    <!-- Settlement integrity -->
-    <section class="panel" id="ops-settlement-integrity">
-      <div class="row">
-        <h2 class="panel-heading">Settlement Integrity</h2>
-        <button id="reconcile-refresh" class="btn" type="button">Refresh Integrity</button>
-        <label class="mono" style="display:inline-flex; gap:6px; align-items:center;">
-          <input id="reconcile-include-legacy" type="checkbox" />
-          Include legacy (hidden by default)
-        </label>
+    <!-- Settlement Integrity -->
+    <section class="panel-card" id="ops-settlement-integrity">
+      <div class="view-header" style="margin-bottom:10px;">
+        <div>
+          <p class="view-kicker">Payout audit</p>
+          <h3 style="font-size:18px;margin:0;">Settlement Integrity</h3>
+        </div>
+        <div class="view-actions">
+          <label class="form-check-label">
+            <input id="reconcile-include-legacy" type="checkbox"> Include legacy
+          </label>
+          <button id="reconcile-refresh" type="button">Refresh</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -323,22 +188,34 @@
       </div>
     </section>
 
-    <!-- Stake simulator -->
-    <section class="panel" id="ops-stake-sim">
-      <h2 class="panel-heading">Stake Simulator</h2>
-      <div class="row">
-        <select id="sim-market"></select>
-        <select id="sim-side">
-          <option value="yes">YES</option>
-          <option value="no">NO</option>
-        </select>
-        <input id="sim-stake" type="number" min="1" max="10000" step="1" value="10" />
-        <button id="sim-run" class="btn btn-gold" type="button">Simulate Quote</button>
+    <!-- Stake Simulator -->
+    <section class="panel-card" id="ops-stake-sim">
+      <div style="margin-bottom:12px;">
+        <p class="view-kicker">Quote testing</p>
+        <h3 style="font-size:18px;margin:0;color:var(--admin-ink);font-weight:800;">Stake Simulator</h3>
       </div>
-      <div id="sim-output" class="status">Select an enabled market and run simulation.</div>
+      <div class="lab-row">
+        <div>
+          <label class="form-label" for="sim-market">Market</label>
+          <select id="sim-market"></select>
+        </div>
+        <div>
+          <label class="form-label" for="sim-side">Side</label>
+          <select id="sim-side">
+            <option value="yes">YES</option>
+            <option value="no">NO</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="sim-stake">Stake</label>
+          <input id="sim-stake" type="number" min="1" max="10000" step="1" value="10" style="width:100px;">
+        </div>
+        <button id="sim-run" type="button" class="primary">Simulate Quote</button>
+      </div>
+      <pre id="sim-output" style="margin-top:10px;">Select an enabled market and run simulation.</pre>
     </section>
-  </main>
 
+  </div>
   <script type="module" src="/js/admin-markets-lab.js"></script>
 </body>
 </html>
