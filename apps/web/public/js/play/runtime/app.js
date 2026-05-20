@@ -17,7 +17,6 @@ import { shouldEnableFlag } from './network.js';
 import { renderTopHud, renderNextActionLine } from './hud.js';
 import { renderQuickstart as renderQuickstartModule } from './quickstart.js';
 import { renderChallengeFeed } from './feed.js';
-import { renderWorldMapPanel } from './world-map-renderer.js';
 import { loadMainWorldRuntime } from './world-loader.js';
 import { challengeReasonLabelForMode } from './challenge-reason.js';
 import { renderInteractionPromptLine, setInteractOpenState } from './interaction-shell.js';
@@ -96,7 +95,6 @@ import { dealerPredictionStationPlugin } from '../plugins/stations/dealer-predic
 import { cashierStationPlugin } from '../plugins/stations/cashier.js';
 import { worldInteractableStationPlugin } from '../plugins/stations/world-interactable.js';
 import { dealerOperatorNpcPlugin } from '../plugins/npc-operator.js';
-import { updateLeaderboardFromResolution, renderLeaderboard } from './leaderboard.js';
 
 const dom = getDom();
 const queryParams = new URL(window.location.href).searchParams;
@@ -146,8 +144,6 @@ const {
   topbarBot,
   feedPanel,
   challengeStatusLine,
-  worldMapCanvas,
-  mapCoords,
   interactionPrompt,
   interactionCard,
   interactionTitle,
@@ -183,11 +179,6 @@ const {
   mobileMoveD5,
   mobileMoveD6
 } = dom;
-const worldMapPanel = worldMapCanvas instanceof HTMLCanvasElement
-  ? worldMapCanvas.closest('.world-map-panel')
-  : null;
-
-
 const renderer = makeRenderer(canvas);
 const scene = makeScene();
 const camera = makeCamera();
@@ -611,9 +602,6 @@ const update = createRuntimeUpdate({
   renderNextActionLine,
   challengeStatusLine,
   labelFor,
-  renderWorldMapPanel,
-  worldMapCanvas,
-  mapCoords,
   worldBound: WORLD_BOUND,
   renderInteractionPromptLine,
   interactionPrompt,
@@ -650,7 +638,6 @@ const update = createRuntimeUpdate({
   isTouchLikeDevice,
   windowRef: window,
   mobileControls,
-  worldMapPanel,
   describeInteractionPhase,
   interactionCardElement: interactionCard,
   mobileSend,
@@ -722,10 +709,7 @@ const challengeBridge = createChallengeBridge({
   handleChallengeEvent,
   challengeReasonLabelForMode,
   audio: audioController,
-  updateLeaderboard: (challenge) => {
-    updateLeaderboardFromResolution({ state, challenge });
-    renderLeaderboard(state, dom.leaderboardList, state.playerId);
-  }
+  updateLeaderboard: () => {}
 });
 const updateRpsVisibility = challengeBridge.updateRpsVisibility;
 const handleChallenge = challengeBridge.handleChallenge;
