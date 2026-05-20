@@ -1,5 +1,6 @@
 import { buildPlayerShell } from '../../../apps/web/src/playerShell.js';
 import { handleRuntimeRequest } from './runtimeState.js';
+import { createCloudflareChief } from './chiefCloudflare.js';
 
 type D1First<T = Record<string, unknown>> = Promise<T | null>;
 type D1PreparedStatement = {
@@ -80,6 +81,8 @@ export type WebApiEnv = {
   ALLOWED_AUTH_ORIGINS?: string;
   ADMIN_EMAILS?: string;
   COOKIE_NAME?: string;
+  QWEN_API_KEY?: string;
+  QWEN_BASE_URL?: string;
 };
 
 const WEB_MIGRATIONS = [
@@ -1164,22 +1167,39 @@ export async function handleWebApi(request: Request, env: WebApiEnv, pathname: s
     return json({ ok: true, recent });
   }
 
-  const chiefChatDisabled = pathname === '/api/chief/v1/chat'
+  const isChiefChat = pathname === '/api/chief/v1/chat'
     || pathname === '/api/player/house/chat'
-    || pathname === '/api/player/chief/chat'
-    || pathname === '/api/super-agent/chat';
-  if (chiefChatDisabled && request.method === 'POST') {
-    const auth = await requireRole(db, request, env, pathname === '/api/super-agent/chat' ? ['admin'] : ['player', 'admin']);
-    if (!auth.ok) return json({ ok: false, reason: pathname === '/api/super-agent/chat' ? 'forbidden' : 'unauthorized' }, pathname === '/api/super-agent/chat' ? 403 : 401);
-    return json({
-      ok: true,
-      mode: pathname === '/api/super-agent/chat' ? 'admin' : 'player',
-      intent: 'unknown',
-      reply: 'Chief chat is unavailable in the Cloudflare migration build.',
-      actions: [],
-      requiresConfirmation: false,
-      errors: [{ code: 'chief_disabled', message: 'Chief chat is disabled.' }],
-    });
+    || pathname === '/api/player/chief/chat';
+  const isAdminChiefChat = pathname === '/api/super-agent/chat';
+  if ((isChiefChat || isAdminChiefChat) && request.method === 'POST') {
+    const auth = await requireRole(db, request, env, isAdminChiefChat ? ['admin'] : ['player', 'admin']);
+    if (!auth.ok) return json({ ok: false, reason: isAdminChiefChat ? 'forbidden' : 'unauthorized' }, isAdminChiefChat ? 403 : 401);
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    if (!body) return json({ ok: false, reason: 'invalid_json' }, 400);
+    const qwenBaseUrl = String(env.QWEN_BASE_URL || 'https://coding-intl.dashscope.aliyuncs.com/v1').replace(/\/+$/, '');
+    const qwenApiKey = String(env.QWEN_API_KEY || '');
+    const chief = createCloudflareChief(
+      qwenBaseUrl,
+      qwenApiKey,
+      (path, init) => runtimeFetch(request, env, path, init)
+    );
+    const identity = {
+      sub: auth.identity.sub,
+      profileId: auth.identity.profileId,
+      walletId: auth.identity.walletId,
+      displayName: auth.identity.displayName,
+      role: auth.identity.role,
+    };
+    const forcedMode = isAdminChiefChat ? 'admin' as const : undefined;
+    const chiefRequest = {
+      message: typeof body.message === 'string' ? body.message : undefined,
+      confirmToken: typeof body.confirmToken === 'string' ? body.confirmToken : undefined,
+    };
+    const identityForChief = forcedMode === 'admin'
+      ? { ...identity, role: 'admin' as const }
+      : identity;
+    const response = await chief.handleChat(identityForChief, chiefRequest);
+    return json(response, response.ok ? 200 : 400);
   }
 
   if (pathname === '/api/admin/chief/workspace/bootstrap' && request.method === 'GET') {
