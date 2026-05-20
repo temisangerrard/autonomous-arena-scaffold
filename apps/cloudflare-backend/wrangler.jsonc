@@ -18,7 +18,8 @@
     "PUBLIC_GAME_WS_URL": "",
     "PUBLIC_WORLD_ASSET_BASE_URL": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
     "DEFAULT_WORLD_ASSET_BASE_URL": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
-    "COOKIE_NAME": "arena_sid"
+    "COOKIE_NAME": "arena_sid",
+    "QWEN_BASE_URL": "https://coding-intl.dashscope.aliyuncs.com/v1"
   },
   "d1_databases": [
     {
