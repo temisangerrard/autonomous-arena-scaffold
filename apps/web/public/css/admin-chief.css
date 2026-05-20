@@ -98,8 +98,7 @@ body {
 }
 
 .rail-btn:active,
-button:active,
-.lab-link:active {
+button:active {
   transform: scale(0.96);
 }
 
@@ -211,8 +210,7 @@ select {
   font: inherit;
 }
 
-button,
-.lab-link {
+button {
   min-height: 40px;
   border: 1px solid var(--admin-line-strong);
   color: var(--admin-ink);
@@ -230,8 +228,7 @@ button,
   transition-duration: 0.18s;
 }
 
-button:hover,
-.lab-link:hover {
+button:hover {
   border-color: rgba(0, 93, 167, 0.32);
   background: rgba(0, 93, 167, 0.05);
 }
