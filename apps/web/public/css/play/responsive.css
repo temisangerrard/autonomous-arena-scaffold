@@ -84,40 +84,6 @@
         top: 64px;
         right: 12px;
       }
-      .world-map-panel {
-        right: 10px;
-        bottom: 96px;
-        width: 104px;
-        padding: 8px;
-        border-radius: 18px;
-        transform: none;
-        transform-origin: bottom right;
-        opacity: 0.94;
-        background: linear-gradient(180deg, rgba(30, 29, 33, 0.9), rgba(24, 24, 28, 0.96));
-      }
-      .world-map-panel:hover {
-        width: 104px;
-        opacity: 0.9;
-      }
-      .world-map-title {
-        margin-bottom: 6px;
-        font-size: 9px;
-      }
-      #map-coords {
-        font-size: 9px;
-      }
-      #world-map {
-        height: 90px;
-        border-radius: 12px;
-      }
-      .map-legend {
-        margin-top: 6px;
-        gap: 6px;
-        font-size: 8px;
-      }
-      .world-map-panel.mobile-obscured {
-        display: none;
-      }
       .interaction-prompt {
         bottom: 180px;
         font-size: 13px;
