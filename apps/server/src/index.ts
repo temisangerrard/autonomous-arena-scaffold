@@ -670,12 +670,7 @@ async function registerCreatedChallenge(
   if (!(event.event === 'created' && event.challenge)) {
     return { ok: true };
   }
-  const isHouseMatch =
-    isHouseBackedParticipant(event.challenge.challengerId)
-    || isHouseBackedParticipant(event.challenge.opponentId);
-  const lockParticipants = isHouseMatch
-    ? []
-    : lockableChallengeParticipants(event.challenge.challengerId, event.challenge.opponentId);
+  const lockParticipants = lockableChallengeParticipants(event.challenge.challengerId, event.challenge.opponentId);
 
   if (lockParticipants.length > 0) {
     const lockResult = await distributedChallengeStore.tryLockPlayers(
