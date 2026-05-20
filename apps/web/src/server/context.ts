@@ -514,6 +514,11 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
         return { ok: false, reason: mapped.reason, status: mapped.status };
       }
       const user = Array.isArray(payload.users) ? payload.users[0] : null;
+      const providerIds = Array.isArray(user?.providerUserInfo)
+        ? user.providerUserInfo
+            .map((provider: any) => String(provider?.providerId || '').trim())
+            .filter(Boolean)
+        : [];
       const localId = String(user?.localId || '').trim();
       const email = String(user?.email || '').trim().toLowerCase();
       if (!localId || !email) return { ok: false, reason: 'firebase_invalid_payload', status: 502 };
@@ -524,7 +529,8 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
           email,
           displayName: String(user?.displayName || '').trim() || undefined,
           picture: String(user?.photoUrl || '').trim() || undefined,
-          emailVerified: String(user?.emailVerified ?? '').toLowerCase() === 'true'
+          emailVerified: String(user?.emailVerified ?? '').toLowerCase() === 'true',
+          providerIds
         }
       };
     } catch {

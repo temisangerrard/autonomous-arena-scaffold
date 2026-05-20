@@ -54,14 +54,14 @@ const POI_DEFS = [
     y: 3.5,
     z: 0,
     radius: 6,
-    hudTitle: 'Bot Activity',
+    hudTitle: 'Agent Activity',
     getContent: (state) => {
       const bots = [...(state.players?.values() ?? [])].filter(
         (p) => p.role === 'agent' || p.actorClass === 'owner_bot' || p.actorClass === 'background_bot'
       );
-      if (bots.length === 0) return 'No bots currently online.';
+      if (bots.length === 0) return 'No agents currently online.';
       const lines = bots.slice(0, 4).map((b) => {
-        const cls = b.actorClass === 'owner_bot' ? 'OWNER' : 'BOT';
+        const cls = b.actorClass === 'owner_bot' ? 'OWNER' : 'AGENT';
         return `${b.displayName || b.id}  [${cls}]`;
       });
       if (bots.length > 4) lines.push(`+${bots.length - 4} more`);
@@ -99,14 +99,14 @@ function createPoiLabel(THREE, scene, poi) {
   function draw(active) {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = active ? 'rgba(215,178,77,0.85)' : 'rgba(30,28,20,0.82)';
+    ctx.fillStyle = active ? 'rgba(47,143,94,0.85)' : 'rgba(30,28,20,0.82)';
     ctx.beginPath();
     ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, canvas.height / 2);
     ctx.fill();
-    ctx.strokeStyle = active ? '#f2d27a' : 'rgba(215,178,77,0.35)';
+    ctx.strokeStyle = active ? '#f2d27a' : 'rgba(47,143,94,0.35)';
     ctx.lineWidth = 1.2;
     ctx.stroke();
-    ctx.fillStyle = active ? '#1a1000' : '#d7b24d';
+    ctx.fillStyle = active ? '#1a1000' : '#2f8f5e';
     ctx.font = 'bold 11px "IBM Plex Mono", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -140,12 +140,12 @@ function createHudPanel(poi) {
     'bottom:120px',
     'transform:translateX(-50%)',
     'background:rgba(18,16,10,0.92)',
-    'border:1px solid rgba(215,178,77,0.45)',
+    'border:1px solid rgba(47,143,94,0.45)',
     'border-radius:8px',
     'padding:12px 20px',
     'font-family:"IBM Plex Mono",monospace',
     'font-size:12px',
-    'color:#d7b24d',
+    'color:#2f8f5e',
     'white-space:pre-line',
     'pointer-events:none',
     'z-index:800',
@@ -155,7 +155,7 @@ function createHudPanel(poi) {
   ].join(';');
 
   const titleEl = document.createElement('strong');
-  titleEl.style.cssText = 'color:#f0d878;display:block;margin-bottom:6px';
+  titleEl.style.cssText = 'color:#9ad4b4;display:block;margin-bottom:6px';
   titleEl.textContent = poi.hudTitle;
 
   const bodyEl = document.createElement('span');

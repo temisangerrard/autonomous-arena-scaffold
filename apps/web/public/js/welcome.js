@@ -24,6 +24,11 @@ let config = {
 let firebaseGoogleClientPromise = null;
 let legacyGoogleInitInFlight = false;
 
+function requestedAuthMode() {
+  const mode = new URLSearchParams(window.location.search).get('mode');
+  return mode === 'signup' ? 'signup' : 'login';
+}
+
 function setStoredUser(user) {
   if (user) {
     localStorage.setItem(AUTH_KEY, JSON.stringify(user));
@@ -67,6 +72,20 @@ function showAuthError(message) {
   if (authError) {
     authError.textContent = message || '';
   }
+}
+
+function authErrorMessage(error) {
+  const raw = String(error?.message || error || '').trim();
+  const reason = raw.includes(':') ? raw.split(':')[0] : raw;
+  const messages = {
+    email_not_verified: 'Email signup is ready now. Try again, or continue with Google.',
+    email_exists: 'That email already has an account. Use Login instead.',
+    invalid_credentials: 'That email or password did not match an account.',
+    weak_password: 'Use a password with at least 6 characters.',
+    too_many_attempts: 'Too many attempts. Wait a moment and try again.',
+    network_unreachable: 'Could not reach sign-in. Check your connection and try again.'
+  };
+  return messages[reason] || raw || 'Something went wrong. Try again.';
 }
 
 function firebaseClientEnabled() {
@@ -204,8 +223,8 @@ function renderSignedOut() {
 
       ${emailEnabled ? `
         <div class="auth-tabs" role="tablist">
-          <button class="auth-tab is-active" data-tab="login" role="tab" aria-selected="true">Login</button>
-          <button class="auth-tab" data-tab="signup" role="tab" aria-selected="false">Sign Up</button>
+          <button class="auth-tab is-active" data-tab="login" role="tab" aria-selected="true">Sign in</button>
+          <button class="auth-tab" data-tab="signup" role="tab" aria-selected="false">Create account</button>
         </div>
         <form class="auth-form" id="welcome-auth-form" novalidate>
           <div class="auth-field">
@@ -216,7 +235,7 @@ function renderSignedOut() {
             <label class="auth-label" for="welcome-password">Password</label>
             <input id="welcome-password" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password" required>
           </div>
-          <button class="auth-submit" type="submit" id="welcome-email-submit">Login</button>
+          <button class="auth-submit" type="submit" id="welcome-email-submit">Sign in</button>
         </form>
       ` : ''}
 
@@ -229,21 +248,24 @@ function renderSignedOut() {
   `;
 
   if (emailEnabled) {
+    const setAuthMode = (mode) => {
+      ctaRoot.querySelectorAll('.auth-tab').forEach(t => {
+        const active = t.dataset.tab === mode;
+        t.classList.toggle('is-active', active);
+        t.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      const submitBtn = ctaRoot.querySelector('#welcome-email-submit');
+      if (submitBtn) submitBtn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+      const pwdInput = ctaRoot.querySelector('#welcome-password');
+      if (pwdInput) pwdInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    };
+
     ctaRoot.querySelectorAll('.auth-tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        ctaRoot.querySelectorAll('.auth-tab').forEach(t => {
-          t.classList.remove('is-active');
-          t.setAttribute('aria-selected', 'false');
-        });
-        tab.classList.add('is-active');
-        tab.setAttribute('aria-selected', 'true');
-        const mode = tab.dataset.tab;
-        const submitBtn = ctaRoot.querySelector('#welcome-email-submit');
-        if (submitBtn) submitBtn.textContent = mode === 'login' ? 'Login' : 'Create Account';
-        const pwdInput = ctaRoot.querySelector('#welcome-password');
-        if (pwdInput) pwdInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+        setAuthMode(tab.dataset.tab || 'login');
       });
     });
+    setAuthMode(requestedAuthMode());
 
     ctaRoot.querySelector('#welcome-auth-form')?.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -315,7 +337,7 @@ async function handleEmailAuth(mode) {
     setStoredUser(result.user || null);
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
-    showAuthError(`Sign-in failed: ${String(error.message || error)}`);
+    showAuthError(authErrorMessage(error));
   }
 }
 
@@ -336,7 +358,7 @@ async function handleGoogleFirebaseAuth() {
     setStoredUser(result.user || null);
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
-    showAuthError(`Sign-in failed: ${String(error.message || error)}`);
+    showAuthError(authErrorMessage(error));
   }
 }
 
@@ -351,7 +373,7 @@ async function handleGoogleCredential(credential) {
     setStoredUser(result.user || null);
     window.location.href = result.redirectTo || '/dashboard';
   } catch (error) {
-    showAuthError(`Sign-in failed: ${String(error.message || error)}`);
+    showAuthError(authErrorMessage(error));
   }
 }
 

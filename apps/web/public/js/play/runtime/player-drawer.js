@@ -224,16 +224,16 @@ function describeControlMode(bot, readiness) {
   if (status === 'insufficient_usdc') return 'Low Funds';
   const mode = String(bot?.controlMode || '').trim().toLowerCase();
   if (mode === 'human_active') return 'Human controlling';
-  if (mode === 'bot_active') return 'Bot roaming';
-  if (mode === 'idle_offline') return 'Bot paused';
+  if (mode === 'bot_active') return 'Agent roaming';
+  if (mode === 'idle_offline') return 'Agent paused';
   if (bot?.behavior?.autoplay?.enabled) return 'Autoplay armed';
   return 'Offline';
 }
 
 function describeActorClass(bot) {
   const actorClass = String(bot?.actorClass || '').trim().toLowerCase();
-  if (actorClass === 'owner') return 'Player Bot';
-  if (actorClass === 'background') return 'House Bot';
+  if (actorClass === 'owner') return 'Player agent';
+  if (actorClass === 'background') return 'Arena agent';
   if (actorClass === 'house') return 'House Dealer';
   return 'Arena Actor';
 }

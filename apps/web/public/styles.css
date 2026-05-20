@@ -1,6 +1,6 @@
 /* ============================================
    AUTONOMOUS ARENA - DESIGN SYSTEM
-   Bold, tactical, clean — blue primary, gold for money
+   Bold, tactical, clean — blue primary, teal for outcomes
    ============================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -13,11 +13,11 @@
     --bg-tertiary: #eeeeec;
     --bg-card: #ffffff;
 
-    /* Gold — money, earnings, wins only */
-    --gold-primary: #c9a227;
-    --gold-dark: #a68523;
-    --gold-light: #e8d48a;
-    --gold-pale: #f7f0d8;
+    /* Outcome accent aliases — kept for existing class names */
+    --gold-primary: #2f8f5e;
+    --gold-dark: #236b47;
+    --gold-light: #9ad4b4;
+    --gold-pale: #e0f4e9;
 
     /* Blue — primary UI, actions, links */
     --blue-primary: #005da7;
@@ -35,7 +35,7 @@
     /* Semantic accents */
     --accent-success: #4a7c59;
     --accent-error: #ba1a1a;
-    --accent-warning: #b8860b;
+    --accent-warning: #7a5a00;
     --accent-info: #2976c7;
 
     /* Compatibility aliases — kept so existing pages don't break */
@@ -49,13 +49,13 @@
     /* Borders */
     --border-light: #e2e3e1;
     --border-medium: #c1c7d3;
-    --border-gold: rgba(201, 162, 39, 0.35);
+    --border-gold: rgba(47, 143, 94, 0.32);
 
     /* Shadows — softer, neutral */
     --shadow-sm: 8px 8px 0px 0px rgba(26, 28, 27, 0.04);
     --shadow-md: 0 4px 16px rgba(26, 28, 27, 0.08);
     --shadow-lg: 0 8px 32px rgba(26, 28, 27, 0.1);
-    --shadow-gold: 0 4px 16px rgba(201, 162, 39, 0.2);
+    --shadow-gold: 0 4px 16px rgba(47, 143, 94, 0.18);
 
     /* Typography — Plus Jakarta Sans throughout */
     --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;

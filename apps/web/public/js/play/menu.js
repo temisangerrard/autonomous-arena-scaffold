@@ -1,5 +1,5 @@
 export function initMenu(dom, { queryParams, openPlayerDrawer }) {
-  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuLogout, topbarLogout } = dom;
+  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuLogout } = dom;
 
   function setMenuOpen(nextOpen) {
     if (!topbarMenuPop) return;
@@ -54,11 +54,6 @@ export function initMenu(dom, { queryParams, openPlayerDrawer }) {
   menuLogout?.addEventListener('click', () => {
     void logout();
   });
-  topbarLogout?.addEventListener('click', () => {
-    setMenuOpen(false);
-    void logout();
-  });
-
   document.addEventListener('click', (event) => {
     if (!topbarMenuPop || !topbarMenu) return;
     const target = event.target;

@@ -41,12 +41,12 @@ export function createNameTag(THREE, initialText) {
     const radius = canvas.height / 2;
     ctx.beginPath();
     ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, radius);
-    ctx.fillStyle = 'rgba(253, 248, 237, 0.93)';
+    ctx.fillStyle = 'rgba(247, 252, 249, 0.93)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(198, 152, 49, 0.45)';
+    ctx.strokeStyle = 'rgba(47, 143, 94, 0.45)';
     ctx.lineWidth = 1.2;
     ctx.stroke();
-    ctx.fillStyle = '#3b2b12';
+    ctx.fillStyle = '#123323';
     ctx.font = 'italic 600 11px "Crimson Text", Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -73,7 +73,7 @@ export function createNameTag(THREE, initialText) {
 
 // Badge colors per actorClass
 const BADGE_COLORS = {
-  owner_bot: { bg: '#b5915a', border: '#e8c080', text: '#fff', label: 'OWNER BOT' },
+  owner_bot: { bg: '#2f8f5e', border: '#9ad4b4', text: '#fff', label: 'OWNER BOT' },
   background_bot: { bg: '#555', border: '#888', text: '#ddd', label: 'BOT' },
   human: { bg: '#3a7a50', border: '#5fc480', text: '#fff', label: 'HUMAN' }
 };
