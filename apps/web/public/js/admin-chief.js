@@ -557,7 +557,7 @@ function renderOverview() {
     ['Arena agents', toNumber(status.backgroundBotCount, 0)],
     ['Profiles', toNumber(status.profiles?.length || 0, 0)],
     ['AI key', status.openRouterConfigured ? 'Saved' : 'Not saved'],
-    ['House balance', houseBalance.toFixed(2)]
+    ['Internal ledger', houseBalance.toFixed(2)]
   ];
 
   if (el.overviewKpis) {
@@ -577,7 +577,7 @@ function renderOverview() {
       `Profiles: ${toNumber(status.profiles?.length || 0, 0)}`,
       `Ops agent mode: ${superAgent.mode || 'balanced'}`,
       `Auto-challenge: ${superAgent.challengeEnabled ? 'On' : 'Off'}`,
-      `House balance: ${Number(house.wallet?.balance || 0).toFixed(2)}`
+      `Internal ledger: ${Number(house.wallet?.balance || 0).toFixed(2)} (not USDC)`
     ];
     el.runtimeSnapshot.textContent = lines.join('\n');
   }
@@ -650,12 +650,12 @@ function renderProfiles() {
         <div class="mono">${escapeHtml(profile.wallet?.id || profile.walletId || 'n/a')}</div>
         <div class="mono users-meta">${escapeHtml(profile.wallet?.address || 'n/a')}</div>
       </td>
-      <td>${Number(profile.wallet?.balance || 0).toFixed(2)}</td>
+      <td>${Number(profile.wallet?.balance || 0).toFixed(2)} ledger</td>
       <td>${escapeHtml((profile.ownedBotIds || []).join(', '))}</td>
       <td>
         <div class="btn-row">
-          <button data-action="fund" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="10">Add 10</button>
-          <button data-action="withdraw" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="5">Remove 5</button>
+          <button data-action="fund" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="10">Credit ledger</button>
+          <button data-action="withdraw" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-amount="5">Debit ledger</button>
           ${canExportKey ? `<button data-action="export" data-wallet-id="${escapeHtml(profile.wallet?.id || profile.walletId || '')}" data-profile-id="${escapeHtml(profile.id || '')}">Reveal key</button>` : ''}
         </div>
       </td>
@@ -782,8 +782,8 @@ function renderTreasuryAssets() {
       <td>${Number.isFinite(ethBal) ? ethBal.toFixed(6) : '-'}</td>
       <td>
         <div class="btn-row">
-          <button data-action="treasury-fund" data-wallet-id="${escapeHtml(walletId)}">Add 10</button>
-          <button data-action="treasury-withdraw" data-wallet-id="${escapeHtml(walletId)}">Remove 5</button>
+          <button data-action="treasury-fund" data-wallet-id="${escapeHtml(walletId)}">Credit ledger</button>
+          <button data-action="treasury-withdraw" data-wallet-id="${escapeHtml(walletId)}">Debit ledger</button>
           ${canExportKey ? `<button data-action="treasury-export" data-wallet-id="${escapeHtml(walletId)}" data-profile-id="${escapeHtml(owner)}">Reveal key</button>` : ''}
         </div>
       </td>
@@ -826,7 +826,7 @@ function renderUsers() {
       <td>
         <div class="mono">${escapeHtml(user.walletId || '-')}</div>
         <div class="mono users-meta">${escapeHtml(user.walletAddress || '')}</div>
-        <div class="users-balance"><span class="badge">Balance ${walletBalance.toFixed(2)}</span></div>
+        <div class="users-balance"><span class="badge">Ledger ${walletBalance.toFixed(2)}</span></div>
       </td>
       <td>
         <div class="badge"><span class="dot ${dotClass}"></span>${online ? 'Online' : 'Offline'}</div>
@@ -850,7 +850,7 @@ function renderUsers() {
           </div>
           <button type="button" data-action="teleport-coords">Move to coordinates</button>
           <div class="users-pair-grid">
-            <select data-field="wallet-direction"><option value="credit">Add balance</option><option value="debit">Remove balance</option></select>
+            <select data-field="wallet-direction"><option value="credit">Credit ledger</option><option value="debit">Debit ledger</option></select>
             <input data-field="wallet-amount" type="number" min="0" step="0.01" placeholder="amount">
           </div>
           <input data-field="wallet-reason" type="text" placeholder="reason (optional)">
@@ -1234,17 +1234,17 @@ function bindFleetActions() {
     try {
       if (action === 'fund') {
         await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/fund`, { amount: Number(target.dataset.amount || 10) });
-        addActivity('write', `Funded wallet ${walletId}`);
+        addActivity('write', `Credited internal ledger ${walletId}`);
         await refreshAll({ silent: true });
-        setStatus('Wallet funded.');
+        setStatus('Internal ledger credited.');
         return;
       }
 
       if (action === 'withdraw') {
         await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/withdraw`, { amount: Number(target.dataset.amount || 5) });
-        addActivity('write', `Withdrew from wallet ${walletId}`);
+        addActivity('write', `Debited internal ledger ${walletId}`);
         await refreshAll({ silent: true });
-        setStatus('Wallet withdrawn.');
+        setStatus('Internal ledger debited.');
         return;
       }
 
@@ -1341,16 +1341,16 @@ function bindTreasuryActions() {
     try {
       if (action === 'treasury-fund') {
         await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/fund`, { amount: 10 });
-        addActivity('write', `Funded wallet ${walletId} (+10)`);
+        addActivity('write', `Credited internal ledger ${walletId} (+10)`);
         await refreshAll({ silent: true });
-        setStatus('Wallet funded.');
+        setStatus('Internal ledger credited.');
         return;
       }
       if (action === 'treasury-withdraw') {
         await apiPost(`/api/admin/runtime/wallets/${encodeURIComponent(walletId)}/withdraw`, { amount: 5 });
-        addActivity('write', `Withdrew wallet ${walletId} (-5)`);
+        addActivity('write', `Debited internal ledger ${walletId} (-5)`);
         await refreshAll({ silent: true });
-        setStatus('Wallet withdrawn.');
+        setStatus('Internal ledger debited.');
         return;
       }
       if (action === 'treasury-export') {
@@ -1379,7 +1379,7 @@ function bindTreasuryActions() {
     if (actionKind === 'runtime_only') {
       state.activeTreasuryMode = 'wallet';
       renderAll();
-      setStatus('Runtime source selected. Use wallet transfer/refill controls for runtime-only balance.');
+      setStatus('Internal ledger selected. This is operational accounting only, not USDC.');
       return;
     }
     if (actionKind !== 'transfer_wallet') return;

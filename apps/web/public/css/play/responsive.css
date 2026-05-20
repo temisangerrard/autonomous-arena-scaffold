@@ -41,7 +41,8 @@
         gap: 0;
       }
       .topbar-right .topbar-pill.streak,
-      .topbar-right .topbar-pill.bot {
+      .topbar-right .topbar-pill.bot,
+      .topbar-right .topbar-pill.logout-btn {
         display: none;
       }
       .topbar-right {

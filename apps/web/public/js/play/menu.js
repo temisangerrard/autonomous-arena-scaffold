@@ -1,5 +1,5 @@
 export function initMenu(dom, { queryParams, openPlayerDrawer }) {
-  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuLogout } = dom;
+  const { topbarMenuPop, topbarMenu, menuDashboard, menuViewer, menuLogout, topbarLogout } = dom;
 
   function setMenuOpen(nextOpen) {
     if (!topbarMenuPop) return;
@@ -27,7 +27,7 @@ export function initMenu(dom, { queryParams, openPlayerDrawer }) {
     window.location.href = `/viewer?world=${encodeURIComponent(world)}`;
   });
 
-  menuLogout?.addEventListener('click', async () => {
+  async function logout() {
     try {
       await fetch('/api/player/presence', {
         method: 'POST',
@@ -49,6 +49,14 @@ export function initMenu(dom, { queryParams, openPlayerDrawer }) {
       // best effort
     }
     window.location.href = '/welcome';
+  }
+
+  menuLogout?.addEventListener('click', () => {
+    void logout();
+  });
+  topbarLogout?.addEventListener('click', () => {
+    setMenuOpen(false);
+    void logout();
   });
 
   document.addEventListener('click', (event) => {

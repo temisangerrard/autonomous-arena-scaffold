@@ -316,6 +316,21 @@ function isStaticNpcId(playerId: string): boolean {
   return typeof playerId === 'string' && playerId.startsWith('agent_bg_');
 }
 
+function isHouseBackedParticipant(playerId: string): boolean {
+  return playerId === 'system_house' || isStaticNpcId(playerId);
+}
+
+function walletIdForEscrowParticipant(playerId: string): string | null {
+  if (isHouseBackedParticipant(playerId)) {
+    return houseWalletId || walletIdFor('system_house');
+  }
+  return walletIdFor(playerId);
+}
+
+function lockableChallengeParticipants(challengerId: string, opponentId: string): string[] {
+  return [challengerId, opponentId].filter((id) => !isHouseBackedParticipant(id));
+}
+
 function autoNpcMove(challengeId: string, gameType: GameType): GameMove {
   const digest = sha256Hex(challengeId);
   const seed = Number.parseInt(digest.slice(0, 2), 16);
@@ -483,8 +498,8 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
     }
 
     if (event.event === 'accepted' && wager > 0) {
-      const challengerWalletId = walletIdFor(challenge.challengerId);
-      const opponentWalletId = walletIdFor(challenge.opponentId);
+      const challengerWalletId = walletIdForEscrowParticipant(challenge.challengerId);
+      const opponentWalletId = walletIdForEscrowParticipant(challenge.opponentId);
       if (!challengerWalletId || !opponentWalletId) {
         const aborted = challengeService.abortChallenge(challenge.id, 'declined', 'wallet_required');
         dispatchChallengeEvent(aborted);
@@ -539,9 +554,12 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
         return;
       }
       const participants = challengeWalletsById.get(challenge.id);
-      const isHouseGame = challenge.opponentId === 'system_house';
-      const playerWon = Boolean(challenge.winnerId) && challenge.winnerId === challenge.challengerId;
-      const houseWon = Boolean(challenge.winnerId) && challenge.winnerId === challenge.opponentId;
+      const challengerHouseBacked = isHouseBackedParticipant(challenge.challengerId);
+      const opponentHouseBacked = isHouseBackedParticipant(challenge.opponentId);
+      const isHouseGame = challengerHouseBacked || opponentHouseBacked;
+      const playerParticipantId = challengerHouseBacked ? challenge.opponentId : challenge.challengerId;
+      const playerWon = Boolean(challenge.winnerId) && challenge.winnerId === playerParticipantId;
+      const houseWon = Boolean(challenge.winnerId) && isHouseBackedParticipant(challenge.winnerId ?? '');
 
       // House pool model: player wins are paid from accumulated losses.
       // If the pool is dry when a player wins, refund both stakes — house breaks even,
@@ -567,10 +585,10 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
       const winnerWalletId = !challenge.winnerId
         ? null
         : challenge.winnerId === challenge.challengerId
-          ? (participants?.challengerWalletId ?? walletIdFor(challenge.winnerId))
+          ? (participants?.challengerWalletId ?? walletIdForEscrowParticipant(challenge.winnerId))
           : challenge.winnerId === challenge.opponentId
-            ? (participants?.opponentWalletId ?? walletIdFor(challenge.winnerId))
-            : walletIdFor(challenge.winnerId);
+            ? (participants?.opponentWalletId ?? walletIdForEscrowParticipant(challenge.winnerId))
+            : walletIdForEscrowParticipant(challenge.winnerId);
       const settled = await escrowAdapter.resolve({
         challengeId: challenge.id,
         winnerWalletId
@@ -636,7 +654,7 @@ async function dispatchChallengeEventWithEscrow(event: ChallengeEvent): Promise<
       challengeApprovalById.delete(challenge.id);
       await distributedChallengeStore.releasePlayers(
         challenge.id,
-        [challenge.challengerId, challenge.opponentId].filter((id) => id !== 'system_house')
+        lockableChallengeParticipants(challenge.challengerId, challenge.opponentId)
       );
       await distributedChallengeStore.clear(challenge.id);
     }
@@ -653,11 +671,11 @@ async function registerCreatedChallenge(
     return { ok: true };
   }
   const isHouseMatch =
-    event.challenge.challengerId === 'system_house'
-    || event.challenge.opponentId === 'system_house';
+    isHouseBackedParticipant(event.challenge.challengerId)
+    || isHouseBackedParticipant(event.challenge.opponentId);
   const lockParticipants = isHouseMatch
     ? []
-    : [event.challenge.challengerId, event.challenge.opponentId].filter((id) => id !== 'system_house');
+    : lockableChallengeParticipants(event.challenge.challengerId, event.challenge.opponentId);
 
   if (lockParticipants.length > 0) {
     const lockResult = await distributedChallengeStore.tryLockPlayers(
@@ -1336,20 +1354,20 @@ wss.on('connection', (ws, request) => {
       }
 
       const wager = Math.max(0, Math.min(10_000, Number(payload.wager || 0)));
-      if (wager > 0 && serverEscrowApprovalMode === 'auto') {
-        const challengerWalletId = walletIdFor(playerId);
-        const opponentWalletId = walletIdFor(payload.targetId);
+      if (wager > 0) {
+        const challengerWalletId = walletIdForEscrowParticipant(playerId);
+        const opponentWalletId = walletIdForEscrowParticipant(payload.targetId);
         if (!challengerWalletId || !opponentWalletId) {
           log.warn(
             { playerId, targetId: payload.targetId, wager },
-            'auto approval sponsorship rejected: missing wallet'
+            'wagered challenge rejected: missing wallet'
           );
           sendTo(playerId, {
             type: 'challenge',
             event: 'invalid',
             reason: 'wallet_required',
-            approvalMode: 'auto',
-            approvalSource: 'super_agent',
+            approvalMode: serverEscrowApprovalMode,
+            approvalSource: serverEscrowApprovalMode === 'auto' ? 'super_agent' : 'player_wallet',
             approvalStatus: 'failed'
           });
           return;
@@ -1368,21 +1386,24 @@ wss.on('connection', (ws, request) => {
               reason: preflight.reason,
               reasonCode: preflight.reasonCode
             },
-            'auto approval sponsorship preflight failed'
+            'wagered challenge preflight failed'
           );
           sendTo(playerId, {
             type: 'challenge',
             event: 'invalid',
             reason: preflight.reason || 'wallet_prepare_failed',
-            approvalMode: 'auto',
-            approvalSource: 'super_agent',
-            approvalStatus: 'failed'
+            approvalMode: serverEscrowApprovalMode,
+            approvalSource: serverEscrowApprovalMode === 'auto' ? 'super_agent' : 'player_wallet',
+            approvalStatus: 'failed',
+            reasonCode: preflight.reasonCode,
+            reasonText: preflight.reasonText,
+            preflight: preflight.preflight
           });
           return;
         }
         log.info(
           { playerId, targetId: payload.targetId, wager },
-          'auto approval sponsorship preflight ready'
+          'wagered challenge preflight ready'
         );
       }
 
@@ -1390,7 +1411,7 @@ wss.on('connection', (ws, request) => {
         playerId,
         payload.targetId,
         payload.gameType,
-        payload.wager
+        wager
       );
       const registered = await registerCreatedChallenge(event, playerId);
       if (!registered.ok) {
@@ -1728,7 +1749,7 @@ async function expireOrphanedChallenges(): Promise<void> {
     if (!challenge) {
       await distributedChallengeStore.releasePlayers(
         meta.challengeId,
-        [meta.challengerId, meta.opponentId].filter((id) => id !== 'system_house')
+        lockableChallengeParticipants(meta.challengerId, meta.opponentId)
       );
       await distributedChallengeStore.clear(meta.challengeId);
       continue;
@@ -1747,7 +1768,7 @@ async function expireOrphanedChallenges(): Promise<void> {
       reason: 'owner_failover_expired',
       challenge: expiredChallenge
     });
-    if (meta.opponentId !== 'system_house') {
+    if (!isHouseBackedParticipant(meta.opponentId)) {
       sendToDistributed(meta.opponentId, {
         type: 'challenge',
         event: 'expired',
@@ -1762,7 +1783,7 @@ async function expireOrphanedChallenges(): Promise<void> {
     });
     await distributedChallengeStore.releasePlayers(
       meta.challengeId,
-      [meta.challengerId, meta.opponentId].filter((id) => id !== 'system_house')
+      lockableChallengeParticipants(meta.challengerId, meta.opponentId)
     );
     await distributedChallengeStore.clear(meta.challengeId);
   }

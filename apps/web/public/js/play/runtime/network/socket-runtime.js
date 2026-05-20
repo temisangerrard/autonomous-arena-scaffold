@@ -312,7 +312,7 @@ export async function connectSocketRuntime(deps) {
       state.ui.dealer.reasonCode = '';
       state.ui.dealer.reasonText = '';
       state.ui.dealer.preflight = { playerOk: true, houseOk: true };
-      state.ui.dealer.wager = Number(view.wager ?? state.ui.dealer.wager ?? 1);
+      state.ui.dealer.wager = Number(view.wager ?? state.ui.dealer.wager ?? 0);
       state.ui.dealer.commitHash = String(view.commitHash || '');
       state.ui.dealer.method = String(view.method || '');
       state.ui.dealer.playerHand = Array.isArray(view.playerHand) ? view.playerHand : [];
@@ -331,7 +331,7 @@ export async function connectSocketRuntime(deps) {
       state.ui.dealer.reasonCode = '';
       state.ui.dealer.reasonText = '';
       state.ui.dealer.preflight = { playerOk: true, houseOk: true };
-      state.ui.dealer.wager = Number(view.wager ?? state.ui.dealer.wager ?? 1);
+      state.ui.dealer.wager = Number(view.wager ?? state.ui.dealer.wager ?? 0);
       state.ui.dealer.commitHash = String(view.commitHash || '');
       state.ui.dealer.method = String(view.method || '');
       return;
