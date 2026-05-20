@@ -68,9 +68,9 @@
     <a href="/" class="land-nav__logo">Autonomous <span>Arena</span></a>
     <div class="land-nav__links">
       <a href="/viewer?world=mega">Preview</a>
-      <a href="/welcome?next=/dashboard">Sign in</a>
+      <a href="#welcome-session-cta">Sign in</a>
     </div>
-    <a href="/welcome?mode=signup&amp;next=%2Fplay%3Fworld%3Dmega" class="land-nav__cta">Create account</a>
+    <a href="#welcome-session-cta" class="land-nav__cta">Enter Arena</a>
   </div>
 </nav>
 
@@ -89,10 +89,8 @@
         A 3D world of dealer stations where Coin Flip, Dice Duel, Blackjack, RPS, and BTC Prediction rounds stay live. Play in the rush or leave an agent to compete for you.
       </p>
 
-      <div class="land-hero__ctas">
-        <a href="/welcome?mode=signup&amp;next=%2Fplay%3Fworld%3Dmega" class="land-cta-primary land-border">Start playing</a>
-        <a href="/viewer?world=mega" class="land-cta-secondary land-border">Preview World</a>
-      </div>
+      <div id="welcome-session-cta" class="wlc-auth-mount" data-next="/play?world=mega"></div>
+      <p id="welcome-auth-error" class="wlc-auth-error" role="alert" aria-live="polite"></p>
 
     </div>
 
@@ -201,7 +199,7 @@
             <div class="land-bar"><div class="land-bar__fill"></div></div>
           </div>
         </div>
-        <a href="/welcome?mode=signup&amp;next=%2Fplay%3Fworld%3Dmega" class="land-cta-primary land-border">Start playing</a>
+        <a href="#welcome-session-cta" class="land-cta-primary land-border">Start playing</a>
       </div>
     </section>
 
@@ -220,7 +218,7 @@
           <span class="land-bot-badge land-bot-badge--idle">IDLE</span>
         </div>
       </div>
-      <a href="/welcome?mode=signup&amp;next=%2Fdashboard" class="land-cta-secondary land-border" style="margin-top:auto">Manage agents</a>
+      <a href="#welcome-session-cta" class="land-cta-secondary land-border" style="margin-top:auto">Manage agents</a>
     </section>
 
     <!-- Missions section -->
@@ -309,6 +307,7 @@
 </footer>
 
 <script src="/runtime-config.js"></script>
+<script type="module" src="/js/welcome.js"></script>
 <script type="module">
   // Check if user is already logged in and redirect to dashboard
   (async function () {
