@@ -64,7 +64,7 @@ export function createStationRouting(params) {
             )
           : null;
         station.fallbackReason = station.proxyStationId ? '' : 'no_matching_station';
-        if (!station.proxyStationId) {
+        if (!station.proxyStationId && state.serverStations.size > 0) {
           console.warn('host station proxy missing', {
             hostStationId: station.id,
             expectedProxyId: explicitProxyId,
