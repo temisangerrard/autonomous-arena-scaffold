@@ -516,6 +516,11 @@ async function getRunningAgentSession(db: D1DatabaseLike, botId: string): Promis
   return row ? agentSessionFromRow(row) : null;
 }
 
+async function getActiveAgentSession(db: D1DatabaseLike, botId: string): Promise<AgentSession | null> {
+  const row = await first<Record<string, unknown>>(db, "SELECT * FROM agent_sessions WHERE bot_id = ? AND status IN ('running', 'paused') ORDER BY updated_at DESC LIMIT 1", [botId]);
+  return row ? agentSessionFromRow(row) : null;
+}
+
 async function persistAgentSession(db: D1DatabaseLike, session: AgentSession): Promise<void> {
   session.updatedAt = Date.now();
   await run(
@@ -1701,9 +1706,9 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
       const session = await createAgentSession(db, bot, body);
       return json({ ok: true, session: serializeAgentSession(session), logs: await agentDecisionLogs(db, session.id) });
     }
-    const session = await getRunningAgentSession(db, botId);
-    if (!session) return json({ ok: false, reason: 'agent_session_not_running' }, 404);
     if (action === 'pause' && request.method === 'POST') {
+      const session = await getRunningAgentSession(db, botId);
+      if (!session) return json({ ok: false, reason: 'agent_session_not_running' }, 404);
       session.status = 'paused';
       session.state = 'paused';
       session.pausedAt = Date.now();
@@ -1712,6 +1717,8 @@ export async function handleRuntimeRequest(request: Request, env: RuntimeEnv, pa
       return json({ ok: true, session: serializeAgentSession(session), logs: await agentDecisionLogs(db, session.id) });
     }
     if (action === 'stop' && request.method === 'POST') {
+      const session = await getActiveAgentSession(db, botId);
+      if (!session) return json({ ok: false, reason: 'agent_session_not_active' }, 404);
       session.status = 'stopped';
       session.state = 'stopped_manual';
       session.stoppedAt = Date.now();
