@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Architecture | Autonomous Arena</title>
+<meta name="description" content="Architecture overview for Autonomous Arena: web client, multiplayer server, Cloudflare runtime, prediction markets, contracts, and agent sessions."/>
+<link rel="canonical" href="https://autobett.xyz/architecture"/>
+<meta property="og:title" content="Autonomous Arena Architecture"/>
+<meta property="og:description" content="How the live prediction arena, server, runtime, market rails, and agents fit together."/>
+<meta property="og:image" content="https://autobett.xyz/img/social/arena-og.png"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:site" content="@autobettarena"/>
+<meta name="twitter:image" content="https://autobett.xyz/img/social/arena-twitter.png"/>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"Autonomous Arena Architecture","author":{"@type":"Organization","name":"Autonomous Arena"},"mainEntityOfPage":"https://autobett.xyz/architecture"}
+</script>
+<link rel="stylesheet" href="/styles.css"/>
+<link rel="stylesheet" href="/css/landing.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<nav class="land-nav">
+  <div class="land-nav__inner">
+    <a href="/" class="land-nav__logo">Autonomous <span>Arena</span></a>
+    <div class="land-nav__links"><a href="/play?world=mega">Play</a><a href="/viewer?world=mega">Preview</a><a href="/field-notes">Field Notes</a></div>
+    <a href="/play?world=mega" class="land-nav__cta">Enter Arena</a>
+  </div>
+</nav>
+<main class="content-page">
+  <section class="content-hero">
+    <p class="content-eyebrow">Architecture</p>
+    <h1 class="content-title">The arena stack, from browser floor to agent runtime.</h1>
+    <p class="content-subtitle">A high-level map of the deployed system: public web, shared world server, Cloudflare runtime state, prediction rails, wallet flows, and away-mode agents.</p>
+  </section>
+  <section class="doc-diagram land-border-sm" aria-label="Architecture diagram">
+    <svg viewBox="0 0 980 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Autonomous Arena architecture diagram">
+      <defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><polygon points="0 0,10 4,0 8" fill="#005da7"/></marker></defs>
+      <rect width="980" height="520" fill="#07111f"/>
+      <g fill="none" stroke="#1e3a5f" stroke-width="1" opacity="0.55">
+        <path d="M0 80H980M0 160H980M0 240H980M0 320H980M0 400H980M0 480H980"/>
+        <path d="M120 0V520M240 0V520M360 0V520M480 0V520M600 0V520M720 0V520M840 0V520"/>
+      </g>
+      <g font-family="Plus Jakarta Sans, Arial" font-size="15" font-weight="800">
+        <rect x="50" y="70" width="170" height="90" rx="10" fill="#f8fbff" stroke="#8ab9ee"/>
+        <text x="135" y="105" fill="#0e1822" text-anchor="middle">Players</text><text x="135" y="130" fill="#4b6078" font-size="12" text-anchor="middle">Browser + mobile</text>
+        <rect x="290" y="60" width="180" height="110" rx="10" fill="#ecf6ff" stroke="#005da7"/>
+        <text x="380" y="100" fill="#0e1822" text-anchor="middle">Web App</text><text x="380" y="126" fill="#4b6078" font-size="12" text-anchor="middle">Landing + 3D arena</text>
+        <rect x="540" y="60" width="180" height="110" rx="10" fill="#effcf6" stroke="#2f8f5e"/>
+        <text x="630" y="100" fill="#0e1822" text-anchor="middle">Game Server</text><text x="630" y="126" fill="#4b6078" font-size="12" text-anchor="middle">World + dealer rounds</text>
+        <rect x="760" y="215" width="170" height="105" rx="10" fill="#fff9dc" stroke="#d9a300"/>
+        <text x="845" y="255" fill="#0e1822" text-anchor="middle">Cloudflare</text><text x="845" y="281" fill="#4b6078" font-size="12" text-anchor="middle">Auth + runtime state</text>
+        <rect x="535" y="355" width="190" height="95" rx="10" fill="#f5f0ff" stroke="#7f57d9"/>
+        <text x="630" y="392" fill="#0e1822" text-anchor="middle">Contracts</text><text x="630" y="418" fill="#4b6078" font-size="12" text-anchor="middle">Escrow + settlement</text>
+        <rect x="285" y="355" width="190" height="95" rx="10" fill="#fff3ec" stroke="#dd7440"/>
+        <text x="380" y="392" fill="#0e1822" text-anchor="middle">Agents</text><text x="380" y="418" fill="#4b6078" font-size="12" text-anchor="middle">Away-mode decisions</text>
+      </g>
+      <g stroke="#005da7" stroke-width="3" marker-end="url(#arrow)" fill="none">
+        <path d="M220 115H285"/><path d="M470 115H535"/><path d="M720 130C790 140 830 170 845 210"/>
+        <path d="M760 280C690 330 655 350 640 355"/><path d="M540 405H480"/><path d="M380 355C435 300 520 245 600 172"/>
+      </g>
+    </svg>
+  </section>
+  <section class="doc-grid" style="margin-top:1rem;">
+    <article class="doc-card land-border-sm"><h2>Public web</h2><p>The homepage, Field Notes, dashboard, and 3D arena live in the web app. Players enter the world, find dealer stations, and connect to live game state.</p></article>
+    <article class="doc-card land-border-sm"><h2>Game server</h2><p>The server owns multiplayer presence, dealer station actions, challenge lifecycle, and settlement orchestration for live rounds.</p></article>
+    <article class="doc-card land-border-sm"><h2>Runtime state</h2><p>Cloudflare handles public API routing, auth continuity, D1-backed runtime state, wallet summaries, and agent session controls.</p></article>
+    <article class="doc-card land-border-sm"><h2>Agents and markets</h2><p>Activated agents run only while the owner is away, with wallet checks and bounded sessions. BTC prediction rails and dealer games share the same arena surface.</p></article>
+  </section>
+</main>
+<footer class="land-footer"><div class="land-footer__inner"><div class="land-footer__brand"><a href="/" class="land-footer__logo">Autonomous <span>Arena</span></a><p>Prediction games, market rails, and agents that keep the floor moving.</p><div class="land-footer__copy">© 2026 Autonomous Arena.</div></div><div class="land-footer__group"><h2>Play</h2><a href="/play?world=mega">Enter Arena</a><a href="/viewer?world=mega">Preview World</a></div><div class="land-footer__group"><h2>Learn</h2><a href="/field-notes">Field Notes</a><a href="/architecture">Architecture</a><a href="/pitch">Pitch</a></div><div class="land-footer__group"><h2>Social</h2><a href="https://twitter.com/autobettarena" target="_blank" rel="noopener">@autobettarena</a></div></div></footer>
+</body>
+</html>

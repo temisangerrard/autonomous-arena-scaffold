@@ -678,6 +678,19 @@ export async function createServerContext(config: ServerConfig): Promise<ServerC
       }
       return path.join(publicDir, 'index.html');
     }
+    if (pathname === '/field-notes') {
+      return path.join(publicDir, 'field-notes', 'index.html');
+    }
+    if (pathname.startsWith('/field-notes/')) {
+      const slug = pathname.slice('/field-notes/'.length).replace(/[^a-z0-9-]/gi, '');
+      return slug ? path.join(publicDir, 'field-notes', `${slug}.html`) : null;
+    }
+    if (pathname === '/architecture') {
+      return path.join(publicDir, 'architecture.html');
+    }
+    if (pathname === '/pitch') {
+      return path.join(publicDir, 'pitch.html');
+    }
     if (pathname === '/profile') {
       if (!identity) {
         redirect(res, '/welcome');

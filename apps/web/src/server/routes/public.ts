@@ -119,7 +119,12 @@ export const handlePublicRoutes: RouteHandler = async (req, res, requestUrl, con
   if (pathname.startsWith('/img/')) {
     const filePath = path.join(publicDir, pathname);
     const ext = path.extname(filePath).toLowerCase();
-    await sendFile(res, filePath, ext === '.svg' ? 'image/svg+xml' : 'application/octet-stream');
+    const contentType = ext === '.svg'
+      ? 'image/svg+xml'
+      : ext === '.png'
+        ? 'image/png'
+        : 'application/octet-stream';
+    await sendFile(res, filePath, contentType);
     return true;
   }
   if (pathname.startsWith('/css/')) {
@@ -132,6 +137,10 @@ export const handlePublicRoutes: RouteHandler = async (req, res, requestUrl, con
   }
   if (pathname === '/styles.css') {
     await sendFile(res, path.join(publicDir, 'styles.css'), 'text/css; charset=utf-8');
+    return true;
+  }
+  if (pathname === '/sitemap.xml') {
+    await sendFile(res, path.join(publicDir, 'sitemap.xml'), 'application/xml; charset=utf-8');
     return true;
   }
 
