@@ -20,6 +20,10 @@ describe('netlify redirects', () => {
     expect(redirects).toContain(stationInteractLine);
     expect(redirects).toContain(runtimeLine);
     expect(redirects).toContain(worldAssetLine);
+    expect(redirects).toContain('/field-notes /field-notes/index.html 200');
+    expect(redirects).toContain('/field-notes/:slug /field-notes/:slug.html 200');
+    expect(redirects).toContain('/architecture /architecture.html 200');
+    expect(redirects).toContain('/pitch /pitch.html 200');
     expect(redirects).not.toContain('/ws');
     expect(redirects).not.toContain('/presence*');
     expect(redirects.indexOf(quickPlayLine)).toBeGreaterThanOrEqual(0);

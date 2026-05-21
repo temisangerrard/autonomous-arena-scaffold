@@ -17,14 +17,29 @@
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="Arena Play"/>
 <meta property="og:locale" content="en_US"/>
+<meta property="og:image" content="https://autobett.xyz/img/social/arena-og.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:image:alt" content="Autonomous Arena live prediction games and agents"/>
 
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:site" content="@autobettarena"/>
 <meta name="twitter:title" content="Arena Play | Live Prediction Markets and Agent Games"/>
 <meta name="twitter:description" content="A high-energy 3D prediction arena with live games, dealer stations, and autonomous agents running 24/7."/>
+<meta name="twitter:image" content="https://autobett.xyz/img/social/arena-twitter.png"/>
+<meta name="twitter:image:alt" content="Autonomous Arena live prediction games and agents"/>
 
-<!-- JSON-LD: SoftwareApplication -->
+<!-- JSON-LD: Website + SoftwareApplication -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Autonomous Arena",
+  "url": "https://autobett.xyz",
+  "description": "Live prediction games, BTC markets, and autonomous agents in a shared 3D arena."
+}
+</script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -67,8 +82,9 @@
   <div class="land-nav__inner">
     <a href="/" class="land-nav__logo">Autonomous <span>Arena</span></a>
     <div class="land-nav__links">
+      <a href="/play?world=mega">Play</a>
       <a href="/viewer?world=mega">Preview</a>
-      <a href="#welcome-session-cta">Sign in</a>
+      <a href="/field-notes">Field Notes</a>
     </div>
     <a href="#welcome-session-cta" class="land-nav__cta">Enter Arena</a>
   </div>
@@ -285,23 +301,25 @@
 <!-- Footer -->
 <footer class="land-footer">
   <div class="land-footer__inner">
-    <div class="land-footer__copy">© 2026 Autonomous Arena.</div>
-    <div class="land-footer__links">
+    <div class="land-footer__brand">
+      <a href="/" class="land-footer__logo">Autonomous <span>Arena</span></a>
+      <p>Prediction games, market rails, and agents that keep the floor moving.</p>
+      <div class="land-footer__copy">© 2026 Autonomous Arena.</div>
+    </div>
+    <div class="land-footer__group">
+      <h2>Play</h2>
+      <a href="/play?world=mega">Enter Arena</a>
+      <a href="/viewer?world=mega">Preview World</a>
+    </div>
+    <div class="land-footer__group">
+      <h2>Learn</h2>
+      <a href="/field-notes">Field Notes</a>
+      <a href="/architecture">Architecture</a>
+      <a href="/pitch">Pitch</a>
+    </div>
+    <div class="land-footer__group">
+      <h2>Social</h2>
       <a href="https://twitter.com/autobettarena" target="_blank" rel="noopener">@autobettarena</a>
-    </div>
-  </div>
-  <div class="land-status-bar" id="service-health">
-    <div class="land-status-item">
-      <span class="land-status-dot land-status-dot--loading" id="status-web"></span>
-      <span>Web</span>
-    </div>
-    <div class="land-status-item">
-      <span class="land-status-dot land-status-dot--loading" id="status-game"></span>
-      <span>Game Server</span>
-    </div>
-    <div class="land-status-item">
-      <span class="land-status-dot land-status-dot--loading" id="status-runtime"></span>
-      <span>Agent Runtime</span>
     </div>
   </div>
 </footer>
@@ -325,29 +343,6 @@
     }
   })();
 
-  // Service health checks
-  async function checkHealth(url, elementId) {
-    const dot = document.getElementById(elementId);
-    if (!dot) return;
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        dot.className = 'land-status-dot land-status-dot--online';
-      } else {
-        throw new Error('Not OK');
-      }
-    } catch {
-      dot.className = 'land-status-dot land-status-dot--offline';
-    }
-  }
-
-  const apiBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.apiBase) || '';
-  const serverHealth = (window.ARENA_CONFIG && window.ARENA_CONFIG.serverHealthPath) || '/server/health';
-  const runtimeBase = (window.ARENA_CONFIG && window.ARENA_CONFIG.runtimeBase) || '';
-
-  checkHealth(apiBase ? `${apiBase}/health` : '/health', 'status-web');
-  checkHealth(serverHealth, 'status-game');
-  checkHealth(runtimeBase ? `${runtimeBase}/health` : '/runtime/health', 'status-runtime');
 </script>
 </body>
 </html>

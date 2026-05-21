@@ -13,6 +13,10 @@
 /dashboard /dashboard.html 200
 /play      /play.html      200
 /viewer    /viewer.html    200
+/field-notes /field-notes/index.html 200
+/field-notes/:slug /field-notes/:slug.html 200
+/architecture /architecture.html 200
+/pitch /pitch.html 200
 /profile   /dashboard      302
 /agents    /admin          301
 /admin     /admin-chief.html    200

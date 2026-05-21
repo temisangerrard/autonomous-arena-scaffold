@@ -9,9 +9,9 @@ function readPublic(filePath) {
 }
 
 describe('stitch-aligned public shells', () => {
-  it('uses AutoBett-led conversion copy on the welcome page', () => {
+  it('uses Autonomous Arena conversion copy on the welcome page', () => {
     const source = readPublic('welcome.html');
-    expect(source).toContain('<title>AutoBett | Enter the Arena</title>');
+    expect(source).toContain('<title>Autonomous Arena | Enter the Arena</title>');
     expect(source).toContain('live betting arena');
     expect(source).toContain('Leave an agent with a strategy when you want the arena working for you.');
   });
