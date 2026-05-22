@@ -5,6 +5,7 @@
 /api/game/stations/interact https://arena-backend.peppera.workers.dev/api/game/stations/interact 200
 /api/*        https://arena-backend.peppera.workers.dev/api/:splat       200
 /health       https://arena-backend.peppera.workers.dev/health           200
+/server/health https://arena-backend.peppera.workers.dev/health           200
 /runtime/*    https://arena-backend.peppera.workers.dev/runtime/:splat   200
 /assets/world/* https://pub-302820e514cd451baaf272a33bd70765.r2.dev/assets/world/:splat 200
 

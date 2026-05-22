@@ -13,11 +13,13 @@ describe('netlify redirects', () => {
     const quickPlayLine = `/api/game/stations/playable ${backendOrigin}/api/game/stations/playable 200`;
     const stationInteractLine = `/api/game/stations/interact ${backendOrigin}/api/game/stations/interact 200`;
     const genericApiLine = `/api/*        ${backendOrigin}/api/:splat       200`;
+    const serverHealthLine = `/server/health ${backendOrigin}/health           200`;
     const runtimeLine = `/runtime/*    ${backendOrigin}/runtime/:splat   200`;
     const worldAssetLine = '/assets/world/* https://pub-302820e514cd451baaf272a33bd70765.r2.dev/assets/world/:splat 200';
 
     expect(redirects).toContain(quickPlayLine);
     expect(redirects).toContain(stationInteractLine);
+    expect(redirects).toContain(serverHealthLine);
     expect(redirects).toContain(runtimeLine);
     expect(redirects).toContain(worldAssetLine);
     expect(redirects).toContain('/field-notes /field-notes/index.html 200');

@@ -57,6 +57,7 @@ const runtimeConfig = {
   worldAssetBaseUrl,
   // Preferred in-browser paths (Netlify rewrite targets)
   apiBase: '/api',
+  serverHealthPath: '/server/health',
   runtimeBase: '/runtime',
   // Build identity — client polls /api/health and compares buildHash;
   // if it changes, the game prompts "New version available — reload?"
@@ -78,6 +79,7 @@ const redirects = [
   `/api/game/stations/interact ${backendOrigin}/api/game/stations/interact 200`,
   `/api/*        ${backendOrigin}/api/:splat       200`,
   `/health       ${backendOrigin}/health           200`,
+  `/server/health ${backendOrigin}/health           200`,
   `/runtime/*    ${backendOrigin}/runtime/:splat   200`,
   `/assets/world/* ${worldAssetBaseUrl}/assets/world/:splat 200`,
   '',
@@ -86,6 +88,10 @@ const redirects = [
   '/dashboard /dashboard.html 200',
   '/play      /play.html      200',
   '/viewer    /viewer.html    200',
+  '/field-notes /field-notes/index.html 200',
+  '/field-notes/:slug /field-notes/:slug.html 200',
+  '/architecture /architecture.html 200',
+  '/pitch /pitch.html 200',
   '/profile   /dashboard      302',
   '/agents    /admin          301',
   '/admin     /admin-chief.html    200',

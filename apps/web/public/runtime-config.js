@@ -4,6 +4,7 @@ window.ARENA_CONFIG = {
   "runtimeOrigin": "https://arena-backend.peppera.workers.dev",
   "worldAssetBaseUrl": "https://pub-302820e514cd451baaf272a33bd70765.r2.dev",
   "apiBase": "/api",
+  "serverHealthPath": "/server/health",
   "runtimeBase": "/runtime",
   "buildHash": "cf-cutover"
 };
