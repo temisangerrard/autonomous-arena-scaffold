@@ -1,0 +1,84 @@
+name: AI PR Reviewer
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openai
+
+      - name: Fetch PR Diff and Review
+        id: review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+        run: |
+          # Fetch the diff for this specific PR
+          DIFF=$(gh pr diff ${{ github.event.pull_request.number }})
+          
+          # Pass diff via stdin to avoid bash escaping issues
+          REVIEW=$(echo "$DIFF" | python3 << 'EOF'
+          import os
+          import sys
+          from openai import OpenAI
+
+          client = OpenAI(
+              api_key=os.getenv("OPENAI_API_KEY"),
+              base_url=os.getenv("OPENAI_BASE_URL", "https://api.z.ai/api/coding/paas/v4")
+          )
+
+          diff = sys.stdin.read()
+          prompt = f"""You are an expert code reviewer. Review this GitHub PR diff. 
+          Focus on:
+          1. Critical bugs or logic errors
+          2. Security vulnerabilities
+          3. Code quality and best practices
+          4. Missing tests or edge cases
+
+          Keep it concise, actionable, and formatted in Markdown. If the code looks great, say so.
+
+          Diff:
+          {diff[:4000]}
+          """
+
+          try:
+              resp = client.chat.completions.create(
+                  model=os.getenv("OPENAI_MODEL", "glm-5.1"),
+                  messages=[{'role': 'user', 'content': prompt}],
+                  temperature=0.2
+              )
+              print(resp.choices[0].message.content)
+          except Exception as e:
+              print(f"Error generating review: {e}")
+          EOF
+          )
+          
+          # Save to GitHub Actions output
+          echo "review<<EOFMARKER" >> $GITHUB_OUTPUT
+          echo "$REVIEW" >> $GITHUB_OUTPUT
+          echo "EOFMARKER" >> $GITHUB_OUTPUT
+
+      - name: Post Comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "**🤖 Agent Review**
+
+          ${{ steps.review.outputs.review }}
+
+          ---
+          *Automated review by Hermes Agent*"
