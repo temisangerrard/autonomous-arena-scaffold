@@ -1,0 +1,174 @@
+name: Hermes Agent Responder
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  respond:
+    # Only run if the comment mentions @hermes
+    if: contains(github.event.comment.body, '@hermes')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # If it's a PR, checkout the PR's head branch so we can push fixes to it
+          ref: ${{ github.event.issue.pull_request && github.event.issue.pull_request.head.ref || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openai requests
+
+      - name: Hermes Agent Process
+        id: hermes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          IS_PR: ${{ github.event.issue.pull_request && 'true' || 'false' }}
+        run: |
+          python3 << 'PYEOF'
+          import os
+          import sys
+          import json
+          import re
+          import subprocess
+          from openai import OpenAI
+
+          client = OpenAI(
+              api_key=os.getenv("OPENAI_API_KEY"),
+              base_url=os.getenv("OPENAI_BASE_URL", "https://api.z.ai/api/coding/paas/v4")
+          )
+
+          repo = os.getenv("REPO")
+          issue_num = os.getenv("ISSUE_NUMBER")
+          is_pr = os.getenv("IS_PR") == "true"
+          comment_body = os.getenv("COMMENT_BODY")
+
+          # Fetch issue/PR details
+          type_str = "pull" if is_pr else "issues"
+          api_url = f"https://api.github.com/repos/{repo}/{type_str}/{issue_num}"
+          
+          headers = {
+              "Authorization": f"Bearer {os.getenv('GH_TOKEN')}",
+              "Accept": "application/vnd.github.v3+json"
+          }
+          
+          import requests
+          resp = requests.get(api_url, headers=headers)
+          if resp.status_code != 200:
+              print(f"Failed to fetch issue/PR: {resp.text}")
+              sys.exit(1)
+              
+          data = resp.json()
+          title = data.get("title", "No title")
+          body = data.get("body", "No description")
+          
+          # If it's a PR, fetch the diff for better context
+          diff_text = ""
+          if is_pr:
+              diff_resp = requests.get(f"{api_url}.diff", headers=headers)
+              if diff_resp.status_code == 200:
+                  diff_text = diff_resp.text[:3000]  # Limit diff size
+
+          prompt = f"""You are Hermes Agent, an expert AI developer assisting in a GitHub {'Pull Request' if is_pr else 'Issue'}.
+          
+          Context:
+          - Title: {title}
+          - Description: {body[:1500]}
+          - {'PR Diff (truncated):' if is_pr else ''} {diff_text}
+          - User's comment to you: "{comment_body}"
+
+          Task: Respond to the user's request. 
+          
+          RULES:
+          1. If the user asks you to FIX something and you can determine the exact file path and the corrected content, you MUST output a JSON block like this:
+          ```json
+          {{
+            "response": "Brief, friendly explanation of what I fixed.",
+            "fix": {{
+              "file": "relative/path/to/file.ext",
+              "content": "the FULL corrected file content",
+              "commit_message": "fix: brief description of the change"
+            }}
+          }}
+          ```
+          2. If no code fix is requested or possible, just reply with helpful, concise Markdown text.
+          3. Do not hallucinate file paths. If you don't know the file, ask for clarification.
+          """
+
+          try:
+              resp_llm = client.chat.completions.create(
+                  model=os.getenv("OPENAI_MODEL", "glm-5.1"),
+                  messages=[{'role': 'user', 'content': prompt}],
+                  temperature=0.2
+              )
+              llm_output = resp_llm.choices[0].message.content
+              
+              # Check if there's a JSON fix block
+              json_match = re.search(r'```json\s*(\{.*?\})\s*```', llm_output, re.DOTALL)
+              
+              if json_match and is_pr:
+                  fix_data = json.loads(json_match.group(1))
+                  response_text = fix_data.get("response", "Fix applied.")
+                  fix = fix_data.get("fix", {})
+                  
+                  if fix and "file" in fix and "content" in fix:
+                      # Apply the fix
+                      file_path = fix["file"]
+                      content = fix["content"]
+                      commit_msg = fix.get("commit_message", "fix: applied by Hermes Agent")
+                      
+                      # Ensure directory exists
+                      os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
+                      
+                      with open(file_path, "w") as f:
+                          f.write(content)
+                          
+                      # Git commit and push
+                      subprocess.run(["git", "config", "--global", "user.name", "Hermes Agent"], check=True)
+                      subprocess.run(["git", "config", "--global", "user.email", "hermes@agent.local"], check=True)
+                      subprocess.run(["git", "add", file_path], check=True)
+                      subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+                      push_res = subprocess.run(["git", "push"], capture_output=True, text=True)
+                      
+                      if push_res.returncode == 0:
+                          final_response = f"✅ **Fix Applied!**\n\n{response_text}\n\nI have updated `{file_path}` and pushed the commit to this branch."
+                      else:
+                          final_response = f"⚠️ **Fix Attempted but Push Failed**\n\n{response_text}\n\nError: {push_res.stderr}"
+              else:
+                  # No JSON fix, just return the markdown response
+                  final_response = llm_output
+                  
+              # Save to GitHub Actions output (handle multiline)
+              with open(os.getenv("GITHUB_OUTPUT"), "a") as f:
+                  f.write("response<<EOFMARKER\n")
+                  f.write(final_response)
+                  f.write("\nEOFMARKER\n")
+                  
+          except Exception as e:
+              print(f"Error: {e}")
+              with open(os.getenv("GITHUB_OUTPUT"), "a") asf:
+                  f.write("response<<EOFMARKER\n⚠️ Hermes Agent encountered an error processing your request.\nEOFMARKER\n")
+          PYEOF
+
+      - name: Post Comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "${{ steps.hermes.outputs.response }}"
