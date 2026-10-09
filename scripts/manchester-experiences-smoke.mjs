@@ -30,7 +30,7 @@ try{
  await page.click('#show-start');assert.ok((await read()).experience.time<1);assert.equal((await read()).experience.status,'playing');
  await page.click('#experience-exit');assert.equal((await read()).experience,null);assert.deepEqual((await read()).player,original);
  await page.click('#tram-open');await page.click('[data-id="northern"]');await page.waitForSelector('#tram-bell');
- assert.equal((await read()).district,'quays');assert.equal((await read()).experience.type,'tram');assert.equal(await page.locator('#tram-leave').isEnabled(),false);
+ assert.equal((await read()).district,'quays');assert.equal((await read()).experience.type,'tram');assert.equal((await read()).experience.passengers,4);assert.equal((await read()).experience.playerSeated,true);assert.equal((await read()).experience.playerOutfit,'#a45543');assert.equal(await page.locator('#tram-leave').isEnabled(),false);
  await page.click('#tram-view');assert.equal((await read()).experience.view,'window');
  await page.click('#tram-bell');assert.equal((await read()).experience.requested,true);
  await advance(10000);assert.equal((await read()).experience.arrived,false);await page.screenshot({path:`${out}/tram-window.png`});

@@ -498,7 +498,7 @@ export function disposeWorld(group) {
   materials.forEach((m) => m.dispose());
   geometries.forEach((g) => g.dispose());
 }
-export function createAvatar() {
+export function createAvatar({ skinTone = '#a96946', hairColor = '#29221f' } = {}) {
   const avatar = new T.Group();
   const body = new T.Group();
   avatar.add(body);
@@ -515,7 +515,7 @@ export function createAvatar() {
     return mesh;
   };
   const sphere = (parent, color, x, y, z, scale) => part(parent, new T.SphereGeometry(1, 12, 8), color, x, y, z, scale);
-  const skin = '#a96946', hair = '#29221f', outfit = '#a45543';
+  const skin = skinTone, hair = hairColor, outfit = '#a45543';
   const jacket = part(body, new T.CapsuleGeometry(0.25, 0.38, 4, 12), outfit, 0, 1.15, 0, [1.2, 1, 0.7]);
   part(body, new T.BoxGeometry(0.17, 0.43, 0.035), '#f6ead5', 0, 1.23, 0.18);
   for (const x of [-0.11, 0.11]) part(body, new T.BoxGeometry(0.035, 0.46, 0.045), '#6d3a32', x, 1.23, 0.19);
@@ -554,6 +554,16 @@ export function createAvatar() {
   return {
     group: avatar,
     setOutfit(color) { jacket.material.color.set(color); },
+    getOutfit() { return '#' + jacket.material.color.getHexString(); },
+    sit(time = 0) {
+      body.position.y = Math.sin(time * 1.8) * 0.006;
+      legs.forEach((leg, i) => {
+        leg.rotation.x = -Math.PI / 2;
+        knees[i].rotation.x = Math.PI / 2;
+        arms[i].rotation.x = -0.55;
+        arms[i].rotation.z = (i === 0 ? 1 : -1) * 0.08;
+      });
+    },
     animate(time, moving) {
       body.position.y = moving ? Math.abs(Math.sin(time * 9)) * 0.035 : Math.sin(time * 2) * 0.008;
       legs.forEach((leg, i) => {

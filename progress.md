@@ -1699,3 +1699,8 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Replaced the plain capsule avatar with a stylised character: facial features, ears, curls, layered jacket, hands, trousers and trainers. Shared materials keep outfit changes consistent and geometry lightweight.
 - Added hip/knee walk articulation and subtle idle breathing. Reduced close-camera distance/height to make the player readable in the city; overview remains available.
 - Required game client passed; inspected front-view street screenshot and mobile fitting-room screenshot. District regression passed all activities, wardrobe colour/persistence and safe exits with zero console errors.
+
+## 2026-10-09 Tram passengers
+- Added seated player representation using the current jacket colour plus three ambient passengers with varied skin/hair/outfits. Added seated pose and outfit accessor to shared avatar; walking player remains isolated from tram scene disposal.
+- Lowered carriage camera, opened camera-side roof rail and shortened seatbacks for character visibility. Adjusted seat positions after screenshot review. Ride, bell, window view and arrival controls retained.
+- Local full theatre/tram regression passed with zero errors, including return trip and mobile. Required game client completed. Added passenger count/player pose/outfit assertions for subsequent regression runs.
