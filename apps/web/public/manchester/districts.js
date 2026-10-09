@@ -59,6 +59,9 @@ export const DISTRICTS = [
     coordinates: '53.47° N · 2.25° W',
     spawn: [15, 26],
   },
+  { id: 'gallery', activity: 'Manchester Art Gallery · Enter ↗', module: './culture.js', name: 'Manchester Art Gallery', heading: 'A little more<br>colour.', subtitle: 'Art · Curate your own display', label: 'MANCHESTER · CULTURE TRAIL', detail: 'Art · Curate your own display', coordinates: '53.48° N · 2.24° W', spawn: [0, 23] },
+  { id: 'museum', activity: 'Manchester Museum · Enter ↗', module: './culture.js', name: 'Manchester Museum', heading: 'Meet the<br>ancient world.', subtitle: 'Fossils · Build a prehistoric creature', label: 'MANCHESTER · CULTURE TRAIL', detail: 'Fossils · Build a prehistoric creature', coordinates: '53.47° N · 2.23° W', spawn: [0, 23] },
+  { id: 'industry', activity: 'Science and Industry Museum · Enter ↗', module: './culture.js', name: 'Science and Industry Museum', heading: 'Ideas that<br>move a city.', subtitle: 'Engineering · Power a model engine', label: 'MANCHESTER · CULTURE TRAIL', detail: 'Engineering · Power a model engine', coordinates: '53.48° N · 2.26° W', spawn: [0, 23] },
 ];
 export const TRAIL_POINTS = [
   { x: 7, z: 17, name: 'Promenade' },

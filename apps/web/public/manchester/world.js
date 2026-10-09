@@ -477,10 +477,31 @@ function castlefield(b) {
   b.box(-5, 1.8, 13, 3, 0.3, 7.5, '#466962');
   b.label('CASTLEFIELD', 32, 3, -22.2, 12);
 }
+function cultureStreet(b, kind) {
+  const art = kind === 'gallery', museum = kind === 'museum';
+  const colour = art ? '#ddcfb4' : museum ? '#b17b59' : '#985c49';
+  b.building(0, -12, 36, 18, 12, colour);
+  b.box(0, 1, 0, 39, 2, 6, '#d7c8ad');
+  b.box(0, 0.45, 4, 41, 0.9, 3, '#e1d5be');
+  b.box(0, 3.8, -2.8, 4, 6, 0.4, '#385e5c');
+  if (art) {
+    for (const x of [-14, -9, 9, 14]) b.shape('cylinder', x, 6, -1, 0.7, 10, 0.7, '#efe0c3');
+    b.box(0, 11.3, -1, 36, 1, 3, '#e8d5b1');
+  } else if (museum) {
+    for (const x of [-15, 15]) { b.box(x, 10, -3, 5, 20, 5, colour); b.shape('cone', x, 22, -3, 4, 5, 4, '#5b655e'); }
+  } else {
+    b.shape('cylinder', -23, 13, -12, 1.3, 26, 1.3, colour);
+    for (let i = 0; i < 4; i++) b.box(-20 + i * 12, 0.22, 13, 8, 0.12, 0.3, '#69675d');
+  }
+  b.label(art ? 'MANCHESTER ART GALLERY' : museum ? 'MANCHESTER MUSEUM' : 'SCIENCE + INDUSTRY', 0, 9, -2.5, 24, '#fff4da', '#365652');
+  for (const x of [-28, 28]) { b.tree(x, 13, 1.4); b.bench(x, 20); }
+  for (const x of [-40, 40]) b.building(x, -22, 15, 15, 13, '#9b7964');
+}
 export function createDistrict(id) {
   const b = new Builder();
   ground(b);
-  ({ quays, trafford, centre, northern, castlefield })[id](b);
+  if (['gallery', 'museum', 'industry'].includes(id)) cultureStreet(b, id);
+  else ({ quays, trafford, centre, northern, castlefield })[id](b);
   return b.finish();
 }
 export function disposeWorld(group) {

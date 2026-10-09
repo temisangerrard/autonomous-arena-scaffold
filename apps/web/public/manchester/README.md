@@ -65,3 +65,10 @@ MANCHESTER_URL=https://YOUR-WORKER.workers.dev/ node scripts/manchester-deployme
 ```
 
 This focused check uses mobile Chromium emulation and native touch input, checks portrait/landscape screenshots and keyboard control after closing the tram dialog, and saves results under `output/manchester/live/`. Physical iPhone/Android performance remains to be measured.
+
+### Culture trail
+The tram now connects eight destinations. Manchester Art Gallery offers an original abstract-art curator, Manchester Museum a stylised fossil assembly, and the Science and Industry Museum a model-engine power challenge. All three interiors/exhibits are fictional interpretations, not replicas or current exhibition listings. Visits appear in the phone journal. Phone access is a large fixed control; on portrait phones it occupies the bottom-left beside tram travel.
+
+Venue references: https://manchesterartgallery.org/visit-manchester-art-gallery/ , https://www.museum.manchester.ac.uk/venue/galleries-and-spaces , https://www.scienceandindustrymuseum.org.uk/ .
+
+Run `node scripts/manchester-culture-smoke.mjs` for the three mobile phone → tram → activity → street → journal journeys.

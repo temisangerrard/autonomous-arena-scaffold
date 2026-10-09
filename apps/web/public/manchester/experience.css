@@ -730,3 +730,12 @@ body.in-apartment #phone-open {
 .app-icon.peach { background: #f9c69b; } .app-icon.yellow { background: #f6db7c; } .app-icon.rose { background: #eebfc1; } .app-icon.mint { background: #b6dbbd; } .app-icon.lilac { background: #d0c1e5; } .app-icon.blue { background: #b6d3e6; }
 .phone-location { text-align: center; font-size: 10px; color: #446c5c; padding: 4px 0 10px; }
 @media(max-height:600px) { #phone-dialog { max-height: 94dvh; padding-top: 20px; } .phone-status { margin-bottom: 12px; } .phone-clock { font-size: 40px; margin-top: 10px; } .phone-date { margin-bottom: 12px; } .phone-life-card { display: none; } .phone-app-grid { margin: 18px 0; gap: 14px 8px; } .app-icon { width: 45px; height: 45px; border-radius: 14px; font-size: 24px; } .phone-location { margin-bottom: 0; } }
+
+/* A consistent thumb-reachable phone entry, outside and at home. */
+#phone-open, body.in-apartment #phone-open { top: auto; left: auto; right: 22px; bottom: max(104px, env(safe-area-inset-bottom)); min-width: 108px; min-height: 54px; padding: 14px 22px; font-size: 16px; font-weight: 700; color: #fff8e8; background: #315c4d; border: 2px solid #fff8e8; box-shadow: 0 5px 20px #16392d44; z-index: 5; }
+@media(max-width:700px) { #phone-open, body.in-apartment #phone-open { right: 16px; bottom: max(88px, env(safe-area-inset-bottom)); } }
+@media(max-height:500px) { #phone-open, body.in-apartment #phone-open { right: 12px; bottom: 74px; min-height: 44px; padding: 10px 16px; } }
+@media(max-width:700px) and (min-height:501px) {
+  #phone-open, body.in-apartment #phone-open { left: 16px; right: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
+  .bottom-bar .district-marker { visibility: hidden; }
+}

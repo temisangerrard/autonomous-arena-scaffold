@@ -34,7 +34,7 @@ try {
   }
   await page.click('#phone-open');
     await page.getByRole('button', { name: 'Things to do', exact: true }).click();
-  assert.equal(await page.locator('.phone-activity').count(), 8);
+  assert.equal(await page.locator('.phone-activity').count(), 11);
   await page.screenshot({ path: `${out}/phone.png` });
   await page.click('#phone-close');
   await choose('Waterfront run');

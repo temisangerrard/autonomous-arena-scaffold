@@ -209,7 +209,7 @@ function travel(id) {
   $('#district-name').textContent = next.label;
   $('#footer-place').textContent = next.name;
   $('.district-marker div span').textContent = next.coordinates;
-  $('#district-number').textContent = `0${DISTRICTS.indexOf(next) + 1} / 05`;
+  $('#district-number').textContent = `0${DISTRICTS.indexOf(next) + 1} / ${String(DISTRICTS.length).padStart(2, '0')}`;
   document.querySelectorAll('.stop').forEach((button) => {
     const active = button.dataset.id === id;
     button.classList.toggle('active', active);
@@ -278,7 +278,7 @@ async function startExperience(type, destination, activityKey) {
       if (type !== 'tram')
         phone.record(
           activityKey ||
-            (type === 'theatre' ? 'theatre' : district.module.slice(2, -3))
+            (type === 'theatre' ? 'theatre' : (district.module === './culture.js' ? district.id : district.module.slice(2, -3)))
         );
       if (destinationId && activityKey)
         startExperience(

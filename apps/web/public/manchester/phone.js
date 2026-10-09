@@ -1,6 +1,7 @@
 import { renderShop } from './phone-shop.js';
 import { REWARDS } from './life.js';
 export const PHONE_ACTIVITIES = [
+  ...[['gallery', 'Manchester Art Gallery', 'Curate a colourful exhibition'], ['museum', 'Manchester Museum', 'Assemble a prehistoric fossil'], ['industry', 'Science and Industry Museum', 'Power a working model engine']].map(([key, name, description]) => ({ key, name, description, district: key, module: './culture.js' })),
   {
     key: 'sunset-tour',
     district: 'castlefield',

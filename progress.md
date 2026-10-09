@@ -1704,3 +1704,9 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Added seated player representation using the current jacket colour plus three ambient passengers with varied skin/hair/outfits. Added seated pose and outfit accessor to shared avatar; walking player remains isolated from tram scene disposal.
 - Lowered carriage camera, opened camera-side roof rail and shortened seatbacks for character visibility. Adjusted seat positions after screenshot review. Ride, bell, window view and arrival controls retained.
 - Local full theatre/tram regression passed with zero errors, including return trip and mobile. Required game client completed. Added passenger count/player pose/outfit assertions for subsequent regression runs.
+
+## 2026-10-09 Culture expansion and accessible phone
+- Expanded from five to eight districts: Manchester Art Gallery, Manchester Museum, Science and Industry Museum. Distinct stylised street facades, tram destinations and phone activities; all interiors/exhibits clearly fictional.
+- Art palette/shape curation, four-part fossil assembly/reset, and engine power/steady-speed challenge. Safe exits and visits recorded in existing journal. Museum venue grounding linked in README.
+- Larger labelled phone control, bottom-left on portrait mobile with decorative footer marker hidden to make room. Camera adjusted after portrait screenshot review.
+- New mobile culture smoke passed all three phone→tram→activity→street flows and journal with no page errors. Required game client ran; final phone/art/engine screenshots inspected. No multiplayer or real venue schedule claims.
