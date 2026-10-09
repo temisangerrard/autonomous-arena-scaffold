@@ -1,0 +1,652 @@
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #283b38;
+  background: #d0deda;
+  font-synthesis: none;
+  --paper: #f7f3ea;
+  --wine: #753847;
+  --ink: #283b38;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  overflow: hidden;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #bd8738;
+  outline-offset: 5px;
+}
+button {
+  color: inherit;
+}
+#world {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  display: block;
+}
+.masthead {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 104px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 0 42px;
+  pointer-events: none;
+  background: linear-gradient(var(--paper), #f7f3ea88, transparent);
+}
+.masthead > * {
+  pointer-events: auto;
+}
+.wordmark {
+  font:
+    italic 52px Georgia,
+    serif;
+  color: var(--wine);
+  text-decoration: none;
+  letter-spacing: -8px;
+  padding-right: 9px;
+}
+.wordmark-dot {
+  color: #c39547;
+}
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.brand strong {
+  font-size: 20px;
+  letter-spacing: -0.8px;
+}
+.brand > span {
+  font-size: 8px;
+  letter-spacing: 2.1px;
+}
+.preview-tag {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  border: 1px solid #52645b40;
+  padding: 9px 12px;
+  border-radius: 4px;
+}
+.round-button {
+  height: 35px;
+  width: 35px;
+  border: 1px solid #52645b40;
+  border-radius: 50%;
+  background: #f7f3ea9c;
+}
+.location {
+  position: fixed;
+  left: 43px;
+  top: 150px;
+  pointer-events: none;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+.eyebrow > span:last-child:not(.live-dot) {
+  margin-left: 20px;
+  opacity: 0.55;
+}
+.live-dot {
+  height: 6px;
+  width: 6px;
+  border-radius: 50%;
+  background: #688474;
+}
+.location h1 {
+  font:
+    normal clamp(43px, 5vw, 73px)/1.03 Georgia,
+    'Times New Roman',
+    serif;
+  letter-spacing: -3.1px;
+  margin: 22px 0 15px;
+  max-width: 410px;
+}
+.location p {
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 250px;
+  color: #4d625c;
+}
+.location-rule {
+  width: 35px;
+  height: 2px;
+  background: #ad8953;
+  margin: 23px 0 16px;
+}
+.location-name {
+  font-size: 8px;
+  font-weight: bold;
+  letter-spacing: 1.7px;
+}
+.trail-card {
+  position: fixed;
+  right: 35px;
+  top: 145px;
+  width: 260px;
+  background: #f7f3eae8;
+  border: 1px solid #fff9;
+  border-radius: 5px;
+  padding: 21px;
+  box-shadow: 0 9px 35px #2439330c;
+}
+.trail-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  font-weight: bold;
+}
+.trail-heading small {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0;
+  line-height: 1.6;
+  font-weight: normal;
+  max-width: 170px;
+  margin-top: 8px;
+  color: #66746d;
+}
+.trail-icon {
+  font-size: 36px;
+  color: #b38744;
+  font-weight: normal;
+}
+.trail-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 19px 0;
+}
+#trail-dots {
+  display: flex;
+  gap: 7px;
+}
+#trail-dots i {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #bcaa86;
+  border-radius: 50%;
+}
+#trail-dots i.found {
+  background: #cda34e;
+  border-color: #cda34e;
+}
+#trail-time {
+  font-size: 10px;
+  color: #687b72;
+}
+#trail-start,
+.primary {
+  background: var(--wine);
+  color: var(--paper);
+  border: 0;
+  border-radius: 3px;
+  padding: 12px 14px;
+  font-size: 11px;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+}
+#trail-best {
+  font-size: 10px;
+  margin: 10px 0 0;
+  color: #62756d;
+}
+#trail-best:empty {
+  display: none;
+}
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: linear-gradient(transparent, #f7f3eadd 40%, var(--paper));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 42px 0;
+  gap: 20px;
+}
+.district-marker {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.compass {
+  font:
+    17px Georgia,
+    serif;
+  border-right: 1px solid #bcc1b1;
+  padding-right: 17px;
+}
+.district-marker div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.district-marker strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+.district-marker div span {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #76847b;
+}
+.desktop-hint {
+  font-size: 10px;
+  color: #5a7167;
+}
+.desktop-hint span {
+  margin: 0 10px;
+}
+kbd {
+  font: 9px Arial;
+  border: 1px solid #a9b5a6;
+  border-radius: 3px;
+  padding: 5px;
+  margin-right: 5px;
+}
+.tram-button {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid #a5b2a2;
+  background: var(--paper);
+  padding: 13px 17px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.tram-button svg {
+  width: 20px;
+  height: 20px;
+}
+.tram-button > span {
+  margin-left: 20px;
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 115px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+  padding: 13px 23px;
+  border-radius: 30px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  max-width: 90%;
+  text-align: center;
+}
+#toast.visible {
+  opacity: 1;
+}
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  font: 24px Georgia;
+}
+#loading[hidden],
+#error[hidden] {
+  display: none;
+}
+#error {
+  position: fixed;
+  inset: 20%;
+  padding: 40px;
+  background: var(--paper);
+  z-index: 20;
+}
+#error button {
+  padding: 12px;
+  border: 0;
+  background: var(--wine);
+  color: white;
+}
+dialog {
+  width: 460px;
+  max-width: calc(100% - 30px);
+  max-height: 85dvh;
+  border: 0;
+  border-radius: 8px;
+  padding: 38px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 20px 100px #142c3455;
+}
+dialog::backdrop {
+  background: #233e4566;
+  backdrop-filter: blur(7px);
+}
+dialog h2 {
+  font: 40px Georgia;
+  letter-spacing: -1.3px;
+  margin: 20px 0 12px;
+}
+dialog p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #64726b;
+}
+.dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  border: 0;
+  background: none;
+  font-size: 25px;
+}
+.fine-print {
+  font-size: 10px !important;
+  color: #7c8377 !important;
+}
+.stop {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+  background: none;
+  border: 0;
+  border-top: 1px solid #d7d8c9;
+  padding: 16px 0;
+  text-align: left;
+}
+.stop .stop-number {
+  border: 1px solid #adac8e;
+  border-radius: 50%;
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+}
+.stop > span:nth-child(2) {
+  flex: 1;
+}
+.stop strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+.stop small {
+  font-size: 10px;
+  color: #7b8276;
+  display: block;
+  margin-top: 5px;
+}
+.stop.active .stop-number {
+  background: var(--wine);
+  color: white;
+  border-color: var(--wine);
+}
+#joystick,
+.touch-hint {
+  display: none;
+}
+@media (pointer: coarse) {
+  #joystick {
+    display: block;
+    position: fixed;
+    bottom: 122px;
+    left: 30px;
+    width: 100px;
+    height: 100px;
+    border: 1px solid #fff9;
+    border-radius: 50%;
+    background: #f7f3ea55;
+    touch-action: none;
+  }
+  #stick {
+    display: block;
+    position: absolute;
+    left: 30px;
+    top: 30px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #f7f3eacc;
+    border: 1px solid #b0b9a5;
+  }
+  .touch-hint {
+    display: block;
+    position: fixed;
+    bottom: 130px;
+    right: 25px;
+    font-size: 9px;
+    color: #40594e;
+  }
+  .desktop-hint {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .masthead {
+    height: 76px;
+    padding: 0 20px;
+    gap: 12px;
+  }
+  .wordmark {
+    font-size: 44px;
+  }
+  .brand strong {
+    font-size: 17px;
+  }
+  .brand > span {
+    font-size: 6px;
+    letter-spacing: 1.5px;
+  }
+  .preview-tag {
+    font-size: 7px;
+    padding: 6px;
+    letter-spacing: 0.7px;
+  }
+  .round-button {
+    width: 29px;
+    height: 29px;
+  }
+  .location {
+    top: 100px;
+    left: 22px;
+  }
+  .eyebrow {
+    font-size: 7px;
+    letter-spacing: 1px;
+  }
+  .location h1 {
+    font-size: 45px;
+    letter-spacing: -2px;
+    margin: 16px 0 10px;
+  }
+  .location p {
+    font-size: 10px;
+    max-width: 160px;
+  }
+  .location-rule {
+    margin: 17px 0 12px;
+  }
+  .location-name {
+    font-size: 6px;
+  }
+  .trail-card {
+    top: auto;
+    bottom: 85px;
+    right: 18px;
+    width: 164px;
+    padding: 13px;
+  }
+  .trail-heading {
+    font-size: 7px;
+    gap: 7px;
+    letter-spacing: 0.8px;
+  }
+  .trail-icon {
+    font-size: 23px;
+  }
+  .trail-heading small {
+    font-size: 9px;
+    line-height: 1.4;
+    margin-top: 5px;
+  }
+  .trail-progress {
+    margin: 12px 0;
+    gap: 4px;
+  }
+  #trail-dots {
+    gap: 4px;
+  }
+  #trail-dots i {
+    width: 7px;
+    height: 7px;
+  }
+  #trail-time {
+    font-size: 8px;
+  }
+  #trail-start {
+    font-size: 10px;
+    padding: 10px;
+  }
+  #trail-best {
+    font-size: 8px;
+  }
+  .bottom-bar {
+    height: 77px;
+    padding: 12px 20px 0;
+    gap: 10px;
+  }
+  .district-marker {
+    gap: 9px;
+  }
+  .district-marker strong {
+    font-size: 10px;
+  }
+  .district-marker div span {
+    font-size: 6px;
+  }
+  .compass {
+    font-size: 13px;
+    padding-right: 9px;
+  }
+  .tram-button {
+    font-size: 10px;
+    padding: 10px;
+    gap: 7px;
+  }
+  .tram-button > span {
+    margin-left: 6px;
+  }
+  .desktop-hint {
+    display: none;
+  }
+  #toast {
+    bottom: 275px;
+    font-size: 11px;
+    width: max-content;
+  }
+  .touch-hint {
+    bottom: 265px;
+    right: 20px;
+  }
+  dialog {
+    padding: 30px 25px;
+  }
+  dialog h2 {
+    font-size: 34px;
+  }
+  .stop {
+    padding: 13px 0;
+  }
+}
+@media (max-height: 540px) {
+  .location {
+    top: 85px;
+  }
+  .location h1 {
+    font-size: 34px;
+  }
+  .location p,
+  .location-rule,
+  .location-name {
+    display: none;
+  }
+  .trail-card {
+    top: 85px;
+    bottom: auto;
+  }
+  .masthead {
+    height: 70px;
+  }
+  .bottom-bar {
+    height: 68px;
+  }
+  #joystick {
+    bottom: 85px;
+    width: 90px;
+    height: 90px;
+  }
+  #stick {
+    left: 25px;
+    top: 25px;
+  }
+  .touch-hint {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
+/* Give the world back its space as soon as exploration starts. */
+body.exploring .location h1 {
+  font-size: 28px;
+  letter-spacing: -1px;
+  margin: 12px 0;
+}
+body.exploring .location p,
+body.exploring .location-rule,
+body.exploring .location-name {
+  display: none;
+}
+.location {
+  text-shadow: 0 1px 12px #f7f3ea;
+}
+@media (max-width: 700px) {
+  body.exploring .location h1 {
+    font-size: 25px;
+  }
+}

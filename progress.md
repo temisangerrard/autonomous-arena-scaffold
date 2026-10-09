@@ -1641,3 +1641,56 @@ Original prompt: yes there's a file called train world or so , thats the base wo
   - `npm run world:publish`
 - Operational docs added:
   - `/Users/temisan/Downloads/blender implementation/docs/world-assets.md`
+
+## 2026-10-09 Manchester interactive experiences
+- Added lazy-loaded Lowry foyer/auditorium and original animated play, interactive tram rides with bell/views/disembarking, and one activity at every district (penalties, wardrobe, rhythm, canal lock).
+- Inspected Lagos Life's public map and boat-cruise entry; deeper phone experience is account-gated and was not verified firsthand.
+- Added in-world phone with eight activities, automatic tram connections to activities and local visit journal. Added 100m running/stamina/cones, alternating-oar rowing and 48s captioned fictional canal trip towards Sale.
+- Mobile outdoor smoke checks pass: run completion, rowing completion, phone→tram→tour, pause, chapters and local journal persistence. Inspected screenshots and corrected camera framing/cone positions.
+- Prior theatre/tram and all four district activities passed dedicated smoke tests. Deployment and live regression verification pending below.
+- Scope: solo, procedural scenery, no accounts/multiplayer or gambling. Sale tour is a compressed interpretation, not navigation. Physical iOS/Android GPU/thermal testing still needed.
+- Deployed Cloudflare version `3ad0298f-fe63-4cb2-ba03-85a2f09cec77` at https://manchester-world.peppera.workers.dev/ (17 changed assets).
+- Required develop-web-game client ran successfully; inspected foyer screenshot and state. Full Lowry/tram regression passed with zero browser errors.
+- Live phone/outdoor suite passed with zero browser errors, including cross-district tram-to-tour handoff and persisted visits. Inspected updated live rowing screenshot.
+- Live district-activity suite passed: every tram destination, penalties/reset, saved outfit, rhythm score/replay, full canal lock/reset and safe exits, with zero browser errors.
+- Live deployment smoke passed: HTTP, touch movement/cancellation, tram, keyboard focus, portrait/landscape; exterior renderer 50 draw calls / 15,876 triangles at final sample. Inspected live mobile layouts. All requested implementation/deployment checks complete.
+- Final screenshot review found landscape phone/trail overlap. Moved phone to bottom centre on short screens; published CSS-only version `c32d3cd8-f67e-495b-a3cd-e529886d97df` and confirmed live CSS.
+
+## 2026-10-09 Personal life / Sims direction
+- User asked for money, closer character and an owned apartment. Implemented default close avatar-follow camera with city overview toggle and camera obstruction checks.
+- Added validated local life state (starter £250, game-only rewards, energy/fullness, four decor purchases). Unit checks cover duplicates, insufficient funds, malformed storage and blocked persistence.
+- Added furnished walkable Quays apartment with rest, cook (£8), relax and decorating. Reuses renderer/disposal lifecycle, persists purchases, restores outdoor avatar on exit.
+- Phone and street HUD show money and Home; completing run/row/penalties/rhythm/lock grants one reward per visit. Phone lists reward amounts. No real-money purchases or multiplayer.
+- First mobile integration checks passed for close/overview, home walking/interactions, transactions, persistence and single reward. Screenshot review prompted wider portrait home framing and more space above decor controls. Final verification/deployment pending.
+- Final local life smoke passes with zero browser errors. Required web-game client also passed home entry/walking; inspected desktop and portrait screenshots, corrected mobile framing and decor-control spacing.
+- Existing four-destination/tram activity regression passes with zero errors after reward integration.
+- Deployed personal-life version `409c9d78-1d92-4db6-9942-0c5fda0148fe` to the existing Cloudflare URL. Live personal-life smoke running.
+- Live personal-life smoke passed: close camera/overview, walkable apartment, rest/cook/relax, purchases and insufficient-fund/duplicate handling, reload persistence, phone home entry, exactly one activity reward per visit, portrait/landscape. No browser errors. Inspected final live decor screenshot. Requested personal-life update complete.
+
+## 2026-10-09 Fantasy-life correction
+- User approved wealthy start, furnished home, free meals and collectible progression. Starter balance £250,000; same local save key now stores version 2 and upgrades old saves once. Existing higher balances preserved.
+- All four decor pieces included; Decorate now toggles placement without spending. Cooking free. Activities award persistent unique collectibles: two wearable jackets, football badge, Quays Captain title and private sunset-tour variant. Phone collection shows earned items.
+- Unit migration/free-meal/duplicate-unlock/persistence checks pass. Required game-client home screenshot inspected. End-to-end unlock/wardrobe/cruise verification in progress before deployment.
+- Full mobile fantasy-life suite passes: old £17 save upgraded, included furniture, free cooking, decor arrangement, unique collectibles, unlocked sunset cruise via tram, wearable earned jacket and reload persistence. Fixed wardrobe option initialization found during checks. Screenshots inspected for home, collection, sunset and required game client.
+- Deployed version `37668e95-f951-433e-b361-bf4696fb4d5d`. Live full fantasy-life test passed with no browser errors, including existing-save migration, free meals, actual jacket wear/cruise unlock and persistence. Complete.
+
+## 2026-10-09 Multi-room penthouse
+- Replaced studio with seven connected room scenes across two floors, physical doorway triggers and visible stairs. Room buttons walk via the room graph; manual walking also crosses doors. One room rendered at a time.
+- Interactive kitchen prep/timing/serve, three-dart aim/timing scoring, timed bedroom/guest breathing, temperature-controlled shower, TV channels, terrace landmark spotting. Bedroom curtains now visibly close and dim lighting. Existing decor choices and wealthy save state preserved.
+- Mobile penthouse smoke passes all seven room routes, both floor changes, manual doorway movement, each activity, cancellation and exit. Inspected each room screenshot. Updated wealth test to use new cooking sequence. Final game-client/live verification pending.
+- Required game-client home entry/walking succeeded; desktop screenshot inspected. Deployed penthouse version `74796954-ddea-4877-ac20-1add2004f3d6` to Cloudflare. Live suite additionally checks native touch start/cancel and waits for resized canvas before landscape capture (initial automated screenshot caught the canvas mid-resize).
+- Live penthouse suite passed with zero browser errors: all rooms/floors, manual doors, native touch/cancel, cooking, darts scoring, rest/breathing, temperature control, TV, telescope, cancellation/exit and portrait/landscape. Wealth-state unit checks still pass. Final live screenshots inspected. Requested expansion complete.
+
+## 2026-10-09 In-world phone furniture shop
+- Added Quays & Co. phone shop: eight furniture pieces with CSS previews, prices, compatible room selection and instant in-game delivery. Phone is usable inside the penthouse; purchases refresh the current room without exiting.
+- Life state stores validated furniture inventory, single purchase debit, free relocation, storage and replacement handling. Existing saves/balances retained. Same-category replacements put previous pieces in storage.
+- Models update sofa/cushions, patterned rugs, lamp, plant, bed, framed art and terrace loungers. Existing comfortable starter furniture stays included.
+- Shop transaction unit checks and mobile browser flow pass: purchases, duplicate protection, actual home visuals, shopping inside, replacement/storage, moving and reload. Screenshots inspected; tightened landscape phone header. Required game-client check run. Deploy/live verification pending.
+- Deployed shop version `9f46c059-e9e9-462c-9e46-71aa52fc0dc8`. Live mobile shopping suite passed with no browser errors; checked actual sofa/art/rug delivery, purchases, free relocation/storage and reload persistence. Inspected final live room and compact landscape-shop screenshots. Complete.
+
+## 2026-10-09 Phone home screen and GitHub checkpoint
+- Researched signed-in Lagos Life home, furniture, skill and venue loops; scoped findings in docs/plans/2026-10-09-lagos-life-field-notes.md.
+- Added Manchester phone launcher with green wallpaper, clock, balance and six working app shortcuts. Music & shows filters existing theatre/rhythm activities; home-screen button returns from app content. Apartment phone exposes shop, apartment and collection.
+- Mobile shopping regression passed locally with zero errors, covering purchases/delivery/storage/reload and portrait/landscape. Required game client completed; inspected portrait and landscape launcher screenshots. Updated existing activity tests for explicit launcher navigation.
+- Deployed Cloudflare version 188937aa-47fc-46a9-9439-cdf3a6c5f70d. Live checks and GitHub checkpoint underway.
+- Live mobile shop/launcher regression passed with zero errors. Local outdoor regression passed run/row completion, phone-to-tram-to-tour and journal persistence. Git staged diff whitespace check passed. Checkpoint includes all previously untracked Manchester source/config/tests; unrelated work excluded.

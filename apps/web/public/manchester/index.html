@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f2eee5" />
+    <title>Manchester — a little world of our own</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23743042'/%3E%3Ctext x='13' y='46' font-size='44' fill='%23fff' font-family='serif'%3Em%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./experience.css" />
+  </head>
+  <body>
+    <canvas
+      id="world"
+      aria-label="Walkable Manchester world. Use arrow keys or WASD to move, or the touch joystick."
+    ></canvas>
+    <header class="masthead">
+      <a class="wordmark" href="./" aria-label="Manchester home"
+        >m<span class="wordmark-dot">.</span></a
+      >
+      <div class="brand">
+        <strong>Manchester</strong><span>A LITTLE WORLD OF OUR OWN</span>
+      </div>
+      <span class="preview-tag">WORLD PREVIEW · SOLO</span>
+      <button class="round-button" id="help" aria-label="How to explore">
+        ?
+      </button>
+    </header>
+    <main>
+      <section class="location" aria-label="Current district">
+        <div class="eyebrow">
+          <span class="live-dot"></span> GREATER MANCHESTER
+          <span id="district-number">01 / 05</span>
+        </div>
+        <h1 id="district-title">Meet me<br />at the Quays.</h1>
+        <p id="district-description">
+          Waterfront wanderings. A little northern soul.
+        </p>
+        <div class="location-rule"></div>
+        <span class="location-name" id="district-name"
+          >SALFORD QUAYS & MEDIACITY</span
+        >
+      </section>
+      <section class="trail-card" aria-label="Discovery trail">
+        <div class="trail-heading">
+          <span class="trail-icon">✳</span
+          ><span
+            >THE LOCAL TRAIL<small id="trail-copy"
+              >Find five golden bees around the Quays.</small
+            ></span
+          >
+        </div>
+        <div class="trail-progress">
+          <div id="trail-dots" aria-label="0 of 5 found"></div>
+          <span id="trail-time">Take your time</span>
+        </div>
+        <button id="trail-start">Start exploring <span>↗</span></button>
+        <p id="trail-best"></p>
+      </section>
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div id="loading" role="status">Opening Manchester…</div>
+      <div id="error" hidden role="alert">
+        <h2>Let’s try that again.</h2>
+        <p id="error-message"></p>
+        <button onclick="location.reload()">Reload the world</button>
+      </div>
+    </main>
+    <footer class="bottom-bar">
+      <div class="district-marker">
+        <span class="compass">N ↗</span>
+        <div>
+          <strong id="footer-place">Salford Quays</strong
+          ><span>53.47° N &nbsp; 2.30° W</span>
+        </div>
+      </div>
+      <div class="desktop-hint">
+        <kbd>W A S D</kbd> walk <span>·</span> drag to look <span>·</span>
+        <kbd>Shift</kbd> run
+      </div>
+      <button class="tram-button" id="tram-open">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          aria-hidden="true"
+        >
+          <rect x="5" y="4" width="14" height="14" rx="3" />
+          <path d="M5 12h14M12 4v8M8 18l-2 3m10-3 2 3M9 1h6M12 1v3" />
+          <circle cx="8.5" cy="15" r=".5" />
+          <circle cx="15.5" cy="15" r=".5" />
+        </svg>
+        Take the tram <span>↗</span>
+      </button>
+    </footer>
+    <div id="joystick" aria-label="Touch movement control">
+      <span id="stick"></span>
+    </div>
+    <span class="touch-hint">Drag the scene to look</span>
+    <dialog id="tram-dialog" aria-labelledby="tram-title">
+      <button class="dialog-close" data-close aria-label="Close tram map">
+        ×
+      </button>
+      <div class="eyebrow">A SMALL CITY. A LOT TO FIND.</div>
+      <h2 id="tram-title">Where to next?</h2>
+      <p>Choose your destination, board the tram, and watch the city go by.</p>
+      <div id="tram-stops"></div>
+      <p class="fine-print">
+        A playful, compressed map. Landmark interpretations, not an exact city
+        replica. Other districts are early blockouts.
+      </p>
+    </dialog>
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <button class="dialog-close" data-close aria-label="Close help">×</button>
+      <div class="eyebrow">MAKE YOURSELF AT HOME</div>
+      <h2 id="help-title">Have a wander.</h2>
+      <p>
+        Walk with <strong>WASD or the arrow keys</strong>. Hold Shift to run.
+        Drag the scene to turn the camera. On a phone, move with the thumbstick.
+      </p>
+      <p>
+        Take the tram to explore five districts. At the Quays, start the local
+        trail and walk into five golden bees. Find them all to set a personal
+        best.
+      </p>
+      <p class="fine-print">
+        Open your Phone for running, rowing, music, penalties, shopping, a canal lock, a boat tour and the Lowry play. This is a
+        solo world; shared audiences and multiplayer are next. No account or
+        wallet needed.
+      </p>
+      <button class="primary" data-close>Let’s explore ↗</button>
+    </dialog>
+    <button id="venue-open">The Lowry · Visit the theatre ↗</button>
+    <noscript>This world needs JavaScript enabled.</noscript>
+    <script type="module">
+      import('./main.js').catch(() => {
+        document.querySelector('#loading').hidden = true;
+        document.querySelector('#error').hidden = false;
+        document.querySelector('#error-message').textContent =
+          'The 3D world could not load. Check your connection and try again.';
+      });
+    </script>
+  </body>
+</html>
