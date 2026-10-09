@@ -350,7 +350,7 @@ function updateCamera(dt, snap = false) {
   // Broad, elevated view keeps landmarks and paths legible on a small screen.
   const mobile = camera.aspect < 0.85;
   const close = cameraMode === 'close';
-  const distance = close ? (mobile ? 12 : 15) : mobile ? 54 : 66;
+  const distance = close ? (mobile ? 8 : 10) : mobile ? 54 : 66;
   target.set(
     avatar.group.position.x * (close || mobile ? 1 : 0.65),
     1,
@@ -358,7 +358,7 @@ function updateCamera(dt, snap = false) {
   );
   desiredCamera.set(
     target.x + Math.sin(yaw) * distance,
-    close ? 9 : mobile ? 44 : 51,
+    close ? 5.5 : mobile ? 44 : 51,
     target.z + Math.cos(yaw) * distance
   );
   if (close && world) {

@@ -1694,3 +1694,8 @@ Original prompt: yes there's a file called train world or so , thats the base wo
 - Mobile shopping regression passed locally with zero errors, covering purchases/delivery/storage/reload and portrait/landscape. Required game client completed; inspected portrait and landscape launcher screenshots. Updated existing activity tests for explicit launcher navigation.
 - Deployed Cloudflare version 188937aa-47fc-46a9-9439-cdf3a6c5f70d. Live checks and GitHub checkpoint underway.
 - Live mobile shop/launcher regression passed with zero errors. Local outdoor regression passed run/row completion, phone-to-tram-to-tour and journal persistence. Git staged diff whitespace check passed. Checkpoint includes all previously untracked Manchester source/config/tests; unrelated work excluded.
+
+## 2026-10-09 Recognisable playable character
+- Replaced the plain capsule avatar with a stylised character: facial features, ears, curls, layered jacket, hands, trousers and trainers. Shared materials keep outfit changes consistent and geometry lightweight.
+- Added hip/knee walk articulation and subtle idle breathing. Reduced close-camera distance/height to make the player readable in the city; overview remains available.
+- Required game client passed; inspected front-view street screenshot and mobile fitting-room screenshot. District regression passed all activities, wardrobe colour/persistence and safe exits with zero console errors.

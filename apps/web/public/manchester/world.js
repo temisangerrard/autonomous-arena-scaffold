@@ -500,62 +500,69 @@ export function disposeWorld(group) {
 }
 export function createAvatar() {
   const avatar = new T.Group();
-  const mat = (color) => new T.MeshStandardMaterial({ color, roughness: 1 });
-  const part = (geo, color, x, y, z) => {
-    const m = new T.Mesh(geo, mat(color));
-    m.position.set(x, y, z);
-    avatar.add(m);
-    return m;
+  const body = new T.Group();
+  avatar.add(body);
+  const materials = new Map();
+  const material = (color) => {
+    if (!materials.has(color)) materials.set(color, new T.MeshStandardMaterial({ color, roughness: 0.85 }));
+    return materials.get(color);
   };
-  const jacket = part(
-    new T.CapsuleGeometry(0.27, 0.45, 3, 8),
-    '#a45543',
-    0,
-    1.05,
-    0
-  );
-  part(new T.SphereGeometry(0.23, 10, 8), '#d5ae87', 0, 1.65, 0);
-  part(
-    new T.SphereGeometry(0.235, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
-    '#473e34',
-    0,
-    1.7,
-    0
-  );
-  const legs = [-0.15, 0.15].map((x) =>
-    part(new T.CapsuleGeometry(0.1, 0.43, 3, 6), '#3c5554', x, 0.42, 0)
-  );
-  const arms = [-0.37, 0.37].map((x) =>
-    part(new T.CapsuleGeometry(0.085, 0.4, 3, 6), '#a45543', x, 1, 0)
-  );
-  part(new T.BoxGeometry(0.35, 0.42, 0.18), '#d0aa64', 0, 1.05, -0.26);
-  const shadow = new T.Mesh(
-    new T.CircleGeometry(0.7, 24),
-    new T.MeshBasicMaterial({
-      color: '#3f5953',
-      transparent: true,
-      opacity: 0.23,
-      depthWrite: false,
-    })
-  );
+  const part = (parent, geometry, color, x, y, z, scale) => {
+    const mesh = new T.Mesh(geometry, material(color));
+    mesh.position.set(x, y, z);
+    if (scale) mesh.scale.set(...scale);
+    parent.add(mesh);
+    return mesh;
+  };
+  const sphere = (parent, color, x, y, z, scale) => part(parent, new T.SphereGeometry(1, 12, 8), color, x, y, z, scale);
+  const skin = '#a96946', hair = '#29221f', outfit = '#a45543';
+  const jacket = part(body, new T.CapsuleGeometry(0.25, 0.38, 4, 12), outfit, 0, 1.15, 0, [1.2, 1, 0.7]);
+  part(body, new T.BoxGeometry(0.17, 0.43, 0.035), '#f6ead5', 0, 1.23, 0.18);
+  for (const x of [-0.11, 0.11]) part(body, new T.BoxGeometry(0.035, 0.46, 0.045), '#6d3a32', x, 1.23, 0.19);
+  sphere(body, skin, 0, 1.55, 0, [0.105, 0.16, 0.1]);
+  const head = new T.Group(); head.position.y = 1.8; body.add(head);
+  sphere(head, skin, 0, 0, 0, [0.23, 0.29, 0.21]);
+  for (const x of [-0.23, 0.23]) sphere(head, skin, x, -0.01, 0, [0.05, 0.075, 0.04]);
+  for (const x of [-0.083, 0.083]) {
+    sphere(head, '#fcf1dc', x, 0.025, 0.191, [0.044, 0.031, 0.014]);
+    sphere(head, '#30251f', x, 0.025, 0.205, [0.019, 0.023, 0.008]);
+    part(head, new T.BoxGeometry(0.082, 0.018, 0.02), hair, x, 0.086, 0.195);
+  }
+  sphere(head, skin, 0, -0.035, 0.208, [0.038, 0.053, 0.038]);
+  sphere(head, '#6c342d', 0, -0.125, 0.185, [0.063, 0.017, 0.013]);
+  sphere(head, hair, 0, 0.19, -0.025, [0.25, 0.17, 0.225]);
+  for (let i = 0; i < 7; i++) {
+    const angle = i * Math.PI * 2 / 7;
+    sphere(head, hair, Math.cos(angle) * 0.16, 0.27, Math.sin(angle) * 0.12, [0.1, 0.09, 0.1]);
+  }
+  const arms = [], legs = [], knees = [];
+  for (const side of [-1, 1]) {
+    const arm = new T.Group(); arm.position.set(side * 0.35, 1.4, 0); body.add(arm); arms.push(arm);
+    part(arm, new T.CapsuleGeometry(0.085, 0.27, 3, 8), outfit, 0, -0.17, 0);
+    part(arm, new T.CapsuleGeometry(0.063, 0.22, 3, 8), skin, 0, -0.44, 0.025);
+    sphere(arm, skin, 0, -0.6, 0.035, [0.073, 0.1, 0.07]);
+    const leg = new T.Group(); leg.position.set(side * 0.14, 0.87, 0); body.add(leg); legs.push(leg);
+    part(leg, new T.CapsuleGeometry(0.105, 0.25, 3, 8), '#344c50', 0, -0.18, 0);
+    const knee = new T.Group(); knee.position.y = -0.4; leg.add(knee); knees.push(knee);
+    part(knee, new T.CapsuleGeometry(0.087, 0.23, 3, 8), '#344c50', 0, -0.15, 0);
+    sphere(knee, '#f3ebdc', 0, -0.35, 0.06, [0.115, 0.085, 0.19]);
+    part(knee, new T.BoxGeometry(0.22, 0.04, 0.33), '#c8c6b7', 0, -0.4, 0.05);
+  }
+  const shadow = part(avatar, new T.CircleGeometry(0.55, 24), '#3f5953', 0, 0.025, 0);
+  shadow.material = new T.MeshBasicMaterial({ color: '#3f5953', transparent: true, opacity: 0.2, depthWrite: false });
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.025;
-  avatar.add(shadow);
   return {
     group: avatar,
-    setOutfit(color) {
-      jacket.material.color.set(color);
-      arms.forEach((arm) => arm.material.color.set(color));
-    },
+    setOutfit(color) { jacket.material.color.set(color); },
     animate(time, moving) {
-      legs.forEach(
-        (l, i) =>
-          (l.rotation.x = moving ? Math.sin(time * 10 + i * Math.PI) * 0.55 : 0)
-      );
-      arms.forEach(
-        (l, i) =>
-          (l.rotation.x = moving ? -Math.sin(time * 10 + i * Math.PI) * 0.4 : 0)
-      );
+      body.position.y = moving ? Math.abs(Math.sin(time * 9)) * 0.035 : Math.sin(time * 2) * 0.008;
+      legs.forEach((leg, i) => {
+        const phase = time * 9 + i * Math.PI;
+        leg.rotation.x = moving ? Math.sin(phase) * 0.55 : 0;
+        knees[i].rotation.x = moving ? Math.max(0, -Math.sin(phase)) * 0.65 : 0;
+        arms[i].rotation.x = moving ? -Math.sin(phase) * 0.42 : 0;
+        arms[i].rotation.z = (i === 0 ? 1 : -1) * 0.08;
+      });
     },
   };
 }
